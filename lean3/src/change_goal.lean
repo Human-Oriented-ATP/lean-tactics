@@ -32,3 +32,25 @@ begin
   rewrite_using_theorem `nat.add_one,
   trivial
 end
+
+--------------------  TACTIC: TRY BOTH -------------------- 
+meta def use_theorem (thm_name : name) : tactic unit := do {
+  -- apply the theorem, and if that fails, rewrite it
+  apply_theorem thm_name <|> rewrite_using_theorem thm_name
+}
+
+example : 3* (2 * 7) = 3*(7 + 7):=
+begin
+  -- in interactive mode
+  -- apply two_mul,
+  -- rw two_mul,
+
+  -- using tactics
+  -- apply_theorem `two_mul,
+  -- rewrite_using_theorem `two_mul,
+  -- trivial
+
+  use_theorem `two_mul,
+  trivial
+
+end
