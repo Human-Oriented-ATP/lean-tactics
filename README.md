@@ -9,9 +9,16 @@
 6. Open a file (e.g. `lean3/src/change_goal.lean`) in Visual Studio Code to try out examples.
 
 ## Tactics written so far in Lean 3
+
+Reasoning tactics:
+- `mp`.  Applies modus ponens, adding the resulting statement to the hypothesis. 
 - `use_theorem`.  Applies the given theorem to the current goal.  If the conclusion of the theorem matches our goal, then applies the theorem.  Otherwise, if the theorem is an iff or equality, rewrites the goal using the theorem.  Otherwise, fails.
 
-There are also some debugging-specific tactics like:
+Library-retrieval tactics:
+- `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 
+- `get_thm_decl`, `get_thm_statement`, `get_thm_proof`.  Gets theorems by name.
+
+Debugging-specific tactics:
 - `print_expr_type`.  Given a Lean expression, says whether it is a variable, constant, lambda expression, function application, etc.
 
 ## Tactics written so far in Lean 4
