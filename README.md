@@ -13,8 +13,11 @@
 Reasoning tactics:
 - `mp`.  Applies modus ponens, adding the resulting statement to the hypothesis. 
 - `use_theorem`.  Applies the given theorem to the current goal.  If the conclusion of the theorem matches our goal, then applies the theorem.  Otherwise, if the theorem is an iff or equality, rewrites the goal using the theorem.  Otherwise, fails.
-- `has_forall_quantifier`, `has_exists_quantifier`.  Checks if a given expression begins with the specified quantifier.
-- `contains_constant`.  Checks if a given expression contains a particular constant (e.g. “degree” or “5”).
+- `begins_with_forall_quantifier`, `begins_with_exists_quantifier`.  Checks if a given expression begins with the specified quantifier.
+- `contains_constant`.  Checks if a given expression contains a particular constant (e.g. “degree” or “5”).  Useful for syntax-matching.
+- `collect_subexprs`.  Recursively breaks up an expression into all of its subexpressions.  Useful for syntax-matching.
+- `collect_nat_subexprs`.  Recursively breaks up an expression into all of its subexpressions.  Useful for syntax-matching on terms that can be compared with inequalities.
+- `without_quantifiers`. Recursively peels all quantifiers from an expression.  Useful for quotienting.
 
 Library-retrieval tactics:
 - `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 

@@ -42,13 +42,16 @@ do {
 
 --------------------  TACTIC: CHECK IF AN EXPRESSION BEGINS WITH A QUANTIFIER  -------------------- 
 
-meta def begins_with_forall_quantifier (e : expr) : bool := do {
+meta def begins_with_forall_quantifier (e : expr) : bool :=
   if (e.is_pi) then tt else ff
-}
 
-meta def begins_with_exists_quantifier (e : expr) : bool := do {
+meta def begins_with_exists_quantifier (e : expr) : bool :=
   if (e.is_app_of `Exists) then tt else ff
-}
+
+
+meta def begins_with_quantifier (e : expr) : bool :=
+  if begins_with_forall_quantifier e || begins_with_exists_quantifier e then tt else ff
+
 
 #eval (get_thm_statement `forall_exists_greater) >>= λ e, return (begins_with_forall_quantifier e) >>= trace --tt
 #eval (get_thm_statement `exists_one) >>= λ e, return (begins_with_forall_quantifier e) >>= trace -- ff
