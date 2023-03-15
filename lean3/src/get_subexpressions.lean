@@ -1,6 +1,6 @@
-import graph_theory
 import get_theorems
 import check_expressions
+import testbed.graph_theory
 
 import tactic
 open simple_graph expr tactic
@@ -111,3 +111,41 @@ meta def without_quantifiers : expr → tactic expr := λ e, do {
 #eval (get_thm_statement `degree_sum) >>= trace -- a "for all"
 #eval (get_thm_statement `degree_sum) >>= without_quantifiers >>= trace -- a "for all"
 
+--------------------  TACTIC: PRINT MATCHING THEOREMS WITH CONST -------------------- 
+
+meta def get_all_theorems_with_const (const_name : name) : tactic (list name) :=
+do {
+  thm_decls ← get_thm_decls_env,
+  theorems_with ←  thm_decls.mfilter (λd,  contains_const d.type const_name),
+  return (theorems_with.map declaration.to_name)
+}
+
+-- slow to run, since it searches through all theorems in environment
+-- #eval get_all_theorems_with_const ``edge_finset >>= trace -- [edge_bound, degree_sum, more from simple_graph]
+-- #eval get_all_theorems_with_const ``degree >>= trace -- [degree_sum_even, degree_sum, degree_bound, more from simple_graph]
+
+-- --------------------  TACTIC: CHECK IF AN EXPRESSION CONTAINS A PARTICULAR SUBEXPRESSION  -------------------- 
+
+-- meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
+-- do {
+--   subexprs_in_e ← collect_subexprs e,
+--   --trace subexprs_in_e,
+--   --trace subexpr,
+--   if (subexpr ∈ subexprs_in_e) then return tt else return ff
+-- }
+-- #eval (get_thm_statement `edge_bound) >>= trace
+-- #eval to_expr ``(degree) >>= trace
+
+-- #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
+-- #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
+
+-- -- --------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
+
+-- meta def get_all_theorems_with_subexpr (e : expr) : tactic (list name) :=
+-- do {
+--   thm_decls ← get_thm_decls_env,
+--   theorems_with ←  thm_decls.mfilter (λd,  contains_subexpr d.type e),
+--   return (theorems_with.map declaration.to_name)
+-- }
+
+-- #eval to_expr ``(edge_finset) >>= get_all_theorems_with_subexpr  >>= trace -- [degree_sum_even, degree_sum, degree_bound]

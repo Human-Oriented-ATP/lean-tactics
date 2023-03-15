@@ -22,6 +22,7 @@ Reasoning tactics:
 Library-retrieval tactics:
 - `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 
 - `get_thm_decl`, `get_thm_statement`, `get_thm_proof`.  Gets theorems by name.
+- `get_all_theorems_with_const`.  Gets theorem that contain a specific constant e.g. “degree” or “5.”
 
 Debugging-specific tactics:
 - `print_expr_type`.  Given a Lean expression, says whether it is a variable, constant, lambda expression, function application, etc.
