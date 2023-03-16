@@ -1,2 +1,7 @@
+# Lean3
 **/.DS_Store
 **/_target
+
+#Lean4
+lean4/build
+lean4/lake-packages/*
