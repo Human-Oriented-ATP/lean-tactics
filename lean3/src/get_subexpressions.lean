@@ -6,6 +6,7 @@ import tactic
 open simple_graph expr tactic
 
 set_option pp.implicit true
+set_option pp.instantiate_mvars false
 
 --------------------  FABIAN'S TACTIC: COLLECT ALL SUBEXPRESSIONS OF AN EXPRESSION -------------------- 
 
@@ -124,20 +125,61 @@ do {
 -- #eval get_all_theorems_with_const ``edge_finset >>= trace -- [edge_bound, degree_sum, more from simple_graph]
 -- #eval get_all_theorems_with_const ``degree >>= trace -- [degree_sum_even, degree_sum, degree_bound, more from simple_graph]
 
+-- --------------------  TACTIC: CHECK EQUALITY OF SUBEXPRESSIONS UP TO LOCAL CONSTANTS  -------------------- 
+
+-- if two expressions are equal (except just instantiated with different variables or local constants)
+-- e.g. one used (G : simple_graph) initialized one place, and another initialized it in another file
+-- then for our purposes, they are equal
+meta def eq_up_to_local_consts : expr → expr → tactic bool := λ e1 e2,
+match e1, e2 with
+
+| expr.var _, expr.var _ := pure tt
+
+| expr.sort _, expr.sort _ := pure tt
+
+| expr.const nm1 lvls1, expr.const nm2 lvls2 :=
+  if nm1 = nm2 ∧ lvls1 = lvls2 then pure tt else pure ff
+
+| expr.app f1 a1, expr.app f2 a2 := do
+  b1 ← eq_up_to_local_consts f1 f2,
+  b2 ← eq_up_to_local_consts a1 a2,
+  pure $ b1 ∧ b2
+
+| expr.lam n1 bi1 tp1 bd1, expr.lam n2 bi2 tp2 bd2 :=
+  do b1 ← eq_up_to_local_consts tp1 tp2,
+     b2 ← eq_up_to_local_consts bd1 bd2,
+     pure $ b1 ∧ b2
+
+| expr.local_const n1 _ _ _, expr.local_const n2 _ _ _ := pure tt
+
+| _,_ := pure ff
+end
 -- --------------------  TACTIC: CHECK IF AN EXPRESSION CONTAINS A PARTICULAR SUBEXPRESSION  -------------------- 
 
--- meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
--- do {
---   subexprs_in_e ← collect_subexprs e,
---   --trace subexprs_in_e,
---   --trace subexpr,
---   if (subexpr ∈ subexprs_in_e) then return tt else return ff
--- }
--- #eval (get_thm_statement `edge_bound) >>= trace
--- #eval to_expr ``(degree) >>= trace
+meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
+do {
+  subexprs_in_e ← collect_subexprs e,
+  if (subexpr ∈ subexprs_in_e) then return tt else return ff
+}
 
--- #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
--- #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
+meta def contains_nat_subexpr (e : expr) (subexpr : expr) : tactic bool := 
+do {
+  subexprs_in_e ← collect_nat_subexprs e,
+  subexprs_in_e.mmap $ λ subexpr_in_e, do {
+    trace subexpr_in_e,
+    trace e,
+    eq_up_to_local_consts subexpr_in_e subexpr >>= trace,
+    trace ""
+  },
+  if (subexpr ∈ subexprs_in_e) then return tt else return ff
+}
+
+#eval (get_thm_statement `edge_bound) >>= trace
+#eval to_expr ``(degree) >>= trace
+
+  
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
 
 -- -- --------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
 
