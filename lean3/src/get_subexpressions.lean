@@ -135,12 +135,16 @@ match e1, e2 with
 
 | expr.var _, expr.var _ := pure tt
 
+| _, expr.mvar _ _ _ := pure tt
+
+| expr.mvar _ _ _, _ := pure tt
+
 | expr.local_const n1 _ _ _, expr.local_const n2 _ _ _ := pure tt
 
 | expr.sort _, expr.sort _ := pure tt
 
 | expr.const nm1 lvls1, expr.const nm2 lvls2 :=
-  if nm1 = nm2 ∧ lvls1 = lvls2 then pure tt else pure ff
+  if nm1 = nm2 then pure tt else pure ff
 
 | expr.app f1 a1, expr.app f2 a2 := do
   b1 ← eq_ignoring_locals f1 f2,
@@ -152,15 +156,26 @@ match e1, e2 with
      b2 ← eq_ignoring_locals bd1 bd2,
      pure $ b1 ∧ b2
 
-| _,_ := pure ff
+| _,_ := pure ff--do { trace "fails here", trace a, trace b,pure ff}
 end
 -- --------------------  TACTIC: CHECK IF AN EXPRESSION CONTAINS A PARTICULAR SUBEXPRESSION  -------------------- 
 
--- meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
--- do {
---   subexprs_in_e ← collect_subexprs e,
---   if (subexpr ∈ subexprs_in_e) then return tt else return ff
--- }
+meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
+do {
+  subexprs_in_e ← collect_subexprs e,
+  do {
+  subexprs_in_e.mfirst $ λ subexpr_in_e, do {
+    trace subexpr_in_e,
+    trace "----",
+    -- trace subexpr,
+    eq ← eq_ignoring_locals subexpr_in_e subexpr,
+    trace "=============================",
+    guard eq -- cause the tactic to fail if the expressions aren't equal
+  }, 
+  return tt -- if you successfully completed the mfirst loop without failure, it's true
+  }
+  <|> return ff -- otherwise, it's false
+}
 
 meta def contains_nat_subexpr (e : expr) (subexpr : expr) : tactic bool := 
 do {
@@ -168,7 +183,7 @@ do {
   do {
   subexprs_in_e.mfirst $ λ subexpr_in_e, do {
     trace subexpr_in_e,
-    trace e,
+    trace subexpr,
     trace "",
     eq ← eq_ignoring_locals subexpr_in_e subexpr,
     guard eq -- cause the tactic to fail if the expressions aren't equal
@@ -178,8 +193,8 @@ do {
   <|> return ff -- otherwise, it's false
 }
   
-#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_nat_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
-#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_nat_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
 
 -- -- --------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
 

@@ -53,14 +53,9 @@ do {
   rexp ← collect_nat_subexprs rhs,
 
   let le := lexp.head,
-  -- trace le, 
-  -- trace " ",
 
   thm ← get_thm_statement `degree_sum,
   -- thm ← get_thm_statement `degree_bound,
-
-  -- trace thm, 
-  -- trace " ",
 
   torf ← contains_nat_subexpr thm le,
   trace torf,
