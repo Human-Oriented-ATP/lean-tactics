@@ -10,9 +10,11 @@
 
 ## Tactics written so far in Lean 3
 
-Reasoning tactics:
+High-level reasoning tactics:
 - `mp`.  Applies modus ponens, adding the resulting statement to the hypothesis. 
 - `use_theorem`.  Applies the given theorem to the current goal.  If the conclusion of the theorem matches our goal, then applies the theorem.  Otherwise, if the theorem is an iff or equality, rewrites the goal using the theorem.  Otherwise, fails.
+
+Low-level reasoning tactics:
 - `begins_with_forall_quantifier`, `begins_with_exists_quantifier`.  Checks if a given expression begins with the specified quantifier.
 - `without_quantifiers`. Recursively peels all quantifiers from an expression.  Useful for quotienting.
 - `contains_constant`.  Checks if a given expression contains a particular constant (e.g. “degree” or “5”).  Useful for syntax-matching.
@@ -24,11 +26,12 @@ Library-retrieval tactics:
 - `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 
 - `get_thm_decl`, `get_thm_statement`, `get_thm_proof`.  Gets theorems by name.
 - `get_all_theorems_with_const`.  Gets theorem that contain a specific constant e.g. “degree” or “5.”
+- `get_all_theorems_with_subexpr`.  Gets all theorems that contain a specific subexpression e.g. `|V| choose 2`.
 
-Debugging-specific tactics:
+Debugging tactics:
 - `print_expr_type`.  Given a Lean expression, says whether it is a variable, constant, lambda expression, function application, etc.
 
 ## Tactics written so far in Lean 4
-\- 
+- 
 
 [1]:	https://leanprover.github.io/download/

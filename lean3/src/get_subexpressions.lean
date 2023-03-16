@@ -193,13 +193,21 @@ do {
 #eval (get_thm_statement `edge_bound) >>= λ e, contains_nat_subexpr e `(2) >>= trace -- tt. does the edge_bound statement contain 2?
 #eval (get_thm_statement `degree_bound) >>= λ e, contains_nat_subexpr e `(2) >>= trace -- ff. does the degree_bound statement contain 2?
 
--- -- --------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
+--------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
 
--- meta def get_all_theorems_with_subexpr (e : expr) : tactic (list name) :=
--- do {
---   thm_decls ← get_thm_decls_env,
---   theorems_with ←  thm_decls.mfilter (λd,  contains_subexpr d.type e),
---   return (theorems_with.map declaration.to_name)
--- }
+meta def get_all_theorems_with_subexpr (e : expr) : tactic (list name) :=
+do {
+  thm_decls ← get_thm_decls_env,
+  theorems_with ←  thm_decls.mfilter (λd,  contains_subexpr d.type e),
+  return (theorems_with.map declaration.to_name)
+}
 
--- #eval to_expr ``(edge_finset) >>= get_all_theorems_with_subexpr  >>= trace -- [degree_sum_even, degree_sum, degree_bound]
+meta def get_all_theorems_with_subexpr_in_subject (subject : name) (e : expr) : tactic (list name) :=
+do {
+  thm_decls ← get_thm_decls subject,
+  theorems_with ←  thm_decls.mfilter (λd,  contains_subexpr d.type e),
+  return (theorems_with.map declaration.to_name)
+}
+
+#eval to_expr ``(degree) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [degree_sum_even, degree_sum, degree_bound]
+#eval to_expr ``(edge_finset) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [edge_bound, degree_sum]
