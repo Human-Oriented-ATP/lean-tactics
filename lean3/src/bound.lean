@@ -57,11 +57,13 @@ do {
   -- trace " ",
 
   thm ← get_thm_statement `degree_sum,
+  -- thm ← get_thm_statement `degree_bound,
+
   -- trace thm, 
   -- trace " ",
 
   torf ← contains_nat_subexpr thm le,
-  -- trace torf,
+  trace torf,
 
 
   -- loop thorugh all naturals in left side (call them le)

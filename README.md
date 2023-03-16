@@ -18,6 +18,7 @@ Reasoning tactics:
 - `collect_subexprs`.  Recursively breaks up an expression into all of its subexpressions.  Useful for syntax-matching.
 - `collect_nat_subexprs`.  Recursively breaks up an expression into all of its subexpressions.  Useful for syntax-matching on terms that can be compared with inequalities.
 - `without_quantifiers`. Recursively peels all quantifiers from an expression.  Useful for quotienting.
+- `eq_ignoring_locals`. Checks if two expressions are equal, ignoring “holes” filled with local constants or variables.  Useful for syntax-matching.
 
 Library-retrieval tactics:
 - `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 

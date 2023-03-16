@@ -130,10 +130,12 @@ do {
 -- if two expressions are equal (except just instantiated with different variables or local constants)
 -- e.g. one used (G : simple_graph) initialized one place, and another initialized it in another file
 -- then for our purposes, they are equal
-meta def eq_up_to_local_consts : expr → expr → tactic bool := λ e1 e2,
+meta def eq_ignoring_locals : expr → expr → tactic bool := λ e1 e2,
 match e1, e2 with
 
 | expr.var _, expr.var _ := pure tt
+
+| expr.local_const n1 _ _ _, expr.local_const n2 _ _ _ := pure tt
 
 | expr.sort _, expr.sort _ := pure tt
 
@@ -141,45 +143,43 @@ match e1, e2 with
   if nm1 = nm2 ∧ lvls1 = lvls2 then pure tt else pure ff
 
 | expr.app f1 a1, expr.app f2 a2 := do
-  b1 ← eq_up_to_local_consts f1 f2,
-  b2 ← eq_up_to_local_consts a1 a2,
+  b1 ← eq_ignoring_locals f1 f2,
+  b2 ← eq_ignoring_locals a1 a2,
   pure $ b1 ∧ b2
 
 | expr.lam n1 bi1 tp1 bd1, expr.lam n2 bi2 tp2 bd2 :=
-  do b1 ← eq_up_to_local_consts tp1 tp2,
-     b2 ← eq_up_to_local_consts bd1 bd2,
+  do b1 ← eq_ignoring_locals tp1 tp2,
+     b2 ← eq_ignoring_locals bd1 bd2,
      pure $ b1 ∧ b2
-
-| expr.local_const n1 _ _ _, expr.local_const n2 _ _ _ := pure tt
 
 | _,_ := pure ff
 end
 -- --------------------  TACTIC: CHECK IF AN EXPRESSION CONTAINS A PARTICULAR SUBEXPRESSION  -------------------- 
 
-meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
-do {
-  subexprs_in_e ← collect_subexprs e,
-  if (subexpr ∈ subexprs_in_e) then return tt else return ff
-}
+-- meta def contains_subexpr (e : expr) (subexpr : expr) : tactic bool := 
+-- do {
+--   subexprs_in_e ← collect_subexprs e,
+--   if (subexpr ∈ subexprs_in_e) then return tt else return ff
+-- }
 
 meta def contains_nat_subexpr (e : expr) (subexpr : expr) : tactic bool := 
 do {
   subexprs_in_e ← collect_nat_subexprs e,
-  subexprs_in_e.mmap $ λ subexpr_in_e, do {
+  do {
+  subexprs_in_e.mfirst $ λ subexpr_in_e, do {
     trace subexpr_in_e,
     trace e,
-    eq_up_to_local_consts subexpr_in_e subexpr >>= trace,
-    trace ""
-  },
-  if (subexpr ∈ subexprs_in_e) then return tt else return ff
+    trace "",
+    eq ← eq_ignoring_locals subexpr_in_e subexpr,
+    guard eq -- cause the tactic to fail if the expressions aren't equal
+  }, 
+  return tt -- if you successfully completed the mfirst loop without failure, it's true
+  }
+  <|> return ff -- otherwise, it's false
 }
-
-#eval (get_thm_statement `edge_bound) >>= trace
-#eval to_expr ``(degree) >>= trace
-
   
-#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
-#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_nat_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
+#eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_nat_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
 
 -- -- --------------------  TACTIC: PRINT MATCHING THEOREMS WITH SUBEXPRESSION -------------------- 
 
