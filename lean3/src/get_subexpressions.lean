@@ -176,6 +176,10 @@ do {
 #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(edge_finset)  >>= contains_subexpr e) >>= trace -- tt. does the edge_bound statement contain edge_finset?
 #eval (get_thm_statement `edge_bound) >>= (λe, to_expr ``(degree)  >>= contains_subexpr e) >>= trace  -- ff. does the edge_bound statement contain degree?
 
+#eval (get_thm_statement `edge_bound) >>= (λe, (to_expr ``((@finset.univ _ _).card))  >>= contains_subexpr e) >>= trace  -- tt. does the edge_bound statement contain |V|?
+#eval (get_thm_statement `degree_sum) >>= (λe, (to_expr ``((@finset.univ _ _).card))  >>= contains_subexpr e) >>= trace  -- ff. does the degree_sum statement contain |V|?
+
+
 
 meta def contains_nat_subexpr (e : expr) (subexpr : expr) : tactic bool := 
 do {
