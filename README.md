@@ -1,12 +1,15 @@
 # Human-oriented tactics in Lean
 
-## Setup
+## Lean 3 Setup
 1. Download [Lean][1].
-2. Download this repository.
-3. Go into the `lean3` or `lean4` folder.
-4. Run `leanpkg configure` within that folder.  This will download mathlib.
-5. Run `leanproject get-mathlib-cache` within that folder.  This will make running Lean files much faster.
-6. Open a file (e.g. `lean3/src/change_goal.lean`) in Visual Studio Code to try out examples.
+2. Download VSCode and it’s Lean3 extension.
+3. Download [mathlib-tools][2] in order to have access to the `leanproject` command.
+4. `git clone` this repository.
+5. Open the `lean3` folder
+	- Run `leanpkg configure` within that folder.  This will download mathlib.
+	-  Run `leanproject get-mathlib-cache` within that folder.  This will make running Lean files much faster.
+6. Open the `lean3`  folder in VSCode (not the parent folder).   
+	- Open a file (e.g. `lean3/src/change_goal.lean`) in VSCode to try out examples.
 
 ## Tactics written so far in Lean 3
 
@@ -35,3 +38,4 @@ Debugging tactics:
 - 
 
 [1]:	https://leanprover.github.io/download/
+[2]:	https://github.com/leanprover-community/mathlib-tools
