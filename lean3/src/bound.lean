@@ -20,10 +20,9 @@ meta def is_upper_bound_on (e : expr) (subexpr : expr) : tactic bool :=
   -- pattern matching tells us it's an upper bound.  And "contains_subexpr" tells us it exists in the subexpr.
   match e with
   | `(%%left = %%right) := do {
-      -- lc ← (contains_subexpr left subexpr),
+      lc ← (contains_subexpr left subexpr),
       rc ← (contains_subexpr right subexpr),
-      return rc
-      -- return (lc || rc)
+      return (lc || rc)
     }
   | `(%%left ≤ _) := contains_subexpr left subexpr 
   | `(_ ≥ %%right) := contains_subexpr right subexpr 
