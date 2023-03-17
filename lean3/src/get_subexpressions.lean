@@ -141,6 +141,10 @@ match e1, e2 with
 
 | expr.local_const n1 _ _ _, expr.local_const n2 _ _ _ := pure tt
 
+| expr.local_const n1 _ _ _, expr.var _:= pure tt
+
+| expr.var _, expr.local_const n2 _ _ _ := pure tt
+
 | expr.sort _, expr.sort _ := pure tt
 
 | expr.const nm1 lvls1, expr.const nm2 lvls2 :=
@@ -156,7 +160,8 @@ match e1, e2 with
      b2 ← eq_ignoring_locals bd1 bd2,
      pure $ b1 ∧ b2
 
-| _,_ := pure ff--do { trace "fails here", trace a, trace b,pure ff}
+| _,_ := pure ff--
+-- | a,b := do { trace "fails here", trace a, trace b,pure ff}
 end
 -- --------------------  TACTIC: CHECK IF AN EXPRESSION CONTAINS A PARTICULAR SUBEXPRESSION  -------------------- 
 
@@ -165,7 +170,14 @@ do {
   subexprs_in_e ← collect_subexprs e,
   do {
   subexprs_in_e.mfirst $ λ subexpr_in_e, do {
+    -- trace subexpr_in_e,
+    -- trace subexpr_in_e.to_raw_fmt,
+    -- trace "-------",
+    -- trace subexpr,
+    -- trace subexpr.to_raw_fmt,
+    -- trace "-------",
     eq ← eq_ignoring_locals subexpr_in_e subexpr,
+    -- trace "==================",
     guard eq -- cause the tactic to fail if the expressions aren't equal
   }, 
   return tt -- if you successfully completed the mfirst loop without failure, it's true

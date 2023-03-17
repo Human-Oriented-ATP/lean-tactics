@@ -12,6 +12,8 @@ import combinatorics.simple_graph.partition -- bipartite graphs
 open_locale big_operators -- enable ∑ notation
 open simple_graph
 
+set_option pp.implicit true
+
 universes u
 variables {V : Type u}  
           --{G : simple_graph V}  -- the graph is simple
@@ -66,7 +68,7 @@ begin
 end 
 
 -- Graphs have at most (n choose 2) edges --
-@[graph_theory] 
+--@[graph_theory]  -- untagged so "hammer" can reason through it on its own
 theorem edge_bound (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
   ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
 begin 
