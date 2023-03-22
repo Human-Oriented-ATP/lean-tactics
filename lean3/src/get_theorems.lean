@@ -60,18 +60,3 @@ meta def get_thm_proof (n : name): tactic expr := do {
 --   return thm_proofs
 -- }
 
---------------------  TACTIC: ADD A THEOREM TO CURRENT HYPOTHESIS -------------------- 
-
-meta def add_theorem_to_hypothesis (n : name) : tactic expr := do {
-  d ← get_thm_decl n,
-  let statement := d.type, -- get theorem statement
-  let proof := d.value, -- get theorem proof
-
-  note n statement proof-- add to hypothesis 
-}
-
-example : true := 
-begin
-  add_theorem_to_hypothesis `degree_sum,
-  trivial
-end 
