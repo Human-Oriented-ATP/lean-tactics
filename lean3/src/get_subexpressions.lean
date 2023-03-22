@@ -21,7 +21,7 @@ meta def bind_var : expr → tactic (expr × expr)
 
 #eval tactic.trace( bind_var `(λ (x y : nat), x + y) ) -- returns this 2-tuple (x,         λ (y : ℕ), x + y)
 
-meta def collect_subexprs : expr →  tactic (list expr) 
+meta def collect_subexprs_rec : expr →  tactic (list expr) 
 --| e@(var _) := pure [] -- don't include metavariables, leave them as "holes"?
 -- | e@(sort _) := pure [e]
 | e@(app f x) := do 
@@ -31,21 +31,28 @@ meta def collect_subexprs : expr →  tactic (list expr)
     }
     -- otherwise, recurse
     else do {
-      subf ← collect_subexprs f, 
-      subx ← collect_subexprs x, 
+      subf ← collect_subexprs_rec f, 
+      subx ← collect_subexprs_rec x, 
       pure ([e] ++ subf ++ subx)  
     }
 | e@(lam n bi d body) := do
     (l, body) ← bind_var e, 
-    subd ← collect_subexprs d, 
-    subbody ← collect_subexprs body, 
+    subd ← collect_subexprs_rec d, 
+    subbody ← collect_subexprs_rec body, 
     pure ([e] ++ subd ++ subbody)  -- or pure ([e l] ++ subd ++ subbody)
 | e@(pi n bi d body) := do
     (l, body) ← bind_var e,
-    subd ← collect_subexprs d, 
-    subbody ← collect_subexprs body, 
+    subd ← collect_subexprs_rec d, 
+    subbody ← collect_subexprs_rec body, 
     pure ([e] ++ subd ++ subbody)  -- or pure ([e l] ++ subd ++ subbody)
 |   e := pure [e]
+
+meta def collect_subexprs : expr →  tactic (list expr)  :=
+  λe, do {
+    subexprs ← collect_subexprs_rec e,
+    return subexprs.dedup
+  }
+
 
 meta def main : expr → tactic unit :=
 λ e, collect_subexprs e >>= trace  
@@ -60,7 +67,6 @@ meta def main : expr → tactic unit :=
 meta def collect_nat_subexprs (e : expr) : tactic (list expr) :=
 do {
   subexprs ← collect_subexprs e,
-  let subexprs := subexprs.dedup,
   let nat_subexprs := subexprs.mfilter is_nat,
   nat_subexprs
   --tactic.trace nat_subexprs,
