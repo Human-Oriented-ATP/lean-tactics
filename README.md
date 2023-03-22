@@ -25,6 +25,7 @@ Low-level reasoning tactics:
 - `eq_ignoring_locals`. Checks if two expressions are equal, ignoring “holes” filled with local constants or variables.  Useful for syntax-matching.
 - `collect_subexprs` and `collect_nat_subexprs`.  Recursively breaks up an expression into all of its subexpressions.  Useful for syntax-matching (and `nat` version is useful for syntax-matching between terms that can be compared with inequalities).
 - `contains_subexpr` and `contains_nat_subexpr`.  Checks expressions for particular subexpressions.
+- `is_upper_bound_on` and `is_lower_bound_on`.  A theorem `is_upper_bound_on` an expression `e` when the theorem is an equality or inequality with an expression depending on `e` on the lesser side.  The name is a bit misleading, because if `e` is in the denominator, it actually gives a lower bound.  Analogous for `is_lower_bound_on`.
 - `add_theorem_to_hypothesis`.   Adds theorem by name.
 - `check_if_in_hypothesis`. Checks if theorem is already in hypothesis (potentially under a different name).
 
@@ -34,6 +35,7 @@ Library-retrieval tactics:
 - `get_all_theorems_with_const`.  Gets theorem that contain a specific constant e.g. “degree” or “5.”
 - `get_all_theorems_with_subexpr`.  Gets all theorems that contain a specific subexpression e.g. `|V| choose 2`.
 - `extract_to_expand_inequality`.   If the goal is an inequality A \< C, and there are two inequalities A \< B and B \< C in the library, add those inequalities to the hypothesis.
+- `get_upper_bounds_on` and `get_lower_bounds_on`.  Gets all theorems (equalities and inequalities) that provide the given bounds on the argument expression.
 
 Debugging tactics:
 - `print_expr_type`.  Given a Lean expression, says whether it is a variable, constant, lambda expression, function application, etc.

@@ -6,12 +6,14 @@ open simple_graph tactic
 
 --------------------  TACTIC: ADD A THEOREM TO CURRENT HYPOTHESIS -------------------- 
 
-meta def add_theorem_to_hypothesis (n : name) : tactic expr := do {
+meta def add_theorem_to_hypothesis (n : name) : tactic unit := do {
   d ← get_thm_decl n,
   let statement := d.type, -- get theorem statement
   let proof := d.value, -- get theorem proof
 
-  note n statement proof-- add to hypothesis 
+  note n statement proof,-- add to hypothesis
+
+  skip
 }
 
 example : true := 
@@ -23,7 +25,7 @@ end
 --------------------  TACTIC: CHECK IF THEOREM IS IN CURRENT HYPOTHESIS -------------------- 
 
 --checks if the theorem by name n is already in the hypothesis (potentially under a different name)
-meta def check_if_in_hypothesis (n : name) : tactic bool := do {
+meta def in_hypothesis (n : name) : tactic bool := do {
   hyps ← local_context,
   (hyps.mfirst $ λ h, do {
     h_name ← get_local h.local_pp_name,
@@ -36,9 +38,9 @@ meta def check_if_in_hypothesis (n : name) : tactic bool := do {
 
 example : true := 
 begin
-  check_if_in_hypothesis ``degree_sum >>= trace, -- ff
+  in_hypothesis ``degree_sum >>= trace, -- ff
   add_theorem_to_hypothesis `degree_sum,
-  check_if_in_hypothesis `degree_sum >>= trace, -- tt
-  check_if_in_hypothesis `degree_sum_even >>= trace, -- ff
+  in_hypothesis `degree_sum >>= trace, -- tt
+  in_hypothesis `degree_sum_even >>= trace, -- ff
   trivial
 end 
