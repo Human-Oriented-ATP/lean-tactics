@@ -16,7 +16,7 @@
 High-level reasoning tactics:
 - `mp`.  Applies modus ponens, adding the resulting statement to the hypothesis. 
 - `use_theorem`.  Applies the given theorem to the current goal.  If the conclusion of the theorem matches our goal, then applies the theorem.  Otherwise, if the theorem is an iff or equality, rewrites the goal using the theorem.  Otherwise, fails.
-- `expand_inequality`.  If the goal is an inequality A \< C, and there are two inequalities A \< B and B \< C in the hypothesis, try to apply transitivity.
+
 
 Low-level reasoning tactics:
 - `begins_with_forall_quantifier`, `begins_with_exists_quantifier`.  Checks if a given expression begins with the specified quantifier.

@@ -61,7 +61,7 @@ meta def get_thm_proof (n : name): tactic expr := do {
 -- }
 --------------------  TACTIC: GET THEOREMS THAT HAVE THE STRONGEST SYNTACTIC MATCH -------------------- 
 
-  -- add in theorem with strongest syntactic match that isn't already in the hypothesis
-  matching_theorems ← get_strongest_syntactic_match, 
-
--- }
+-- add in theorem with strongest syntactic match that isn't already in the hypothesis
+meta def get_strongest_syntactic_match : tactic name := do {
+  return `placeholder
+}
