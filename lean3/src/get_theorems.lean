@@ -59,4 +59,9 @@ meta def get_thm_proof (n : name): tactic expr := do {
 --   let thm_proofs := thm_decls.map (λd, d.value),
 --   return thm_proofs
 -- }
+--------------------  TACTIC: GET THEOREMS THAT HAVE THE STRONGEST SYNTACTIC MATCH -------------------- 
 
+  -- add in theorem with strongest syntactic match that isn't already in the hypothesis
+  matching_theorems ← get_strongest_syntactic_match, 
+
+-- }

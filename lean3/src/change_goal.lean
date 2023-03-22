@@ -33,6 +33,21 @@ begin
   trivial
 end
 
+--------------------  TACTIC: REWRITE THE GOAL USING A THEOREM -------------------- 
+
+meta def simp_goal : tactic unit := do {
+  simp_set ← simp_lemmas.mk_default, -- allow it to use the usual simplifying lemmas
+  thms_used ← simp_target simp_set, -- does the simp, and returns the names of the simplifying lemmas used
+  -- trace thms_used,
+  skip -- return tactic.unit
+}
+
+example : 1+3=nat.succ(2)+1:=
+begin
+  simp_goal,
+  triv
+end
+
 --------------------  TACTIC: TRY BOTH -------------------- 
 meta def use_theorem (thm_name : name) : tactic unit := do {
   -- apply the theorem, and if that fails, rewrite it
