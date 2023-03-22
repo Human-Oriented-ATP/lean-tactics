@@ -40,6 +40,12 @@ do {
 #eval trace (is_nat `(5.3 : ℝ)) -- ff for false
 #eval trace (is_nat `(tt)) -- ff for false
 
+
+--------------------  TACTIC: CHECK IF AN EXPRESSION CAN BE COMPARED WITH ≤ e.g. ℕ or ℝ  -------------------- 
+-- for all terms, find their types (e.g. ℕ)
+-- for all those types (e.g. ℕ), see if t.has_le (e.g. ℕ.has_le)
+-- todo
+
 --------------------  TACTIC: CHECK IF AN EXPRESSION BEGINS WITH A QUANTIFIER  -------------------- 
 
 meta def begins_with_forall_quantifier (e : expr) : bool :=
