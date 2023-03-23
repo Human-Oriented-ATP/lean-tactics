@@ -71,7 +71,8 @@ meta def get_lower_bounds_on (e : expr) : tactic (list name) := do {
 
 --------------------  TACTIC: IF GOAL IS A ≤ C, EXTRACT STATEMENTS OF FORM A ≤ B and B ≤ C -------------------- 
 
-meta def extract_to_expand_inequality : tactic unit :=
+-- returns the two inequalities that help you use transitivity to solve the goal
+meta def extract_to_expand_inequality : tactic (list name) :=
 do {
   `(%%lhs ≤ %%rhs) ← target,
 
@@ -84,23 +85,27 @@ do {
   -- make sure everything is in the numerator (so expr2 really is an upper bound when you have expr1 ≤ expr2)
 
   -- loop thorugh all naturals in left side (call them le)
-  -- and add statements that give upper bounds on them to the hypothesis
-  lexp.mmap $ λle, do { 
+  -- return the first theorem that gives an upper bound on one
+  h1 ← lexp.mfirst $ λle, do { 
     upper_bounds ← get_upper_bounds_on le,
-    upper_bounds.mmap $ λ n, do {
-      in_hyp ← in_hypothesis n,
-      if in_hyp then skip else add_theorem_to_hypothesis n
-    }
+    h1 ← upper_bounds.mfirst $ λ n, do {
+          in_hyp ← in_hypothesis n,
+          guard ¬in_hyp,
+          return n
+          },
+    return h1
   },
 
  -- loop thorugh all naturals in right side (call them re)
-  -- and add statements that give lower bounds on them to the hypothesis
-  rexp.mmap $ λre, do {
+  -- return the first theorem that gives a lower bound on one
+  h2 ← rexp.mfirst $ λre, do {
     lower_bounds ← get_lower_bounds_on re,
-    lower_bounds.mmap $ λ n, do {
-      in_hyp ← in_hypothesis n,
-      if in_hyp then skip else add_theorem_to_hypothesis n
-    }
+    h2 ← lower_bounds.mfirst $ λ n, do {
+          in_hyp ← in_hypothesis n,
+          guard ¬in_hyp,
+          return n
+        },
+    return h2
   },
 
   -- alternative to make things more efficient:
@@ -118,7 +123,7 @@ do {
   --   }
   -- } ,
 
-  skip
+  return [h1, h2]
 }
 
 --------------------  TACTIC: EXPAND INEQUALITY A ≤ C to A ≤ B and B ≤ C -------------------- 
@@ -128,9 +133,9 @@ do {
 -- variables {G : simple_graph V} [fintype V] [decidable_rel G.adj] [decidable_eq V]
 
 -- Graphs have at most (n choose 2) edges (the automated version) --
-theorem edge_bound_auto (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
+theorem edge_bound_test (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
   ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
 begin 
-  extract_to_expand_inequality,
+  extract_to_expand_inequality >>= trace,
   -- expand_inequality
 end

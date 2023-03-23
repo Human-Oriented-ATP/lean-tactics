@@ -16,6 +16,7 @@ end
 
 --------------------  TACTIC: REWRITE THE GOAL USING A THEOREM -------------------- 
 
+-- tries to rewrite using theorem.  if it fails to make progress, tactic fails.
 meta def rewrite_using_theorem (thm_name : name) : tactic unit := do {
   e ← get_env,
   --simp_set ← simp_lemmas.mk_default, -- allow it to use the usual simplifying lemmas

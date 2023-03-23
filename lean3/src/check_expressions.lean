@@ -75,3 +75,16 @@ do {
 
 #eval (get_thm_statement `degree_sum) >>= (λ e, contains_const e ``degree) >>= trace -- tt
 #eval (get_thm_statement `edge_bound) >>= (λ e, contains_const e ``degree) >>= trace -- ff
+
+--------------------  TACTIC: CHECK IF AN EXPRESSION IS AN INEQUALITY  -------------------- 
+meta def is_inequality (e : expr) :  bool := 
+match e with
+  | `(_ ≤  _) := tt
+  | `(_ ≥ _) := tt
+  | `(_ < _) := tt
+  | `(_ > _) := tt
+  | _        := ff
+end
+
+#eval is_inequality `(5+3)
+#eval is_inequality `(3≤5)
