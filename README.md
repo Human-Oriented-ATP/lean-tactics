@@ -16,7 +16,7 @@
 High-level reasoning tactics:
 - `mp`.  Applies modus ponens, adding the resulting statement to the hypothesis. 
 - `use_theorem`.  Applies the given theorem to the current goal.  If the conclusion of the theorem matches our goal, then applies the theorem.  Otherwise, if the theorem is an iff or equality, rewrites the goal using the theorem.  Otherwise, fails.
-
+- `get_strongest_syntactic_match`.  Returns name of theorem that most strongly matches the goal.  Right now, “strongest match” means “longest common substring”, but this can be updated to something more robust later.
 
 Low-level reasoning tactics:
 - `begins_with_forall_quantifier`, `begins_with_exists_quantifier`.  Checks if a given expression begins with the specified quantifier.

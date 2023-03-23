@@ -60,7 +60,7 @@ begin
 end
 
 -- Handshaking lemma : the sum of degrees is even --
-@[graph_theory] 
+--@[graph_theory]  -- untagged so "hammer" can reason through it on its own
 theorem degree_sum_even (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
   even (∑v,  G.degree v) :=
 begin
