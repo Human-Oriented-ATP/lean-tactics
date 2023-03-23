@@ -1,12 +1,14 @@
 import get_theorems 
 import change_goal
+import change_hypothesis
 import check_expressions
+import syntax_matching
 import testbed.graph_theory
 
 import tactic
 .
 
-set_option pp.implicit true
+--set_option pp.implicit true
 
 open_locale big_operators -- enable ∑ notation
 open simple_graph 
@@ -17,16 +19,24 @@ open lean.parser (ident)
 universes u
 variables {V : Type u} 
 
+
 --------------------  TACTICS: HAMMER HELPERS (reason, extract, expand) -------------------- 
 
 meta def reason : tactic unit := do {
-  simp_goal, -- simplify goal
+  -- simplify goal
+  simp_goal, 
   triv, -- try to close goal (using the proof "trivial: true" if the goal is true, or "refl" if the goal is an equality)
   trace "Successfully reasoned."
 }
 
 meta def extract_from_library : tactic unit := do {
-  rewrite_using_theorem `degree_sum,
+  -- add a nice theorem to the hypothesis
+  h ← get_strongest_syntactic_match, 
+  add_theorem_to_hypothesis h,
+
+  -- try to use it immediately if possible, but not necessary
+  use_theorem h,
+  
   trace "Successfully extracted from library."
 }
 
@@ -55,7 +65,7 @@ do {
 theorem degree_sum_even_auto (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
   even (∑v,  G.degree v) :=
 begin
-  --rw degree_sum, simp
+  --  without "hammer", the proof is: rw degree_sum, simp
   hammer,
 end 
 
