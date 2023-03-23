@@ -69,10 +69,27 @@ meta def get_lower_bounds_on (e : expr) : tactic (list name) := do {
 #eval (to_expr ``((@finset.univ _ _).card)) >>= get_lower_bounds_on >>= trace -- [degree_bound ]
 
 
+--------------------  TACTIC: IF GOAL IS A ≤ C, USE A STATEMENT OF FORM A ≤ B and B ≤ C -------------------- 
+meta def expand_inequality_using (n : name) : tactic unit := 
+do {
+  trace n,
+  skip
+
+} 
+
+-- variables {G : simple_graph V} [fintype V] [decidable_rel G.adj] [decidable_eq V]
+
+-- Graphs have at most (n choose 2) edges (the automated version) --
+theorem edge_bound_test (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
+  ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
+begin 
+  expand_inequality_using `degree_sum,
+end
+
 --------------------  TACTIC: IF GOAL IS A ≤ C, EXTRACT STATEMENTS OF FORM A ≤ B and B ≤ C -------------------- 
 
 -- returns the two inequalities that help you use transitivity to solve the goal
-meta def extract_to_expand_inequality : tactic (list name) :=
+meta def extract_to_expand_inequality : tactic (name × name)  :=
 do {
   `(%%lhs ≤ %%rhs) ← target,
 
@@ -123,19 +140,7 @@ do {
   --   }
   -- } ,
 
-  return [h1, h2]
+  return (h1, h2)
 }
 
---------------------  TACTIC: EXPAND INEQUALITY A ≤ C to A ≤ B and B ≤ C -------------------- 
 
-
-
--- variables {G : simple_graph V} [fintype V] [decidable_rel G.adj] [decidable_eq V]
-
--- Graphs have at most (n choose 2) edges (the automated version) --
-theorem edge_bound_test (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
-  ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
-begin 
-  extract_to_expand_inequality >>= trace,
-  -- expand_inequality
-end
