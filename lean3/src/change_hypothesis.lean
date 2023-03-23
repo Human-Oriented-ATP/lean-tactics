@@ -44,3 +44,24 @@ begin
   in_hypothesis `degree_sum_even >>= trace, -- ff
   trivial
 end 
+
+--------------------  TACTIC: GIVEN A LIST OF THEOREM NAMES, RETURN THE FIRST ONE THAT'S NOT IN THE HYPOTHESIS 
+
+meta def get_thm_not_in_hypothesis (l : list name) : tactic name := do {
+  -- return the first theorem in the list that's not already in the problem state
+  (l.mfirst $ λ n, do {
+    in_hyp ← in_hypothesis n,
+    guard ¬in_hyp,
+    return n
+  })
+  -- otherwise, all of them were already included
+  <|>  fail "All theorems in list are already in the hypothesis."
+}
+
+example : 1=1 := 
+begin
+  get_thm_not_in_hypothesis [`degree_sum, `degree_sum_even] >>= trace,
+  add_theorem_to_hypothesis `degree_sum,
+  add_theorem_to_hypothesis `degree_sum_even,
+  get_thm_not_in_hypothesis [`degree_sum, `degree_sum_even], -- should fail, because all theorems are in hypothesis
+end

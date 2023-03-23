@@ -1,5 +1,6 @@
 import testbed.graph_theory 
 import get_subexpressions
+import change_hypothesis
 
 import tactic
 open simple_graph tactic
@@ -26,7 +27,8 @@ meta def get_strongest_syntactic_match : tactic name := do {
   (sorted_subexprs.mfirst $ λsubexpr, do {
     thms ← (get_all_theorems_with_subexpr_in_subject `graph_theory subexpr),
     guard ¬thms.empty, -- cause the tactic to fail if no such theorems
-    return thms.head -- if you did find a theorem, return the first one
+    thm ← get_thm_not_in_hypothesis thms, 
+    return thm -- if you did find a theorem, return the first one
   })
   -- if no theorems matched, no match was found 
   <|>  fail "No syntactic match found"
