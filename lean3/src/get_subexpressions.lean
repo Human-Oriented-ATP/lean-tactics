@@ -2,7 +2,7 @@ import get_theorems
 import check_expressions
 import testbed.graph_theory
 
-import tactic
+import tactic tactic.interactive
 open simple_graph expr tactic
 
 set_option pp.implicit true
@@ -233,3 +233,23 @@ do {
 
 #eval to_expr ``(degree) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [degree_sum_even, degree_sum, degree_bound]
 #eval to_expr ``(edge_finset) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [edge_bound, degree_sum]
+
+--------------------  TACTIC: GET LARGEST COMMON SUBEXPRESSION BETWEEN TWO EXPRESSIONS -------------------- 
+
+meta def get_largest_common_expr (e1 : expr) (e2 : expr) : tactic expr := do {
+  -- get all subexpressions
+  e1_subexprs ← collect_subexprs e1,
+  e2_subexprs ← collect_subexprs e2,
+
+  -- find longest match
+  let e1_subexprs := e1_subexprs.qsort(λ a b, b.to_string.length < a.to_string.length),
+  trace e1_subexprs,
+  commonality ← e1_subexprs.mfirst $ λe1_subexpr, do {
+      guard (e1_subexpr ∈ e2_subexprs),
+      return e1_subexpr
+  },
+
+  return commonality
+}
+
+#eval get_largest_common_expr `((5+3)+1) `(1+(5+3)) >>= trace
