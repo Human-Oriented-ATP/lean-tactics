@@ -12,3 +12,7 @@ require mathlib from git
 lean_lib «Lean4» {
   -- add any library configuration options here
 }
+
+lean_lib Tidying {
+  -- add any library configuration options here
+}
