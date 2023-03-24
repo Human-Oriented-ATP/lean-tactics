@@ -28,6 +28,7 @@ Low-level reasoning tactics:
 - `is_upper_bound_on` and `is_lower_bound_on`.  A theorem `is_upper_bound_on` an expression `e` when the theorem is an equality or inequality with an expression depending on `e` on the lesser side.  The name is a bit misleading, because if `e` is in the denominator, it actually gives a lower bound.  Analogous for `is_lower_bound_on`.
 - `add_theorem_to_hypothesis`.   Adds theorem by name.
 - `in_hypothesis`. Checks if theorem is already in hypothesis (potentially under a different name).
+- `is_addition`.  Checks if an expression is of form `x+y`.  A slightly non-trivial task given how Lean stores expressions.
 
 Library-retrieval tactics:
 - `get_thm_decls`.  Gets all theorems accessible within the current context (with an option to restrict to all theorems relevant to a particular subject area e.g. graph theory). 
