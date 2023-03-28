@@ -2,12 +2,12 @@ import Lean
 
 open Lean Expr Meta Elab Tactic
 
--- Don't worry about this secret, it is used to test the import system
-def secret : Nat := 10
-
+/-- Tidying consists mostly of instantiating instances in the types
+of goals/hypotheses. For a single expression we use a custom reduce-/
 def tidyingReduce : Expr → MetaM Expr := fun e =>
   (withTransparency .instances (reduce (skipTypes := false) e))
 
+/-- Modifies a goal by tidying the type of the target -/
 def metaTidyGoal : MVarId -> MetaM (MVarId) :=
   fun originalGoal => do
     let originalType ← originalGoal.getType
@@ -16,6 +16,8 @@ def metaTidyGoal : MVarId -> MetaM (MVarId) :=
     originalGoal.assign newGoal
     return newGoal.mvarId!
 
+/-- Modifies all declarations (e.g. hypotheses) associated with a goal
+-/
 def metaTidyDeclarations : MVarId -> MetaM (MVarId) :=
   fun goal => do
     let mut goal' := goal
@@ -23,32 +25,27 @@ def metaTidyDeclarations : MVarId -> MetaM (MVarId) :=
       if decl.isImplementationDetail then
         continue
       let newType ← tidyingReduce decl.type
-      goal' ← goal'.changeLocalDecl decl.fvarId newType
-      -- goal' ← goal'.assert decl.userName newType decl.toExpr
-      -- (_, goal') ← goal'.intro1P
+      goal' ← goal'.replaceLocalDeclDefEq decl.fvarId newType
     return goal'
 
-elab "tidy_goal" : tactic => 
+/-- Tidy the target of the main goal -/
+elab "tidy_target" : tactic =>
   withMainContext do
     liftMetaTactic fun goal => do
       return [← metaTidyGoal goal]
 
-elab "trace_state" : tactic => do
-  let goal ← getMainGoal
-  IO.println "Current goal:"
-  IO.println (← goal.getType)
-  goal.withContext do
-    for decl in ← getLCtx do
-      IO.println s!"Hypothesis {decl.userName} of type {decl.type}"
-
-elab "tidy_everything" : tactic =>
+/-- Tidy the declarations of the main goal -/
+elab "tidy_declarations" : tactic =>
   withMainContext do
-    let goal ← getMainGoal 
-    goal.withContext do
-      liftMetaTactic fun originalGoal => do
-        return [← metaTidyDeclarations (← metaTidyGoal originalGoal)]
+    liftMetaTactic fun goal => do
+      return [← metaTidyDeclarations goal]
 
-#check LocalDecl.applyFVarSubst
-#check FVarSubst
-#check LocalContext
-#check MVarId.changeLocalDecl
+/-- Tidy the target and declarations of the main goal-/
+elab "tidy_all" : tactic =>
+  withMainContext do
+    liftMetaTactic fun goal => do
+      return [← metaTidyDeclarations (← metaTidyGoal goal)]
+
+/-- Tidies all targets and declarations everywhere -/
+elab "tidy_everything" : tactic => do
+  evalTactic (← `(tactic| all_goals tidy_all))

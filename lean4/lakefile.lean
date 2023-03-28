@@ -16,3 +16,7 @@ lean_lib «Lean4» {
 lean_lib Tidying {
   -- add any library configuration options here
 }
+
+lean_lib InfoDisplayTactics {
+  -- add any library configuration options here
+}
