@@ -1,15 +1,7 @@
-prelude
-import Init.Prelude
 import Lean
-import Init.Coe
-import Init.Data.List.BasicAux
-import Lean.Elab.Tactic
-import Lean.Elab.Tactic.Basic
 import Std
-import Lean.Syntax
 
 -- set_option pp.all true
-
 
 open Lean Lean.Meta Lean.Expr Lean.Elab.Tactic
 
