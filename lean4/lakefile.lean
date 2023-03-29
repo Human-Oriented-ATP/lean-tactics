@@ -17,6 +17,10 @@ lean_lib Tidying {
   -- add any library configuration options here
 }
 
+lean_lib Skolem {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
