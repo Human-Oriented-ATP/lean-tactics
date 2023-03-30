@@ -29,3 +29,8 @@ example : ∀ x : Nat, ∃ y : Nat, y > x := by
   root_skolemize_goal
   exists (λ x => x + 1)
   simp
+
+example (f : Nat → Nat) (hf : ∀ x : Nat , ∃ y : Nat, f y > x) :
+  ∃ g : Nat → Nat, ∀ x : Nat, (f ∘ g) x > x := by
+  root_skolemize_hypothesis hf
+  exact hf

@@ -8,7 +8,7 @@ def tidyingReduce : Expr → MetaM Expr := fun e =>
   (withTransparency .instances (reduce (skipTypes := false) e))
 
 /-- Modifies a goal by tidying the type of the target -/
-def metaTidyGoal : MVarId -> MetaM (MVarId) :=
+def metaTidyGoal : MVarId -> MetaM MVarId :=
   fun originalGoal => do
     let originalType ← originalGoal.getType
     let newType ← tidyingReduce originalType
@@ -18,7 +18,7 @@ def metaTidyGoal : MVarId -> MetaM (MVarId) :=
 
 /-- Modifies all declarations (e.g. hypotheses) associated with a goal
 -/
-def metaTidyDeclarations : MVarId -> MetaM (MVarId) :=
+def metaTidyDeclarations : MVarId -> MetaM MVarId :=
   fun goal => do
     let mut goal' := goal
     for decl in ← getLCtx do
