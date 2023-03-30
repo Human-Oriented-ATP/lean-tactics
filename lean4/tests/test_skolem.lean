@@ -12,7 +12,7 @@ example (f : Nat → Nat) (hf : ∀ x : Nat , ∃ y : Nat, f y > x) :
   skolemize_hypothesis hf
   exact hf
 
---advanced skolemization tests
+-- advanced skolemization tests
 example : ∀ x : Nat, ∀ y : Nat, ∃ z : Nat, z > x + y := by
   skolemize_all
   exists (λ x y => x + y + 1)
@@ -23,3 +23,9 @@ example {p : Prop} (hP : p) (f : Nat → Nat)
   ∃ g : Nat → Nat, ∀ x : Nat, (f ∘ g) x > x := by
   skolemize_everything
   exact (h' hP).right
+
+-- root skolemization tests
+example : ∀ x : Nat, ∃ y : Nat, y > x := by
+  root_skolemize_goal
+  exists (λ x => x + 1)
+  simp
