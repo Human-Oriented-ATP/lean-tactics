@@ -11,6 +11,20 @@
 6. Open the `lean3`  folder in VSCode (not the parent folder).
 	- Open a file (e.g. `lean3/src/change_goal.lean`) in VSCode to try out examples.
 
+## Lean 4 Setup
+1. Download VSCode.
+2. Install its Lean4 extension.
+4. `git clone` this repository.
+5. Open the `lean4` folder of that repository and run `lake update`. This will download mathlib4 which you will then find in the folder `lake-packages`.
+7. Test that your install of mathlib has worked. For example, you could create a file like this: 
+```
+import Mathlib.Data.Vector.Basic
+
+#check Vector
+```
+It might take a while for Lean4 to build Mathlib in the background, you should see an info text that tells you the file that is currently being built. 
+8. For more convenience, you can get the mathlib cache files as described in the readme of https://github.com/leanprover-community/mathlib4
+
 ## Tactics written so far in Lean 3
 
 High-level reasoning tactics:
