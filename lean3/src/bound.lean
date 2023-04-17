@@ -6,7 +6,7 @@ import change_hypothesis
 open simple_graph 
 open expr tactic
 
-set_option pp.implicit true
+-- set_option pp.implicit true
 
 universes u
 variables {V : Type u} 
@@ -69,23 +69,6 @@ meta def get_lower_bounds_on (e : expr) : tactic (list name) := do {
 #eval (to_expr ``((@finset.univ _ _).card)) >>= get_lower_bounds_on >>= trace -- [degree_bound ]
 
 
---------------------  TACTIC: IF GOAL IS A ≤ C, USE A STATEMENT OF FORM A ≤ B and B ≤ C -------------------- 
-meta def expand_inequality_using (n : name) : tactic unit := 
-do {
-  trace n,
-  skip
-
-} 
-
--- variables {G : simple_graph V} [fintype V] [decidable_rel G.adj] [decidable_eq V]
-
--- Graphs have at most (n choose 2) edges (the automated version) --
-theorem edge_bound_test (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
-  ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
-begin 
-  expand_inequality_using `degree_sum,
-end
-
 --------------------  TACTIC: IF GOAL IS A ≤ C, EXTRACT STATEMENTS OF FORM A ≤ B and B ≤ C -------------------- 
 
 -- returns the two inequalities that help you use transitivity to solve the goal
@@ -143,4 +126,36 @@ do {
   return (h1, h2)
 }
 
+
+
+--------------------  TACTIC: IF GOAL IS A ≤ C, USE A STATEMENT OF FORM A ≤ B and B ≤ C -------------------- 
+
+-- variables {G : simple_graph V} [fintype V] [decidable_rel G.adj] [decidable_eq V]
+
+-- Graphs have at most (n choose 2) edges (the automated version) --
+-- theorem edge_bound_test (G : simple_graph V) [fintype V] [decidable_rel G.adj] [decidable_eq V]: 
+--   ∣∣E[G]∣∣ ≤ ∣∣(V[G])∣∣.choose 2 :=
+-- begin 
+--     -- deg_sum, deg_bound ← extract_to_expand_inequality
+--   -- find the subexpression that matches between the goal and theorem
+--   -- isolate_subexpression, then
+--     -- if theorem is equality, rewrite using that subexpression
+--     -- if theorem is inequality, apply transitivity using that subexpression
+
+--   rewrite_using `degree_sum,
+--   rewrite_using `degree_bound,
+
+--   -- rw nat.choose_two_right, -- expand out "choose", since there is nothing else involving "choose" in hypotheses or library
+
+-- --   -- first isolate |E|, applying that it has something to do with degree
+-- --   replace ds : G.edge_finset.card = (∑v,  G.degree v) / 2 := by {rw ds, simp},
+-- --   rw ds, clear ds,-- rewrite the goal using that |E| 
+
+-- --  -- then apply that degree can be bounded by something to do with |V|
+-- --   replace db : ∀ (v : V), v ∈ (V[G]) → G.degree v ≤ ∣∣(V[G])∣∣ - 1 := by {intros v h, exact db v},
+-- --   have h := finset.sum_le_sum db, dsimp at h, rw finset.sum_const at h, -- apply this theorem to get a closer syntactic match to the goal
+-- --   apply nat.div_le_div_right, exact h, -- tidy to get a closer syntactic match to the goal
+
+
+-- end
 

@@ -91,20 +91,39 @@ end
 #eval is_inequality `(3≤5)
 
 --------------------  TACTIC: CHECK IF AN EXPRESSION IS AN INSTANCE OF ADDITION  -------------------- 
-meta def is_addition (e : expr) : tactic bool := do {
+-- meta def is_addition (e : expr) : tactic bool := do {
+--   match e with
+--   | e@(app (app f x) y):= do {
+--       let consts := f.list_constant.to_list,
+--       let add := `has_add.add,
+--       if (add ∈ consts) then return tt else return ff
+--   }
+--   | _ := return ff
+--   end
+-- }
+
+-- #eval is_addition `(3+5) >>= trace -- should be tt
+-- #eval is_addition `(35)  >>= trace -- should be ff
+-- #eval is_addition `(3-5) >>= trace -- should be ff
+-- #eval print_expr_type `(3+5)
+
+-- if it is, return the two summands
+-- if not, the tactic fails
+meta def is_addition (e : expr) : tactic (expr × expr)  := do {
   match e with
   | e@(app (app f x) y):= do {
       let consts := f.list_constant.to_list,
       let add := `has_add.add,
-      if (add ∈ consts) then return tt else return ff
+      if (add ∈ consts) then return (x,y) else failed
   }
-  | _ := return ff
+  | _ := failed
   end
 }
 
 
-#eval is_addition `(3+5) >>= trace -- should be tt
-#eval is_addition `(35)  >>= trace -- should be ff
-#eval is_addition `(3-5) >>= trace -- should be ff
-
+#eval is_addition `(3+5) >>= trace -- should return (3,5)
+#eval is_addition `(3+(5+7)) >>= trace -- should return (3,5+7)
+#eval is_addition `(35)  >>= trace -- should fail
+#eval is_addition `(3-5) >>= trace -- should fail
 #eval print_expr_type `(3+5)
+
