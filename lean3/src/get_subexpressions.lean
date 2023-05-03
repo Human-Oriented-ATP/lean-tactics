@@ -2,7 +2,7 @@ import get_theorems
 import check_expressions
 import testbed.graph_theory
 
-import tactic
+import tactic tactic.interactive
 open simple_graph expr tactic
 
 set_option pp.implicit true
@@ -233,3 +233,75 @@ do {
 
 #eval to_expr ``(degree) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [degree_sum_even, degree_sum, degree_bound]
 #eval to_expr ``(edge_finset) >>= get_all_theorems_with_subexpr_in_subject `graph_theory  >>= trace -- [edge_bound, degree_sum]
+
+--------------------  TACTIC: GET LARGEST COMMON SUBEXPRESSION BETWEEN TWO EXPRESSIONS -------------------- 
+
+meta def get_largest_common_expr (e1 : expr) (e2 : expr) : tactic expr := do {
+  -- get all subexpressions
+  e1_subexprs ← collect_subexprs e1,
+  e2_subexprs ← collect_subexprs e2,
+
+  -- find longest match
+  let e1_subexprs := e1_subexprs.qsort(λ a b, b.to_string.length < a.to_string.length),
+  trace e1_subexprs,
+  commonality ← e1_subexprs.mfirst $ λe1_subexpr, do {
+      guard (e1_subexpr ∈ e2_subexprs),
+      return e1_subexpr
+  },
+
+  return commonality
+}
+
+#eval get_largest_common_expr `((5+3)+1) `(1+(5+3)) >>= trace
+
+--------------------  TACTIC: GET SIDE OF EQUATION OR INEQUALITY INVOLVING A SUBEXPRESSION -------------------- 
+
+-- if a contains x, return a
+-- if b contains x, return b
+meta def get_expr_with (a: expr) (b: expr) (x: expr) : tactic expr :=
+do {
+  a_contains_x ← contains_subexpr a x,
+  b_contains_x ← contains_subexpr b x,
+  if a_contains_x then return a else if b_contains_x then return b else failed
+}
+
+meta def get_expr_without (a: expr) (b: expr) (x: expr) : tactic expr :=
+do {
+  a_contains_x ← contains_subexpr a x,
+  b_contains_x ← contains_subexpr b x,
+  if ¬a_contains_x then return a else if ¬b_contains_x then return b else failed
+}
+
+-- gets side of expression with x in e
+meta def get_side_of_expr_with (x : expr) (e : expr) : tactic expr :=
+do {
+  match e with
+  | `(%%a ≤ %%b)  := get_expr_with a b x
+  | `(%%a ≥ %%b)  := get_expr_with a b x
+  | `(%%a < %%b)  := get_expr_with a b x
+  | `(%%a > %%b)  := get_expr_with a b x
+  | `(%%a = %%b)  := get_expr_with a b x
+  | _             := failed
+  end
+}
+
+-- gets side of expression without x in e
+meta def get_side_of_expr_without (x : expr) (e : expr) : tactic expr :=
+do {
+  match e with
+  | `(%%a ≤ %%b)  := get_expr_without a b x
+  | `(%%a ≥ %%b)  := get_expr_without a b x
+  | `(%%a < %%b)  := get_expr_without a b x
+  | `(%%a > %%b)  := get_expr_without a b x
+  | `(%%a = %%b)  := get_expr_without a b x
+  | _             := failed
+  end
+}
+
+#eval get_side_of_expr_with `(4) `(4+3=7) >>= trace -- 4+3
+#eval get_side_of_expr_with `(7) `(4+3=7) >>= trace 
+
+#eval get_side_of_expr_without `(4) `(4+3=7) >>= trace -- 7
+#eval get_side_of_expr_without `(7) `(4+3=7) >>= trace -- 4+3
+
+
