@@ -81,7 +81,7 @@ lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by
 macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusive])
 
 example : P ∨ Q := by
-  makeOrExclusive
+  rw [makeOrExclusiveLemma]
 
 -- 9. disjunctionToImplication
 lemma disjunctionToImplicationLemma : P ∨ Q ↔ (¬ P → Q) := by
@@ -102,3 +102,11 @@ macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [disjunctionToImp
 
 example : P ∨ Q ↔ (¬ P → Q) := by
   rw [disjunctionToImplicationLemma] -- also works without rw
+
+-- 26. name
+macro "name" p:ident q:ident : tactic => `(tactic| have $q:ident := $p:ident)
+
+example (P : Prop) : P → P := by
+  intro hp
+  name hp q -- same as `have q := hp`
+  exact q
