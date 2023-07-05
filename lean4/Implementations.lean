@@ -3,15 +3,16 @@ import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
 
 -- 1. expand (version 1)
-macro "expand1" h:ident : tactic => `(tactic| unfold $h)
+macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
 def f (x: Nat) := x
 def g (x: Nat) := x + 2
 
 example (x : Nat) : f (g x) = x + 2 := by
-  expand1 g -- same as unfold g
-  expand1 f -- same as unfold f
-  rfl
+  expand1 f -- same as unfold g
+  expand1 g -- same as unfold f
+
+-- 2. expand (version 2) 
 
 -- 4. targetConjunctionSplit"
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
@@ -28,31 +29,24 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h -- same as `intro h`
   exact h
 
--- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have $hl := ($h).left; have $hr := ($h).right})
-macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have ⟨$hl, $hr⟩ := $h; exact ⟨$hr, $hl⟩})
--- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {cases $h with | intro $hl $hr => })
+-- 3. hypothesisConjunctionSplit
+macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| have ⟨$hl, $hr⟩ := $h)
 
--- prototype 
+-- before
 example (h : p ∧ q) : q ∧ p := by
-  have h1 := h.right
-  have h2 := h.left
-  exact ⟨h1, h2⟩
-  -- . exact And.right h
-  -- . exact And.left h
+  have hq := h.right
+  have hp := h.left
+  exact ⟨hq, hp⟩
 
+-- after
 example (h : p ∧ q) : q ∧ p := by
-  cases h with
-  | intro p q =>
-    exact ⟨q, p⟩
+  hypothesisConjunctionSplit h hp hq -- same as `have hq := h.right; have hp := h.left`
+  exact ⟨hq, hp⟩
 
-example (h : p ∧ q) : q ∧ p := by
-  hypothesisConjunctionSplit h hl hr
+-- 7. hypothesisDisjunctionSplit
+macro "hypothesisDisjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| cases' $h:ident with $hl:ident $hr:ident)
 
--- this seems to be the kind of tactic which needs the next move
--- the second macro doesn't work unless we supply the tactic a
--- macro "hypothesisDisjunctionSplit" h:ident : tactic => `(tactic| {apply Or.elim $h:ident})
-macro "hypothesisDisjunctionSplit" h:ident a:ident b:ident : tactic => `(tactic| cases' $h:ident with $a:ident $b:ident)
-
+-- before
 example (h : p ∨ q) : q ∨ p := by
   apply Or.elim h
   . intro hp 
@@ -60,10 +54,11 @@ example (h : p ∨ q) : q ∨ p := by
   . intro hq
     exact Or.inl hq
 
+-- after
 example (h : p ∨ q) : q ∨ p := by
-  hypothesisDisjunctionSplit h a b
-  . exact Or.inr a
-  . exact Or.inl b
+  hypothesisDisjunctionSplit h hp hq
+  . exact Or.inr hp
+  . exact Or.inl hq
 
 -- If the current target is `¬P`, then `P` is added to the list of hypotheses and the target is replaced by `False`
 macro "negateTarget" h:ident : tactic => `(tactic| intro $h:ident)
