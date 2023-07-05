@@ -109,10 +109,24 @@ macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_l
 example : P ∨ Q ↔ (¬ P → Q) := by
   rw [or_iff_not_imp_left] -- also works without rw
 
--- 26. name
+-- 16. name
 macro "name" p:ident q:ident : tactic => `(tactic| have $q:ident := $p:ident)
 
 example (P : Prop) : P → P := by
   intro hp
   name hp q -- same as `have q := hp`
   exact q
+
+-- 18. delete
+macro "delete" p:ident : tactic => `(tactic| clear $p:ident)
+
+example (P : Prop) : True := by
+  delete P -- same as `clear P`
+  trivial
+
+-- 20. combine
+macro "combine" pq:ident p:ident q:ident : tactic => `(tactic | have $pq:ident := And.intro $p:ident $q:ident)
+
+example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
+  combine pq p q -- same as have pq := And.intro p q
+  exact pq
