@@ -1,5 +1,6 @@
 import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
+import Mathlib.Logic.Basic
 
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
 
@@ -63,13 +64,22 @@ example (h : ¬ P) (hP: P) : False := by
   exact hP
 
 -- If `h : P → Q` is a hypothesis and the goal is `Q`, then replace the goal with `P`
-macro "backwardsReasoning" h:ident : tactic => `(tactic| apply $h <;> clear $h) 
+macro "backwardsReasoning" h:ident : tactic => `(tactic| apply $h <;> clear $h)
 
 example (h : P → Q) (hP : P) : Q := by 
   backwardsReasoning h
-  exact hP
+  exact hP  
 
+lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
+  apply iff_def.mpr ⟨_, _⟩
+  . rw[or_iff_not_imp_left]
+    exact Or.intro_right P
+  . intro h; cases' h with hP hPQ
+    . exact Or.inl hP
+    . exact Iff.mpr or_iff_not_imp_left hPQ
   
+macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusive])
 
-example : P ∨ Q ↔ P ∨ (¬ P → Q) := by sorry
-  
+example : P ∨ Q := by
+  makeOrExclusive
+
