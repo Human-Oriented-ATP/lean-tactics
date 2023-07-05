@@ -4,7 +4,15 @@ import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
 
 -- 1. expand (version 1)
--- macro "expand1" : tactic => `(tactic | {apply delta; apply})
+macro "expand1" h:ident : tactic => `(tactic| unfold $h)
+
+def f (x: Nat) := x
+def g (x: Nat) := x + 2
+
+example (x : Nat) : f (g x) = x + 2 := by
+  expand1 g -- same as unfold g
+  expand1 f -- same as unfold f
+  rfl
 
 -- 4. targetConjunctionSplit"
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
