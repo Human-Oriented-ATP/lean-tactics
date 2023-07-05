@@ -83,3 +83,22 @@ macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusive])
 example : P ∨ Q := by
   makeOrExclusive
 
+-- 9. disjunctionToImplication
+lemma disjunctionToImplicationLemma : P ∨ Q ↔ (¬ P → Q) := by
+  apply Iff.intro
+  . intro h
+    cases' h with hp hq
+    . intro nh; contradiction
+    . intro nh; exact hq
+  . intro h
+    apply Or.elim (em P)
+    . intro hp
+      apply Or.inl hp
+    . intro hnp
+      have hq := h hnp
+      apply Or.inr hq
+
+macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [disjunctionToImplicationLemma])
+
+example : P ∨ Q ↔ (¬ P → Q) := by
+  rw [disjunctionToImplicationLemma] -- also works without rw
