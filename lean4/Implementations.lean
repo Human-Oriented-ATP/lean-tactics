@@ -3,6 +3,7 @@ import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
 import Mathlib.Tactic.Set
+import Mathlib.Tactic.PermuteGoals
 
 -- 1. expand (version 1)
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
@@ -53,21 +54,26 @@ example (h : p ∧ q) : q ∧ p := by
   hypothesisConjunctionSplit h hl hr
 
 -- 7. hypothesisDisjunctionSplit
-macro "hypothesisDisjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| cases' $h:ident with $hl:ident $hr:ident)
+
+-- In order to clear the goal h, we need to replace h by a or b using rw
+macro "hypothesisDisjunctionSplit" h:ident a:ident b:ident : tactic => `(tactic| 
+  (refine Or.elim $h (λ $a ↦ ?_) (λ $b ↦ ?_);
+    (try rw [show $h = Or.inl $a from rfl] at *);
+    (try on_goal 2 => rw [show $h = Or.inr $b from rfl] at *))
+  <;> clear $h)
 
 -- before
 example (h : p ∨ q) : q ∨ p := by
-  apply Or.elim h
-  . intro hp 
-    exact Or.inr hp
-  . intro hq
-    exact Or.inl hq
+  hypothesisDisjunctionSplit h a b
+  . exact Or.inr a
+  . exact Or.inl b
 
--- after
-example (h : p ∨ q) : q ∨ p := by
-  hypothesisDisjunctionSplit h hp hq
-  . exact Or.inr hp
-  . exact Or.inl hq
+-- when other terms is the context depend on h, hypothesisDisjunctionSplit still works:
+example (h : p ∨ q) : Function.const  _ (q ∨ p) h := by
+  hypothesisDisjunctionSplit h a b
+  . exact Or.inr a
+  . exact Or.inl b
+
 
 -- If the current target is `¬P`, then `P` is added to the list of hypotheses and the target is replaced by `False`
 macro "negateTarget" h:ident : tactic => `(tactic| intro $h:ident)
@@ -146,5 +152,6 @@ macro "hypothesisImplicationSplit" h:ident P:term Q:term : tactic => `(tactic| (
 example {P Q : Nat → Prop} (h : ∀ x, P x → Q x) : True := by
   set Px : Prop := P _ with hP
   have hQ := h ?_ ?_
+  sorry
   sorry
   sorry
