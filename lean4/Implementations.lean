@@ -1,5 +1,6 @@
 import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
+import Mathlib.Tactic.PermuteGoals
 import Mathlib.Logic.Basic
 
 -- 1. expand (version 1)
@@ -40,19 +41,20 @@ example (h : p ∧ q) : q ∧ p := by
 example (h : p ∧ q) : q ∧ p := by
   hypothesisConjunctionSplit h hl hr
 
--- this seems to be the kind of tactic which needs the next move
--- the second macro doesn't work unless we supply the tactic a
--- macro "hypothesisDisjunctionSplit" h:ident : tactic => `(tactic| {apply Or.elim $h:ident})
-macro "hypothesisDisjunctionSplit" h:ident a:ident b:ident : tactic => `(tactic| cases' $h:ident with $a:ident $b:ident)
+-- In order to clear the goal h, we need to replace h by a or b using rw
+macro "hypothesisDisjunctionSplit" h:ident a:ident b:ident : tactic => `(tactic| 
+  (refine Or.elim $h (λ $a ↦ ?_) (λ $b ↦ ?_);
+    (try rw [show $h = Or.inl $a from rfl] at *);
+    (try on_goal 2 => rw [show $h = Or.inr $b from rfl] at *))
+  <;> clear $h)
 
 example (h : p ∨ q) : q ∨ p := by
-  apply Or.elim h
-  . intro hp 
-    exact Or.inr hp
-  . intro hq
-    exact Or.inl hq
+  hypothesisDisjunctionSplit h a b
+  . exact Or.inr a
+  . exact Or.inl b
 
-example (h : p ∨ q) : q ∨ p := by
+-- when other terms is the context depend on h, hypothesisDisjunctionSplit still works:
+example (h : p ∨ q) : Function.const  _ (q ∨ p) h := by
   hypothesisDisjunctionSplit h a b
   . exact Or.inr a
   . exact Or.inl b
