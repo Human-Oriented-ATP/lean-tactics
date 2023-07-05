@@ -2,6 +2,7 @@ import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
+import Mathlib.Tactic.Set
 
 -- 1. expand (version 1)
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
@@ -30,19 +31,26 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h -- same as `intro h`
   exact h
 
--- 3. hypothesisConjunctionSplit
-macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| have ⟨$hl, $hr⟩ := $h)
+-- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have $hl := ($h).left; have $hr := ($h).right})
+macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have ⟨$hl, $hr⟩ := $h; exact ⟨$hr, $hl⟩})
+-- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {cases $h with | intro $hl $hr => })
+
+-- prototype 
+example (h : p ∧ q) : q ∧ p := by
+  have h1 := h.right
+  have h2 := h.left
+  exact ⟨h1, h2⟩
+  -- . exact And.right h
+  -- . exact And.left h
 
 -- before
 example (h : p ∧ q) : q ∧ p := by
-  have hq := h.right
-  have hp := h.left
-  exact ⟨hq, hp⟩
+  cases h with
+  | intro p q =>
+    exact ⟨q, p⟩
 
--- after
 example (h : p ∧ q) : q ∧ p := by
-  hypothesisConjunctionSplit h hp hq -- same as `have hq := h.right; have hp := h.left`
-  exact ⟨hq, hp⟩
+  hypothesisConjunctionSplit h hl hr
 
 -- 7. hypothesisDisjunctionSplit
 macro "hypothesisDisjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| cases' $h:ident with $hl:ident $hr:ident)
@@ -130,3 +138,13 @@ macro "combine" pq:ident p:ident q:ident : tactic => `(tactic | have $pq:ident :
 example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
   combine pq p q -- same as have pq := And.intro p q
   exact pq
+
+macro "hypothesisImplicationSplit" h:ident P:term Q:term : tactic => `(tactic| (have hP: $P := ?_; have hQ : $Q := ($h : ident) hP))
+
+-- what we want the above macro to do (still a `TODO`)
+-- might have to match metavariables
+example {P Q : Nat → Prop} (h : ∀ x, P x → Q x) : True := by
+  set Px : Prop := P _ with hP
+  have hQ := h ?_ ?_
+  sorry
+  sorry
