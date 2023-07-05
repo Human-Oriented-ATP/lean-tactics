@@ -1,4 +1,5 @@
 import Mathlib.Tactic.Cases
+import Mathlib.Tactic.LibrarySearch
 
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
 
@@ -52,9 +53,23 @@ example (h : p ∨ q) : q ∨ p := by
   . exact Or.inl b
 
 -- If the current target is `¬P`, then `P` is added to the list of hypotheses and the target is replaced by `False`
-macro "negateTarget" h:ident : tactic => `(tactic| intro $h)
+macro "negateTarget" h:ident : tactic => `(tactic| intro $h:ident)
 
-example : ¬ P := by
-  negateTarget P
+-- If `h : ¬ P` is a hypothesis and the goal is `False`, then replace the goal with `P`
+macro "negateHypothesis" h:ident : tactic => `(tactic| apply $h <;> clear $h) 
+
+example (h : ¬ P) (hP: P) : False := by
+  negateHypothesis h
+  exact hP
+
+-- If `h : P → Q` is a hypothesis and the goal is `Q`, then replace the goal with `P`
+macro "backwardsReasoning" h:ident : tactic => `(tactic| apply $h <;> clear $h) 
+
+example (h : P → Q) (hP : P) : Q := by 
+  backwardsReasoning h
+  exact hP
+
   
 
+example : P ∨ Q ↔ P ∨ (¬ P → Q) := by sorry
+  
