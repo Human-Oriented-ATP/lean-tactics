@@ -2,6 +2,10 @@ import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
 
+-- 1. expand (version 1)
+-- macro "expand1" : tactic => `(tactic | {apply delta; apply})
+
+-- 4. targetConjunctionSplit"
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
 
 example (h : p ∧ q) : q ∧ p := by
@@ -9,8 +13,8 @@ example (h : p ∧ q) : q ∧ p := by
   . exact h.right
   . exact h.left
 
+-- 5. targetImplicationSplit
 macro "targetImplicationSplit" h:ident : tactic => `(tactic| intro $h:ident)
--- this macro requires the user to supply the name of the hypothesis
 
 example (p : Prop) : p → p := by
   targetImplicationSplit h -- same as `intro h`
@@ -80,7 +84,7 @@ lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by
   
 macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusive])
 
-example : P ∨ Q := by
+example : P ∨ Q ↔ P ∨ (¬ P → Q) := by
   rw [makeOrExclusiveLemma]
 
 -- 9. disjunctionToImplication
