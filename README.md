@@ -12,6 +12,7 @@
 	
 	#check Vector
 	```
+	Make sure the language of that VSCode file (in the bottom-right hand corner of VSCode) says `lean4` rather than `lean`. 
 	It might take a while for Lean4 to build Mathlib in the background, you should see an info text that tells you the file that is currently being built. 
 8. Download the Mathlib cache by running `lake exe cache get`.
 
