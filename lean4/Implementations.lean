@@ -1,6 +1,7 @@
 import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
+import Mathlib.Tactic.Replace
 
 -- 1. expand (version 1)
 -- macro "expand1" : tactic => `(tactic | {apply delta; apply})
@@ -8,7 +9,7 @@ import Mathlib.Logic.Basic
 -- 4. targetConjunctionSplit"
 macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
 
-example (h : p ∧ q) : q ∧ p := by
+example (h : p ∧ q) : q ∧ p := by      
   targetConjunctionSplit -- same as `apply And.intro`
   . exact h.right
   . exact h.left
@@ -68,11 +69,11 @@ example (h : ¬ P) (hP: P) : False := by
   exact hP
 
 -- If `h : P → Q` is a hypothesis and the goal is `Q`, then replace the goal with `P`
-macro "backwardsReasoning" h:ident : tactic => `(tactic| apply $h <;> clear $h)
+macro "backwardsReasoning" h:ident "[" x:term,* "]": tactic => `(tactic| (refine $h $x:term*; clear $h))
 
-example (h : P → Q) (hP : P) : Q := by 
-  backwardsReasoning h
-  exact hP  
+example (h : P₁ → P₂ → P₃ → Q) (hP₁ : P₁) (hP₂ : P₂) : Q := by 
+  backwardsReasoning h [hP₁, hP₂, ?_]
+  sorry
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
   apply iff_def.mpr ⟨_, _⟩
@@ -82,30 +83,28 @@ lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by
     . exact Or.inl hP
     . exact Iff.mpr or_iff_not_imp_left hPQ
   
-macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusive])
+-- make this also work on goals, currently only works on named hypotheses
+macro "makeOrExclusiveHyp" h:ident : tactic => `(tactic| rw [makeOrExclusiveLemma] at $h:ident)
 
-example : P ∨ Q ↔ P ∨ (¬ P → Q) := by
-  rw [makeOrExclusiveLemma]
+--temporarily two different macros for goals and hypotheses 
+macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusiveLemma])
+
+example (h : P ∨ Q) : P ∨ Q := by
+  makeOrExclusiveHyp h
+  makeOrExclusive
+  sorry
+
+macro "forwardsReasoning" h:ident "["x:ident,*"]" : tactic => `(tactic| replace $h:ident := $h:ident $x:ident *)
+
+example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
+  forwardsReasoning h [hP, hQ]
+  exact h
 
 -- 9. disjunctionToImplication
-lemma disjunctionToImplicationLemma : P ∨ Q ↔ (¬ P → Q) := by
-  apply Iff.intro
-  . intro h
-    cases' h with hp hq
-    . intro nh; contradiction
-    . intro nh; exact hq
-  . intro h
-    apply Or.elim (em P)
-    . intro hp
-      apply Or.inl hp
-    . intro hnp
-      have hq := h hnp
-      apply Or.inr hq
-
-macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [disjunctionToImplicationLemma])
+macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_left])
 
 example : P ∨ Q ↔ (¬ P → Q) := by
-  rw [disjunctionToImplicationLemma] -- also works without rw
+  rw [or_iff_not_imp_left] -- also works without rw
 
 -- 26. name
 macro "name" p:ident q:ident : tactic => `(tactic| have $q:ident := $p:ident)
