@@ -5,6 +5,7 @@ import Mathlib.Tactic.Replace
 import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
+import Mathlib.Tactic.NormCast
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
@@ -156,9 +157,21 @@ example (P : Prop) : True := by
   delete P -- same as `clear P`
   trivial
 
+/- If `h : P` and the type `P` is also of type `Q`, then coerce will give `h : Q`.-/
+macro "coerce" : tactic => `(tactic | norm_cast)
+
+example : ((42 : ℕ) : ℤ) = 42 := by
+  coerce
+
 /-- If `p : P` and `q : Q` are hypotheses, replace `p` and `q` by `pq : P ∧ Q`. -/
 macro "combine" p:ident q:ident pq:ident : tactic => `(tactic | (have $pq := And.intro $p $q; clear $p $q))
 
 example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
   combine p q pq -- same as have pq := And.intro p q
   exact pq
+
+/-- If `h` is a hypothesis and the target is `h`, then `cancel h` will finish off the proof.-/
+macro "cancel" h:ident : tactic => `(tactic| exact $h <;> clear $h)
+
+example (P : Prop) (p : P) : P := by
+  cancel p
