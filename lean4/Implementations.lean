@@ -17,83 +17,97 @@ example (x : Nat) : f (g x) = x + 2 := by
 
 -- 2. expand (version 2) 
 
--- 4. targetConjunctionSplit"
-macro "targetConjunctionSplit" : tactic => `(tactic| apply And.intro) -- `(tactic| constructor)
+
+/-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
+macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
 
 example (h : p ∧ q) : q ∧ p := by      
-  targetConjunctionSplit -- same as `apply And.intro`
+  targetConjunctionSplit
   . exact h.right
   . exact h.left
+  
 
--- 5. targetImplicationSplit
-macro "targetImplicationSplit" h:ident : tactic => `(tactic| intro $h:ident)
-
-example (p : Prop) : p → p := by
-  targetImplicationSplit h -- same as `intro h`
-  exact h
-
--- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have $hl := ($h).left; have $hr := ($h).right})
-macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {have ⟨$hl, $hr⟩ := $h; exact ⟨$hr, $hl⟩})
--- macro "hypothesisConjunctionSplit" h:ident hl:ident hr:ident : tactic => `(tactic| {cases $h with | intro $hl $hr => })
-
--- prototype 
-example (h : p ∧ q) : q ∧ p := by
-  have h1 := h.right
-  have h2 := h.left
-  exact ⟨h1, h2⟩
-  -- . exact And.right h
-  -- . exact And.left h
-
--- before
-example (h : p ∧ q) : q ∧ p := by
-  cases h with
-  | intro p q =>
-    exact ⟨q, p⟩
+/-- If `h : P ∧ Q` is a hypothesis, replace it by the hypotheses `p : P` and `q : Q`. -/
+macro "hypothesisConjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic|
+  (have ⟨$p, $q⟩ : _ ∧ _ := $h; try rw [show h = ⟨$p, $q⟩ from rfl] at *; clear $h))
 
 example (h : p ∧ q) : q ∧ p := by
   hypothesisConjunctionSplit h hl hr
+  exact ⟨hr,hl⟩
 
--- 7. hypothesisDisjunctionSplit
 
--- In order to clear the goal h, we need to replace h by a or b using rw
-macro "hypothesisDisjunctionSplit" h:ident a:ident b:ident : tactic => `(tactic| 
-  (refine Or.elim $h (λ $a ↦ ?_) (λ $b ↦ ?_);
-    (try rw [show $h = Or.inl $a from rfl] at *);
-    (try on_goal 2 => rw [show $h = Or.inr $b from rfl] at *))
+/-- If the current target is `P → Q`, then add `p : P` to the list of hypotheses and replace the target by `Q`. -/
+macro "targetImplicationSplit" p:ident : tactic => `(tactic| intro $p:ident)
+
+example (p : Prop) : p → p := by
+  targetImplicationSplit h
+  exact h
+
+
+/-- If `h : P → Q` is a hypothesis, then add `q : Q` to the list of hypotheses, 
+and create a new target `P` with the original list of hypotheses-/
+macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); clear $h))
+
+example (hp : p) (h : p → q) : q := by
+  hypothesisImplicationSplit h hq
+  exact hq
+  exact hp
+
+
+/-- if `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
+macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
+  (refine Or.elim $h (λ $p ↦ ?_) (λ $q ↦ ?_);
+    (try rw [show $h = Or.inl $p from rfl] at *);
+    (on_goal 2 => try rw [show $h = Or.inr $q from rfl] at *))
   <;> clear $h)
 
--- before
 example (h : p ∨ q) : q ∨ p := by
   hypothesisDisjunctionSplit h a b
   . exact Or.inr a
   . exact Or.inl b
 
--- when other terms is the context depend on h, hypothesisDisjunctionSplit still works:
+-- when the target depends on h, hypothesisDisjunctionSplit still works:
 example (h : p ∨ q) : Function.const  _ (q ∨ p) h := by
   hypothesisDisjunctionSplit h a b
   . exact Or.inr a
   . exact Or.inl b
 
 
--- If the current target is `¬P`, then `P` is added to the list of hypotheses and the target is replaced by `False`
-macro "negateTarget" h:ident : tactic => `(tactic| intro $h:ident)
+/-- If the current target is `¬P`, then add `p : P` to the list of hypotheses and replace the target by `False`. -/
+macro "negateTarget" p:ident : tactic => `(tactic| refine λ $p:ident ↦ (?_ : False))
 
--- If `h : ¬ P` is a hypothesis and the goal is `False`, then replace the goal with `P`
-macro "negateHypothesis" h:ident : tactic => `(tactic| apply $h <;> clear $h) 
+example : ¬False := by
+  negateTarget h
+  exact h
 
-example (h : ¬ P) (hP: P) : False := by
+
+/-- If `h : ¬P` is a hypothesis and the goal is `False`, then replace the goal with `P` and delete `h`. -/
+macro "negateHypothesis" h:ident : tactic => `(tactic| (refine ($h ?_ : False) ; clear $h)) 
+
+example (h : ¬P) (hP : P) : False := by
   negateHypothesis h
   exact hP
 
--- If `h : P → Q` is a hypothesis and the goal is `Q`, then replace the goal with `P`
-macro "backwardsReasoning" h:ident "[" x:term,* "]": tactic => `(tactic| (refine $h $x:term*; clear $h))
 
-example (h : P₁ → P₂ → P₃ → Q) (hP₁ : P₁) (hP₂ : P₂) : Q := by 
-  backwardsReasoning h [hP₁, hP₂, ?_]
-  sorry
+/-- If `h : P₁ → .. → Pₙ → Q` is a hypothesis, `Q` is the target and `pᵢ : Pᵢ` are hypotheses or placeholders, 
+then create a new goal `Pᵢ` for each placeholder `pᵢ` -/
+macro "backwardsReasoning" h:ident "[" p:term,* "]": tactic => `(tactic| (refine $h $p:term *; clear $h))
+
+example (h : P₁ → P₂ → P₃ → Q) (hP₁ : P₁) (hP₂ : P₂) (hP₃ : P₃) : Q := by 
+  backwardsReasoning h [hP₁, ?_, hP₃]
+  exact hP₂
+
+
+/-- If `h : P₁ → .. → Pₙ → Q` and `pᵢ : Pᵢ` are hypotheses, replace `h` by `h : Q` and delete each `pᵢ`. -/
+macro "forwardsReasoning" h:ident "["x:ident,*"]" : tactic => `(tactic| (replace $h:ident := $h:ident $x:ident * ; clear $x *))
+
+example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
+  forwardsReasoning h [hP, hQ]
+  exact h
+
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
-  apply iff_def.mpr ⟨_, _⟩
+  refine iff_def.mpr ⟨?_, ?_⟩
   . rw[or_iff_not_imp_left]
     exact Or.intro_right P
   . intro h; cases' h with hP hPQ
@@ -111,11 +125,6 @@ example (h : P ∨ Q) : P ∨ Q := by
   makeOrExclusive
   sorry
 
-macro "forwardsReasoning" h:ident "["x:ident,*"]" : tactic => `(tactic| replace $h:ident := $h:ident $x:ident *)
-
-example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
-  forwardsReasoning h [hP, hQ]
-  exact h
 
 -- 9. disjunctionToImplication
 macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_left])
@@ -128,30 +137,30 @@ macro "name" p:ident q:ident : tactic => `(tactic| have $q:ident := $p:ident)
 
 example (P : Prop) : P → P := by
   intro hp
-  name hp q -- same as `have q := hp`
+  name hp q
   exact q
 
--- 18. delete
-macro "delete" p:ident : tactic => `(tactic| clear $p:ident)
+/-- If `p : P` is a hypothesis, remove `p` from the list of hypotheses. -/
+macro "delete" p:ident : tactic => `(tactic| clear $p)
 
 example (P : Prop) : True := by
   delete P -- same as `clear P`
   trivial
 
--- 20. combine
-macro "combine" pq:ident p:ident q:ident : tactic => `(tactic | have $pq:ident := And.intro $p:ident $q:ident)
+/-- If `p : P` and `q : Q` are hypotheses, replace `p` and `q` by `pq : P ∧ Q`. -/
+macro "combine" p:ident q:ident pq:ident : tactic => `(tactic | (have $pq := And.intro $p $q; clear $p $q))
 
 example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
-  combine pq p q -- same as have pq := And.intro p q
+  combine p q pq -- same as have pq := And.intro p q
   exact pq
 
 macro "hypothesisImplicationSplit" h:ident P:term Q:term : tactic => `(tactic| (have hP: $P := ?_; have hQ : $Q := ($h : ident) hP))
 
 -- what we want the above macro to do (still a `TODO`)
 -- might have to match metavariables
-example {P Q : Nat → Prop} (h : ∀ x, P x → Q x) : True := by
-  set Px : Prop := P _ with hP
-  have hQ := h ?_ ?_
-  sorry
-  sorry
-  sorry
+-- example {P Q : Nat → Prop} (h : ∀ x, P x → Q x) : True := by
+--   set Px : Prop := P _ with hP
+--   have hQ := h ?_ ?_
+--   sorry
+--   sorry
+--   sorry
