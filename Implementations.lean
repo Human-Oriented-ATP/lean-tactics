@@ -42,16 +42,20 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h
   exact h
 
-
-/-- If `h : P → Q` is a hypothesis, then add `q : Q` to the list of hypotheses, 
-and create a new target `P` with the original list of hypotheses-/
 macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); clear $h))
 
 example (hp : p) (h : p → q) : q := by
   hypothesisImplicationSplit h hq
-  exact hq
-  exact hp
+  . exact hq
+  . exact hp 
 
+example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
+  have h1 : P ?a → Q ?a := sorry
+  hypothesisImplicationSplit h1 hq
+  on_goal 3 => apply hP
+  on_goal 2 => intro x
+  -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
+  sorry
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
 macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
