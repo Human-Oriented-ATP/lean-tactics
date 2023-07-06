@@ -57,14 +57,13 @@ example (hp : p) (h : p → q) : q := by
   . exact hp 
 
 example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
-  have h1 : P ?a → Q ?a := sorry
+  have h1 : ∀ x, P x → Q x := sorry
   hypothesisImplicationSplit h1 hq
-  on_goal 3 => apply hP
-  on_goal 2 => intro x
-  on_goal 2 => 
-    convert hq 
-    sorry
+  intro x
+  convert hq _
+  on_goal 2 => apply hP
     -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
+  sorry
   sorry
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
@@ -173,3 +172,13 @@ macro "cancel" h:ident : tactic => `(tactic| exact $h <;> clear $h)
 
 example (P : Prop) (p : P) : P := by
   cancel p
+  
+-- `TODO` add support for holes 
+/-- `instantiate h a₁ ... aₙ as h'`
+instantiates the hypothesis `h` with constants `a₁, ..., aₙ` in this order` and adds it as a new hypothesis `h'`-/
+macro "instantiate" S:ident "[" h:term,* "] as" T:ident : tactic =>
+  `(tactic| have $T:ident := @$S $h:term*)
+
+example {P : Nat → Nat → Prop} (h : ∀ x y, P x y) : True := by
+  instantiate h [2, 3] as h'
+  trivial
