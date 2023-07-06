@@ -1,8 +1,0 @@
-[package]
-name = "human_oriented_lean_tactics"
-version = "0.1"
-lean_version = "leanprover-community/lean:3.50.3"
-path = "src"
-
-[dependencies]
-mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "feb165c980c918bb296fede8c3b21dbb4b85bb56"}
