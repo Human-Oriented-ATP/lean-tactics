@@ -1,6 +1,10 @@
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Tactic.Replace
 import Mathlib.Tactic.PermuteGoals
+import Mathlib.Tactic.Convert
+import Mathlib.Tactic.NormCast
+
+open Lean
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
@@ -39,6 +43,9 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h
   exact h
 
+
+/-- If `h : P → Q` is a hypothesis, then add `q : Q` to the list of hypotheses, 
+and create a new target `P` with the original list of hypotheses-/
 macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); try clear $h))
 
 example (hp : p) (h : p → q) : q := by
@@ -47,11 +54,12 @@ example (hp : p) (h : p → q) : q := by
   . exact hp 
 
 example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
-  have h1 : P ?a → Q ?a := sorry
+  have h1 : ∀ x, P x → Q x := sorry
   hypothesisImplicationSplit h1 hq
-  on_goal 3 => apply hP
-  on_goal 2 => intro x
-  -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
+  intro x
+  convert hq _
+  on_goal 2 => apply hP
+    -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
   sorry
   sorry
 
@@ -105,32 +113,29 @@ example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
   exact h
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
-  apply Iff.intro
+  refine iff_def.mpr ⟨?_, ?_⟩
   . rw[or_iff_not_imp_left]
     exact Or.intro_right P
   . intro h; cases' h with hP hPQ
     . exact Or.inl hP
     . exact Iff.mpr or_iff_not_imp_left hPQ
   
--- make this also work on goals, currently only works on named hypotheses
-macro "makeOrExclusiveHyp" h:ident : tactic => `(tactic| rw [makeOrExclusiveLemma] at $h:ident)
-
---temporarily two different macros for goals and hypotheses 
-macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusiveLemma])
+/-- `makeOrExclusive (at h)` rewrites the goal/hypothesis of form `P ∨ Q` into `P ∨ (¬ P → Q)` -/
+macro "makeOrExclusive" loc:(Parser.Tactic.location)? : tactic => 
+  `(tactic| rewrite [makeOrExclusiveLemma] $(loc)?)
 
 example (h : P ∨ Q) : P ∨ Q := by
-  makeOrExclusiveHyp h
+  makeOrExclusive at h
   makeOrExclusive
   sorry
 
-
 /-- If the current goal is of the form `P ∨ Q`, then replace it by `¬ P → Q` -/
-macro "disjunctionToImplicationLemma" : tactic => `(tactic| rewrite [or_iff_not_imp_left])
+macro "disjunctionToImplicationLemma" loc:(Parser.Tactic.location)? : tactic => `(tactic| rewrite [or_iff_not_imp_left] $(loc)?)
 
-example : P ∨ Q ↔ (¬ P → Q) := by
-  rw [or_iff_not_imp_left] -- also works without rw
-
-  example : P ∨ Q ↔ (¬ P → Q) := by disjunctionToImplicationLemma; rfl
+example (h : P ∨ Q) : P ∨ Q ↔ (¬ P → Q) := by 
+  disjunctionToImplicationLemma at h
+  disjunctionToImplicationLemma
+  rfl
 
 /-- `name h i` renames the hypothesis `h` to have name `i` without changing its body -/
 macro "name" p:ident q:ident : tactic => `(tactic| (have $q:ident := $p:ident; clear $p))
@@ -147,9 +152,31 @@ example (P : Prop) : True := by
   delete P -- same as `clear P`
   trivial
 
+/- If `h : P` and the type `P` is also of type `Q`, then coerce will give `h : Q`.-/
+macro "coerce" : tactic => `(tactic | norm_cast)
+
+example : ((42 : ℕ) : ℤ) = 42 := by
+  coerce
+
 /-- If `p : P` and `q : Q` are hypotheses, replace `p` and `q` by `pq : P ∧ Q`. -/
 macro "combine" p:ident q:ident pq:ident : tactic => `(tactic | (have $pq := And.intro $p $q; clear $p $q))
 
 example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
   combine p q pq -- same as have pq := And.intro p q
   exact pq
+
+/-- If `h` is a hypothesis and the target is `h`, then `cancel h` will finish off the proof.-/
+macro "cancel" h:ident : tactic => `(tactic| exact $h)
+
+example (P : Prop) (p : P) : P := by
+  cancel p
+  
+-- `TODO` add support for holes 
+/-- `instantiate h a₁ ... aₙ as h'`
+instantiates the hypothesis `h` with constants `a₁, ..., aₙ` in this order` and adds it as a new hypothesis `h'`-/
+macro "instantiate" S:ident "[" h:term,* "] as" T:ident : tactic =>
+  `(tactic| have $T:ident := @$S $h:term*)
+
+example {P : Nat → Nat → Prop} (h : ∀ x y, P x y) : True := by
+  instantiate h [2, 3] as h'
+  trivial
