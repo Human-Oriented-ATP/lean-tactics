@@ -3,6 +3,6 @@
 **/_target
 
 #Lean4
-lean4/.cache
-lean4/build
-lean4/lake-packages/*
+.cache
+build
+lake-packages/*
