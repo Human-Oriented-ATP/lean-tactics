@@ -4,6 +4,7 @@ import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
 import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
+import Mathlib.Tactic.Convert
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
@@ -42,7 +43,10 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h
   exact h
 
-macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); clear $h))
+
+/-- If `h : P → Q` is a hypothesis, then add `q : Q` to the list of hypotheses, 
+and create a new target `P` with the original list of hypotheses-/
+macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_)))
 
 example (hp : p) (h : p → q) : q := by
   hypothesisImplicationSplit h hq
@@ -54,7 +58,10 @@ example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
   hypothesisImplicationSplit h1 hq
   on_goal 3 => apply hP
   on_goal 2 => intro x
-  -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
+  on_goal 2 => 
+    convert hq 
+    sorry
+    -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
   sorry
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
@@ -107,7 +114,7 @@ example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
   exact h
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
-  apply Iff.intro
+  refine iff_def.mpr ⟨?_, ?_⟩
   . rw[or_iff_not_imp_left]
     exact Or.intro_right P
   . intro h; cases' h with hP hPQ
