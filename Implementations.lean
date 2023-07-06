@@ -7,6 +7,8 @@ import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
 
+open Lean
+
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
@@ -122,25 +124,21 @@ lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by
     . exact Or.inl hP
     . exact Iff.mpr or_iff_not_imp_left hPQ
   
--- make this also work on goals, currently only works on named hypotheses
-macro "makeOrExclusiveHyp" h:ident : tactic => `(tactic| rw [makeOrExclusiveLemma] at $h:ident)
-
---temporarily two different macros for goals and hypotheses 
-macro "makeOrExclusive" : tactic => `(tactic| rw [makeOrExclusiveLemma])
+/-- `makeOrExclusive (at h)` rewrites the goal/hypothesis of form `P ∨ Q` into `P ∨ (¬ P → Q)` -/
+macro "makeOrExclusive" loc:(Parser.Tactic.location)? : tactic => 
+  `(tactic| rw [makeOrExclusiveLemma] $(loc)?)
 
 example (h : P ∨ Q) : P ∨ Q := by
-  makeOrExclusiveHyp h
+  makeOrExclusive at h
   makeOrExclusive
   sorry
 
-
 /-- If the current goal is of the form `P ∨ Q`, then replace it by `¬ P → Q` -/
-macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_left])
+macro "disjunctionToImplicationLemma" loc:(Parser.Tactic.location)? : tactic => `(tactic| rw [or_iff_not_imp_left] $(loc)?)
 
-example : P ∨ Q ↔ (¬ P → Q) := by
-  rw [or_iff_not_imp_left] -- also works without rw
-
-  example : P ∨ Q ↔ (¬ P → Q) := by disjunctionToImplicationLemma
+example (h : P ∨ Q) : P ∨ Q ↔ (¬ P → Q) := by 
+  disjunctionToImplicationLemma at h
+  disjunctionToImplicationLemma
 
 /-- `name h i` renames the hypothesis `h` to have name `i` without changing its body -/
 macro "name" p:ident q:ident : tactic => `(tactic| (have $q:ident := $p:ident; clear $p))
