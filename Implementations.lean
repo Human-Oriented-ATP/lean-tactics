@@ -5,7 +5,7 @@ import Mathlib.Tactic.Replace
 import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 
--- 1. expand (version 1)
+/-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
 def f (x: Nat) := x
@@ -16,7 +16,6 @@ example (x : Nat) : f (g x) = x + 2 := by
   expand1 g -- same as unfold f
 
 -- 2. expand (version 2) 
-
 
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
 macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
@@ -54,7 +53,7 @@ example (hp : p) (h : p → q) : q := by
   exact hp
 
 
-/-- if `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
+/-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
 macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
   (refine Or.elim $h (λ $p ↦ ?_) (λ $q ↦ ?_);
     (try rw [show $h = Or.inl $p from rfl] at *);
@@ -73,13 +72,12 @@ example (h : p ∨ q) : Function.const  _ (q ∨ p) h := by
   . exact Or.inl b
 
 
-/-- If the current target is `¬P`, then add `p : P` to the list of hypotheses and replace the target by `False`. -/
+/-- If the current target is `¬P`, then `negateTarget h` adds `h : P` to the list of hypotheses and replace the target by `False`. -/
 macro "negateTarget" p:ident : tactic => `(tactic| refine λ $p:ident ↦ (?_ : False))
 
 example : ¬False := by
   negateTarget h
   exact h
-
 
 /-- If `h : ¬P` is a hypothesis and the goal is `False`, then replace the goal with `P` and delete `h`. -/
 macro "negateHypothesis" h:ident : tactic => `(tactic| (refine ($h ?_ : False) ; clear $h)) 
@@ -97,14 +95,12 @@ example (h : P₁ → P₂ → P₃ → Q) (hP₁ : P₁) (hP₂ : P₂) (hP₃ 
   backwardsReasoning h [hP₁, ?_, hP₃]
   exact hP₂
 
-
 /-- If `h : P₁ → .. → Pₙ → Q` and `pᵢ : Pᵢ` are hypotheses, replace `h` by `h : Q` and delete each `pᵢ`. -/
 macro "forwardsReasoning" h:ident "["x:ident,*"]" : tactic => `(tactic| (replace $h:ident := $h:ident $x:ident * ; clear $x *))
 
 example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
   forwardsReasoning h [hP, hQ]
   exact h
-
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
   refine iff_def.mpr ⟨?_, ?_⟩
@@ -126,21 +122,23 @@ example (h : P ∨ Q) : P ∨ Q := by
   sorry
 
 
--- 9. disjunctionToImplication
+/-- If the current goal is of the form `P ∨ Q`, then replace it by `¬ P → Q` -/
 macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_left])
 
 example : P ∨ Q ↔ (¬ P → Q) := by
   rw [or_iff_not_imp_left] -- also works without rw
 
--- 16. name
-macro "name" p:ident q:ident : tactic => `(tactic| have $q:ident := $p:ident)
+  example : P ∨ Q ↔ (¬ P → Q) := by disjunctionToImplicationLemma
+
+/-- `name h i` renames the hypothesis `h` to have name `i` without changing its body -/
+macro "name" p:ident q:ident : tactic => `(tactic| (have $q:ident := $p:ident; clear $p))
 
 example (P : Prop) : P → P := by
   intro hp
   name hp q
   exact q
 
-/-- If `p : P` is a hypothesis, remove `p` from the list of hypotheses. -/
+/-- If `h : P` is a hypothesis, remove `h` from the list of hypotheses. -/
 macro "delete" p:ident : tactic => `(tactic| clear $p)
 
 example (P : Prop) : True := by
@@ -153,14 +151,3 @@ macro "combine" p:ident q:ident pq:ident : tactic => `(tactic | (have $pq := And
 example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
   combine p q pq -- same as have pq := And.intro p q
   exact pq
-
-macro "hypothesisImplicationSplit" h:ident P:term Q:term : tactic => `(tactic| (have hP: $P := ?_; have hQ : $Q := ($h : ident) hP))
-
--- what we want the above macro to do (still a `TODO`)
--- might have to match metavariables
--- example {P Q : Nat → Prop} (h : ∀ x, P x → Q x) : True := by
---   set Px : Prop := P _ with hP
---   have hQ := h ?_ ?_
---   sorry
---   sorry
---   sorry
