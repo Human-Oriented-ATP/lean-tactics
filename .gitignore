@@ -1,8 +1,3 @@
-# Lean3
-**/.DS_Store
-**/_target
-
-#Lean4
 .cache
 build
 lake-packages/*
