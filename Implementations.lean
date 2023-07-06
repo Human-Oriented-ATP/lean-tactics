@@ -1,8 +1,5 @@
-import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
-import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
-import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
@@ -28,7 +25,7 @@ example (h : p ∧ q) : q ∧ p := by
 
 /-- If `h : P ∧ Q` is a hypothesis, replace it by the hypotheses `p : P` and `q : Q`. -/
 macro "hypothesisConjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic|
-  (have ⟨$p, $q⟩ : _ ∧ _ := $h; try rw [show h = ⟨$p, $q⟩ from rfl] at *; clear $h))
+  (have ⟨$p, $q⟩ : _ ∧ _ := $h; try rewrite [show h = ⟨$p, $q⟩ from rfl] at *; clear $h))
 
 example (h : p ∧ q) : q ∧ p := by
   hypothesisConjunctionSplit h hl hr
@@ -42,7 +39,7 @@ example (p : Prop) : p → p := by
   targetImplicationSplit h
   exact h
 
-macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); clear $h))
+macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); try clear $h))
 
 example (hp : p) (h : p → q) : q := by
   hypothesisImplicationSplit h hq
@@ -56,12 +53,13 @@ example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
   on_goal 2 => intro x
   -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
   sorry
+  sorry
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
 macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
   (refine Or.elim $h (λ $p ↦ ?_) (λ $q ↦ ?_);
-    (try rw [show $h = Or.inl $p from rfl] at *);
-    (on_goal 2 => try rw [show $h = Or.inr $q from rfl] at *))
+    (try rewrite [show $h = Or.inl $p from rfl] at *);
+    (on_goal 2 => try rewrite [show $h = Or.inr $q from rfl] at *))
   <;> clear $h)
 
 example (h : p ∨ q) : q ∨ p := by
@@ -127,12 +125,12 @@ example (h : P ∨ Q) : P ∨ Q := by
 
 
 /-- If the current goal is of the form `P ∨ Q`, then replace it by `¬ P → Q` -/
-macro "disjunctionToImplicationLemma" : tactic => `(tactic| rw [or_iff_not_imp_left])
+macro "disjunctionToImplicationLemma" : tactic => `(tactic| rewrite [or_iff_not_imp_left])
 
 example : P ∨ Q ↔ (¬ P → Q) := by
   rw [or_iff_not_imp_left] -- also works without rw
 
-  example : P ∨ Q ↔ (¬ P → Q) := by disjunctionToImplicationLemma
+  example : P ∨ Q ↔ (¬ P → Q) := by disjunctionToImplicationLemma; rfl
 
 /-- `name h i` renames the hypothesis `h` to have name `i` without changing its body -/
 macro "name" p:ident q:ident : tactic => `(tactic| (have $q:ident := $p:ident; clear $p))
