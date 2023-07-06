@@ -113,7 +113,7 @@ example {P Q R : Prop}(h: P → Q → R) (hP : P) (hQ: Q): R := by
   exact h
 
 lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by 
-  refine iff_def.mpr ⟨?_, ?_⟩
+  apply Iff.intro
   . rw[or_iff_not_imp_left]
     exact Or.intro_right P
   . intro h; cases' h with hP hPQ
