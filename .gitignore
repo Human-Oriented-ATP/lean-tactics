@@ -1,7 +1,4 @@
-# Lean3
-**/.DS_Store
-**/_target
-
-#Lean4
-**/build
-**/lake-packages/*
+.cache
+build
+lake-packages/*
+hello world.lean
