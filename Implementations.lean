@@ -6,6 +6,16 @@ import Mathlib.Tactic.NormCast
 
 open Lean
 
+lemma skolemization {p : α → β → Prop} : (∃ b : α → β, ∀ a : α, p a (b a)) → ∀ a : α, ∃ b : β, p a b :=
+  λ (Exists.intro b h) a ↦ Exists.intro (b a) (h a)
+
+/-- If the current target is quantified by `∀ a : α, ∃ b : β`, then replace this with `∃ b : α → β, ∀ a : α`. -/
+macro "skolemize" : tactic => `(tactic|refine skolemization ?_)
+
+example (h : ∃ b : α → α, ∀ a : α, a = b a) : ∀ a : α, ∃ b : α, a = b := by
+  skolemize
+  exact h
+
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
