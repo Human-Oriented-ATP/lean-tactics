@@ -18,6 +18,28 @@ example (x : Nat) : f (g x) = x + 2 := by
 
 -- 2. expand (version 2) 
 
+
+
+macro "rewriteAt" " [" args:(colGt Parser.Tactic.Conv.enterArg),+ "]" r:Parser.Tactic.rwRule : tactic =>
+  `(tactic| conv => enter [$args,*]; rewrite [$r])
+
+
+example [Add α] [Neg α] [OfNat α (nat_lit 0)]
+    (h₁ : ∀ (a : α), a + 0 = a)
+    (h₂ : ∀ (a b c : α), (a + b) + c = a + (b + c))
+    (h₃ : ∀ (a : α), a + (-a) = 0) :
+    ∀ (a : α), (-a) + a = 0 := by
+  intro a
+  have : ∀ (a : α), a + a = a → a = 0 := by
+    intro a h
+    rw [← h₁ a, ← h₃ a, ← h₂, h]
+  apply this
+  rewriteAt [1] h₂
+  rewriteAt [1,2] ← h₂
+  rewriteAt [1,2,1] h₃
+  rewriteAt [1] ← h₂
+  rewriteAt [1,1] h₁
+
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
 macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
 
