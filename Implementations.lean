@@ -1,5 +1,8 @@
+import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
+import Mathlib.Logic.Basic
 import Mathlib.Tactic.Replace
+import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
@@ -40,6 +43,7 @@ example [Add α] [Neg α] [OfNat α (nat_lit 0)]
   rewriteAt [1] ← h₂
   rewriteAt [1,1] h₁
 
+
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
 macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
 
@@ -51,7 +55,7 @@ example (h : p ∧ q) : q ∧ p := by
 
 /-- If `h : P ∧ Q` is a hypothesis, replace it by the hypotheses `p : P` and `q : Q`. -/
 macro "hypothesisConjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic|
-  (have ⟨$p, $q⟩ : _ ∧ _ := $h; try rewrite [show h = ⟨$p, $q⟩ from rfl] at *; clear $h))
+  (have ⟨$p, $q⟩ : _ ∧ _ := $h; try rw [show h = ⟨$p, $q⟩ from rfl] at *; clear $h))
 
 example (h : p ∧ q) : q ∧ p := by
   hypothesisConjunctionSplit h hl hr
@@ -68,7 +72,7 @@ example (p : Prop) : p → p := by
 
 /-- If `h : P → Q` is a hypothesis, then add `q : Q` to the list of hypotheses, 
 and create a new target `P` with the original list of hypotheses-/
-macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_); try clear $h))
+macro "hypothesisImplicationSplit" h:ident q:ident : tactic => `(tactic| (refine (λ $q ↦ ?_) ($h ?_)))
 
 example (hp : p) (h : p → q) : q := by
   hypothesisImplicationSplit h hq
@@ -76,14 +80,12 @@ example (hp : p) (h : p → q) : q := by
   . exact hp 
 
 example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
-  have h1 : ∀ x, P x → Q x := sorry
-  hypothesisImplicationSplit h1 hq
   intro x
-  convert hq _
-  on_goal 2 => apply hP
+  have h1 : P ?a → Q ?a := sorry
+  hypothesisImplicationSplit h1 hq
+  on_goal 2 => convert h1 _
+  all_goals {apply hP}
     -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
-  sorry
-  sorry
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
 macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
@@ -188,7 +190,7 @@ example (P Q : Prop) (p : P) (q : Q): P ∧ Q := by
   exact pq
 
 /-- If `h` is a hypothesis and the target is `h`, then `cancel h` will finish off the proof.-/
-macro "cancel" h:ident : tactic => `(tactic| exact $h)
+macro "cancel" h:ident : tactic => `(tactic| exact $h <;> clear $h)
 
 example (P : Prop) (p : P) : P := by
   cancel p
