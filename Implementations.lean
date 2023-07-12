@@ -9,6 +9,22 @@ import Mathlib.Tactic.NormCast
 
 open Lean
 
+
+syntax "Congrs " "[" str,* "]" term : tactic
+
+macro_rules
+| `(tactic| Congrs ["A", $ss,*] $h) => `(tactic| refine congrArg _ ?_; Congrs [$ss,*] $h)
+| `(tactic| Congrs ["F", $ss,*] $h) => `(tactic| refine congrFun ?_ _; Congrs [$ss,*] $h)
+| `(tactic| Congrs ["A"] $h) => `(tactic| refine (congrArg _ ?_); Congrs [] $h)
+| `(tactic| Congrs ["F"] $h) => `(tactic| refine (congrFun ?_ _); Congrs [] $h)
+| `(tactic| Congrs [] $h) => `(tactic| refine $h)
+
+
+example (h : a = b) : (a + 3 = 2) = (b + 3 = 2) := by
+  Congrs ["F","A","F","A"] h
+
+
+
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
