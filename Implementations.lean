@@ -10,18 +10,78 @@ import Mathlib.Tactic.NormCast
 open Lean
 
 
-syntax "Congrs " "[" str,* "]" term : tactic
+def PosAtom' : Char → MacroM (TSyntax `term)
+| 'A' => `(λ x ↦ (?_ : _ → _)  x)
+| 'F' => `(λ x ↦ (x  : _ → _) ?_)
+| 'T' => `(λ x ↦ ?_ → x )
+| 'H' => `(λ x ↦ x  → ?_)
+-- | 'λ' => `(λ x ↦ λ ?_ ↦ x)
+-- | 'l' => `(λ x ↦ let _ := ?_ ;  x)
+-- | 'L' => `(λ x ↦ let _ := x  ; ?_)
+| _ => Macro.throwUnsupported
 
-macro_rules
-| `(tactic| Congrs ["A", $ss,*] $h) => `(tactic| refine congrArg _ ?_; Congrs [$ss,*] $h)
-| `(tactic| Congrs ["F", $ss,*] $h) => `(tactic| refine congrFun ?_ _; Congrs [$ss,*] $h)
-| `(tactic| Congrs ["A"] $h) => `(tactic| refine (congrArg _ ?_); Congrs [] $h)
-| `(tactic| Congrs ["F"] $h) => `(tactic| refine (congrFun ?_ _); Congrs [] $h)
-| `(tactic| Congrs [] $h) => `(tactic| refine $h)
+def FindMotive : String → MacroM (TSyntax `term) :=
+λ ⟨s⟩ ↦ do
+  let atoms ← s.mapM PosAtom'
+  atoms.foldlM (λ x y ↦ `($x ∘ $y)) (init := ← `(id))
 
 
-example (h : a = b) : (a + 3 = 2) = (b + 3 = 2) := by
-  Congrs ["F","A","F","A"] h
+
+lemma decompose {g : α  → β} {f : β  → γ} : (f ∘ λ x ↦ g x) a = f (g a) := rfl
+lemma deid : id a = a := rfl
+macro "expandLambdaComposition" : tactic => `(tactic| ((iterate refine decompose.mpr ?_); refine deid.mpr ?_))
+
+
+
+macro "FromSubEquality" s:str h:term : tactic => do 
+  let mot ← FindMotive s.getString
+  `(tactic| refine congrArg $mot $h)
+
+example (h : a = b) : (2 + a + 3) = (2 + b + 3) := by
+  FromSubEquality "FAA" h
+
+
+
+
+macro "rewriteAt" s:str h:Parser.Tactic.rwRule : tactic => do
+  let l_arrow := h.raw[0]
+  let h := ⟨h.raw[1]⟩
+  let h := if l_arrow.isNone -- if l_arrow is ← or <- then apply Eq.symm to h
+    then h
+    else ← `(Eq.symm $h)
+  let mot ← FindMotive s.getString
+  `(tactic| (refine @Eq.substr _ $mot _ _ $h ?_; expandLambdaComposition))
+
+
+
+-- notice the difference in behaviour between using ?_ or _ for the hole:
+example {p : ℕ  → ℕ → Prop} (h₁ : a = b) : p a a := by
+  refine @Eq.substr _ (λ x ↦ (?_ : _ → _)  x) _ _ h₁ ?_
+  expandLambdaComposition -- ⊢ p a b
+  sorry
+example {p : ℕ  → ℕ → Prop} (h₁ : a = b) : p a a := by
+  refine @Eq.substr _ (λ x ↦ ( _ : _ → _)  x) _ _ h₁ ?_
+  expandLambdaComposition -- ⊢ p b b
+  sorry
+-- apparently it is crucial to use ?_
+
+
+-- notice that it is possible to have implicit variables in the rewrite rule :)
+-- they must however be specific enough so that the resulting type can be infered.
+
+example {p q : ℕ  → ℕ → Prop}  (h₁ : a = b) (h₂ : ∀ {q}, q = p) : ℝ → (q b a → p a a) ∧ True := by
+  rewriteAt "TFATA" h₁
+  rewriteAt "TFAHA" h₁
+  rewriteAt "TFAHFF" h₂
+  rewriteAt "TFAHFA" ← h₁
+  rewriteAt "TFA" eq_true_intro id
+  intro _
+  trivial
+  
+-- This tactic will not rewrite within dependent types unfortunately
+example (h : ∀ {n}, (a = n) = True) : ∀ n : ℕ, a = n := by
+  rewriteAt "T" h
+
 
 
 
@@ -38,26 +98,6 @@ example (x : Nat) : f (g x) = x + 2 := by
 -- 2. expand (version 2) 
 
 
-
-macro "rewriteAt" " [" args:(colGt Parser.Tactic.Conv.enterArg),+ "]" r:Parser.Tactic.rwRule : tactic =>
-  `(tactic| conv => enter [$args,*]; rewrite [$r])
-
-
-example [Add α] [Neg α] [OfNat α (nat_lit 0)]
-    (h₁ : ∀ (a : α), a + 0 = a)
-    (h₂ : ∀ (a b c : α), (a + b) + c = a + (b + c))
-    (h₃ : ∀ (a : α), a + (-a) = 0) :
-    ∀ (a : α), (-a) + a = 0 := by
-  intro a
-  have : ∀ (a : α), a + a = a → a = 0 := by
-    intro a h
-    rw [← h₁ a, ← h₃ a, ← h₂, h]
-  apply this
-  rewriteAt [1] h₂
-  rewriteAt [1,2] ← h₂
-  rewriteAt [1,2,1] h₃
-  rewriteAt [1] ← h₂
-  rewriteAt [1,1] h₁
 
 
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
