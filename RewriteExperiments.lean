@@ -17,30 +17,29 @@ By default, all occurrences are abstracted, but this behavior can be controlled 
 -/
 def kabstract' (e : Expr) (p : Expr) (position : List Nat) : MetaM Expr := do
   let e ← instantiateMVars e
-  --if p.isFVar then
-  --  return e.abstract #[p] -- Easy case
-  let rec visit (pos: List Nat) (e : Expr) (offset : Nat) : MetaM Expr := do
-    let visitChild (pos' : List Nat) : Nat → MetaM Expr := fun n => do
-      match n, e with
-      | 0, .app f a         => return .app (← visit pos' f offset) a
-      | 1, .app f a         => return .app f (← visit pos' a offset)
-      | 0, .mdata d b       => return .mdata d (← visit pos' b offset)
-      | 0, .proj s i b      => return .proj s i (← visit pos' b offset)
-      | 0, .letE a t v b c  => return .letE a (← visit pos' t offset) v b c
-      | 1, .letE a t v b c  => return .letE a t (← visit pos' v offset) b c
-      | 2, .letE a t v b c  => return .letE a t v (← visit pos' b (offset+1)) c
-      | 0, .lam a d b c     => return .lam a (← visit pos' d offset) b c
-      | 1, .lam a d b c     => return .lam a d (← visit pos' b (offset+1)) c
-      | 0, .forallE a d b c => return .forallE a (← visit pos' d offset) b c
-      | 1, .forallE a d b c => return .forallE a d (← visit pos' b (offset+1)) c
-      | _, _                => throwError "empty string"
 
-    match pos with 
-    | [] => if (← isDefEq e p) 
-            then return .bvar offset
-            else throwError "empty string"
-    | x :: xs => visitChild xs x 
-  visit position e 0
+  let rec visit (e : Expr) (offset : Nat) : List Nat → MetaM Expr
+    | [] => do
+      if (← isDefEq e p) 
+        then return .bvar offset
+        else throwError ("WRONG TYPE: " ++ e)
+
+    | x :: xs => do
+      match x, e with
+      | 0, .app f a         => return .app (← visit f offset xs) a
+      | 1, .app f a         => return .app f (← visit a offset xs)
+      | 0, .mdata d b       => return .mdata d (← visit b offset xs)
+      | 0, .proj s i b      => return .proj s i (← visit b offset xs)
+      | 0, .letE a t v b c  => return .letE a (← visit t offset xs) v b c
+      | 1, .letE a t v b c  => return .letE a t (← visit v offset xs) b c
+      | 2, .letE a t v b c  => return .letE a t v (← visit b (offset+1) xs) c
+      | 0, .lam a d b c     => return .lam a (← visit d offset xs) b c
+      | 1, .lam a d b c     => return .lam a d (← visit b (offset+1) xs) c
+      | 0, .forallE a d b c => return .forallE a (← visit d offset xs) b c
+      | 1, .forallE a d b c => return .forallE a d (← visit b (offset+1) xs) c
+      | _, _                => throwError ("NO SUBEXPRESSION: " ++ e)
+      
+  visit e 0 position
 
 /--
 Rewrite goal `mvarId`
@@ -58,8 +57,8 @@ def _root_.Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (heq : Expr) (posit
       | none => throwTacticEx `rewrite mvarId m!"equality or iff proof expected{indentExpr heqType}"
       | some (α, lhs, rhs) =>
         let cont (heq heqType lhs rhs : Expr) : MetaM RewriteResult := do
-          if lhs.getAppFn.isMVar then
-            throwTacticEx `rewrite mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
+          -- if lhs.getAppFn.isMVar then
+          --   throwTacticEx `rewrite mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
           let e ← instantiateMVars e
           let eAbst ← withConfig (fun oldConfig => { config, oldConfig with }) <| kabstract' e lhs position
           unless eAbst.hasLooseBVars do
@@ -101,16 +100,29 @@ def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : 
     let mvarId' ← (← getMainGoal).replaceTargetEq r.eNew r.eqProof
     replaceMainGoal (mvarId' :: r.mvarIds)
 
--- declare_config_elab elabRewriteConfig Rewrite.Config
+def get_positions : List Syntax → List Nat
+| [x] => [TSyntax.getNat ⟨x⟩]
+| x :: _ :: xs => TSyntax.getNat ⟨x⟩ :: get_positions xs
+| _ => panic! "not an odd length list"
 
-syntax (name := rewriteSeq') "rewrite" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
+syntax (name := rewriteSeq') "rewriteAt"  num,*  (config)? rwRuleSeq (location)? : tactic
 
 @[tactic rewriteSeq'] def evalRewriteSeq : Tactic := fun stx => do
-  let cfg ← Tactic.elabRewriteConfig stx[1]
-  let loc   := expandOptLocation stx[3]
-  withRWRulesSeq stx[0] stx[2] fun symm term => do
+  let position := get_positions stx[1].getArgs.toList
+  let cfg ← Tactic.elabRewriteConfig stx[2]
+  let loc   := expandOptLocation stx[4]
+  withRWRulesSeq stx[0] stx[3] fun symm term => do
     withLocation loc
       (rewriteLocalDecl term symm · cfg)
       -- change the next line to `rewriteTarget'` and extract the `List Nat` from `num, *`
-      (rewriteTarget term symm cfg)
+      (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
+
+
+
+
+example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : (q b a → p a b) ∧ True := by
+  rewriteAt 0,1,1,0,1 [h₁]
+  rewriteAt 0,1,0,1 [h₁]
+  rewriteAt 0,1,0,0,0 [h₂]
+  exact ⟨id, trivial⟩

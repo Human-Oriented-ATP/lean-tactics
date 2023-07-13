@@ -265,7 +265,6 @@ macro "instantiate" S:ident "[" h:term,* "] as" T:ident : tactic =>
   `(tactic| have $T:ident := @$S $h:term*)
 
 example {P : Nat → Nat → Prop} (h : ∀ x y, P x y) : True := by
-  rewrite
   instantiate h [2, 3] as h'
   trivial
 
