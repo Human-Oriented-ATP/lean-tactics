@@ -10,11 +10,8 @@ import Lean.Elab.Tactic.Config
 
 open Lean Meta Elab Tactic Parser.Tactic
 
--- write a version of `kabstract` where we take in `SubExpr.Pos` and replace that position with a `bvar`
-/--Abstract occurrences of `p` in `e`. We detect subterms equivalent to `p` using key-matching.
-That is, only perform `isDefEq` tests when the head symbol of substerm is equivalent to head symbol of `p`.
-By default, all occurrences are abstracted, but this behavior can be controlled using the `occs` parameter.
--/
+-- we take in `List Nat` and replace that position with a `bvar`
+
 def kabstract' (e : Expr) (p : Expr) (position : List Nat) : MetaM Expr := do
   let e ← instantiateMVars e
 
@@ -22,7 +19,7 @@ def kabstract' (e : Expr) (p : Expr) (position : List Nat) : MetaM Expr := do
     | [] => do
       if (← isDefEq e p) 
         then return .bvar offset
-        else throwError ("WRONG TYPE: " ++ e)
+        else throwError "subexpression '{e}' does not match left hand side '{p}'"
 
     | x :: xs => do
       match x, e with
@@ -37,7 +34,7 @@ def kabstract' (e : Expr) (p : Expr) (position : List Nat) : MetaM Expr := do
       | 1, .lam a d b c     => return .lam a d (← visit b (offset+1) xs) c
       | 0, .forallE a d b c => return .forallE a (← visit d offset xs) b c
       | 1, .forallE a d b c => return .forallE a d (← visit b (offset+1) xs) c
-      | _, _                => throwError ("NO SUBEXPRESSION: " ++ e)
+      | _, _                => throwError "could not find branch {x} in subexpression '{e}'"
       
   visit e 0 position
 
@@ -118,11 +115,13 @@ syntax (name := rewriteSeq') "rewriteAt"  num,*  (config)? rwRuleSeq (location)?
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
+theorem iff_of_true (ha : a) (hb : b) : a ↔ b := ⟨fun _ => hb, fun _ => ha⟩
+theorem iff_true_intro (h : a) : a ↔ True := iff_of_true h ⟨⟩
 
-
-
-example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : (q b a → p a b) ∧ True := by
-  rewriteAt 0,1,1,0,1 [h₁]
-  rewriteAt 0,1,0,1 [h₁]
-  rewriteAt 0,1,0,0,0 [h₂]
-  exact ⟨id, trivial⟩
+--observe the strange behaviour when rewriting loose bound variables, by rewriteAt 1,1 [iff_true_intro]
+example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
+  rewriteAt 1,0,1,1,0,1 [h₁]
+  rewriteAt 1,0,1,0,1 [h₁]
+  rewriteAt 1,0,1,0,0,0 [h₂]
+  -- rewriteAt 1,1 [iff_true_intro] -- gives bad behaviour
+  exact λ _ ↦ ⟨id, rfl⟩
