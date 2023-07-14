@@ -110,9 +110,9 @@ def get_positions : List Syntax → List Nat
 syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
 @[tactic rewriteSeq'] def evalRewriteSeq : Tactic := fun stx => do
-  let list ← (stx[2].getArgs.toList)
-  unless List.length list % 2 == 0 do
-    throwTacticEx `rewriteAt _  m!"odd length list"
+  let list := (stx[2].getArgs.toList)
+  unless List.length list % 2 == 1 do
+    throwTacticEx `rewriteAt (← getMainGoal)  m!"even length list"
   let position := get_positions (stx[2].getArgs.toList)
   let cfg ← Tactic.elabRewriteConfig stx[4]
   let loc   := expandOptLocation stx[6]
