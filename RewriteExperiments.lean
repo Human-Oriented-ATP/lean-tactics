@@ -7,6 +7,8 @@ import Lean.Elab.Tactic.Rewrite
 import Lean.Meta.Tactic.Replace
 import Lean.Elab.Tactic.Location
 import Lean.Elab.Tactic.Config
+import ProofWidgets.Demos.Conv
+import Std.Data.List.Basic
 
 open Lean Meta Elab Tactic Parser.Tactic
 
@@ -14,13 +16,17 @@ open Lean Meta Elab Tactic Parser.Tactic
 
 def kabstract' (e : Expr) (p : Expr) (position : List Nat) : MetaM Expr := do
   let e ← instantiateMVars e
-
+-- if e.hasLooseBVars then
+--        visitChildren ()
   let rec visit (e : Expr) (offset : Nat) : List Nat → MetaM Expr
     | [] => do
-      if (← isDefEq e p) 
-        then return .bvar offset
-        else throwError "subexpression '{e}' does not match left hand side '{p}'"
-
+      if !e.hasLooseBVars
+        then 
+          if (← isDefEq e p) 
+          then return .bvar offset
+          else throwError "subexpression '{e}' does not match left hand side '{p}'"
+      else 
+        throwError "subexpression '{e}' has loose bounded variables" -- not sure what error to throw here
     | x :: xs => do
       match x, e with
       | 0, .app f a         => return .app (← visit f offset xs) a
@@ -53,7 +59,7 @@ def _root_.Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (heq : Expr) (posit
       match (← matchEq? heqType) with
       | none => throwTacticEx `rewrite mvarId m!"equality or iff proof expected{indentExpr heqType}"
       | some (α, lhs, rhs) =>
-        let cont (heq heqType lhs rhs : Expr) : MetaM RewriteResult := do
+        let cont (heq lhs rhs : Expr) : MetaM RewriteResult := do
           -- if lhs.getAppFn.isMVar then
           --   throwTacticEx `rewrite mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
           let e ← instantiateMVars e
@@ -77,11 +83,10 @@ def _root_.Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (heq : Expr) (posit
           let newMVarIds := newMVarIds ++ otherMVarIds
           pure { eNew := eNew, eqProof := eqPrf, mvarIds := newMVarIds.toList }
         match symm with
-        | false => cont heq heqType lhs rhs
+        | false => cont heq lhs rhs
         | true  => do
           let heq ← mkEqSymm heq
-          let heqType ← mkEq rhs lhs
-          cont heq heqType rhs lhs
+          cont heq rhs lhs
     match heqType.iff? with
     | some (lhs, rhs) =>
       let heqType ← mkEq lhs rhs
@@ -102,26 +107,33 @@ def get_positions : List Syntax → List Nat
 | x :: _ :: xs => TSyntax.getNat ⟨x⟩ :: get_positions xs
 | _ => panic! "not an odd length list"
 
-syntax (name := rewriteSeq') "rewriteAt"  num,*  (config)? rwRuleSeq (location)? : tactic
+syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
 @[tactic rewriteSeq'] def evalRewriteSeq : Tactic := fun stx => do
-  let position := get_positions stx[1].getArgs.toList
-  let cfg ← Tactic.elabRewriteConfig stx[2]
-  let loc   := expandOptLocation stx[4]
-  withRWRulesSeq stx[0] stx[3] fun symm term => do
+  let position := get_positions (((((stx[2].getArgs.toList).removeNth 0).removeNth 0).removeNth 0).removeNth 0)
+  let cfg ← Tactic.elabRewriteConfig stx[4]
+  let loc   := expandOptLocation stx[6]
+  withRWRulesSeq stx[0] stx[5] fun symm term => do
     withLocation loc
       (rewriteLocalDecl term symm · cfg)
       -- change the next line to `rewriteTarget'` and extract the `List Nat` from `num, *`
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
-theorem iff_of_true (ha : a) (hb : b) : a ↔ b := ⟨fun _ => hb, fun _ => ha⟩
-theorem iff_true_intro (h : a) : a ↔ True := iff_of_true h ⟨⟩
-
 --observe the strange behaviour when rewriting loose bound variables, by rewriteAt 1,1 [iff_true_intro]
 example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
-  rewriteAt 1,0,1,1,0,1 [h₁]
-  rewriteAt 1,0,1,0,1 [h₁]
-  rewriteAt 1,0,1,0,0,0 [h₂]
-  -- rewriteAt 1,1 [iff_true_intro] -- gives bad behaviour
+  rewriteAt [0, 1, 1,0,1,1,0,1] [h₁]
+  rewriteAt [1,0,1,0,1] [h₁]
+  rewriteAt [1,0,1,0,0,0] [h₂]
+  -- rewriteAt 1,1 [iff_true_intro] -- mantas: no longer allowed and errors
   exact λ _ ↦ ⟨id, rfl⟩
+
+-- with ConvPanel mode
+example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
+  with_panel_widgets [ConvPanel]
+    conv =>
+      
+    rewriteAt [0, 1, 1, 0, 1, 1, 0, 1] [h₁]
+    rewriteAt [0, 1, 1, 0, 1, 0, 1] [h₁]
+
+

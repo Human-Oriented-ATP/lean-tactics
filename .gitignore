@@ -1,4 +1,8 @@
 .cache
 build
-lake-packages/*
+lake-packages/aesop
+lake-packages/Cli
+lake-packages/mathlib
+lake-packages/Qq
+lake-packages/std
 hello world.lean
