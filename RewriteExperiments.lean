@@ -103,9 +103,14 @@ def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : 
     replaceMainGoal (mvarId' :: r.mvarIds)
 
 def get_positions : List Syntax → List Nat
-| [x] => [TSyntax.getNat ⟨x⟩]
-| x :: _ :: xs => TSyntax.getNat ⟨x⟩ :: get_positions xs
-| _ => [] -- did not want it to throw an error here
+| [] => []
+| x :: xs =>
+  let rec go : List Syntax → List Nat
+    | [] => []
+    | _ :: y :: ys => TSyntax.getNat ⟨y⟩ :: go ys
+    | _ => panic! "even length nonempy list"
+  TSyntax.getNat ⟨x⟩ :: go xs
+
 
 syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
