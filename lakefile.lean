@@ -28,3 +28,7 @@ lean_lib Implementations {
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
+
+lean_lib ConvPanelUpdated {
+  -- add any library configuration options here
+}
