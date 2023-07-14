@@ -7,7 +7,7 @@ import Lean.Elab.Tactic.Rewrite
 import Lean.Meta.Tactic.Replace
 import Lean.Elab.Tactic.Location
 import Lean.Elab.Tactic.Config
-import ProofWidgets.Demos.Conv
+import ConvPanelUpdated
 import Std.Data.List.Basic
 
 open Lean Meta Elab Tactic Parser.Tactic
@@ -105,12 +105,15 @@ def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : 
 def get_positions : List Syntax → List Nat
 | [x] => [TSyntax.getNat ⟨x⟩]
 | x :: _ :: xs => TSyntax.getNat ⟨x⟩ :: get_positions xs
-| _ => panic! "not an odd length list"
+| _ => [] -- did not want it to throw an error here
 
 syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
 @[tactic rewriteSeq'] def evalRewriteSeq : Tactic := fun stx => do
-  let position := get_positions (((((stx[2].getArgs.toList).removeNth 0).removeNth 0).removeNth 0).removeNth 0)
+  let list ← (stx[2].getArgs.toList)
+  unless List.length list % 2 == 0 do
+    throwTacticEx `rewriteAt _  m!"odd length list"
+  let position := get_positions (stx[2].getArgs.toList)
   let cfg ← Tactic.elabRewriteConfig stx[4]
   let loc   := expandOptLocation stx[6]
   withRWRulesSeq stx[0] stx[5] fun symm term => do
@@ -122,18 +125,16 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
 
 --observe the strange behaviour when rewriting loose bound variables, by rewriteAt 1,1 [iff_true_intro]
 example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
-  rewriteAt [0, 1, 1,0,1,1,0,1] [h₁]
+  rewriteAt [1,0,1,1,0,1] [h₁]
   rewriteAt [1,0,1,0,1] [h₁]
   rewriteAt [1,0,1,0,0,0] [h₂]
-  -- rewriteAt 1,1 [iff_true_intro] -- mantas: no longer allowed and errors
+  -- rewriteAt [1,1] [iff_true_intro] -- mantas: no longer allowed and errors
   exact λ _ ↦ ⟨id, rfl⟩
 
 -- with ConvPanel mode
 example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
-  with_panel_widgets [ConvPanel]
-    conv =>
-      
-    rewriteAt [0, 1, 1, 0, 1, 1, 0, 1] [h₁]
-    rewriteAt [0, 1, 1, 0, 1, 0, 1] [h₁]
-
+  with_panel_widgets [SelectPanel]
+    rewriteAt  [1, 0, 1, 1, 0, 1] [h₁]
+    rewriteAt [1, 0, 1, 0, 1] [h₁]
+    sorry
 

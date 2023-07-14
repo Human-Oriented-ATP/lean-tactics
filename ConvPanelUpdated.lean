@@ -21,6 +21,7 @@ private structure SolveReturn where
   val? : Option String
   listRest : List Nat
 
+/-
 private def solveLevel (expr : Expr) (path : List Nat) : MetaM SolveReturn := match expr with
   | Expr.app _ _ => do
     let mut descExp := expr
@@ -76,7 +77,7 @@ private def solveLevel (expr : Expr) (path : List Nat) : MetaM SolveReturn := ma
 
   | _ => do
     return { expr := ←(Lean.Core.viewSubexpr path.head! expr), val? := toString (path.head! + 1), listRest := path.tail! }
-
+-/
 
 def reprint! (stx : Syntax) : String :=
   match stx.reprint with
@@ -322,23 +323,7 @@ structure InsertEnterResponse where
 
 def insertEnter (subexprPos : SubExpr.Pos) (goalType : Expr) (cmdStx : Syntax)
     (cursorPos : String.Pos) (doc : Lean.Server.FileWorker.EditableDocument) : MetaM InsertEnterResponse := do
-  let mut list := (SubExpr.Pos.toArray subexprPos).toList
-  let mut expr := goalType
-  let mut retList := []
-  -- generate list of commands for `enter`
-  while !list.isEmpty do
-    let res ← solveLevel expr list
-    expr := res.expr
-    retList := match res.val? with
-      | none => retList
-      | some val => val::retList
-    list := res.listRest
-
-  -- build `enter [...]` string
-  retList := List.reverse retList
-  let mut enterval := "enter " ++ toString retList
-  if enterval.contains '0' then enterval := "Error: Not a valid conv target"
-  if retList.isEmpty then enterval := ""
+  
 
   let range := match cmdStx.getRange? with
     | some x => x
