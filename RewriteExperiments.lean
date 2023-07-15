@@ -15,8 +15,6 @@ open Lean Meta Elab Tactic Parser.Tactic
 
 structure eqExprs where
   heq : Expr
-  lhs : Expr
-  rhs : Expr
   type : Expr
 
 
@@ -26,27 +24,28 @@ def range : Nat → List Nat
 
 
 def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq : Expr) (symm : Bool := false) :
-  MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) := do
+  MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
   let heqType ← instantiateMVars (← inferType heq)
   let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
   let heq := mkAppN heq newMVars
-  let cont (heq heqType : Expr) : MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) := do
+  let cont (heq heqType : Expr) : MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
     match heqType.eq? with
     | none => throwTacticEx `rewrite mvarId m!"equality or iff proof expected{indentExpr heqType}"
     | some (type, lhs, rhs) =>
-      let cont (heq lhs rhs : Expr) : MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) := do
+      let cont (heq lhs rhs : Expr) : MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
 
         if (← isDefEq lhs (e.instantiateRev fVars))
           then
-          -- replace all these free variables with the original loose bound variables
-            let heq := (← instantiateMVars heq).abstract fVars
-            let lhs := (← instantiateMVars lhs).abstract fVars
+            let mut heq ← instantiateMVars heq
+            for fVar in fVars.reverse do
+              heq ← mkAppM `funext #[← mkLambdaFVars #[fVar] heq]
+
             let rhs := (← instantiateMVars rhs).abstract fVars
-            let type := (← instantiateMVars type).abstract fVars
+            let type ← mkForallFVars fVars (← instantiateMVars type)
 
             let n := fVars.size
 
-            return ((range n).foldl (mkApp · <| .bvar ·) (.bvar n), rhs, {heq, lhs, rhs, type : eqExprs}, newMVars, binderInfos)
+            return ((range n).foldl (mkApp · <| .bvar ·) (.bvar n), rhs, heq, type, newMVars, binderInfos)
         else
           throwError "subexpression '{e.instantiateRev fVars}' does not match left hand side '{lhs}'"
 
@@ -63,49 +62,39 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq : Expr) (symm : Bo
   | none =>
     cont heq heqType
 
-def introduce_bvar (binderName : Name) (binderType : Expr) (rw : eqExprs) : MetaM eqExprs := do
-  let heq' := .lam binderName binderType rw.heq .default
-  let lhs := .lam binderName binderType rw.lhs .default
-  let rhs := .lam binderName binderType rw.rhs .default
-  let result_type := .lam binderName binderType rw.type .default
-  let type := .forallE binderName binderType rw.type .default
-  let heq := mkApp5 (.const `funext [← getLevel binderType, ← getLevel rw.type]) binderType result_type lhs rhs heq'
-  return {heq, lhs, rhs, type}
-
-
 def recurseToPosition (mvarId : MVarId) (e heq : Expr) (position : List Nat) (symm : Bool) :
-  MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) :=
+  MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) :=
   
-  let rec visit (e : Expr) (fVars : Array Expr) : List Nat → MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo)
+  let rec visit (e : Expr) (fVars : Array Expr) : List Nat → MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo)
     | [] => matchEToLHS mvarId fVars e heq symm
     
     | x :: xs => do
       match x, e with
-      | 0, .app f a          => let (e, eNew, rw) ← visit f fVars xs; return (.app e a, .app eNew a, rw)
-      | 1, .app f a          => let (e, eNew, rw) ← visit a fVars xs; return (.app f e, .app f eNew, rw)
+      | 0, .app f a          => let (e, eNew, z) ← visit f fVars xs; return (.app e a, .app eNew a, z)
+      | 1, .app f a          => let (e, eNew, z) ← visit a fVars xs; return (.app f e, .app f eNew, z)
 
-      | 0, .mdata d b        => let (e, eNew, rw) ← visit b fVars xs; return (.mdata d e, .mdata d eNew, rw)
+      | 0, .mdata d b        => let (e, eNew, z) ← visit b fVars xs; return (.mdata d e, .mdata d eNew, z)
 
-      | 0, .proj n i b       => let (e, eNew, rw) ← visit b fVars xs; return (.proj n i e, .proj n i eNew, rw)
+      | 0, .proj n i b       => let (e, eNew, z) ← visit b fVars xs; return (.proj n i e, .proj n i eNew, z)
 
-      | 0, .letE n t v b c   => let (e, eNew, rw) ← visit t fVars xs; return (.letE n e v b c, .letE n eNew v b c, rw)
-      | 1, .letE n t v b c   => let (e, eNew, rw) ← visit v fVars xs; return (.letE n t e b c, .letE n t eNew b c, rw)
+      | 0, .letE n t v b c   => let (e, eNew, z) ← visit t fVars xs; return (.letE n e v b c, .letE n eNew v b c, z)
+      | 1, .letE n t v b c   => let (e, eNew, z) ← visit v fVars xs; return (.letE n t e b c, .letE n t eNew b c, z)
       | 2, .letE n t v b c   =>
         withLocalDeclD n (t.instantiateRev fVars) λ fVar ↦ do
-        let (e, eNew, rw, z) ← visit b (fVars.push fVar) xs
-        return (.letE n t v e c, .letE n t v eNew c, ← introduce_bvar n t rw, z)
+        let (e, eNew, z) ← visit b (fVars.push fVar) xs
+        return (.letE n t v e c, .letE n t v eNew c, z)
                                                         
-      | 0, .lam n t b bi     => let (e, eNew, rw) ← visit t fVars xs; return (.lam n e b bi, .lam n eNew b bi, rw)
+      | 0, .lam n t b bi     => let (e, eNew, z) ← visit t fVars xs; return (.lam n e b bi, .lam n eNew b bi, z)
       | 1, .lam n t b bi     =>
         withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
-        let (e, eNew, rw, z) ← visit b (fVars.push fVar) xs
-        return (.lam n t e bi, .lam n t eNew bi, ← introduce_bvar n t rw, z)
+        let (e, eNew, z) ← visit b (fVars.push fVar) xs
+        return (.lam n t e bi, .lam n t eNew bi, z)
 
-      | 0, .forallE n t b bi => let (e, eNew, rw) ← visit t fVars xs; return (.forallE n e b bi, .forallE n eNew b bi, rw)
+      | 0, .forallE n t b bi => let (e, eNew, z) ← visit t fVars xs; return (.forallE n e b bi, .forallE n eNew b bi, z)
       | 1, .forallE n t b bi =>
         withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
-        let (e', eNew, rw, z) ← visit b (fVars.push fVar) xs
-        return (.forallE n t e' bi, .forallE n t eNew bi, ← introduce_bvar n t rw, z)
+        let (e', eNew, z) ← visit b (fVars.push fVar) xs
+        return (.forallE n t e' bi, .forallE n t eNew bi, z)
 
       | _, _                => throwError "could not find branch {x} in subexpression '{e}'"
       
@@ -116,7 +105,7 @@ def Lean.MVarId.myrewrite (mvarId : MVarId) (e heq : Expr) (position : List Nat)
   mvarId.withContext do
     mvarId.checkNotAssigned `rewrite
 
-    let (eAbst, eNew, {heq, type, ..}, newMVars, binderInfos)
+    let (eAbst, eNew, heq, type, newMVars, binderInfos)
       ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId (← instantiateMVars e) heq position symm
 
     let eEqE ← mkEq e e
@@ -163,7 +152,6 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
   withRWRulesSeq stx[0] stx[5] fun symm term => do
     withLocation loc
       (rewriteLocalDecl term symm · cfg)
-      -- change the next line to `rewriteTarget'` and extract the `List Nat` from `num, *`
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
@@ -201,13 +189,11 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
   exact λ _ ↦ ⟨id, trivial⟩
 
 -- with ConvPanel mode
-example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
+example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, ∀ w : ℚ, (q b a → p a b) ∧ z = z := by
   with_panel_widgets [SelectPanel]
-    rewriteAt  [1, 0, 1, 1, 0, 1] [h₁]
-    rewriteAt [1, 0, 1, 0, 1] [h₁]
-    rewriteAt [1,0,1,0,0,0] [h₂]
-    rewriteAt  [1, 0, 1] [iff_true_intro (id)]
-    rewriteAt [1, 1] [fun a b => iff_true_intro (@rfl _ a)]
-  exact λ _ ↦ ⟨trivial, trivial⟩
-  exact ℕ 
-
+    rewriteAt  [1,1,0,1,1,0,1] [h₁]
+    rewriteAt [1,1,0,1,0,1] [h₁]
+    rewriteAt [1,1,0,1,0,0,0] [h₂]
+    rewriteAt [1,1,1] [fun a => iff_true_intro (@rfl _ a)] -- here an explicit argument is needed
+    rewriteAt  [1,1,0,1] [iff_true_intro (id)]
+  exact λ _ _ ↦ ⟨trivial, trivial⟩
