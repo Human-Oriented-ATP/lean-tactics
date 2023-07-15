@@ -25,8 +25,9 @@ def range : Nat → List Nat
 | n + 1 => n :: range n
 
 
-def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq heqType : Expr) (symm : Bool := false) :
+def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq : Expr) (symm : Bool := false) :
   MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) := do
+  let heqType ← instantiateMVars (← inferType heq)
   let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
   let heq := mkAppN heq newMVars
   let cont (heq heqType : Expr) : MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) := do
@@ -72,11 +73,11 @@ def introduce_bvar (binderName : Name) (binderType : Expr) (rw : eqExprs) : Meta
   return {heq, lhs, rhs, type}
 
 
-def recurseToPosition (mvarId : MVarId) (e heq heqType : Expr) (position : List Nat) (symm : Bool) :
+def recurseToPosition (mvarId : MVarId) (e heq : Expr) (position : List Nat) (symm : Bool) :
   MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo) :=
   
   let rec visit (e : Expr) (fVars : Array Expr) : List Nat → MetaM (Expr × Expr × eqExprs × Array Expr × Array BinderInfo)
-    | [] => matchEToLHS mvarId fVars e heq heqType symm
+    | [] => matchEToLHS mvarId fVars e heq symm
     
     | x :: xs => do
       match x, e with
@@ -114,10 +115,9 @@ def recurseToPosition (mvarId : MVarId) (e heq heqType : Expr) (position : List 
 def Lean.MVarId.myrewrite (mvarId : MVarId) (e heq : Expr) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : MetaM RewriteResult := do
   mvarId.withContext do
     mvarId.checkNotAssigned `rewrite
-    let heqType ← instantiateMVars (← inferType heq)
 
     let (eAbst, eNew, {heq, type, ..}, newMVars, binderInfos)
-      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId (← instantiateMVars e) heq heqType position symm
+      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId (← instantiateMVars e) heq position symm
 
     let eEqE ← mkEq e e
     let eEqEAbst := mkApp eEqE.appFn! eAbst
