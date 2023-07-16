@@ -23,8 +23,9 @@ def range : Nat → List Nat
 | n + 1 => n :: range n
 
 
-def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq : Expr) (symm : Bool := false) :
-  MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
+def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax) (symm : Bool := false) :
+  TacticM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
+  let heq ← elabTerm stx none true
   let heqType ← instantiateMVars (← inferType heq)
   let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
   let heq := mkAppN heq newMVars
@@ -62,11 +63,11 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e heq : Expr) (symm : Bo
   | none =>
     cont heq heqType
 
-def recurseToPosition (mvarId : MVarId) (e heq : Expr) (position : List Nat) (symm : Bool) :
-  MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) :=
+def recurseToPosition (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) :
+  TacticM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) :=
   
-  let rec visit (e : Expr) (fVars : Array Expr) : List Nat → MetaM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo)
-    | [] => matchEToLHS mvarId fVars e heq symm
+  let rec visit (e : Expr) (fVars : Array Expr) : List Nat → TacticM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo)
+    | [] => matchEToLHS mvarId fVars e stx symm
     
     | x :: xs => do
       match x, e with
@@ -101,12 +102,12 @@ def recurseToPosition (mvarId : MVarId) (e heq : Expr) (position : List Nat) (sy
   visit e #[] position
 
 
-def Lean.MVarId.myrewrite (mvarId : MVarId) (e heq : Expr) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : MetaM RewriteResult := do
+def Lean.MVarId.myrewrite (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : TacticM RewriteResult := do
   mvarId.withContext do
     mvarId.checkNotAssigned `rewrite
 
     let (eAbst, eNew, heq, type, newMVars, binderInfos)
-      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId (← instantiateMVars e) heq position symm
+      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId (← instantiateMVars e) stx position symm
 
     let eEqE ← mkEq e e
     let eEqEAbst := mkApp eEqE.appFn! eAbst
@@ -125,8 +126,7 @@ def Lean.MVarId.myrewrite (mvarId : MVarId) (e heq : Expr) (position : List Nat)
   
 def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : Rewrite.Config) : TacticM Unit := do
   Term.withSynthesize <| withMainContext do
-    let heq ← elabTerm stx none true
-    let r ← (← getMainGoal).myrewrite (← getMainTarget) heq position symm (config := config)
+    let r ← (← getMainGoal).myrewrite (← getMainTarget) stx position symm (config := config)
     let mvarId' ← (← getMainGoal).replaceTargetEq r.eNew r.eqProof
     replaceMainGoal (mvarId' :: r.mvarIds)
 
@@ -167,9 +167,9 @@ example : ∀ n, n + 1 + 1 = n + 2 := by
 
 
 def symm_iff : a = b ↔ b = a := ⟨Eq.symm, Eq.symm⟩ 
--- notice how this only works with the @ notation
+
 example : ∀ n, (n = 1) = (1 = n) := by
-  rewriteAt [1,0,1] [@symm_iff] -- @
+  rewriteAt [1,0,1] [symm_iff]
   intro n
   rfl
 
@@ -194,6 +194,6 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
     rewriteAt  [1,1,0,1,1,0,1] [h₁]
     rewriteAt [1,1,0,1,0,1] [h₁]
     rewriteAt [1,1,0,1,0,0,0] [h₂]
-    rewriteAt [1,1,1] [fun a => iff_true_intro (@rfl _ a)] -- here an explicit argument is needed
+    rewriteAt [1,1,1] [iff_true_intro rfl]
     rewriteAt  [1,1,0,1] [iff_true_intro (id)]
   exact λ _ _ ↦ ⟨trivial, trivial⟩
