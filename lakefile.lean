@@ -32,7 +32,3 @@ lean_lib RewriteExperiments {
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
-
-lean_lib ConvPanelUpdated {
-  -- add any library configuration options here
-}

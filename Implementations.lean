@@ -6,8 +6,6 @@ import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
--- import ConvPanelUpdated
-
 import RewriteExperiments
 
 open Lean
