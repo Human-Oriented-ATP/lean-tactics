@@ -177,7 +177,7 @@ def symm_iff : a = b ↔ b = a := ⟨Eq.symm, Eq.symm⟩
 
 example : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True) := by
   show_term
-  rewriteAt [1, 1,0,1, 0, 1] [symm_iff]
+  rewriteAt [1, 1, 0, 1, 0, 1] [symm_iff]
   intro _ m
   rfl
   
@@ -187,7 +187,7 @@ example (h: ∀ n:ℕ, n = zero) : ∀ n:ℕ, n = zero := by
   rfl
 
 example (h : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True)) : True := by
-  rewriteAt [1, 1,0,1, 0, 1] [symm_iff] at h
+  rewriteAt [1, 1, 0, 1, 0, 1] [symm_iff] at h
   trivial
 
 
@@ -196,7 +196,7 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
   rewriteAt [1,0,1,0,1] [h₁]
   rewriteAt [1,0,1,1,0,1] [h₁]
   rewriteAt [1,0,1,0,0,0] [h₂]
-  rewriteAt [1,1] [fun a => iff_true_intro (@rfl _ a)] -- jovan: this is now possible
+  rewriteAt [1,1] [iff_true_intro rfl] -- jovan: this is now possible
   exact λ _ ↦ ⟨id, trivial⟩
 
 -- with ConvPanel mode
@@ -206,5 +206,5 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
     rewriteAt [1,1,0,1,0,1] [h₁]
     rewriteAt [1,1,0,1,0,0,0] [h₂]
     rewriteAt [1,1,1] [iff_true_intro rfl]
-    rewriteAt  [1,1,0,1] [iff_true_intro (id)]
+    rewriteAt  [1,1,0,1] [iff_true_intro id]
   exact λ _ _ ↦ ⟨trivial, trivial⟩
