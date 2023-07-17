@@ -178,7 +178,7 @@ def symm_iff : a = b ↔ b = a := ⟨Eq.symm, Eq.symm⟩
 example : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True) := by
   show_term
   rewriteAt [1, 1,0,1, 0, 1] [symm_iff]
-  intro n m
+  intro _ m
   rfl
   
 example (h: ∀ n:ℕ, n = zero) : ∀ n:ℕ, n = zero := by
@@ -200,7 +200,7 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
   exact λ _ ↦ ⟨id, trivial⟩
 
 -- with ConvPanel mode
-example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, ∀ w : ℚ, (q b a → p a b) ∧ z = z := by
+example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, ∀ _ : ℚ, (q b a → p a b) ∧ z = z := by
   with_panel_widgets [SelectPanel]
     rewriteAt  [1,1,0,1,1,0,1] [h₁]
     rewriteAt [1,1,0,1,0,1] [h₁]
