@@ -13,16 +13,6 @@ import Std.Data.List.Basic
 open Lean Meta Elab Tactic Parser.Tactic
 
 
-structure eqExprs where
-  heq : Expr
-  type : Expr
-
-
-def range : Nat → List Nat
-| 0 => []
-| n + 1 => n :: range n
-
-
 def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax) (symm : Bool := false) :
   TacticM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
   let heq ← elabTerm stx none true
@@ -38,15 +28,15 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax)
         if (← isDefEq lhs (e.instantiateRev fVars))
           then
             let mut heq ← instantiateMVars heq
-            for fVar in fVars.reverse do
+            for fVar in fVars do
               heq ← mkAppM `funext #[← mkLambdaFVars #[fVar] heq]
 
             let rhs := (← instantiateMVars rhs).abstract fVars
-            let type ← mkForallFVars fVars (← instantiateMVars type)
+            let type ← mkForallFVars fVars.reverse (← instantiateMVars type)
 
             let n := fVars.size
 
-            return ((range n).foldl (mkApp · <| .bvar ·) (.bvar n), rhs, heq, type, newMVars, binderInfos)
+            return ((List.range n).foldl (mkApp · <| .bvar ·) (.bvar n), rhs, heq, type, newMVars, binderInfos)
         else
           throwError "subexpression '{e.instantiateRev fVars}' does not match left hand side '{lhs}'"
 
