@@ -1,27 +1,7 @@
-import Lean.Data.Occurrences
-import Lean.HeadIndex
-import Lean.Meta.Basic
-import Lean.SubExpr
-import Lean.Meta.Tactic.Rewrite
-import Lean.Elab.Tactic.Rewrite
-import Lean.Meta.Tactic.Replace
-import Lean.Elab.Tactic.Location
-import Lean.Elab.Tactic.Config
+import Lean
 import ProofWidgets.Component.SelectInsertPanel
-import Lean.Meta.ExprLens
 
-open Lean Meta Elab Tactic Parser.Tactic
-
-
-structure eqExprs where
-  heq : Expr
-  type : Expr
-
-
-def range : Nat → List Nat
-| 0 => []
-| n + 1 => n :: range n
-
+open Lean Meta Elab.Tactic Parser.Tactic
 
 def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax) (symm : Bool := false) :
   TacticM (Expr × Expr × Expr × Expr × Array Expr × Array BinderInfo) := do
@@ -189,8 +169,6 @@ example (h : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True)) : True := by
   rewriteAt [1, 1, 0, 1, 0, 1] [symm_iff] at h
   trivial
 
-/- Stuff to do with the `SelectInsertPanel` -/
-
 -- these work now :-)
 example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, (q b a → p a b) ∧ z = z := by
   rewriteAt [1,0,1,0,1] [h₁]
@@ -206,7 +184,8 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
   exact λ _ _ ↦ ⟨id, rfl⟩
 open Lean Meta Server
 
-/-! # The conv? example -/
+
+/- Stuff to do with the `SelectInsertPanel` -/
 
 private structure SolveReturn where
   expr : Expr
