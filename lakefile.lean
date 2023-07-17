@@ -25,6 +25,10 @@ lean_lib Implementations {
   -- add any library configuration options here
 }
 
+lean_lib RewriteExperiments {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }

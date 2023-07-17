@@ -1,16 +1,5 @@
-import Lean.Data.Occurrences
-import Lean.HeadIndex
-import Lean.Meta.Basic
-import Lean.SubExpr
-import Lean.Meta.Tactic.Rewrite
-import Lean.Elab.Tactic.Rewrite
-import Lean.Meta.Tactic.Replace
-import Lean.Elab.Tactic.Location
-import Lean.Elab.Tactic.Config
-import ConvPanelUpdated
-import Std.Data.List.Basic
-
-open Lean Meta Elab Tactic Parser.Tactic
+import Lean
+open Lean Meta Elab.Tactic Parser.Tactic
 
 
 def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax) (symm : Bool := false) :
@@ -115,7 +104,7 @@ def Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (stx : Syntax) (position :
 
   
 def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : Rewrite.Config) : TacticM Unit := do
-  Term.withSynthesize <| withMainContext do
+  Elab.Term.withSynthesize <| withMainContext do
     let r ← (← getMainGoal).rewrite' (← getMainTarget) stx position symm (config := config)
     let mvarId' ← (← getMainGoal).replaceTargetEq r.eNew r.eqProof
     replaceMainGoal (mvarId' :: r.mvarIds)
@@ -144,7 +133,7 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
   unless List.length list % 2 == 1 do
     throwTacticEx `rewriteAt (← getMainGoal)  m!"even length list"
   let position := get_positions (stx[2].getArgs.toList)
-  let cfg ← Tactic.elabRewriteConfig stx[4]
+  let cfg ← elabRewriteConfig stx[4]
   let loc   := expandOptLocation stx[6]
   withRWRulesSeq stx[0] stx[5] fun symm term => do
     withLocation loc
@@ -166,7 +155,6 @@ example : ∀ n, n + 1 + 1 = n + 2 := by
 def symm_iff : a = b ↔ b = a := ⟨Eq.symm, Eq.symm⟩ 
 
 example : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True) := by
-  show_term
   rewriteAt [1, 1, 0, 1, 0, 1] [symm_iff]
   intro _ m
   rfl
@@ -186,15 +174,11 @@ example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀
   rewriteAt [1,0,1,0,1] [h₁]
   rewriteAt [1,0,1,1,0,1] [h₁]
   rewriteAt [1,0,1,0,0,0] [h₂]
-  rewriteAt [1,1] [iff_true_intro rfl] -- jovan: this is now possible
-  exact λ _ ↦ ⟨id, trivial⟩
+  exact λ _ ↦ ⟨id, rfl⟩
 
 -- with ConvPanel mode
 example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, ∀ _ : ℚ, (q b a → p a b) ∧ z = z := by
-  with_panel_widgets [SelectPanel]
-    rewriteAt  [1,1,0,1,1,0,1] [h₁]
-    rewriteAt [1,1,0,1,0,1] [h₁]
-    rewriteAt [1,1,0,1,0,0,0] [h₂]
-    rewriteAt [1,1,1] [iff_true_intro rfl]
-    rewriteAt  [1,1,0,1] [iff_true_intro id]
-  exact λ _ _ ↦ ⟨trivial, trivial⟩
+  rewriteAt  [1,1,0,1,1,0,1] [h₁]
+  rewriteAt [1,1,0,1,0,1] [h₁]
+  rewriteAt [1,1,0,1,0,0,0] [h₂]
+  exact λ _ _ ↦ ⟨id, rfl⟩

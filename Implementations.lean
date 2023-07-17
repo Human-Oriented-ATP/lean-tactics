@@ -6,90 +6,11 @@ import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
-import ProofWidgets.Demos.Conv
+-- import ConvPanelUpdated
+
+import RewriteExperiments
 
 open Lean
-
-
-def PosAtom' : Char → MacroM (TSyntax `term)
-| 'A' => `(λ x ↦ (?_ : _ → _)  x) -- argument
-| 'F' => `(λ x ↦ (x  : _ → _) ?_) -- function
-| 'T' => `(λ x ↦ ?_ → x)  -- target
-| 'H' => `(λ x ↦ x → ?_) -- hypothesis
--- | 'λ' => `(λ x ↦ λ ?_ ↦ x)
--- | 'l' => `(λ x ↦ let _ := ?_ ;  x)
--- | 'L' => `(λ x ↦ let _ := x  ; ?_)
-| _ => Macro.throwUnsupported
-
-def FindMotive : String → MacroM (TSyntax `term) :=
-λ ⟨s⟩ ↦ do
-  let atoms ← s.mapM PosAtom'
-  atoms.foldlM (λ x y ↦ `($x ∘ $y)) (init := ← `(id))
-
-lemma decompose {g : α  → β} {f : β  → γ} : (f ∘ λ x ↦ g x) a = f (g a) := rfl
-lemma deid : id a = a := rfl
-macro "expandLambdaComposition" : tactic => `(tactic| ((iterate refine decompose.mpr ?_); refine deid.mpr ?_))
-
-macro "FromSubEquality" s:str h:term : tactic => do 
-  let mot ← FindMotive s.getString
-  `(tactic| refine congrArg $mot $h)
-
-example (h : a = b) : (2 + a + 3) = (2 + b + 3) := by
-  FromSubEquality "FAA" h
-
-
-
--- TODO fix this bug below
-macro "rewriteAt" s:str h:Parser.Tactic.rwRule : tactic => do
-  let l_arrow := h.raw[0]
-  let h := ⟨h.raw[1]⟩
-  let h := if l_arrow.isNone -- if l_arrow is ← or <- then apply Eq.symm to h
-    then h
-    else ← `(Eq.symm $h)
-  let mot ← FindMotive s.getString
-  `(tactic| (refine @Eq.substr _ $mot _ _ $h ?_; expandLambdaComposition))
-
--- notice the difference in behaviour between using ?_ or _ for the hole:
-example {p : ℕ  → ℕ → Prop} (h₁ : a = b) : p a a := by
-  refine @Eq.substr _ (λ x ↦ (?_ : _ → _)  x) _ _ h₁ ?_
-  expandLambdaComposition -- ⊢ p a b
-  sorry
-
-example {p : ℕ  → ℕ → Prop} (h₁ : a = b) : p a a := by
-  refine @Eq.substr _ (λ x ↦ ( _ : _ → _)  x) _ _ h₁ ?_
-  expandLambdaComposition -- ⊢ p b b
-  sorry
--- apparently it is crucial to use ?_
-
-
--- notice that it is possible to have implicit variables in the rewrite rule :)
--- they must however be specific enough so that the resulting type can be infered.
-
-example {p q : ℕ  → ℕ → Prop} (h₁ : a = b) (h₂ : ∀ {q}, q = p) : ℝ → (q b a → p a a) ∧ True := by
-  rewriteAt "TFATA" h₁
-  rewriteAt "TFAHA" h₁
-  rewriteAt "TFAHFF" h₂
-  rewriteAt "TFAHFA" ← h₁
-  intro _
-  simp
-
-example {p q : ℕ  → ℕ → Prop}  (temp : ((p a b → p a b)) = True) (h₁ : a = b) (h₂ : ∀ {q}, q = p) : ℝ → (q b a → p a a) ∧ True := by 
-with_panel_widgets [ConvPanel]
-  conv =>
-  -- `ℝ` is `/0/1/0`
-  -- `(q b a → p a a) ∧ True` is `/0/1/1`
-  -- `True` is `/0/1/1/1`
-  -- `p a a` is `/0/1/1/0/1/1`
-  -- It seems that the first number is just a marker of the current goal/something else and should be deleted
-  -- The rest follows very similarly to Jovan's program
-  -- This sequence in these cases is just a binary tree in syntax, just need to map into to Jovan's notation
-  rw [h₁]
-  sorry
-
--- This tactic will not rewrite within dependent types unfortunately
-example (h : ∀ {n}, (a = n) = True) : ∀ n : ℕ, a = n := by
-  -- `rewriteAt "T" h` throws an error 
-  sorry
 
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
