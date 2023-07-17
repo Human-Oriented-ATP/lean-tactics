@@ -102,7 +102,7 @@ def recurseToPosition (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : Li
   visit e #[] position
 
 
-def Lean.MVarId.myrewrite (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : TacticM RewriteResult := do
+def Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : TacticM RewriteResult := do
   mvarId.withContext do
     mvarId.checkNotAssigned `rewrite
 
@@ -126,9 +126,16 @@ def Lean.MVarId.myrewrite (mvarId : MVarId) (e : Expr) (stx : Syntax) (position 
   
 def rewriteTarget' (position : List Nat) (stx : Syntax) (symm : Bool) (config : Rewrite.Config) : TacticM Unit := do
   Term.withSynthesize <| withMainContext do
-    let r ← (← getMainGoal).myrewrite (← getMainTarget) stx position symm (config := config)
+    let r ← (← getMainGoal).rewrite' (← getMainTarget) stx position symm (config := config)
     let mvarId' ← (← getMainGoal).replaceTargetEq r.eNew r.eqProof
     replaceMainGoal (mvarId' :: r.mvarIds)
+
+def rewriteLocalDecl' (position : List Nat) (stx : Syntax) (symm : Bool) (fvarId : FVarId) (config : Rewrite.Config) : TacticM Unit := do
+    let localDecl ← fvarId.getDecl
+    let rwResult ← (← getMainGoal).rewrite' localDecl.type stx position symm (config := config)
+    let replaceResult ← (← getMainGoal).replaceLocalDecl fvarId rwResult.eNew rwResult.eqProof
+    replaceMainGoal (replaceResult.mvarId :: rwResult.mvarIds)
+
 
 def get_positions : List Syntax → List Nat
 | [] => []
@@ -151,7 +158,7 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
   let loc   := expandOptLocation stx[6]
   withRWRulesSeq stx[0] stx[5] fun symm term => do
     withLocation loc
-      (rewriteLocalDecl term symm · cfg)
+      (rewriteLocalDecl' position term symm · cfg)
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
@@ -168,16 +175,20 @@ example : ∀ n, n + 1 + 1 = n + 2 := by
 
 def symm_iff : a = b ↔ b = a := ⟨Eq.symm, Eq.symm⟩ 
 
-example : ∀ n, (n = 1) = (1 = n) := by
-  rewriteAt [1,0,1] [symm_iff]
-  intro n
+example : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True) := by
+  show_term
+  rewriteAt [1, 1,0,1, 0, 1] [symm_iff]
+  intro n m
   rfl
-
+  
 example (h: ∀ n:ℕ, n = zero) : ∀ n:ℕ, n = zero := by
   rewriteAt [1,0,1] [h]
   intro _
   rfl
-  
+
+example (h : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True)) : True := by
+  rewriteAt [1, 1,0,1, 0, 1] [symm_iff] at h
+  trivial
 
 
 -- these work now :-)
