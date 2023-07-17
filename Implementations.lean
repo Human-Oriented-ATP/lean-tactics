@@ -161,7 +161,6 @@ example (h : p ∨ q) : q ∨ p := by
   hypothesisDisjunctionSplit h a b
   . exact Or.inr a
   . exact Or.inl b
-  rewrite
 
 -- when the target depends on h, hypothesisDisjunctionSplit still works:
 example (h : p ∨ q) : Function.const  _ (q ∨ p) h := by
