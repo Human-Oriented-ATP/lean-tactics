@@ -24,8 +24,6 @@ example (x : Nat) : f (g x) = x + 2 := by
 -- 2. expand (version 2) 
 
 
-
-
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
 macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
 

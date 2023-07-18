@@ -206,4 +206,5 @@ mkSelectInsertTactic "rewriteAt?" "Select 🔍"
 
 example (a : Nat) : a + a - a + a = a := by
   -- Put your cursor on the next line
+  sorry
   all_goals { sorry }
