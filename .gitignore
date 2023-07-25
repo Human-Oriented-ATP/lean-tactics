@@ -1,4 +1,4 @@
 .cache
-build
+build/*
 lake-packages/*
 hello world.lean

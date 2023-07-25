@@ -2,11 +2,11 @@
  "packagesDir": "lake-packages",
  "packages":
  [{"git":
-   {"url": "https://github.com/PatrickMassot/ProofWidgets4.git",
-    "subDir?": null,
-    "rev": "2b3d786",
-    "name": "proofwidgets",
-    "inputRev?": null}},
+ {"url": "https://github.com/EdAyers/ProofWidgets4",
+  "subDir?": null,
+  "rev": "c43db94a8f495dad37829e9d7ad65483d68c86b8",
+  "name": "proofwidgets",
+  "inputRev?": "v0.0.13"}},
   {"git":
    {"url": "https://github.com/mhuisi/lean4-cli.git",
     "subDir?": null,
