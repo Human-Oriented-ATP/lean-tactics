@@ -1,5 +1,9 @@
 import Lean
 import Mathlib
+import Lean.Meta.ExprLens
+import SelectInsertPanel
+
+open Lean Meta Server
 open Lean Meta Elab.Tactic Parser.Tactic
 
 
@@ -191,4 +195,16 @@ on_goal 5 =>
 rfl
 exact 100
 
+def insertRewriteAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goalType : Expr) : MetaM String := do
+  let some pos := subexprPos[0]? | throwError "You must select something."
+  let ⟨_, .target subexprPos⟩ := pos | throwError "You must select something in the goal."
+  return "rewriteAt " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+
+-- the rewrite button
+mkSelectInsertTactic "rewriteAt?" "rewriteAt 🔍"
+    "Use shift-click to select one sub-expression in the goal that you want to zoom on."
+    insertRewriteAt
+
+--try the tactic-out below 
+example : 0 = (0: ℝ)  ∧ 0 = 1-(1 : ℤ) ∧ 0 = 1-(1 : ℤ) := by sorry
 
