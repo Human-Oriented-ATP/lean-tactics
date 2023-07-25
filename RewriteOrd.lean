@@ -3,8 +3,8 @@ import Mathlib
 
 open Function
 
-lemma imp_left_anti (x : Prop) {a b : Prop} : (a → b) → (b → x) → (a → x) := swap comp
-lemma imp_right_mono (x : Prop) {a b : Prop} : (a → b) → (x → a) → (x → b) := comp
+lemma imp_left_anti {a b : Prop} (x : Prop) : (a → b) → (b → x) → (a → x) := swap comp
+lemma imp_right_mono {a b : Prop} (x : Prop) : (a → b) → (x → a) → (x → b) := comp
 
 def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → β) where
   le f g := ∀ i, f i ≤ g i
@@ -46,7 +46,7 @@ instance le_right_mono [Preorder α] (a : α) : MonotoneClass (a ≤ ·) where
   anti := false
   order := inferInstance
   elim _ _ := Function.swap le_trans
-instance le_left_anti [Preorder α] : MonotoneClass (α := α) LE.le where
+instance le_left_anti [Preorder α] : MonotoneClass (α := α) (. ≤ .) where
   anti := true
   order := inferInstance
   elim _ _ h _ := le_trans h
@@ -55,7 +55,7 @@ instance lt_right_mono [Preorder α] (a : α) : MonotoneClass (a < ·) where
   anti := false
   order := inferInstance
   elim _ _ := Function.swap lt_of_lt_of_le
-instance lt_left_anti [Preorder α] : MonotoneClass (α := α) LT.lt where
+instance lt_left_anti [Preorder α] : MonotoneClass (α := α) (· < .) where
   anti := true
   order := inferInstance
   elim _ _ h _ := lt_of_le_of_lt h
@@ -64,7 +64,7 @@ instance set_mono : MonotoneClass (α := Set α) setOf where
   anti := false
   order := inferInstance
   elim _ _ := id
-instance elem_mono {a : α} : MonotoneClass (Set.Mem a) where
+instance mem_mono {a : α} : MonotoneClass (fun A : Set α => a ∈ A) where
   anti := false
   order := inferInstance
   elim _ _ sub mem := sub mem
@@ -99,27 +99,30 @@ structure OrdRewriteResult where
   mvarIds  : List MVarId
 
 
-def matchEToLE (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax) (symm : Bool) : TacticM RewriteInfo := do
-  let hle ← elabTerm stx none true
-  let hleType ← instantiateMVars (← inferType hle)
+def matchEToLE (fVars : Array Expr) (e preorderInst : Expr) (stx : Syntax) (symm : Bool) : TacticM RewriteInfo := do
+  let hLE ← elabTerm stx none true
+  let hleType ← instantiateMVars (← inferType hLE)
   let (newMVars, binderInfos, hleType) ← forallMetaTelescopeReducing hleType
-  let hle := mkAppN hle newMVars
-  match Expr.app4? hleType ``LE.le with
-  | none => throwTacticEx `rewrite mvarId m!"(· ≤ ·) proof expected{indentExpr hleType}"
-  | some (_type, _inst, lhs, rhs) =>
-    let (lhs, rhs) := if symm then (rhs, lhs) else (lhs, rhs)
+  let hLE := mkAppN hLE newMVars
+  let .app (.app _ lhs) rhs := hleType | throwError "relation expected"
+  let LEinst ← mkAppOptM `Preorder.toLE #[none, preorderInst]
+  let newhleType ← mkAppOptM `LE.le #[none, LEinst, lhs, rhs]
+  let newhLE ← mkExpectedTypeHint hLE newhleType
+  unless ← isTypeCorrect newhLE do
+    throwError "the term is not in the right inequality form"
+  let (lhs, rhs) := if symm then (rhs, lhs) else (lhs, rhs)
 
-    if (← isDefEq lhs (e.instantiateRev fVars))
-      then
-        return ((← instantiateMVars hle).abstract fVars, ← instantiateMVars rhs, newMVars, binderInfos)
-    else
-      throwError "subexpression '{e.instantiateRev fVars}' does not match side '{if symm then rhs else lhs}'"
+  if (← isDefEq lhs (e.instantiateRev fVars))
+    then
+      return (newhLE.abstract fVars, ← instantiateMVars rhs, newMVars, binderInfos)
+  else
+    throwError "subexpression '{e.instantiateRev fVars}' does not match side '{lhs}'"
 
 
-def recurseToPosition (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) : TacticM RewriteInfo :=
+def recurseToPosition (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) : TacticM RewriteInfo :=
   
   let rec visit (e preorderInst : Expr) (fVars : Array Expr) : List Nat → TacticM RewriteInfo
-    | [] => matchEToLE mvarId fVars e stx symm
+    | [] => matchEToLE fVars e preorderInst stx symm
     
     | ys@ (x :: xs) => do
       match x, e with
@@ -174,7 +177,7 @@ def Lean.MVarId.ord_rewrite (mvarId : MVarId) (e : Expr) (stx : Syntax) (positio
     mvarId.checkNotAssigned `rewrite
     let e ← Lean.instantiateMVars e
     let (leProof, eNew, newMVars, binderInfos)
-      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId e stx position symm
+      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition e stx position symm
     unless (← isTypeCorrect leProof) do
       throwTacticEx `rewrite mvarId "the inequality proof is not type correct"
     postprocessAppMVars `rewrite mvarId newMVars binderInfos
@@ -232,8 +235,18 @@ syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (
 
 
 
-example [Preorder α] {a b c : α} (h : b ≤ a) (g : b ≤ c) : (True → a ≤ c) → True := by
-rewriteOrdAt [0,1,0,1] [← h]
-intro _
-trivial
+example [Preorder α] {a b c : α} (h : b ≤ a) (g : c ≤ b) : (True → a ≤ c) → True := by
+  rewriteOrdAt [0,1,0,1] [← h]
+  rewriteOrdAt [0,1,1] [g]
+  intro _
+  trivial
+
+
+set_option pp.explicit true
+variable {α : Type u} (a : α) [Preorder α]
+
+
+example {A B : Set α} (h : A ⊆ B) (g : a ∈ A) : a ∈ B := by
+rewriteOrdAt [1] [← h]
+exact g
 
