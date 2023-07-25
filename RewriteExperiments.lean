@@ -15,8 +15,8 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax)
     | none => throwTacticEx `rewriteAt mvarId m!"equality or iff proof expected{indentExpr heqType}"
     | some (type, lhs, rhs) =>
       let cont (heq lhs rhs : Expr) : MetaM RewriteInfo := do
-
-        if (← isDefEq lhs (e.instantiateRev fVars))
+        let e := e.instantiateRev fVars
+        if (← isDefEq lhs e)
           then
             let mut heq ← instantiateMVars heq
             for fVar in fVars.reverse do
@@ -30,7 +30,7 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax)
 
             return (motive_core, rhs, heq, type, newMVars, binderInfos)
         else
-          throwError "subexpression '{e.instantiateRev fVars}' does not match left hand side '{lhs}' \n they have types {← inferType e} and {← inferType lhs}."
+          throwTacticEx `rewriteAt mvarId m!"subexpression {e} : {← inferType e} does not match left hand side {lhs} : {← inferType lhs}"
 
       match symm with
       | false => cont heq lhs rhs
@@ -47,40 +47,38 @@ def matchEToLHS (mvarId : MVarId) (fVars : Array Expr) (e : Expr) (stx : Syntax)
 
 def recurseToPosition (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) : TacticM RewriteInfo :=
   
-  let rec visit (e : Expr) (fVars : Array Expr) : List Nat → TacticM RewriteInfo
-    | [] => matchEToLHS mvarId fVars e stx symm
+  let rec visit (fVars : Array Expr) : List Nat → Expr → TacticM RewriteInfo
+    | list, .mdata d b         => do let (e, e', z) ← visit fVars list b; return (.mdata d e, .mdata d e', z)
+
+    | [], e => matchEToLHS mvarId fVars e stx symm
     
-    | ys@ (x :: xs) => do
-      match x, e with
-      | 0, .app f a          => let (e, e', z) ← visit f fVars xs; return (.app e a, .app e' a, z)
-      | 1, .app f a          => let (e, e', z) ← visit a fVars xs; return (.app f e, .app f e', z)
+    | 0::xs, .app f a          => do let (e, e', z) ← visit fVars xs f; return (.app e a, .app e' a, z)
+    | 1::xs, .app f a          => do let (e, e', z) ← visit fVars xs a; return (.app f e, .app f e', z)
 
-      | _, .mdata d b        => let (e, e', z) ← visit b fVars ys; return (.mdata d e, .mdata d e', z)
+    | 0::xs, .proj n i b       => do let (e, e', z) ← visit fVars xs b; return (.proj n i e, .proj n i e', z)
 
-      | 0, .proj n i b       => let (e, e', z) ← visit b fVars xs; return (.proj n i e, .proj n i e', z)
-
-      | 0, .letE n t v b c   => let (e, e', z) ← visit t fVars xs; return (.letE n e v b c, .letE n e' v b c, z)
-      | 1, .letE n t v b c   => let (e, e', z) ← visit v fVars xs; return (.letE n t e b c, .letE n t e' b c, z)
-      | 2, .letE n t v b c   =>
-        withLocalDeclD n (t.instantiateRev fVars) λ fVar ↦ do
-        let (e, e', z) ← visit b (fVars.push fVar) xs
+    | 0::xs, .letE n t v b c   => do let (e, e', z) ← visit fVars xs t; return (.letE n e v b c, .letE n e' v b c, z)
+    | 1::xs, .letE n t v b c   => do let (e, e', z) ← visit fVars xs v; return (.letE n t e b c, .letE n t e' b c, z)
+    | 2::xs, .letE n t v b c   =>
+      withLocalDeclD n (t.instantiateRev fVars) λ fVar ↦ do
+        let (e, e', z) ← visit (fVars.push fVar) xs b
         return (.letE n t v e c, .letE n t v e' c, z)
-                                                        
-      | 0, .lam n t b bi     => let (e, e', z) ← visit t fVars xs; return (.lam n e b bi, .lam n e' b bi, z)
-      | 1, .lam n t b bi     =>
-        withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
-        let (e, e', z) ← visit b (fVars.push fVar) xs
+                                                      
+    | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fVars xs t; return (.lam n e b bi, .lam n e' b bi, z)
+    | 1::xs, .lam n t b bi     =>
+      withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
+        let (e, e', z) ← visit (fVars.push fVar) xs b
         return (.lam n t e bi, .lam n t e' bi, z)
 
-      | 0, .forallE n t b bi => let (e, e', z) ← visit t fVars xs; return (.forallE n e b bi, .forallE n e' b bi, z)
-      | 1, .forallE n t b bi =>
-        withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
-        let (e, e', z) ← visit b (fVars.push fVar) xs
+    | 0::xs, .forallE n t b bi => do let (e, e', z) ← visit fVars xs t; return (.forallE n e b bi, .forallE n e' b bi, z)
+    | 1::xs, .forallE n t b bi =>
+      withLocalDecl n bi (t.instantiateRev fVars) λ fVar ↦ do
+        let (e, e', z) ← visit (fVars.push fVar) xs b
         return (.forallE n t e bi, .forallE n t e' bi, z)
 
-      | _, _                => throwError "could not find branch {x} in subexpression '{e}'"
+    | list, e                  => throwTacticEx `rewriteAt mvarId m!"could not find subexpression {list} in '{e}'"
       
-  visit e #[] position
+  visit #[] position e
 
 
 def Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : List Nat) (symm : Bool) (config : Rewrite.Config) : TacticM RewriteResult := do
@@ -94,7 +92,7 @@ def Lean.MVarId.rewrite' (mvarId : MVarId) (e : Expr) (stx : Syntax) (position :
     let eEqEAbst := mkApp eEqE.appFn! eAbst
     let motive := Lean.mkLambda `_a BinderInfo.default type eEqEAbst
     unless (← isTypeCorrect motive) do
-      throwTacticEx `rewriteAt mvarId "motive is not type correct"
+      throwTacticEx `rewriteAt mvarId m!"motive is not type correct{indentExpr motive}"
     let eqRefl ← mkEqRefl e
     let eqProof ← mkEqNDRec motive eqRefl heq
     -- this line changes the name of the meta variables to the form ?m.434289
