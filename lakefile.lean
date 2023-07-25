@@ -8,6 +8,9 @@ package «lean4» {
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
 
+require pointAndClick from git 
+  "https://github.com/MantasBaksys/PointAndClick.git"
+
 @[default_target]
 lean_lib «Lean4» {
   -- add any library configuration options here
