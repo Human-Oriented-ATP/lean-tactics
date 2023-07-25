@@ -2,8 +2,9 @@ import Lean
 import Mathlib
 
 open Function
-lemma imp_left_anti (a : Prop) : Antitone (· → a) := fun _ _ => swap comp
-lemma imp_right_mono (a : Prop) : Monotone (a → ·) := fun _ _ => comp
+
+lemma imp_left_anti (x : Prop) {a b : Prop} : (a → b) → (b → x) → (a → x) := swap comp
+lemma imp_right_mono (x : Prop) {a b : Prop} : (a → b) → (x → a) → (x → b) := comp
 
 def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → β) where
   le f g := ∀ i, f i ≤ g i
@@ -14,6 +15,8 @@ def Prop.preorder : Preorder Prop where
   le := LE.le
   le_refl := le_refl
   le_trans := fun _ _ _ => le_trans
+
+
 
 class MonotoneClass {α : Type u} {β : Type v} [Preorder β] (f : α → β) where
   anti : Bool
@@ -39,7 +42,7 @@ instance and_left_mono : MonotoneClass And where
   order := inferInstance
   elim _ _ h _ := And.imp_left h
 
-instance le_right_mono [Preorder α] (a : α) : MonotoneClass (LE.le a) where
+instance le_right_mono [Preorder α] (a : α) : MonotoneClass (a ≤ ·) where
   anti := false
   order := inferInstance
   elim _ _ := Function.swap le_trans
@@ -119,26 +122,19 @@ def recurseToPosition (mvarId : MVarId) (e : Expr) (stx : Syntax) (position : Li
     | [] => matchEToLE mvarId fVars e stx symm
     
     | ys@ (x :: xs) => do
-      let type ← inferType e
-      let .succ level ← getLevel type | throwError "level is not a successor"
       match x, e with
       
-      | 0, .app f a          => 
-        let type' ← inferType a
-        let .succ level' ← getLevel type' | throwError "level is not a successor"
-        let (h, e', z) ← visit f (mkApp3 (.const `Pi.ndPreorder [level', level]) type' type preorderInst) fVars xs
+      | 0, .app f a          =>
+        let (h, e', z) ← visit f (← mkAppOptM `Pi.ndPreorder #[← inferType a, none, preorderInst]) fVars xs
         return (.app h a, .app e' a, z)
 
-      | 1, .app f a          => do
-        let type' ← inferType a
-        let .succ level' ← getLevel type' | throwError "level is not a successor"
-        let monoClass := mkApp4 (.const `MonotoneClass [level', level]) type' type preorderInst f
-        let mono ← synthInstance <| monoClass
-        let .app (.app _ PreorderInst') monoProof ← whnfD mono | throwError "instance is not an application"
+      | 1, .app f a          =>
+        let monoClass ← mkAppOptM `MonotoneClass #[← inferType a, none, preorderInst, f]
+        let mono ← synthInstance monoClass
+        let .app (.app _ PreorderInst') monoProof ← whnfD mono | panic! "instance is not an application"
         
         let (h, e', z) ← visit a PreorderInst' fVars xs
-        let .app (.app _ x) y ← inferType h | panic! "h is not an inequality proof"
-        return (mkAppN monoProof #[x, y, h], .app f e', z)
+        return (← mkAppOptM' monoProof #[none, none, h], .app f e', z)
 
 
       | _, .mdata d b        => let (h, e', z) ← visit b preorderInst fVars ys; return (h, .mdata d e', z)
@@ -236,7 +232,8 @@ syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (
 
 
 
-example [Preorder α] {a b c : α} (h : a ≤ b) (g : b ≤ c) : a ≤ c := by
-rewriteOrdAt [0,1] [h]
-exact g
+example [Preorder α] {a b c : α} (h : b ≤ a) (g : b ≤ c) : (True → a ≤ c) → True := by
+rewriteOrdAt [0,1,0,1] [← h]
+intro _
+trivial
 
