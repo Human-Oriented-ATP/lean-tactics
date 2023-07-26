@@ -1,7 +1,4 @@
 import Lean
-import Mathlib
-import Lean.Meta.ExprLens
-import SelectInsertPanel
 
 open Lean Meta Server
 open Lean Meta Elab.Tactic Parser.Tactic
@@ -142,69 +139,3 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
       (rewriteLocalDecl' position term symm · cfg)
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewriteAt · "did not find instance of the pattern in the current goal")
-
-
-
-
-example : ∀ n, n + 1 + 1 = n + 2 := by
-  rewriteAt [1,0,1] [Nat.add_assoc]
-  intro n
-  rfl
-
-
-example : ∀ (m : ℕ) n, (n = 1 ∧ True) = (1 = n ∧ True) := by
-  rewriteAt [1, 1, 0, 1, 0, 1] [eq_comm]
-  intro _ _
-  rfl
-
-lemma symm_iff (a b : α) : a = b ↔ b = a := eq_comm
-
-example (α : Nat → Type u) (h : ∀ (n : Nat) (_ : α n), (n = 1 ∧ True) = (1 = n ∧ True)) : True := by
-  have this := symm_iff (α := ℕ)
-  specialize this ?x ?y
-  rewriteAt [1, 1, 0, 1, 0, 1] [this] at h
-  on_goal 3 => trivial
-  exact 24236
-  exact 5432
-
-
-
-example {p q : ℕ  → ℕ → Prop} {α : ℝ → Type u} (h₁ : a = b) (h₂ : ∀ q, q = p) : ∀ z : ℝ, ∀ _ : α z, (q b a → p a b) ∧ z = z := by
-  rewriteAt  [1,1,0,1,1,0,1] [h₁]
-  rewriteAt [1,1,0,1,0,1] [h₁]
-  rewriteAt [1,1,0,1,0,0,0] [h₂]
-  exact λ _ _ ↦ ⟨id, rfl⟩
-
-syntax binderIdent "•" : term
-
-macro_rules
-| `($h:ident •) => `(?$h)
-| `($h:hole •) => `(?$h)
-  
-example : 0 = (0: ℝ)  ∧ 0 = 1-(1 : ℤ) ∧ 0 = 1-(1 : ℤ)  := by
-refine ⟨ l•, r•⟩ 
-on_goal 1 =>
-  rewriteAt [0,1] [← sub_self]
-  rewriteAt [1] [← sub_self]
-on_goal 5 =>
-  constructor
-  on_goal 2 => rewriteAt [0,1] [← sub_self (G := ℤ )]
-  on_goal 1 => rewriteAt [0,1] [← sub_self (G := ℤ )]
-  rfl
-  rfl
-rfl
-exact 100
-
-def insertRewriteAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goalType : Expr) : MetaM String := do
-  let some pos := subexprPos[0]? | throwError "You must select something."
-  let ⟨_, .target subexprPos⟩ := pos | throwError "You must select something in the goal."
-  return "rewriteAt " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
-
--- the rewrite button
-mkSelectInsertTactic "rewriteAt?" "rewriteAt 🔍"
-    "Use shift-click to select one sub-expression in the goal that you want to zoom on."
-    insertRewriteAt
-
---try the tactic-out below 
-example : 0 = (0: ℝ)  ∧ 0 = 1-(1 : ℤ) ∧ 0 = 1-(1 : ℤ) := by sorry
-

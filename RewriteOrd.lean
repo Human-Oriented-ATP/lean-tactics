@@ -1,5 +1,6 @@
-import Lean
-import Mathlib
+import Mathlib.Algebra.CovariantAndContravariant
+import Mathlib.Data.SetLike.Basic
+import RewriteExperiments
 
 open Function
 
@@ -118,7 +119,7 @@ where
 
 
 
-abbrev RewriteInfo := Expr × Expr × Array Expr × Array BinderInfo
+abbrev RewriteOrdInfo := Expr × Expr × Array Expr × Array BinderInfo
 
 structure OrdRewriteResult where
   eNew     : Expr
@@ -140,7 +141,7 @@ def mkLEhint (e instLE : Expr) : MetaM Expr := do
   mkExpectedTypeHint e type
 
 
-def matchEToLE (mvarId : MVarId) (e preorder : Expr) (stx : Syntax) (symm : Bool) : TacticM RewriteInfo := do
+def matchEToLE (mvarId : MVarId) (e preorder : Expr) (stx : Syntax) (symm : Bool) : TacticM RewriteOrdInfo := do
   let leProof ← elabTerm stx none true
   let (newMVars, binderInfos, leTerm) ← dependantArrowMetaTelescope (← inferType leProof)
   let leProof := mkAppN leProof newMVars
@@ -160,9 +161,9 @@ def matchEToLE (mvarId : MVarId) (e preorder : Expr) (stx : Syntax) (symm : Bool
 
 
 
-partial def recurseToPosition (mvarId : MVarId)(stx : Syntax) (symm : Bool) (position : List Nat) (e : Expr) : TacticM RewriteInfo :=
+partial def recurseRewriteOrd (mvarId : MVarId)(stx : Syntax) (symm : Bool) (position : List Nat) (e : Expr) : TacticM RewriteOrdInfo :=
   
-  let rec visit (preorder : Expr) : List Nat → Expr → TacticM RewriteInfo
+  let rec visit (preorder : Expr) : List Nat → Expr → TacticM RewriteOrdInfo
 
     | list, .mdata d b => do let (h, e', z) ← visit preorder list b; return (h, .mdata d e', z)
 
@@ -219,7 +220,7 @@ def Lean.MVarId.ord_rewrite (mvarId : MVarId) (e : Expr) (stx : Syntax) (positio
     mvarId.checkNotAssigned `rewrite
     let e ← Lean.instantiateMVars e
     let (leProof, eNew, newMVars, binderInfos)
-      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseToPosition mvarId stx symm position e
+      ← withConfig (fun oldConfig => { config, oldConfig with }) <| recurseRewriteOrd mvarId stx symm position e
     unless (← isTypeCorrect leProof) do
       throwTacticEx `rewriteOrdAt mvarId m!"the inequality proof {leProof} is not type correct"
     postprocessAppMVars `rewrite mvarId newMVars binderInfos
@@ -256,14 +257,14 @@ def ord_rewriteLocalDecl (position : List Nat) (stx : Syntax) (symm : Bool) (fva
     -- replaceMainGoal (replaceResult.mvarId :: rwResult.mvarIds)
 
 
-def get_positions : List Syntax → List Nat
-| [] => []
-| x :: xs =>
-  let rec go : List Syntax → List Nat
-    | [] => []
-    | _ :: y :: ys => TSyntax.getNat ⟨y⟩ :: go ys
-    | _ => panic! "even length nonempy list"
-  TSyntax.getNat ⟨x⟩ :: go xs
+-- def get_positions : List Syntax → List Nat
+-- | [] => []
+-- | x :: xs =>
+--   let rec go : List Syntax → List Nat
+--     | [] => []
+--     | _ :: y :: ys => TSyntax.getNat ⟨y⟩ :: go ys
+--     | _ => panic! "even length nonempy list"
+--   TSyntax.getNat ⟨x⟩ :: go xs
 
 syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
@@ -281,27 +282,4 @@ syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (
       (throwTacticEx `rewriteAt · "did not find instance of the pattern in the current goal")
 
 
-
-
-example [Preorder α] {a b c : α} (h : b ≤ a) (g : c ≤ b) : (True → a ≤ c) → True := by
-  rewriteOrdAt [0,1,0,1] [← h]
-  rewriteOrdAt [0,1,1] [g]
-  intro _
-  trivial
-
-
--- set_option pp.explicit true
-variable {α : Type u} (a : α) [Preorder α]
-
-
-example {P Q : α → Prop} (h : ∀ a, P a → Q a) ( g : ∀ a, P a) : (a:α) → Q a := by
-rewriteOrdAt [1] [← h]
-exact g
-
-
-
-
-example {A B : Set α} (h : ∀ B, A ⊆ B) (g : a ∈ A) : ∀ b : Set α, a ∈ b := by
-rewriteOrdAt [1,1] [← h]
-exact fun _ => g
 

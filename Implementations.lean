@@ -6,20 +6,27 @@ import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
-import RewriteExperiments
+import RewriteOrd
 
 open Lean
+
+
+syntax Lean.binderIdent "•" : term
+
+macro_rules
+| `($h:ident •) => `(?$h)
+| `($h:hole •) => `(?$h)
 
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
-def f (x: Nat) := x
-def g (x: Nat) := x + 2
+-- def f (x: Nat) := x
+-- def g (x: Nat) := x + 2
 
-example (x : Nat) : f (g x) = x + 2 := by
-  expand1 f -- same as unfold g
-  expand1 g -- same as unfold f
+-- example (x : Nat) : f (g x) = x + 2 := by
+--   expand1 f -- same as unfold g
+--   expand1 g -- same as unfold f
 
 -- 2. expand (version 2) 
 
@@ -59,13 +66,13 @@ example (hp : p) (h : p → q) : q := by
   . exact hq
   . exact hp 
 
-example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
-  intro x
-  have h1 : P ?a → Q ?a := sorry
-  hypothesisImplicationSplit h1 hq
-  on_goal 2 => convert h1 _
-  all_goals {apply hP}
-    -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
+-- example {P Q : Nat → Prop} (hP: ∀ x, P x): ∀ x, Q x := by
+--   intro x
+--   have h1 : P ?a → Q ?a := sorry
+--   hypothesisImplicationSplit h1 hq
+--   on_goal 2 => convert h1 _
+--   all_goals {apply hP}
+--     -- want to instantiate ?a with x but they are in different proof states, need to think of a fix
 
 /-- If `h : P ∨ Q` is a hypothesis, then replace it by `p : P` in one branch and replace it by `q : Q` in another branch-/
 macro "hypothesisDisjunctionSplit" h:ident p:ident q:ident : tactic => `(tactic| 
@@ -128,10 +135,10 @@ lemma makeOrExclusiveLemma : P ∨ Q ↔ P ∨ (¬ P → Q) := by
 macro "makeOrExclusive" loc:(Parser.Tactic.location)? : tactic => 
   `(tactic| rewrite [makeOrExclusiveLemma] $(loc)?)
 
-example (h : P ∨ Q) : P ∨ Q := by
-  makeOrExclusive at h
-  makeOrExclusive
-  sorry
+-- example (h : P ∨ Q) : P ∨ Q := by
+--   makeOrExclusive at h
+--   makeOrExclusive
+--   sorry
 
 /-- If the current goal is of the form `P ∨ Q`, then replace it by `¬ P → Q` -/
 macro "disjunctionToImplicationLemma" loc:(Parser.Tactic.location)? : tactic => `(tactic| rewrite [or_iff_not_imp_left] $(loc)?)
@@ -182,7 +189,7 @@ macro "instantiate" S:ident "[" h:term,* "] as" T:ident : tactic =>
   `(tactic| have $T:ident := @$S $h:term*)
 
 example {P : Nat → Nat → Prop} (h : ∀ x y, P x y) : True := by
-  instantiate h [2, 3] as h'
+  instantiate h [2, 3] as _h'
   trivial
 
 
