@@ -42,10 +42,9 @@ lemma AnalysisTopologyES3Q7 {X : Type u} [TopologicalSpace X] [CompactSpace X] [
   on_goal 3 =>
     have hHaus := hT₂.t2
     -- have to extract the finite subcover definition of compactness
-    have hF₁Comp := sorry
+    have hF₁Comp : IsCompact F₁ := sorry
     have hF₂Comp : IsCompact F₂ := by exact IsClosed.isCompact hF₂
-    sorry
-
+  all_goals { sorry }
 -- `∀ y, y ∈ S ↔ y ∉ f y`
 -- instantiate y with `x`, match with `hs : f x = S`
 -- obtain `x ∈ S ↔ x ∉ S`, contradiction
