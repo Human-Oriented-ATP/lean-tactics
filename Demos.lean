@@ -7,17 +7,15 @@ import Mathlib.Topology.Instances.Real
 import Mathlib.Analysis.NormedSpace.BanachSteinhaus
 import RewriteOrd
 
-
 def ConvergesTo (s : ℕ → ℝ) (a : ℝ) :=
   ∀ ε > 0, ∃ N, ∀ n ≥ N, |s n - a| < ε
 
-
-theorem coincide {x y : ℝ}: (∀ {ε : ℝ}, ε > 0 → |x - y| < ε) → x = y := by
+theorem Coincide {x y : ℝ}: (∀ {ε : ℝ}, ε > 0 → |x - y| < ε) → x = y := by
   intro h
   by_contra neq
   have this : |x - y| > 0 := by
     apply lt_of_le_of_ne
-    · apply abs_nonneg
+    apply abs_nonneg
     intro h''
     apply neq
     apply eq_of_abs_sub_eq_zero h''.symm
@@ -25,9 +23,8 @@ theorem coincide {x y : ℝ}: (∀ {ε : ℝ}, ε > 0 → |x - y| < ε) → x = 
   have : |x - y| < |x - y| / 2 := by exact h this
   linarith
 
-
-theorem lim_unique {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : ConvergesTo s b) : a = b := by
-  apply coincide -- Using `library_search`, we set the subtask of showing that ∀ ε : |a - b| < ε.
+theorem Lim_unique_unmotivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : ConvergesTo s b) : a = b := by
+  apply Coincide -- Using `library_search`, we set the subtask of showing that ∀ ε : |a - b| < ε.
   intro ε εpos
   have : ε / 2 > 0 := by linarith -- Not sure about how to motivate this.
   rcases sa (ε / 2) this with ⟨Na, hNa⟩ -- Expand definition.
@@ -53,7 +50,7 @@ theorem lim_unique {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : Co
 
 theorem lim_unique_motivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : ConvergesTo s b) : 
   a = b := by
-  apply coincide -- Using `library_search`, we set the subtask of showing that `∀ ε > 0, |a - b| < ε`
+  apply Coincide -- Using `library_search`, we set the subtask of showing that `∀ ε > 0, |a - b| < ε`
   contrapose! sa
   obtain ⟨ε, hεpos, hε⟩ := sa
   rw [ConvergesTo]
@@ -87,11 +84,10 @@ theorem lim_unique_motivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a
   . exact Nat.le_max_right M N -- found by `exact?`
   . exact Nat.le_max_left M N -- found by `exact?`
 
-
 namespace Function
 
 -- One way of doing it in Lean.
-theorem Cantor1 : ∀ f : α → Set α, ¬Surjective f := by
+theorem Cantor_unmotivated : ∀ f : α → Set α, ¬Surjective f := by
   intro f -- Happens automatically.
   by_contra surjf
   let S := { x | x ∉ f x } -- This can be motivated, I think.
@@ -106,17 +102,17 @@ theorem Cantor1 : ∀ f : α → Set α, ¬Surjective f := by
 
 -- An attempt at a motivated proof.
 theorem Cantor_motivated : ∀ (f : α → Set α), ¬Surjective f := by
-  intro f
-  by_contra surjf
-  dsimp [Surjective] at surjf
-  contrapose! surjf
-  refine ⟨?S, ?_⟩
+  intro f  -- Automatic.
+  by_contra surjf -- ADD MOVE: Declare that we'll carry out a proof by contradiction, although `intro surjf` amounts to the same thing.
+  dsimp [Surjective] at surjf -- Expand definition.
+  contrapose! surjf -- ADD MOVE: Contrapose.
+  refine ⟨?S, ?_⟩  -- ADD MOVE: Defer instantiation.
   on_goal 2 =>
-    intro x eq
-    rw [Set.ext_iff] at eq
-    revert eq
-    rw [imp_false]
-    push_neg
+    intro x eq -- Automatic.
+    rw [Set.ext_iff] at eq -- Expand definition.
+    revert eq -- ADD MOVE: I don't think we currently have a move for this.
+    rw [imp_false] -- Basic rewriting.
+    push_neg -- ADD MOVE: Push negations. This might be thought of as basic rewriting, though.
     use x
   case S =>
     exact { x | x ∉ f x }
@@ -134,7 +130,7 @@ open NNReal
 variable [MetricSpace α][MetricSpace β]
 variable {K : ℝ≥0} {f : α → β}
 
-example (hk : K > 0) : ∀ {f : α → β}, LipschitzWith K f → UniformContinuous f := by
+theorem UniformContinuous_of_Lipschitz (hk : K > 0) : ∀ {f : α → β}, LipschitzWith K f → UniformContinuous f := by
   intro f l
   rw [lipschitzWith_iff_dist_le_mul] at l
   rw [Metric.uniformContinuous_iff]
@@ -158,7 +154,7 @@ open Set Topology Filter
 
 variable {X Y : Type _} [MetricSpace X] [MetricSpace Y] {f : X → Y}
 
-theorem TendstoUniformly'.continuous (h₂ : TendstoUniformly F f p)
+theorem Continuous_of_TendstoUniformly (h₂ : TendstoUniformly F f p)
     (h₁ : ∀ᶠ n in p, Continuous (F n)) [NeBot p] : Continuous f := by
   rw [Metric.continuous_iff] -- expand(π, T)
   intro x ε εpos
@@ -176,9 +172,8 @@ theorem TendstoUniformly'.continuous (h₂ : TendstoUniformly F f p)
 
 namespace Function
 
-variable {X Y : Type _} [MetricSpace X] [MetricSpace Y] {f : X → Y}
-
-theorem UniformContinuous_of_continuous : UniformContinuous f → Continuous f := by
+theorem UniformContinuous_of_continuous {X Y : Type _} [MetricSpace X] [MetricSpace Y] {f : X → Y} :
+  UniformContinuous f → Continuous f := by
   intro h₁ 
   rw [Metric.uniformContinuous_iff] at h₁
   rw [Metric.continuous_iff] 
@@ -194,14 +189,15 @@ theorem UniformContinuous_of_continuous : UniformContinuous f → Continuous f :
     apply hd.2 h
 
 
-theorem UniformContinuous_of_continuous_motivated : UniformContinuous f → Continuous f := by
-  intro h -- Preprocessing.
+theorem UniformContinuous_of_continuous' {X Y : Type _} [MetricSpace X] [MetricSpace Y] {f : X → Y} :
+  UniformContinuous f → Continuous f := by
+  intro h -- Automatic.
   rw [Metric.uniformContinuous_iff] at h -- Expand definition.
   rw [Metric.continuous_iff] -- Expand definition.
-  intro x ε εpos -- Preprocessing.
-  specialize h ε -- Peel quantifier/skolemization.
+  intro x ε εpos -- Automatic.
+  specialize h ε -- ADD MOVE: Peel.
   simp [εpos] at h -- Basic rewriting.
-  rcases h with ⟨δ, ⟨h₁, h₂⟩⟩ -- Basic rewriting/naming.
+  rcases h with ⟨δ, ⟨h₁, h₂⟩⟩ -- ADD MOVE: Basic rewriting/peel.
   use δ -- Hard to motivate this.
   exact ⟨h₁, λ a ↦ h₂⟩ 
 
@@ -214,53 +210,51 @@ variable {G : Type _} [Group G]
 
 theorem Trivial_normal_motivated {G : Type _} [Group G] : Subgroup.Normal (⊥ : Subgroup G) := by
   refine { conj_mem := ?_ } -- Expand definition.
-  intro n hn g  -- Intro.
+  intro n hn g  -- Automatic.
   -- You can do aesop from here.
-  rw [hn] -- Basic rewriting/naming.
-  rw [mul_one, mul_inv_self g] -- Basic rewriting.
+  -- rw [hn] -- Basic rewriting/naming.
+  observe hn : n = 1 -- or rw [hn, mul_one, mul_inv_self g]
+  rw [hn, mul_one, mul_inv_self g] -- Basic rewriting.
   trivial
 
-theorem testy {G : Type _}  [inst : Group G]  {M : Type _}  [inst : MulOneClass M]  (f : G →* M) : Subgroup.Normal (MonoidHom.ker f) := by
+theorem KernelNormalMotivated {G : Type _}  [inst : Group G]  {M : Type _}  [inst : MulOneClass M]  (f : G →* M) : Subgroup.Normal (MonoidHom.ker f) := by
   refine { conj_mem := ?_ } -- Expand definition.
   intro n hn g -- Skolemize.
-  rw [MonoidHom.mem_ker]
-  rw [MonoidHom.mem_ker] at hn
-  simp
-  rw [hn, mul_one]
-  rw [← @MonoidHom.map_mul, mul_inv_self g]
-  exact MonoidHom.map_one f
+  rw [MonoidHom.mem_ker] -- Expand definition.
+  rw [MonoidHom.mem_ker] at hn -- Expand definition.
+  repeat rw [@MonoidHom.map_mul] -- Basic rewriting (can also be done with simp).
+  rw [hn, mul_one, ← @MonoidHom.map_mul, mul_inv_self g] -- Basic rewriting.
+  exact MonoidHom.map_one f -- Basic property.
 
-theorem testy1 {G : Type _}  [inst : Group G]  {M : Type _}  [inst : MulOneClass M]  (f : G →* M) : Subgroup.Normal (MonoidHom.ker f) := by
-  refine { conj_mem := ?_ }
-  intro n hn g
-  rw [MonoidHom.mem_ker, @MonoidHom.map_mul, @MonoidHom.map_mul, hn, mul_one, ← @MonoidHom.map_mul, mul_inv_self g]
-  exact MonoidHom.map_one f
+theorem KernelNormalUnmotivated {G : Type _}  [inst : Group G]  {M : Type _}  [inst : MulOneClass M]  (f : G →* M) : Subgroup.Normal (MonoidHom.ker f) := by
+  refine { conj_mem := ?_ }  -- Expand definition.
+  intro n hn g -- Automatic.
+  rw [MonoidHom.mem_ker] -- Expand definition.
+  calc -- Basic rewriting
+    f (g * n * g⁻¹) = f g * f n * f g⁻¹ := by repeat rw [@MonoidHom.map_mul]
+    _  = f g * f g⁻¹ := by rw [hn, mul_one]
+    _ = f 1 := by rw [← @MonoidHom.map_mul, mul_inv_self g]
+  exact MonoidHom.map_one f -- simp also works.
 
-theorem testy2 {G : Type _} [inst : Group G]  {M : Type _}  [inst : MulOneClass M]  (f : G →* M) : Subgroup.Normal (MonoidHom.ker f) := by
-  refine { conj_mem := ?_ }
-  intro n hn g
-  rw [MonoidHom.mem_ker]
-  sorry
-
-theorem abelian' {G : Type _} [Group G] (h : ∀ (x : G), x ≠ 1 → orderOf x = 2) : ∀ (a b : G), Commute a b := by
-  intro a b
-  rw [Commute, SemiconjBy]
-  have h' : ∀ (x : G), x ^ 2 = 1 := by
-    intro x
-    by_cases hi : x = 1
+theorem abelian {G : Type _} [Group G] (h : ∀ (x : G), x ≠ 1 → orderOf x = 2) : ∀ (a b : G), Commute a b := by
+  intro a b 
+  rw [Commute, SemiconjBy] -- Expand definition.
+  have h' : ∀ (x : G), x ^ 2 = 1 := by -- Subtask?
+    intro x 
+    by_cases hi : x = 1 
     . rw [hi]
       exact one_pow 2
     . specialize h x
       refine Iff.mp orderOf_dvd_iff_pow_eq_one ?_
       have : orderOf x = 2 := h hi
       rw [this]
-  have h'' : ∀ (x : G), x⁻¹ = x := by
+  have h'' : ∀ (x : G), x⁻¹ = x := by -- Subtask?
     intro x
     rw [@inv_eq_iff_mul_eq_one, ← pow_two, h']
   have : a * b = b * a ↔ a * b * (a⁻¹ * b⁻¹) = 1 := by
     constructor
     . rw [h'', h'', ← pow_two, h']
-      intro h
+      intro _
       trivial
     . intro h
       rw [← mul_assoc] at h
@@ -268,27 +262,22 @@ theorem abelian' {G : Type _} [Group G] (h : ∀ (x : G), x ≠ 1 → orderOf x 
   rw [this, h'', h'']
   exact Iff.mp inv_eq_iff_mul_eq_one (h'' (a * b))
 
-
-theorem abelian2 {G : Type _} [Group G] (h : ∀ (x : G), x ≠ 1 → orderOf x = 2) : ∀ (a b : G), Commute a b := by
-  intro a b
-  rw [Commute, SemiconjBy]
-  rw [← @inv_mul_eq_iff_eq_mul, ← @mul_assoc]
-  have h' : ∀ (x : G), x ^ 2 = 1 := by
-    intro x
-    by_cases hi : x = 1
+theorem Abelian_of_orderTwo {G : Type _} [Group G] (h : ∀ (x : G), x ≠ 1 → orderOf x = 2) : ∀ (a b : G), Commute a b := by
+  intro a b 
+  rw [Commute, SemiconjBy] -- Expand definition.
+  have h' : ∀ (x : G), x ^ 2 = 1 := by -- Subtask?
+    intro x 
+    by_cases hi : x = 1  -- ADD MOVE: by_cases?
     . rw [hi]
       exact one_pow 2
     . specialize h x
       refine Iff.mp orderOf_dvd_iff_pow_eq_one ?_
       have : orderOf x = 2 := h hi
       rw [this]
-  have h'' : ∀ (x : G), x⁻¹ = x := by
+  have h'' : ∀ (x : G), x⁻¹ = x := by -- Subtask.
     intro x
     rw [@inv_eq_iff_mul_eq_one, ← pow_two, h']
-  have : b⁻¹ * (a * b) = a ↔ a⁻¹ * b⁻¹ * (a * b) = 1 := by
-    constructor
-    . intro hh
-      rw [@mul_assoc]
-      rw [← mul_assoc, h'', h'', ← pow_two, h']
-    . sorry
-  sorry
+  suffices : a * b * (a⁻¹ * b⁻¹) = 1 -- Basic rewriting.
+  . rw [← mul_assoc] at this
+    exact Iff.mp commutatorElement_eq_one_iff_mul_comm this
+  . rw [h'', h'', ← pow_two, h']
