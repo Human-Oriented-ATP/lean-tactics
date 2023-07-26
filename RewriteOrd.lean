@@ -1,6 +1,7 @@
 import Mathlib.Algebra.CovariantAndContravariant
 import Mathlib.Data.SetLike.Basic
 import RewriteExperiments
+import Mathlib.Algebra.Order.Group.Defs
 
 open Function
 
