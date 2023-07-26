@@ -67,6 +67,7 @@ instance set_mono : MonotoneClass (α := Set α) setOf where
   anti := false
   order := inferInstance
   elim _ _ := id
+
 instance mem_mono {a : α} : MonotoneClass (fun A : Set α => a ∈ A) where
   anti := false
   order := inferInstance
@@ -76,10 +77,29 @@ instance add_left_mono {μ : α → β → α} [Preorder α] [i : CovariantClass
   anti := false
   order := inferInstance
   elim _ _ h b := i.elim b h
+
 instance add_right_mono {μ : β → α → α} [Preorder α] [i : CovariantClass β α μ (· ≤ ·)] {a : β} : MonotoneClass (μ a) where
   anti := false
   order := inferInstance
   elim _ _ := i.elim a
+
+@[to_additive]
+instance inv_anti [OrderedCommGroup α] : MonotoneClass (fun x : α => x⁻¹) where
+  anti := true
+  order := inferInstance
+  elim _ _ := inv_le_inv'
+
+@[to_additive]
+instance div_left_mono [OrderedCommGroup α] : MonotoneClass (· / · : α → α → α) where
+  anti := false
+  order := inferInstance
+  elim _ _ := div_le_div_right'
+
+@[to_additive]
+instance div_right_anti [OrderedCommGroup α] {a : α}: MonotoneClass (a / · : α → α) where
+  anti := true
+  order := inferInstance
+  elim _ _ h := div_le_div_left' h a
 
 -- instance nat_pow_mono [Monoid M] [Preorder M] [CovariantClass M M (· * ·) (· ≤ ·)] [CovariantClass M M (swap (· * ·)) (· ≤ ·)]
 --   : MonotoneClass (fun (a : M) (n : ℕ) => (a ^ n)) where
@@ -269,9 +289,6 @@ def ord_rewriteLocalDecl (position : List Nat) (stx : Syntax) (symm : Bool) (fva
 syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
 @[tactic orewriteSeq'] def evalOrdRewriteSeq : Tactic := fun stx => do
-  let list := (stx[2].getArgs.toList)
-  unless List.length list % 2 == 1 do
-    throwTacticEx `rewriteAt (← getMainGoal)  m!"even length list"
   let position := get_positions (stx[2].getArgs.toList)
   let cfg ← elabRewriteConfig stx[4]
   let loc   := expandOptLocation stx[6]
