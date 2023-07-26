@@ -6,6 +6,7 @@ import Mathlib.Tactic.Set
 import Mathlib.Tactic.PermuteGoals
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.NormCast
+import Mathlib.Tactic.Ring
 import RewriteOrd
 
 open Lean
@@ -18,6 +19,12 @@ macro_rules
 | `($h:hole •) => `(?$h)
 
 
+/-- `please` tries applying simp, aesop and ring, stopping short if the previous tactic succeeds. -/
+macro "please" : tactic => `(tactic| first | simp | aesop | ring)
+
+example : 3 * (2 + 5) = 21 := by
+  please
+
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 
@@ -29,7 +36,6 @@ macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
 --   expand1 g -- same as unfold f
 
 -- 2. expand (version 2) 
-
 
 /-- If the current target is `P ∧ Q`, then replace it by the targets `P` and `Q`. -/
 macro "targetConjunctionSplit" : tactic => `(tactic| refine And.intro ?_ ?_)
@@ -191,5 +197,3 @@ macro "instantiate" S:ident "[" h:term,* "] as" T:ident : tactic =>
 example {P : Nat → Nat → Prop} (h : ∀ x y, P x y) : True := by
   instantiate h [2, 3] as _h'
   trivial
-
-
