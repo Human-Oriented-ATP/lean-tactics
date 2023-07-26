@@ -5,6 +5,7 @@ import Mathlib.Algebra.Group.Defs
 import Mathlib.Data.Set.Function
 import Mathlib.Topology.Instances.Real
 import Mathlib.Analysis.NormedSpace.BanachSteinhaus
+import RewriteOrd
 
 
 def ConvergesTo (s : ℕ → ℝ) (a : ℝ) :=
@@ -50,8 +51,9 @@ theorem lim_unique {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : Co
     _ = ε := by norm_num
 
 
-theorem lim_unique_motivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : ConvergesTo s b) : a = b := by
-  apply coincide -- Using 'library_search', we set the subtask of showing that ∀ ε > 0, |a - b| < ε
+theorem lim_unique_motivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a) (sb : ConvergesTo s b) : 
+  a = b := by
+  apply coincide -- Using `library_search`, we set the subtask of showing that `∀ ε > 0, |a - b| < ε`
   contrapose! sa
   obtain ⟨ε, hεpos, hε⟩ := sa
   rw [ConvergesTo]
@@ -59,10 +61,31 @@ theorem lim_unique_motivated {s : ℕ → ℝ} {a b : ℝ} (sa : ConvergesTo s a
   refine ⟨?δ, ?_, ?_⟩
   on_goal 3 =>
     intro N
-    refine ⟨?n, ?_, ?_⟩
-    on_goal 4 =>
-      suffices : ?δ ≤ |a - b| - |s ?n - b|
-  all_goals { sorry }
+    -- the following step is `not` motivated and only done here because of the 
+    -- issue with metavariables discussed previously
+    specialize sb (ε - ?δ) _
+    on_goal 3 =>
+      cases' sb with M hM
+      refine ⟨?n, ?_, ?_⟩
+      on_goal 4 =>
+        specialize hM ?n _
+        on_goal 3 =>
+          -- version of triangle inequality
+          have : |a - b| - |s ?n - b| ≤ |s ?n - a| := by sorry
+          rewriteOrdAt [1] [← this]
+          rewriteOrdAt [1, 0, 1] [← hε]
+          rewriteOrdAt [1, 1] [le_of_lt hM]
+          norm_num
+  -- inspecting the goal states we have the conditions `?n ≥ N` and `?n ≥ M`
+  case n =>
+    exact max M N
+  -- inspecting the goal states we have the conditio `0 < ?δ` and `0 < ε - ?δ`
+  case δ =>
+    exact (ε / 2)
+  . exact half_pos hεpos -- found by `exact?`
+  . { norm_num; exact hεpos } -- 2nd part found by `exact?`
+  . exact Nat.le_max_right M N -- found by `exact?`
+  . exact Nat.le_max_left M N -- found by `exact?`
 
 
 namespace Function
