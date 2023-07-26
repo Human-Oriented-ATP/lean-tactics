@@ -39,7 +39,3 @@ lean_lib RewriteOrd {
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
-
-lean_lib RewriteOrd {
-  
-}
