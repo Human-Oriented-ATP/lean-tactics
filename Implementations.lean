@@ -1,3 +1,5 @@
+import Aesop
+import Mathlib.Tactic
 import Mathlib.Tactic.Cases
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Logic.Basic
@@ -11,7 +13,6 @@ import RewriteOrd
 
 open Lean
 
-
 syntax Lean.binderIdent "•" : term
 
 macro_rules
@@ -19,11 +20,27 @@ macro_rules
 | `($h:hole •) => `(?$h)
 
 
-/-- `please` tries applying simp, aesop and ring, stopping short if the previous tactic succeeds. -/
-macro "please" : tactic => `(tactic| first | simp | aesop | ring)
+/- `aesop` can be used for various kinds of calculation-based moves, combining a set of simplification tactics. -/
+open Lean Meta Elab Parser Tactic
 
-example : 3 * (2 + 5) = 21 := by
-  please
+example (n : ℕ) : 2 * n = n * 2 := by
+  aesop
+  sorry -- `aesop` fails
+
+macro "add_aesop_tactic" tac:tactic : command =>
+  let decl := mkIdentFrom tac.raw (`Aesop ++ .mkSimple tac.raw.reprint.get! ++ `tactic)
+  `(command|
+      @[aesop unsafe tactic] def $decl : TacticM Unit :=
+        `(tactic| $tac) >>= evalTactic ∘ TSyntax.raw)
+
+elab "add_aesop_tactics" tacs:tactic,* : command =>
+  for tac in tacs.getElems do
+    `(command| add_aesop_tactic $tac) >>= Command.elabCommand ∘ TSyntax.raw
+
+add_aesop_tactics simp, gcongr, ring, linarith, norm_num, positivity, polyrith
+
+example (n : ℕ) : 2 * n = n * 2 := by 
+  aesop -- `aesop` now succeeds
 
 /-- `expand1 S` unfolds `S` in the current goal using `dsimp`. -/
 macro "expand1" h:ident : tactic => `(tactic| dsimp [$h:ident])
