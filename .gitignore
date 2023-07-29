@@ -2,3 +2,4 @@
 build/*
 lake-packages/*
 hello world.lean
+!build/js/*.js
