@@ -1,8 +1,9 @@
 import Lake
 open Lake DSL
 
-package «lean4» {
+package «leanTactics» {
   -- add any package configuration options here
+  precompileModules := true
 }
 
 require mathlib from git
@@ -12,8 +13,14 @@ require pointAndClick from git
   "https://github.com/MantasBaksys/PointAndClick.git"
 
 @[default_target]
-lean_lib «Lean4» {
+lean_lib «LeanTactics» {
   -- add any library configuration options here
+}
+
+@[default_target]
+lean_exe «leanTactics» {
+  root := `LeanTactics
+  supportInterpreter := true
 }
 
 lean_lib Tidying {
