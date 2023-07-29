@@ -22,10 +22,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "watch": "rollup --environment NODE_ENV:production --config --watch",
+    "watch-dev": "rollup --config --watch",
+    "build": "rollup --environment NODE_ENV:production --config",
+    "build-dev": "rollup --config"
   },
   "eslintConfig": {
     "extends": [
