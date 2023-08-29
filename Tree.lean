@@ -163,14 +163,17 @@ lemma forall_make  (a : α) (h : new a → old) : Forall new → old := fun g =>
 lemma exists_make' (a : α) (h : old → new a) : old → Exists new := fun g => ⟨a, h g⟩
 
 def bindFVar (fvar : FVarId) (name : Name) (u : Level) (domain inst definition : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
-  fun {newTree, proof} => match newTree with
-  | none => {proof}
-  | some newTree =>
-    let mkLam b := .lam name domain (b.abstract #[.fvar fvar]) .default
-    let newTree := mkLam newTree
-    {
-    newTree := mkApp3 (.const (if pol then ``Forall      else ``Exists      ) [u]) domain inst newTree,
-    proof   := mkApp6 (.const (if pol then ``forall_make else ``exists_make') [u]) domain inst tree newTree definition proof}
+  fun {newTree, proof} =>
+    let mkLet b := .letE name domain definition (b.abstract #[.fvar fvar]) false
+    let proof := mkLet proof
+    match newTree with
+    | none => {proof}
+    | some newTree =>
+      let mkLam b := .lam name domain (b.abstract #[.fvar fvar]) .default
+      let newTree := mkLam newTree
+      {
+      newTree := mkApp3 (.const (if pol then ``Forall      else ``Exists      ) [u]) domain inst newTree,
+      proof   := mkApp6 (.const (if pol then ``forall_make else ``exists_make') [u]) domain inst tree newTree definition proof}
 
 lemma forall_make' (h : ∀ a, old → new a) : old → Forall new := fun g a => h a g
 lemma exists_make  (h : ∀ a, new a → old) : Exists new → old := fun ⟨a, g⟩ => h a g
@@ -179,7 +182,7 @@ lemma exists_make  (h : ∀ a, new a → old) : Exists new → old := fun ⟨a, 
 
 def bindMVarWithInst (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (inst : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof := 
   fun treeProof@{newTree, proof} => match newTree with
-  | none => {proof := proof.replaceFVar (.mvar mvarId) (mkApp2 (.const ``Classical.choice [.succ u]) type inst)}
+  | none => {proof := .letE name type (mkApp2 (.const ``Classical.choice [.succ u]) type inst) (proof.abstract #[.mvar mvarId]) false}
   | some _ =>
   bindTypeBinder name u type inst (.mvar mvarId) (!pol) ``exists_make ``forall_make' .anonymous .anonymous pol tree treeProof
 
