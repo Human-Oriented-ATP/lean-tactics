@@ -56,6 +56,10 @@ lean_lib TreeApply {
   -- add any library configuration options here
 }
 
+lean_lib TreeRewrite {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }

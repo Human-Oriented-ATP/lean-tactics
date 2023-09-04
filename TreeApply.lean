@@ -1,6 +1,6 @@
 import Tree
 import PrintTree
-import Mathlib
+import Mathlib.Topology.MetricSpace.Basic
 
 open Tree Lean Meta
 
@@ -196,9 +196,11 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
     k fvar
     
 
-  imp_right _p _pol _tree k := do
-    let fvarId ← mkFreshFVarId
-    let fvar := .fvar fvarId
+  imp_right p _pol _tree k := do
+    -- let fvarId ← mkFreshFVarId
+    -- let fvar := .fvar fvarId
+    withLocalDeclD `unknown p fun fvar => do
+    let fvarId := fvar.fvarId!
     withReader (fun c => { c with
       hypProofM := do
         let (imp_pattern p tree, hypProof) ← c.hypProofM | panic! ""
@@ -306,22 +308,16 @@ def List.takeSharedPrefix [BEq α]: List α → List α → List α × List α �
   then Bifunctor.fst (x :: ·) (takeSharedPrefix xs ys)
   else ([], xs', ys')
 
-abbrev UnificationProof := Expr → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
+abbrev UnificationProof := Expr → MetaM Unit → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
 
-partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeNodeKind) (goalPos : List Nat) (unification : UnificationProof) :
-  MetaM' (MetaM' TreeProof) := do
-  let result ← unfoldHypothesis hypProof hypothesis hypPath
-    fun hypothesis {hypProofM, metaIntro} => do
-      let result ← (TreeRecMeta true).recurseM pol tree goalPath
-        fun pos tree => (do
-          metaIntro
-          let treeProof ← unification hypothesis hypProofM goalPos pos tree
-          return (do
-            let treeProof ← (← get).binders.foldrM (fun binder => revertHypBinder binder pol tree) treeProof
-            return treeProof))
-      return result
-
-  return result
+partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeNodeKind) (goalPos : List Nat) (unification : UnificationProof)
+  : MetaM' (MetaM' TreeProof) :=
+  unfoldHypothesis hypProof hypothesis hypPath
+    fun hypothesis {hypProofM, metaIntro} =>
+      (TreeRecMeta true).recurseM pol tree goalPath
+        fun pos tree => do
+          let treeProof ← unification hypothesis metaIntro hypProofM goalPos pos tree
+          return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol tree) treeProof
 
 -- see private Lean.Meta.mkFun
 partial def applyUnbound (hypName : Name) (goalPos : List Nat) (tree : Expr) (unification : UnificationProof) : MetaM TreeProof := (do
@@ -350,7 +346,9 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
         | and_pattern goal p, .and_right::hypPath, .and_left ::goalPath => pure (p, goal, goalPath,  pol, UseHypAndLeft,  getHypothesis delete? true   pol  p hypPath)
         | _, _, _ => throwError m!"cannot have hypothesis at {hypPath} and goal at {goalPath} in {tree}"
 
-      let fvarId ← mkFreshFVarId
+      -- let fvarId ← mkFreshFVarId
+      withLocalDeclD `hyp hyp fun fvar => do
+      let fvarId := fvar.fvarId!
       let treeProofM ← applyAux (.fvar fvarId) hyp goal goalPol hypPath goalPath goalPos unification
       return useHypProof p hypProof pol goal fvarId <$> treeProofM
   
@@ -359,11 +357,12 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
   return x : MetaM' _).run' {}
 
 
-def defaultUnification (hypothesis : Expr) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
+def defaultUnification (hypothesis : Expr) (introMeta : MetaM Unit) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
   unless pos == [] do
     throwError m!"cannot apply in a subexpression: position {pos} in {target}"
   unless pol do
     throwError m!"cannot apply in negative position"
+  introMeta
   if ← isDefEq target hypothesis
   then
     let (_hyp, proof) ← proofM
@@ -403,8 +402,8 @@ example : ∀ f : ℝ → ℝ,
   tree_apply [1,1,0,1] [1,1,1]
 
   
-  
-  
+
+
 example :
   (∀ hh > 0, 0 < hh) → ∀ ε:Nat,
   0 < ε := by
@@ -441,19 +440,19 @@ example (p q : Prop) : p → (p → q) → q := by
 example (p q : Prop) : p ∧ (p → q) → q := by
   make_tree
   tree_apply [0,1,0,1] [0,1,1,0,1]
-  -- p → p
+  -- q → q
   tree_apply [0,1] [1]
   
   example (p q : Prop) : (p → q) ∧ p → q := by
   make_tree
   tree_apply [0,1,1] [0,1,0,1,0,1]
-  -- p → p
+  -- q → q
   tree_apply [0,1] [1]
 
   example (p q : Prop) : (p → q) → p → q := by
   make_tree
   tree_apply [1,0,1] [0,1,0,1]
-  -- p → p
+  -- q → q
   tree_apply [0,1] [1]
 
 example (p : Prop) : p → p := by
