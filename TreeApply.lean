@@ -1,6 +1,6 @@
 import Tree
 import PrintTree
-import Mathlib
+import Mathlib.Data.Real.Basic
 
 open Tree Lean Meta
 
@@ -377,7 +377,7 @@ open Elab Tactic
 syntax (name := tree_apply) "tree_apply" treePos treePos : tactic
 
 @[tactic tree_apply]
-def evalRewriteSeq : Tactic := fun stx => do
+def evalRewriteSeq'' : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
   workOnTree (applyBound hypPos goalPos · true defaultUnification)
@@ -392,15 +392,6 @@ example (p q : Prop) : (p ∧ (p → q)) → (q → False) → False := by
 variable (p q r : Prop)
 
 
-
-def d := Dist.dist (α := ℝ)
-example : ∀ f : ℝ → ℝ,
-  (∀ ε > 0, ∃ δ > 0, ∀ x y, d x y < δ → d (f x) (f y) < ε) →
-  ∀ x, ∀ ε > 0, ∃ δ > 0, ∀ y, d x y < δ → d (f x) (f y) < ε := by
-  make_tree
-  tree_apply [1,1,0,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
 
   
   
