@@ -6,53 +6,55 @@ open Lean Meta
 
 abbrev RewriteInfo := Expr × Expr × Expr × Expr
 
-def rewriteUnify (fVars : Array Expr) (side target : Expr) (introMeta : MetaM Unit) (proofM : MetaM' (Expr × Expr)) : MetaM' RewriteInfo := do
-  let target := target.instantiateRev fVars
-  introMeta
+def rewriteUnify (fvars : Array Expr) (side target : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) : MetaM' RewriteInfo := do
+  let target := target.instantiateRev fvars
+  let mvars ← introMeta
   if (← isDefEq side target)
     then
+      for mvar in mvars do
+        _ ← elimMVarDeps fvars mvar
       let (newSide, proof) ← proofM
-      let proof ← fVars.foldrM (fun fvar proof => do mkAppM ``funext #[← mkLambdaFVars #[fvar] proof]) proof
-      let type ← mkForallFVars fVars (← inferType newSide)
+      let proof ← fvars.foldrM (fun fvar proof => do mkAppM ``funext #[← mkLambdaFVars #[fvar] proof]) proof
+      let type ← mkForallFVars fvars (← inferType newSide)
 
-      let newSide := newSide.abstract fVars
+      let newSide := newSide.abstract fvars
 
-      let n := fVars.size
+      let n := fvars.size
       let motive_core := n.fold (.bvar · |> mkApp ·) (.bvar n)
       logInfo m!"{motive_core}"
       return (motive_core, newSide, proof, type)
   else
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
-def recurseToPosition (side target : Expr) (introMeta : MetaM Unit) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) : MetaM' RewriteInfo :=
+def recurseToPosition (side target : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) : MetaM' RewriteInfo :=
   
-  let rec visit (fVars : Array Expr) : List Nat → Expr → MetaM' RewriteInfo
-    | list, .mdata d b         => do let (e, e', z) ← visit fVars list b; return (.mdata d e, .mdata d e', z)
+  let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM' RewriteInfo
+    | list, .mdata d b         => do let (e, e', z) ← visit fvars list b; return (.mdata d e, .mdata d e', z)
 
-    | [], e => rewriteUnify fVars side e introMeta proofM
+    | [], e => rewriteUnify fvars side e introMeta proofM
     
-    | 0::xs, .app f a          => do let (e, e', z) ← visit fVars xs f; return (.app e a, .app e' a, z)
-    | 1::xs, .app f a          => do let (e, e', z) ← visit fVars xs a; return (.app f e, .app f e', z)
+    | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
+    | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
 
-    | 0::xs, .proj n i b       => do let (e, e', z) ← visit fVars xs b; return (.proj n i e, .proj n i e', z)
+    | 0::xs, .proj n i b       => do let (e, e', z) ← visit fvars xs b; return (.proj n i e, .proj n i e', z)
 
-    | 0::xs, .letE n t v b c   => do let (e, e', z) ← visit fVars xs t; return (.letE n e v b c, .letE n e' v b c, z)
-    | 1::xs, .letE n t v b c   => do let (e, e', z) ← visit fVars xs v; return (.letE n t e b c, .letE n t e' b c, z)
+    | 0::xs, .letE n t v b c   => do let (e, e', z) ← visit fvars xs t; return (.letE n e v b c, .letE n e' v b c, z)
+    | 1::xs, .letE n t v b c   => do let (e, e', z) ← visit fvars xs v; return (.letE n t e b c, .letE n t e' b c, z)
     | 2::xs, .letE n t v b c   =>
-      withLocalDeclD n (t.instantiateRev fVars) fun fvar => do
-        let (e, e', z) ← visit (fVars.push fvar) xs b
+      withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
+        let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.letE n t v e c, .letE n t v e' c, z)
                                                       
-    | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fVars xs t; return (.lam n e b bi, .lam n e' b bi, z)
+    | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fvars xs t; return (.lam n e b bi, .lam n e' b bi, z)
     | 1::xs, .lam n t b bi     =>
-      withLocalDecl n bi (t.instantiateRev fVars) fun fvar => do
-        let (e, e', z) ← visit (fVars.push fvar) xs b
+      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+        let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.lam n t e bi, .lam n t e' bi, z)
 
-    | 0::xs, .forallE n t b bi => do let (e, e', z) ← visit fVars xs t; return (.forallE n e b bi, .forallE n e' b bi, z)
+    | 0::xs, .forallE n t b bi => do let (e, e', z) ← visit fvars xs t; return (.forallE n e b bi, .forallE n e' b bi, z)
     | 1::xs, .forallE n t b bi =>
-      withLocalDecl n bi (t.instantiateRev fVars) fun fvar => do
-        let (e, e', z) ← visit (fVars.push fvar) xs b
+      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+        let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.forallE n t e bi, .forallE n t e' bi, z)
 
     | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
@@ -65,7 +67,7 @@ lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b
 lemma substitute' {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive a → motive b :=
   Eq.subst h₁
 
-def treeRewrite (symm : Bool) (eq : Expr) (introMeta : MetaM Unit) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
+def treeRewrite (symm : Bool) (eq : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
   let cont (lhs rhs : Expr) (proofM : MetaM' (Expr × Expr)) :=
     let cont (side : Expr) (proofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
     
@@ -122,4 +124,10 @@ example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := 
 example : (∀ n : Nat, n = n+1) → (∃ m : Nat, m = m+1) → True := by
   make_tree
   tree_rewrite [0,1,1,1] [1,0,1,1,1,0,1]
+  sorry
+
+
+example : (∀ n l k : Nat, n = l+k) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} := by
+  make_tree
+  tree_rewrite [0,1,1,1,1,1,1,1] [1,1,1,0,1,1,1,0,1]
   sorry

@@ -1,5 +1,6 @@
 import Tree
 import PrintTree
+import Mathlib.Topology.MetricSpace.Basic
 import Mathlib.Data.Real.Basic
 
 open Tree Lean Meta
@@ -151,7 +152,7 @@ namespace UnfoldHypothesis
 
 structure Context where
   hypProofM : MetaM' (Expr × Expr)
-  metaIntro : MetaM Unit := pure ()
+  metaIntro : MetaM (Array Expr) := pure #[]
 
 
 def Rec : Recursor (ReaderT Context MetaM' α) where
@@ -159,9 +160,7 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
     let mvarId ← mkFreshMVarId
     let mvar := .mvar mvarId
     withReader (fun {hypProofM, metaIntro} => {
-      metaIntro := do
-        metaIntro
-        _ ← mkFreshExprMVarWithId mvarId domain (kind := .synthetic) (userName := name)
+      metaIntro := return (← metaIntro).push (← mkFreshExprMVarWithId mvarId domain (kind := .synthetic) (userName := name))
       hypProofM := do
         let (forall_pattern name u _domain inst tree, hypProof) ← hypProofM | panic! ""
         let assignment ← instantiateMVars mvar
@@ -308,7 +307,7 @@ def List.takeSharedPrefix [BEq α]: List α → List α → List α × List α �
   then Bifunctor.fst (x :: ·) (takeSharedPrefix xs ys)
   else ([], xs', ys')
 
-abbrev UnificationProof := Expr → MetaM Unit → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
+abbrev UnificationProof := Expr → MetaM (Array Expr) → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
 
 partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeNodeKind) (goalPos : List Nat) (unification : UnificationProof)
   : MetaM' (MetaM' TreeProof) :=
@@ -357,12 +356,12 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
   return x : MetaM' _).run' {}
 
 
-def defaultUnification (hypothesis : Expr) (introMeta : MetaM Unit) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
+def defaultUnification (hypothesis : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
   unless pos == [] do
     throwError m!"cannot apply in a subexpression: position {pos} in {target}"
   unless pol do
     throwError m!"cannot apply in negative position"
-  introMeta
+  _ ← metaIntro
   if ← isDefEq target hypothesis
   then
     let (_hyp, proof) ← proofM
@@ -376,7 +375,7 @@ open Elab Tactic
 syntax (name := tree_apply) "tree_apply" treePos treePos : tactic
 
 @[tactic tree_apply]
-def evalRewriteSeq'' : Tactic := fun stx => do
+def evalRewriteSeq : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
   workOnTree (applyBound hypPos goalPos · true defaultUnification)
@@ -392,7 +391,14 @@ variable (p q r : Prop)
 
 
 
-  
+def d := Dist.dist (α := ℝ)
+example : ∀ f : ℝ → ℝ,
+  (∀ ε > 0, ∃ δ > 0, ∀ x y, d x y < δ → d (f x) (f y) < ε) →
+  ∀ x, ∀ ε > 0, ∃ δ > 0, ∀ y, d x y < δ → d (f x) (f y) < ε := by
+  make_tree
+  tree_apply [1,1,0,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,0,1] [1,1,1,0,1]
+  tree_apply [1,1,0,1] [1,1,1]
 
 
 example :
