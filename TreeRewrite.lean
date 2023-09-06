@@ -6,32 +6,33 @@ open Lean Meta
 
 abbrev RewriteInfo := Expr × Expr × Expr × Expr
 
-def rewriteUnify (fvars : Array Expr) (side target : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) : MetaM' RewriteInfo := do
+def rewriteUnify (fvars : Array Expr) (side target : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) : MetaM' RewriteInfo := do
   let target := target.instantiateRev fvars
-  let mvars ← introMeta
+  let mvars ← metaIntro
   if (← isDefEq side target)
     then
       for mvar in mvars do
         _ ← elimMVarDeps fvars mvar
+      let lctx ← getLCtx
       let (newSide, proof) ← proofM
-      let proof ← fvars.foldrM (fun fvar proof => do mkAppM ``funext #[← mkLambdaFVars #[fvar] proof]) proof
-      let type ← mkForallFVars fvars (← inferType newSide)
-
-      let newSide := newSide.abstract fvars
 
       let n := fvars.size
       let motive_core := n.fold (.bvar · |> mkApp ·) (.bvar n)
-      logInfo m!"{motive_core}"
+      let newSide := newSide.abstract fvars
+
+      let proof ← fvars.foldrM (fun fvar proof => mkAppM ``funext #[lctx.mkLambda #[fvar] proof]) proof
+      let type := lctx.mkForall fvars (← inferType newSide)
+
       return (motive_core, newSide, proof, type)
   else
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
-def recurseToPosition (side target : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) : MetaM' RewriteInfo :=
+def recurseToPosition (side target : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) : MetaM' RewriteInfo :=
   
   let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM' RewriteInfo
-    | list, .mdata d b         => do let (e, e', z) ← visit fvars list b; return (.mdata d e, .mdata d e', z)
+    | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
-    | [], e => rewriteUnify fvars side e introMeta proofM
+    | []   , e                 => rewriteUnify fvars side e metaIntro proofM
     
     | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
     | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
@@ -67,17 +68,14 @@ lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b
 lemma substitute' {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive a → motive b :=
   Eq.subst h₁
 
-def treeRewrite (symm : Bool) (eq : Expr) (introMeta : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
+def treeRewrite (symm : Bool) (eq : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
   let cont (lhs rhs : Expr) (proofM : MetaM' (Expr × Expr)) :=
     let cont (side : Expr) (proofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
     
-      let (motive_core, newSide, proof, type) ← recurseToPosition side target introMeta proofM pos
-      logInfo m!"{motive_core}, {newSide}, {proof}, {type}"
+      let (motive_core, newSide, proof, type) ← recurseToPosition side target metaIntro proofM pos
       let motive := Expr.lam `_a type motive_core .default
-      unless (← isTypeCorrect motive) do
-        throwError m!"motive is not type correct{indentExpr motive}"
       let proof ← mkAppM (if pol != symm then ``substitute else ``substitute') #[motive, proof]
-      pure { newTree := newSide, proof}
+      return { newTree := newSide, proof}
 
     if symm
     then cont rhs <| Bifunctor.fst (·.appFn!.appArg!) <$> proofM
@@ -127,7 +125,7 @@ example : (∀ n : Nat, n = n+1) → (∃ m : Nat, m = m+1) → True := by
   sorry
 
 
-example : (∀ n l k : Nat, n = l+k) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} := by
+example : (∀ n l : Nat, n = l+n) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} := by
   make_tree
-  tree_rewrite [0,1,1,1,1,1,1,1] [1,1,1,0,1,1,1,0,1]
+  tree_rewrite [0,1,1,1,1,1] [1,1,1,0,1,1,1,0,1]
   sorry

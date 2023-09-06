@@ -1,6 +1,5 @@
 import Tree
 import PrintTree
-import Mathlib.Topology.MetricSpace.Basic
 import Mathlib.Data.Real.Basic
 
 open Tree Lean Meta
@@ -391,8 +390,8 @@ variable (p q r : Prop)
 
 
 
-def d := Dist.dist (α := ℝ)
-example : ∀ f : ℝ → ℝ,
+-- def d := Dist.dist (α := ℝ)
+example (d : ℝ → ℝ → ℝ) : ∀ f : ℝ → ℝ,
   (∀ ε > 0, ∃ δ > 0, ∀ x y, d x y < δ → d (f x) (f y) < ε) →
   ∀ x, ∀ ε > 0, ∃ δ > 0, ∀ y, d x y < δ → d (f x) (f y) < ε := by
   make_tree
