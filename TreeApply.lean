@@ -1,7 +1,6 @@
 import Tree
 import PrintTree
-import Mathlib.Data.Real.Basic
-
+import Mathlib.Topology.MetricSpace.Basic
 open Tree Lean Meta
 
 inductive HypBinder where
@@ -163,7 +162,6 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
       hypProofM := do
         let (forall_pattern name u _domain inst tree, hypProof) ← hypProofM | panic! ""
         let assignment ← instantiateMVars mvar
-        let tree := tree.instantiate1 assignment
 
         if let .mvar mvarId' := assignment then
           modify fun s => let (mvarInfos, duplicate) := s.mvarInfos.insert' mvarId' {name, u, inst}; if duplicate then s else { s with mvarInfos }
@@ -174,7 +172,7 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
           boundMVars := s.boundMVars.insertMany newMVars
           binders := s.binders ++ newBinders
           }
-        return (tree, .app hypProof assignment)
+        return (tree.instantiate1 assignment, .app hypProof assignment)
       }) do
     k mvar
     
@@ -187,9 +185,8 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
       hypProofM := do
         let (exists_pattern name u domain inst tree, hypProof) ← c.hypProofM | panic! ""
         let lamTree := .lam name domain tree .default
-        let tree := tree.instantiate1 fvar
         addBinder (.free fvarId name u domain inst (mkApp3 (.const ``Classical.choose [u']) domain lamTree hypProof))
-        return (tree, mkApp3 (.const ``Classical.choose_spec [u']) domain lamTree hypProof)
+        return (tree.instantiate1 fvar, mkApp3 (.const ``Classical.choose_spec [u']) domain lamTree hypProof)
     }) do
     k fvar
     
@@ -299,12 +296,7 @@ where
       let treeProof ← bindHyp treeProof
       return treeProof
 
-def List.takeSharedPrefix [BEq α]: List α → List α → List α × List α × List α
-| [], ys => ([], [], ys)
-| xs, [] => ([], xs, [])
-| xs'@(x::xs), ys'@(y::ys) => if x == y
-  then Bifunctor.fst (x :: ·) (takeSharedPrefix xs ys)
-  else ([], xs', ys')
+
 
 abbrev UnificationProof := Expr → MetaM (Array Expr) → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
 
@@ -317,23 +309,10 @@ partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hy
           let treeProof ← unification hypothesis metaIntro hypProofM goalPos pos tree
           return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol tree) treeProof
 
--- see private Lean.Meta.mkFun
-partial def applyUnbound (hypName : Name) (goalPos : List Nat) (tree : Expr) (unification : UnificationProof) : MetaM TreeProof := (do
-  let (goalPath, goalPos) := positionToNodes goalPos tree
-  let cinfo ← getConstInfo hypName
-  let us ← cinfo.levelParams.mapM fun _ => mkFreshLevelMVar
-  let hypProof := mkConst hypName us
-  let hyp ← Core.instantiateTypeLevelParams cinfo us
-  let hyp ← makeTree hyp
-  let nodes := getNodes hyp
-
-  let treeProofM ← applyAux hypProof hyp tree true nodes goalPath goalPos unification
-  treeProofM : MetaM' _).run' {}
-
 partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool) (unification : UnificationProof) : MetaM TreeProof := (do
-  let hypPath ← positionToNodes! hypPos tree
-  let (goalPath, goalPos) := positionToNodes goalPos tree
-  let (path, hypPath, goalPath) := hypPath.takeSharedPrefix goalPath
+  let hypPath ← positionToPath! hypPos tree
+  let (goalPath, goalPos) := positionToPath goalPos tree
+  let (path, hypPath, goalPath) := takeSharedPrefix hypPath goalPath
   let treeProofM ← (TreeRecMeta false).recurseM true tree path
     fun pol tree => do
 
@@ -353,9 +332,28 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
   let x ← treeProofM
   -- logInfo m!"{x.proof}, {indentExpr <$> x.newTree}"
   return x : MetaM' _).run' {}
+where
+  takeSharedPrefix {α : Type} [BEq α] : List α → List α → List α × List α × List α
+  | [], ys => ([], [], ys)
+  | xs, [] => ([], xs, [])
+  | xs'@(x::xs), ys'@(y::ys) =>
+    if x == y
+    then Bifunctor.fst (x :: ·) (takeSharedPrefix xs ys)
+    else ([], xs', ys')
 
 
-def defaultUnification (hypothesis : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
+
+partial def applyUnbound (hypName : Name) (goalPos : List Nat) (tree : Expr) (unification : UnificationProof) : MetaM TreeProof := (do
+  let (goalPath, goalPos) := positionToPath goalPos tree
+  let hypProof ← mkConstWithFreshMVarLevels hypName
+  let hyp ← makeTreeWithSillyNonemptyInstances (← inferType hypProof)
+  logInfo m!"{hyp}"
+
+  let treeProofM ← applyAux hypProof hyp tree true (getPath hyp) goalPath goalPos unification
+  treeProofM : MetaM' _).run' {}
+
+
+def treeApply (hypothesis : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
   unless pos == [] do
     throwError m!"cannot apply in a subexpression: position {pos} in {target}"
   unless pol do
@@ -374,10 +372,18 @@ open Elab Tactic
 syntax (name := tree_apply) "tree_apply" treePos treePos : tactic
 
 @[tactic tree_apply]
-def evalRewriteSeq : Tactic := fun stx => do
+def evalTreeApply : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
-  workOnTree (applyBound hypPos goalPos · true defaultUnification)
+  workOnTree (applyBound hypPos goalPos · true treeApply)
+
+syntax (name := lib_apply) "lib_apply" ident treePos : tactic
+
+@[tactic lib_apply]
+def evalLibApply : Tactic := fun stx => do
+  let hypPos := stx[1].getId
+  let goalPos := get_positions stx[2]
+  workOnTree (applyUnbound hypPos goalPos · treeApply)
 
 
 example (p q : Prop) : (p ∧ (p → q)) → (q → False) → False := by
@@ -385,6 +391,11 @@ example (p q : Prop) : (p ∧ (p → q)) → (q → False) → False := by
   tree_apply [0,1,1,1] [1,0,1,0,1]
   sorry
 
+def Tree.rfl [Nonempty α] : Tree.Forall fun a : α => a = a := IsRefl.refl
+-- set_option pp.all true in
+-- example : 3 = 3 := by
+--   make_tree
+--   lib_apply Tree.rfl []
   
 variable (p q r : Prop)
 

@@ -143,7 +143,6 @@ def mkLEhint (e instLE : Expr) : MetaM Expr := do
 def matchEToLE (fvars : Array Expr) (rel target type preorder : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pol : Bool) : MetaM' RewriteOrdInfo := do
 
   let le ← PreordertoLE preorder
-  -- let (lhs, rhs) ← getLEsides (rel)
   let side := (if pol then Prod.snd else Prod.fst) (← getLEsides rel)
   _ ← metaIntro
   if (← isDefEq side target)
@@ -151,10 +150,8 @@ def matchEToLE (fvars : Array Expr) (rel target type preorder : Expr) (metaIntro
     let (newRel, proof) ← proofM
     let (lhs, rhs) ← getLEsides newRel
     let newRel ← mkAppOptM ``LE.le #[type, le, lhs, rhs]
-    logInfo m! "{lhs}, {rhs}, {type}, {le}, {preorder}"
+    -- logInfo m! "{lhs}, {rhs}, {type}, {le}, {preorder}"
     let proof ← mkExpectedTypeHint proof newRel
-    -- let (lhs, rhs) := if symm then (rhs, lhs) else (lhs, rhs)
-      -- let rhs := (← instantiateMVars rhs).instantiateRev fVars
     return (if pol then lhs else rhs, proof)
   else
     throwError m!"subexpression '{target}' does not match side '{side}'"

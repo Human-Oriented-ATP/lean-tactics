@@ -389,8 +389,8 @@ variable {new : α → Prop}
 lemma instance_forall_make' (h : ∀ a, old → new a) : old → Imp' (fun inst => @Forall α inst new) := fun g _ a => h a g
 lemma instance_exists_make  (h : ∀ a, new a → old) : And' (fun inst => @Exists α inst new) → old := fun ⟨_, a, g⟩ => h a g
 
-lemma instance_choose_mvar  (h : ∀ _ : α,   old) : Nonempty α → old   := fun   inst => h (Classical.choice inst)
-lemma instance_choose_mvar' (h : ∀ _ : α, ¬ old) : old → ¬ Nonempty α := fun g inst => h (Classical.choice inst) g
+lemma instance_choose_mvar  (h : α →   old) : Nonempty α → old   := fun   inst => h (Classical.choice inst)
+lemma instance_choose_mvar' (h : α → ¬ old) : old → ¬ Nonempty α := fun g inst => h (Classical.choice inst) g
 
 def bindMVarWithoutInst (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) (tree : Expr) : TreeProof → TreeProof := 
   fun {newTree, proof} => match newTree with
@@ -535,19 +535,19 @@ def positionToNodesAndPolarities : List Nat → Expr → List (TreeNodeKind × B
     | xs, _ => ([], xs)
   visit true
 
-def positionToNodes (pos : List Nat) (tree : Expr) : List (TreeNodeKind) × List Nat :=
+def positionToPath (pos : List Nat) (tree : Expr) : List (TreeNodeKind) × List Nat :=
   (Bifunctor.fst <| List.map Prod.fst) (positionToNodesAndPolarities pos tree)
 
-def positionToNodes! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeNodeKind)) :=
-  match positionToNodes pos tree with
+def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeNodeKind)) :=
+  match positionToPath pos tree with
   | (nodes, []) => return nodes
   | _ => throwError m!"could not tree-recurse to position {pos} in term {tree}"
 
-def getNodes : Expr → List TreeNodeKind
-  | forall_pattern (body := tree) .. => .all       :: getNodes tree
-  | exists_pattern (body := tree) .. => .ex        :: getNodes tree
-  | imp_pattern _ tree               => .imp_right :: getNodes tree
-  | and_pattern _ tree               => .and_right :: getNodes tree
+def getPath : Expr → List TreeNodeKind
+  | forall_pattern (body := tree) .. => .all       :: getPath tree
+  | exists_pattern (body := tree) .. => .ex        :: getPath tree
+  | imp_pattern _ tree               => .imp_right :: getPath tree
+  | and_pattern _ tree               => .and_right :: getPath tree
   | _ => []
 
 def nodesToPosition (nodes : List TreeNodeKind) : List Nat :=
@@ -610,9 +610,9 @@ def get_positions (stx : Syntax) : List Nat :=
   | [] => []
   | x :: xs =>
     let rec go : List Syntax → List Nat
-      | _ :: y :: ys => TSyntax.getNat ⟨y⟩ :: go ys
+      | _ :: y :: ys => y.isNatLit?.get! :: go ys
       | _ => []
-    TSyntax.getNat ⟨x⟩ :: go xs
+    x.isNatLit?.get! :: go xs
 
 
 def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
@@ -634,13 +634,3 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-
-
-set_option pp.funBinderTypes true
-example : ∀ n : Nat, ∃ m : Int, n = m → True ∧ ∀ n : Nat, ∃ m : Int, n = m → True ∧ False := by
-  make_tree
-  sorry
-
-example {p : Nat → Nat → Nat → Prop }: (∀ a,∃ b,  ∀ c, p a b c ) → ∀ a, ∀ c, ∃ b, p a b c  := by
-  make_tree
-  sorry

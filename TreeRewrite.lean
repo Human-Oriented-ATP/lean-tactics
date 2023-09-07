@@ -108,7 +108,7 @@ syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
 def evalTreeRewriteRev : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
-  workOnTree (applyBound hypPos goalPos · false (treeRewrite true))
+  workOnTree (applyBound hypPos goalPos · true (treeRewrite true))
 
 
 
