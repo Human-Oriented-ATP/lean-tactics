@@ -6,15 +6,19 @@ open Lean Meta
 
 abbrev RewriteInfo := Expr × Expr × Expr × Expr
 
-def rewriteUnify (fvars : Array Expr) (side target : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) : MetaM' RewriteInfo := do
+def rewriteUnify (fvars : Array Expr) (side target : Expr) (hypContext : HypothesisContext) : MetaM' RewriteInfo := do
   let target := target.instantiateRev fvars
+  let {metaIntro, instMetaIntro, hypProofM} := hypContext
   let mvars ← metaIntro
+  let instMVars ← instMetaIntro
   if (← isDefEq side target)
     then
+      synthMetaInstances instMVars
       for mvar in mvars do
         _ ← elimMVarDeps fvars mvar
+
+      let (newSide, proof) ← hypProofM
       let lctx ← getLCtx
-      let (newSide, proof) ← proofM
 
       let n := fvars.size
       let motive_core := n.fold (.bvar · |> mkApp ·) (.bvar n)
@@ -27,12 +31,12 @@ def rewriteUnify (fvars : Array Expr) (side target : Expr) (metaIntro : MetaM (A
   else
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
-def recurseToPosition (side target : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) : MetaM' RewriteInfo :=
+def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : List Nat) : MetaM' RewriteInfo :=
   
   let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM' RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
-    | []   , e                 => rewriteUnify fvars side e metaIntro proofM
+    | []   , e                 => rewriteUnify fvars side e hypContext
     
     | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
     | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
@@ -68,26 +72,26 @@ lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b
 lemma substitute' {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive a → motive b :=
   Eq.subst h₁
 
-def treeRewrite (symm : Bool) (eq : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
-  let cont (lhs rhs : Expr) (proofM : MetaM' (Expr × Expr)) :=
-    let cont (side : Expr) (proofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
+def treeRewrite (symm : Bool) (eq : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
+  let cont (lhs rhs : Expr) (hypProofM : MetaM' (Expr × Expr)) :=
+    let cont (side : Expr) (hypProofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
     
-      let (motive_core, newSide, proof, type) ← recurseToPosition side target metaIntro proofM pos
+      let (motive_core, newSide, proof, type) ← recurseToPosition side target {hypContext with hypProofM} pos
       let motive := Expr.lam `_a type motive_core .default
       let proof ← mkAppM (if pol != symm then ``substitute else ``substitute') #[motive, proof]
       return { newTree := newSide, proof}
 
     if symm
-    then cont rhs <| Bifunctor.fst (·.appFn!.appArg!) <$> proofM
-    else cont lhs <| Bifunctor.fst (·.appArg!) <$> proofM
+    then cont rhs <| Bifunctor.fst (·.appFn!.appArg!) <$> hypProofM
+    else cont lhs <| Bifunctor.fst (·.appArg!) <$> hypProofM
 
   match eq.iff? with
   | some (lhs, rhs) => cont lhs rhs do
-      let (.app (.app _ a) b, h) ← proofM | throwError ""
+      let (.app (.app _ a) b, h) ← hypContext.hypProofM | throwError ""
       return (mkApp3 (mkConst ``Eq [.succ .zero]) (.sort .zero) a b, (mkApp3 (mkConst ``propext) a b h))
   | none =>
   match eq.eq? with
-  | some (_, lhs, rhs) => cont lhs rhs proofM
+  | some (_, lhs, rhs) => cont lhs rhs hypContext.hypProofM
   | none => throwError m!"equality or iff proof expected{indentExpr eq}"
     
 

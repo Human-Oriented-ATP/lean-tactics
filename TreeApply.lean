@@ -5,7 +5,7 @@ open Tree Lean Meta
 
 inductive HypBinder where
 | meta (mvarId : MVarId) (type : Expr) : HypBinder
-| free (fvarId : FVarId) (name : Name) (u : Level) (type inst definition : Expr) : HypBinder
+| free (fvarId : FVarId) (name : Name) (u : Level) (type definition : Expr) : HypBinder
 | unknown (fvar : FVarId) (type : Expr) : HypBinder
 | known (definition : Expr) (type : Expr) : HypBinder
 instance : ToString HypBinder where
@@ -21,7 +21,6 @@ def mkMetaHypBinder (mvarId : MVarId) : MetaM HypBinder := do
 structure MvarInfo where
   name : Name
   u : Level
-  inst : Expr
 
 structure HypBinderState where
   binders : Array HypBinder := #[]
@@ -30,22 +29,19 @@ structure HypBinderState where
 
 abbrev MetaM' := StateRefT HypBinderState MetaM
 
-def bindMVar (mvarId : MVarId) (type : Expr) (pol : Bool) (tree : Expr) (treeProof : TreeProof) : MetaM' TreeProof := do
+def bindMeta (mvarId : MVarId) (type : Expr) (pol : Bool) (tree : Expr) (treeProof : TreeProof) : MetaM' TreeProof := do
   match (← get).mvarInfos.find? mvarId with
-  | some {name, u, inst} => return bindMVarWithInst mvarId type name u inst pol tree treeProof
+  | some {name, u} => return bindMVar mvarId type name u pol tree treeProof
   | none =>
     let name ← mkFreshUserName `m -- in the future make a more sophisticated name generator
     let u' ← getLevel type
     let u ← decLevel u'
-    if let some inst ← synthInstance? (mkApp (.const ``Nonempty [u']) type)
-      then return bindMVarWithInst mvarId type name u inst pol tree treeProof
-    else
-      return bindMVarWithoutInst mvarId type name u pol tree treeProof
+    return bindMVar mvarId type name u pol tree treeProof
 
 
 def revertHypBinder : HypBinder → Bool → Expr → TreeProof → MetaM' TreeProof
-| .meta mvar type => bindMVar mvar type
-| .free fvar name u type inst definition => (return bindFVar fvar name u type inst definition · · ·)
+| .meta mvar type => bindMeta mvar type
+| .free fvar name u type definition => (return bindFVar fvar name u type definition · · ·)
 | .unknown fvar type     => (return bindUnknown type fvar · · ·)
 | .known definition type => (return bindKnown type definition · · ·)
 
@@ -120,7 +116,6 @@ where
 
 structure takeKnownHypBinders.State where
   treeProofKleisli  : TreeProof → MetaM' TreeProof  := pure
-  -- FVarIds           : HashSet FVarId                := {}
   anyUnknowns       : Bool                          := false
   unusedBinders     : Array HypBinder               := #[]
 
@@ -136,35 +131,52 @@ where
         match binder with
         | .known .. => { s with
           treeProofKleisli := s.treeProofKleisli <=< revertHypBinder binder pol tree}
-        -- | .free fvar .. => { s with
-        --   unusedBinders := s.unusedBinders.push binder
-        --   FVarIds := s.FVarIds.insert fvar }
         | _ => { s with
           unusedBinders := s.unusedBinders.push binder
           anyUnknowns := true }
 
 
 
-namespace UnfoldHypothesis
 
 
-structure Context where
+structure HypothesisContext where
   hypProofM : MetaM' (Expr × Expr)
   metaIntro : MetaM (Array Expr) := pure #[]
+  instMetaIntro : MetaM (Array Expr) := pure #[]
 
 
-def Rec : Recursor (ReaderT Context MetaM' α) where
-  all name _u domain _inst _pol _tree k := do
+def HypothesisRec : Recursor (ReaderT HypothesisContext MetaM' α) where
+  inst _u cls _pol _tree k := do
     let mvarId ← mkFreshMVarId
     let mvar := .mvar mvarId
-    withReader (fun {hypProofM, metaIntro} => {
-      metaIntro := return (← metaIntro).push (← mkFreshExprMVarWithId mvarId domain (kind := .synthetic) (userName := name))
+    withReader (fun c => { c with
+      instMetaIntro := return (← c.instMetaIntro).push (← mkFreshExprMVarWithId mvarId cls (kind := .synthetic))
       hypProofM := do
-        let (forall_pattern name u _domain inst tree, hypProof) ← hypProofM | panic! ""
+        let (instance_pattern _u _domain tree, hypProof) ← c.hypProofM | panic! ""
+
+        let assignment ← instantiateMVars mvar
+        
+        let newMVars := ((assignment.collectMVars {}).result).filter (!(← get).boundMVars.contains ·)
+        let newBinders ← liftMetaM <| newMVars.mapM mkMetaHypBinder
+        modify fun s => { s with
+          boundMVars := s.boundMVars.insertMany newMVars
+          binders := s.binders ++ newBinders
+          }
+
+        return (tree.instantiate1 assignment, .app hypProof assignment)
+    }) do
+    k mvar
+  all name _u domain _pol _tree k := do
+    let mvarId ← mkFreshMVarId
+    let mvar := .mvar mvarId
+    withReader (fun c => { c with
+      metaIntro := return (← c.metaIntro).push (← mkFreshExprMVarWithId mvarId domain (kind := .natural) (userName := name))
+      hypProofM := do
+        let (forall_pattern name u _domain tree, hypProof) ← c.hypProofM | panic! ""
         let assignment ← instantiateMVars mvar
 
         if let .mvar mvarId' := assignment then
-          modify fun s => let (mvarInfos, duplicate) := s.mvarInfos.insert' mvarId' {name, u, inst}; if duplicate then s else { s with mvarInfos }
+          modify fun s => let (mvarInfos, duplicate) := s.mvarInfos.insert' mvarId' {name, u}; if duplicate then s else { s with mvarInfos }
 
         let newMVars := ((assignment.collectMVars {}).result).filter (!(← get).boundMVars.contains ·)
         let newBinders ← liftMetaM <| newMVars.mapM mkMetaHypBinder
@@ -177,23 +189,21 @@ def Rec : Recursor (ReaderT Context MetaM' α) where
     k mvar
     
 
-  ex name u domain _inst _pol _tree k := do
+  ex name u domain _pol _tree k := do
     withLocalDeclD name domain fun fvar => do
     let fvarId := fvar.fvarId!
     let u' := .succ u
     withReader (fun c => { c with
       hypProofM := do
-        let (exists_pattern name u domain inst tree, hypProof) ← c.hypProofM | panic! ""
+        let (exists_pattern name u domain tree, hypProof) ← c.hypProofM | panic! ""
         let lamTree := .lam name domain tree .default
-        addBinder (.free fvarId name u domain inst (mkApp3 (.const ``Classical.choose [u']) domain lamTree hypProof))
+        addBinder (.free fvarId name u domain (mkApp3 (.const ``Classical.choose [u']) domain lamTree hypProof))
         return (tree.instantiate1 fvar, mkApp3 (.const ``Classical.choose_spec [u']) domain lamTree hypProof)
     }) do
     k fvar
     
 
   imp_right p _pol _tree k := do
-    -- let fvarId ← mkFreshFVarId
-    -- let fvar := .fvar fvarId
     withLocalDeclD `unknown p fun fvar => do
     let fvarId := fvar.fvarId!
     withReader (fun c => { c with
@@ -220,16 +230,17 @@ where
   addBinder (hypBinder : HypBinder) : MetaM' Unit := do
       modify fun s => { s with binders := s.binders.push hypBinder }
 
-def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : List TreeNodeKind) (k : Expr → ReaderT Context MetaM' α) : MetaM' α :=
-  Rec.recurseM true tree pos (fun _pol => k) |>.run {hypProofM := pure (tree, hypProof)}
+def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : List TreeNodeKind) (k : Expr → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
+  HypothesisRec.recurseM true tree pos (fun _pol => k) |>.run {hypProofM := pure (tree, hypProof)}
 
--- make a function wich takes the hypothesistree and the hypothesis path. It produces the hypothesis that we will use, and the path inside that, also building the proof.
--- if I make everything one big recursion, then I will need to keep track of the inner TreeProof
-end UnfoldHypothesis
+
+
+
 
 def getHypothesisRec (hypPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr × List TreeNodeKind) where
-  all _ _ _ _ _ _ _ := none
-  ex  _ _ _ _ _ _ _ := none
+  all _ _ _ _ _ _ := none
+  ex  _ _ _ _ _ _ := none
+  inst _ _ _ _ _  := none
   imp_right p pol tree k := if  hypPol then none else some <| Bifunctor.fst (ImpRightWithHyp p pol tree) k
   imp_left  p pol tree k := if  hypPol then none else some <| Bifunctor.fst (ImpLeftWithHyp  p pol tree) k
   and_right p pol tree k := if !hypPol then none else some <| Bifunctor.fst (AndRightWithHyp p pol tree) k
@@ -242,39 +253,45 @@ def getHypothesis (delete? hypPol pol : Bool) (tree : Expr) (path : List TreeNod
 
 
 
+
+
 def TreeRecMeta (hypInScope : Bool) : Recursor (MetaM' (MetaM' TreeProof)) where
   imp_right p pol tree := Functor.map <| Functor.map <| bindImpRight p none pol tree
   imp_left  p pol tree := Functor.map <| Functor.map <| bindImpLeft  p      pol tree
   and_right p pol tree := Functor.map <| Functor.map <| bindAndRight p none pol tree
   and_left  p pol tree := Functor.map <| Functor.map <| bindAndLeft  p      pol tree
 
-  all name u domain inst pol :=
+  all name u domain pol :=
     if pol
     then
-      introFree name u domain inst pol bindForall
+      introFree name u domain pol bindForall
     else 
-      introMeta name u domain inst pol
+      introMeta name u domain pol
 
-  ex name u domain inst pol := 
+  ex name u domain pol := 
     if pol 
     then
-      introMeta name u domain inst pol
+      introMeta name u domain pol
     else
-      introFree name u domain inst pol bindExists
+      introFree name u domain pol bindExists
+  
+  inst u cls pol :=
+    introFree `_inst u cls pol bindInstance
+
 where
-  introFree (name : Name) (u : Level) (domain inst : Expr) (pol : Bool)
-      (bind : Name → Level → Expr → Expr → Expr → Bool → Expr → TreeProof → TreeProof) (tree : Expr) (k : Expr → MetaM' (MetaM' TreeProof)) : MetaM' (MetaM' TreeProof) :=
+  introFree (name : Name) (u : Level) (domain : Expr) (pol : Bool)
+      (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → TreeProof) (tree : Expr) (k : Expr → MetaM' (MetaM' TreeProof)) : MetaM' (MetaM' TreeProof) :=
     withLocalDeclD (`fvar ++ name) domain fun fvar => do
     let treeProofM ← k fvar
-    return bind name u domain inst fvar pol tree <$> treeProofM
+    return bind name u domain fvar pol tree <$> treeProofM
 
-  introMeta (name : Name) (u : Level) (domain inst : Expr) (pol : Bool) (tree : Expr)
+  introMeta (name : Name) (u : Level) (domain : Expr) (pol : Bool) (tree : Expr)
    (k : Expr → MetaM' (MetaM' TreeProof)) : MetaM' (MetaM' TreeProof) := do
     let mvar ← mkFreshExprMVar domain .synthetic (`mvar ++ name)
     let k ← k mvar
     let assignment ← instantiateMVars mvar
     if let .mvar mvarId' := assignment then
-      modify fun s => { s with mvarInfos := s.mvarInfos.insert mvarId' {name, u, inst} }
+      modify fun s => { s with mvarInfos := s.mvarInfos.insert mvarId' {name, u} }
       
     return do
 
@@ -282,7 +299,7 @@ where
       let nonHypMVars := ((assignment.collectMVars {}).result).filter (!boundMVars.contains ·)
       let nonHypBinders ← liftMetaM <| nonHypMVars.mapM mkMetaHypBinder
 
-      let type := mkApp3 (.const ``Tree.Exists [u]) domain inst tree
+      let type := mkApp2 (.const ``Tree.Exists [u]) domain tree
       let bindNonHyp := nonHypBinders.foldrM (fun hypBinder => revertHypBinder hypBinder pol type)
       let (bindHyp, binders) := takeHypBinders assignment binders pol type
       let (bindKnownHyp, binders) := if hypInScope then takeKnownHypBinders binders pol type else (pure, binders)
@@ -290,7 +307,7 @@ where
       modify fun s => { s with boundMVars := boundMVars.insertMany nonHypMVars, binders }
 
       let treeProof ← k
-      let treeProof := introMVar mvar.mvarId! name u domain inst assignment pol tree treeProof
+      let treeProof := introMVar mvar.mvarId! name u domain assignment pol tree treeProof
       let treeProof ← bindNonHyp treeProof
       let treeProof ← bindKnownHyp treeProof
       let treeProof ← bindHyp treeProof
@@ -298,15 +315,15 @@ where
 
 
 
-abbrev UnificationProof := Expr → MetaM (Array Expr) → MetaM' (Expr × Expr) → List Nat → Bool → Expr → MetaM' TreeProof
+abbrev UnificationProof := Expr → HypothesisContext → List Nat → Bool → Expr → MetaM' TreeProof
 
 partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeNodeKind) (goalPos : List Nat) (unification : UnificationProof)
   : MetaM' (MetaM' TreeProof) :=
   unfoldHypothesis hypProof hypothesis hypPath
-    fun hypothesis {hypProofM, metaIntro} =>
+    fun hypothesis hypContext =>
       (TreeRecMeta true).recurseM pol tree goalPath
         fun pos tree => do
-          let treeProof ← unification hypothesis metaIntro hypProofM goalPos pos tree
+          let treeProof ← unification hypothesis hypContext goalPos pos tree
           return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol tree) treeProof
 
 partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool) (unification : UnificationProof) : MetaM TreeProof := (do
@@ -329,9 +346,7 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
       let treeProofM ← applyAux (.fvar fvarId) hyp goal goalPol hypPath goalPath goalPos unification
       return useHypProof p hypProof pol goal fvarId <$> treeProofM
   
-  let x ← treeProofM
-  -- logInfo m!"{x.proof}, {indentExpr <$> x.newTree}"
-  return x : MetaM' _).run' {}
+  treeProofM : MetaM' _).run' {}
 where
   takeSharedPrefix {α : Type} [BEq α] : List α → List α → List α × List α × List α
   | [], ys => ([], [], ys)
@@ -346,22 +361,38 @@ where
 partial def applyUnbound (hypName : Name) (goalPos : List Nat) (tree : Expr) (unification : UnificationProof) : MetaM TreeProof := (do
   let (goalPath, goalPos) := positionToPath goalPos tree
   let hypProof ← mkConstWithFreshMVarLevels hypName
-  let hyp ← makeTreeWithSillyNonemptyInstances (← inferType hypProof)
+  let hyp ← makeTree (← inferType hypProof)
   logInfo m!"{hyp}"
 
   let treeProofM ← applyAux hypProof hyp tree true (getPath hyp) goalPath goalPos unification
-  treeProofM : MetaM' _).run' {}
+  let result ← treeProofM
+  return result : MetaM' _).run' {}
 
+def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit := 
+  if force
+  then do
+    for mvar in mvars do
+      let mvarId := mvar.mvarId!
+      unless ← isDefEq mvar (← synthInstance (← mvarId.getType)) do
+        throwError m!"failed to assign synthesized instance {indentExpr (← mvarId.getType)}"
+  else do
+    for mvar in mvars do
+      let mvarId := mvar.mvarId!
+      unless ← mvarId.isAssigned do
+        mvarId.assign (← synthInstance (← mvarId.getType))
 
-def treeApply (hypothesis : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
+def treeApply (hypothesis : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
   unless pos == [] do
     throwError m!"cannot apply in a subexpression: position {pos} in {target}"
   unless pol do
     throwError m!"cannot apply in negative position"
+  let {metaIntro, instMetaIntro, hypProofM} := hypContext
   _ ← metaIntro
+  let instMVars ← instMetaIntro
   if ← isDefEq target hypothesis
   then
-    let (_hyp, proof) ← proofM
+    synthMetaInstances instMVars
+    let (_hyp, proof) ← hypProofM
     return {proof}
   else 
     throwError m!"couldn't unify hypothesis {hypothesis} with target {target}"
@@ -391,13 +422,14 @@ example (p q : Prop) : (p ∧ (p → q)) → (q → False) → False := by
   tree_apply [0,1,1,1] [1,0,1,0,1]
   sorry
 
-def Tree.rfl [Nonempty α] : Tree.Forall fun a : α => a = a := IsRefl.refl
--- set_option pp.all true in
--- example : 3 = 3 := by
---   make_tree
---   lib_apply Tree.rfl []
+def Tree.rfl [Nonempty α] : Tree.Forall α fun a => a = a := IsRefl.refl
+
+
+example : ({α : Type 0} → {r : α → α → Prop} → [IsRefl α r] → (a : α) → r a a) → 3 = 3 := by
+  make_tree
+  tree_apply [0,1,1,1,1,1,1,1,1,1] [1]
+  -- lib_apply refl [1]
   
-variable (p q r : Prop)
 
 
 
@@ -410,7 +442,15 @@ example (d : ℝ → ℝ → ℝ) : ∀ f : ℝ → ℝ,
   tree_apply [1,1,0,1] [1,1,1,0,1]
   tree_apply [1,1,0,1] [1,1,1]
 
+example [PseudoMetricSpace α] [PseudoMetricSpace β] {f : α → β}
+  : UniformContinuous f → Continuous f := by
+  rewrite [Metric.uniformContinuous_iff, Metric.continuous_iff]
+  make_tree
+  tree_apply [0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,0,1] [1,1,1,0,1]
+  tree_apply [1,1,0,1] [1,1,1]
 
+        
 example :
   (∀ hh > 0, 0 < hh) → ∀ ε:Nat,
   0 < ε := by
@@ -418,14 +458,15 @@ example :
   tree_apply [0,1,1,1,1] [1,1,1]
   sorry
 
-example (p q : Prop) : (∃ n:Nat, q → p) → ∃ n:Nat, p := by
+example (p q : Prop) : (q → p) → ∃ n:Nat, p := by
   make_tree
-  tree_apply [0,1,1,1,1] [1,1,1]
+  tree_apply [0,1,1] [1,1,1]
   sorry
 
 example (p : Prop) : (∀ _n:Nat, p) → p := by
   make_tree
   tree_apply [0,1,1,1] [1]
+  use default
 
 example (p : Nat → Prop): (∀ m, (1=1 → p m)) → ∀ m:Nat, p m := by
   make_tree

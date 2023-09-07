@@ -140,14 +140,17 @@ def mkLEhint (e instLE : Expr) : MetaM Expr := do
   mkExpectedTypeHint e type
 
 
-def matchEToLE (fvars : Array Expr) (rel target type preorder : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pol : Bool) : MetaM' RewriteOrdInfo := do
+def matchEToLE (fvars : Array Expr) (rel target type preorder : Expr) (hypContext : HypothesisContext) (pol : Bool) : MetaM' RewriteOrdInfo := do
 
   let le ← PreordertoLE preorder
   let side := (if pol then Prod.snd else Prod.fst) (← getLEsides rel)
+  let {metaIntro, instMetaIntro, hypProofM} := hypContext
   _ ← metaIntro
+  let instMVars ← instMetaIntro
   if (← isDefEq side target)
   then
-    let (newRel, proof) ← proofM
+    synthMetaInstances instMVars
+    let (newRel, proof) ← hypProofM
     let (lhs, rhs) ← getLEsides newRel
     let newRel ← mkAppOptM ``LE.le #[type, le, lhs, rhs]
     -- logInfo m! "{lhs}, {rhs}, {type}, {le}, {preorder}"
@@ -158,13 +161,13 @@ def matchEToLE (fvars : Array Expr) (rel target type preorder : Expr) (metaIntro
 
 
 
-partial def recurseToPosition (rel : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (position : List Nat) (pol : Bool) (e : Expr) : MetaM' RewriteOrdInfo :=
+partial def recurseToPosition (rel : Expr) (hypContext : HypothesisContext) (position : List Nat) (pol : Bool) (e : Expr) : MetaM' RewriteOrdInfo :=
   
   let rec visit (u : Level) (type preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
 
     | xs, .mdata d b => do let (e, h) ← visit u type preorder fvars pol xs b; return (.mdata d e, h)
 
-    | [], e => matchEToLE fvars rel e type preorder metaIntro proofM pol
+    | [], e => matchEToLE fvars rel e type preorder hypContext pol
       
     | 0::xs, .app f a          => do
       let α ← inferType a
@@ -176,7 +179,6 @@ partial def recurseToPosition (rel : Expr) (metaIntro : MetaM (Array Expr)) (pro
     | 1::xs, .app f a          => do
       let typeNew ← inferType a
       let uNew ← getDecLevel typeNew
-      logInfo m!"{type}, {u}"
       let monoClass := mkApp4 (.const ``MonotoneClass [uNew, u]) typeNew type preorder f
       let mono ← synthInstance monoClass
       let .app (.app (.app _ anti) preorder') monoProof ← whnfD mono | panic! "instance is not an application"
@@ -224,8 +226,8 @@ partial def recurseToPosition (rel : Expr) (metaIntro : MetaM (Array Expr)) (pro
 
 
 
-def treeRewriteOrd (rel : Expr) (metaIntro : MetaM (Array Expr)) (proofM : MetaM' (Expr × Expr)) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
-  let (newSide, proof) ← recurseToPosition rel metaIntro proofM pos pol target
+def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
+  let (newSide, proof) ← recurseToPosition rel hypContext pos pol target
   return { newTree := newSide, proof}
 
 
@@ -250,3 +252,22 @@ example (p q : Prop) : (p → q) → True ∨ (p → q) := by
   make_tree
   tree_rewrite_ord [0,1] [1,1,0]
   sorry
+
+/-
+What should the isolate tactic do?
+
+For existence problems, we like to isolate the variable in an equality, for example
+· x + 1 = 2 => x = 2 - 1
+· 4 / x = 2 => x = 4 / 2 (with side condition that 2 and x are non-zero)
+
+So in general, we have a function with an argument on one side, and something on the other side:
+f a = b
+
+which turns into
+a = f⁻¹ b
+
+Maybe the function is not fully invertible, but only under some hypothesis, e.g. a and b are nonzero.
+Ah, so then this is just a form of finding the library result, and applying it.
+
+-/
+
