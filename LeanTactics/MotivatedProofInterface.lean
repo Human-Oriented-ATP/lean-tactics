@@ -5,6 +5,7 @@ import RewriteOrd
 import SelectInsertPanel
 import Aesop
 import TreeApply
+import Mathlib.Data.SetLike.Basic
 
 open Lean Server
 
@@ -77,20 +78,26 @@ def makeInsertionCommand : InsertionCommandProps → RequestM (RequestTask Inser
 end TextInsertion
 
 def insertRewriteAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goalType : Expr) : MetaM String := do
-  let some pos := subexprPos[0]? | throwError "You must select something."
-  let ⟨_, .target subexprPos⟩ := pos | throwError "You must select something in the goal."
-  return "rewriteAt " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+  let some pos1 := subexprPos[0]? | throwError "You must select something."
+  let some pos2 := subexprPos[1]? | throwError "You must select something"
+  let .hyp hypFvarId := pos2.loc | throwError "You need to select a hypothesis"
+  let hypName := LocalContext.get! (← getLCtx) hypFvarId
+  let ⟨_, .target subexprPos1⟩ := pos1 | throwError "You must select something in the goal."
+  return "rewriteAt " ++ ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " [" ++ (hypName.userName.toString) ++ "]"
 
-mkSelectInsertTactic "rewriteAt?" "rewriteAt 🔍"
+mkSelectInsertTacticTwo "rewriteAt?" "rewriteAt 🔍"
     "Use shift-click to select one sub-expression in the goal that you want to zoom on."
     insertRewriteAt
 
 def insertRewriteOrdAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goalType : Expr) : MetaM String := do
-  let some pos := subexprPos[0]? | throwError "You must select something."
-  let ⟨_, .target subexprPos⟩ := pos | throwError "You must select something in the goal."
-  return "rewriteOrdAt " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+  let some pos1 := subexprPos[0]? | throwError "You must select something."
+  let some pos2 := subexprPos[1]? | throwError "You must select something."
+  let .hyp hypFvarId := pos2.loc | throwError "You need to select a hypothesis"
+  let hypName := LocalContext.get! (← getLCtx) hypFvarId
+  let ⟨_, .target subexprPos1⟩ := pos1 | throwError "You must select something in the goal."
+  return "rewriteOrdAt " ++ ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " [" ++ (hypName.userName.toString) ++ "]"
 
-mkSelectInsertTactic "rewriteOrdAt?" "rewriteOrdAt 🔍"
+mkSelectInsertTacticTwo "rewriteOrdAt?" "rewriteOrdAt 🔍"
     "Use shift-click to select one sub-expression in the goal that you want to zoom on."
     insertRewriteOrdAt
 
@@ -99,7 +106,7 @@ def insertTreeApplyAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goalType 
   let some pos2 := subexprPos[1]? | throwError "You must select something."
   let ⟨_, .target subexprPos1⟩ := pos1 | throwError "You must select something in the goal."
   let ⟨_, .target subexprPos2⟩ := pos2 | throwError "You must select something in the goal."
-  return ("tree_apply " ++ ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ ((SubExpr.Pos.toArray subexprPos2).toList).toString)
+  return ("tree_apply " ++ ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ ((SubExpr.Pos.toArray subexprPos2).toList).toString)
 
 mkSelectInsertTacticTwo "TreeApply?" "TreeApply 🔍"
     "Use shift-click to select two sub-expression in the goal that you want to zoom on."
@@ -115,15 +122,15 @@ end MotivatedProofInterface
 
 /-- The buttons that appear as proof-generating moves in the infoview panel. -/
 def tacticButtons : Array InsertionButton :=
-  #[ ◾ "Introduce a variable into the context"  →  try (intro x), -- need to think about how to handle variable names
+  #[ ◾ "Introduce a variable into the context" →  try (intro x), -- need to think about how to handle variable names
      ◾       "Use function extensionality"     →  try (apply funext),
      ◾           "Insert a sorry"              →  sorry,
      ◾         "Simplify the target"           →  simp,
      ◾         "Targetted rewrite"             →  rewriteAt?,
      ◾         "Targetted ordered rewrite"     →  rewriteOrdAt?,
      ◾  "Attempt to close the goal with Aesop" →  aesop,
-     ◾  "Turn the tactic state into a Tree" →  make_tree,
-     ◾  "Apply to Tree" →  TreeApply? ]
+     ◾  "Turn the tactic state into a Tree"    →  make_tree,
+     ◾  "Apply to Tree"                        →  TreeApply?]
 
 namespace MotivatedProofInterface
 
@@ -171,8 +178,15 @@ example {a b c : Set α} (h₁ : a ⊆ b) (h₂ : b ⊆ c) : a ⊆ c := by
     rewriteOrdAt [0, 1] [h₁]
     rewriteOrdAt [0, 1] [h₂]
     make_tree
-    TreeApply?
-    
+    tree_apply [0, 1] [1]
+
+example {a b c : Set α} (h₁ : a ⊆ b) (h₂ : b ⊆ c) : a ⊆ c := by 
+motivated_proof
+    rewriteOrdAt?
+    rewriteOrdAt [0, 1] [h₁]
+  
+
 
 /- `TODO`: Fix placing of inserted tactic blocks as on repeated clicks the 
     insertion appears too high up the block. Currently have to click on and off. -/
+
