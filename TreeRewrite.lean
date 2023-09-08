@@ -43,12 +43,12 @@ def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos
 
     | 0::xs, .proj n i b       => do let (e, e', z) ← visit fvars xs b; return (.proj n i e, .proj n i e', z)
 
-    | 0::xs, .letE n t v b c   => do let (e, e', z) ← visit fvars xs t; return (.letE n e v b c, .letE n e' v b c, z)
-    | 1::xs, .letE n t v b c   => do let (e, e', z) ← visit fvars xs v; return (.letE n t e b c, .letE n t e' b c, z)
-    | 2::xs, .letE n t v b c   =>
+    | 0::xs, .letE n t v b d   => do let (e, e', z) ← visit fvars xs t; return (.letE n e v b d, .letE n e' v b d, z)
+    | 1::xs, .letE n t v b d   => do let (e, e', z) ← visit fvars xs v; return (.letE n t e b d, .letE n t e' b d, z)
+    | 2::xs, .letE n t v b d   =>
       withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
         let (e, e', z) ← visit (fvars.push fvar) xs b
-        return (.letE n t v e c, .letE n t v e' c, z)
+        return (.letE n t v e d, .letE n t v e' d, z)
                                                       
     | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fvars xs t; return (.lam n e b bi, .lam n e' b bi, z)
     | 1::xs, .lam n t b bi     =>
@@ -99,6 +99,7 @@ def treeRewrite (symm : Bool) (eq : Expr) (hypContext : HypothesisContext) (pos 
 open Elab Tactic
 
 syntax (name := tree_rewrite) "tree_rewrite" treePos treePos : tactic
+syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
 
 @[tactic tree_rewrite]
 def evalTreeRewrite : Tactic := fun stx => do
@@ -106,14 +107,43 @@ def evalTreeRewrite : Tactic := fun stx => do
   let goalPos := get_positions stx[2]
   workOnTree (applyBound hypPos goalPos · true (treeRewrite false))
 
-syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
-
 @[tactic tree_rewrite_rev]
 def evalTreeRewriteRev : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
   workOnTree (applyBound hypPos goalPos · true (treeRewrite true))
 
+
+syntax (name := lib_rewrite) "lib_rewrite" ident treePos : tactic
+syntax (name := lib_rewrite_rev) "lib_rewrite_rev" ident treePos : tactic
+
+@[tactic lib_rewrite]
+def evalLibRewrite : Tactic := fun stx => do
+  let hypPos := stx[1].getId
+  let goalPos := get_positions stx[2]
+  workOnTree (applyUnbound hypPos goalPos · (treeRewrite false))
+
+@[tactic lib_rewrite_rev]
+def evalLibRewriteRev : Tactic := fun stx => do
+  let hypPos := stx[1].getId
+  let goalPos := get_positions stx[2]
+  workOnTree (applyUnbound hypPos goalPos · (treeRewrite true))
+
+
+
+
+
+
+
+
+example [PseudoMetricSpace α] [PseudoMetricSpace β] {f : α → β}
+  : UniformContinuous f → Continuous f := by
+  make_tree
+  lib_rewrite Metric.uniformContinuous_iff [0,1]
+  lib_rewrite Metric.continuous_iff [1]
+  tree_apply [0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,0,1] [1,1,1,0,1]
+  tree_apply [1,1,0,1] [1,1,1]
 
 
 

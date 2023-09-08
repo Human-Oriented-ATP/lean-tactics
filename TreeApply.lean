@@ -340,7 +340,6 @@ partial def applyBound (hypPos goalPos : List Nat) (tree : Expr) (delete? : Bool
         | and_pattern goal p, .and_right::hypPath, .and_left ::goalPath => pure (p, goal, goalPath,  pol, UseHypAndLeft,  getHypothesis delete? true   pol  p hypPath)
         | _, _, _ => throwError m!"cannot have hypothesis at {hypPath} and goal at {goalPath} in {tree}"
 
-      -- let fvarId ← mkFreshFVarId
       withLocalDeclD `hyp hyp fun fvar => do
       let fvarId := fvar.fvarId!
       let treeProofM ← applyAux (.fvar fvarId) hyp goal goalPol hypPath goalPath goalPos unification
@@ -362,7 +361,6 @@ partial def applyUnbound (hypName : Name) (goalPos : List Nat) (tree : Expr) (un
   let (goalPath, goalPos) := positionToPath goalPos tree
   let hypProof ← mkConstWithFreshMVarLevels hypName
   let hyp ← makeTree (← inferType hypProof)
-  logInfo m!"{hyp}"
 
   let treeProofM ← applyAux hypProof hyp tree true (getPath hyp) goalPath goalPos unification
   let result ← treeProofM

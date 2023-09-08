@@ -453,9 +453,6 @@ def imp_pattern (p q : Expr) : Expr :=
 @[match_pattern]
 def and_pattern (p q : Expr) : Expr :=
   mkApp2 (.const ``And []) p q
-@[match_pattern]
-def regular_and_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const `And []) p q
 
 @[match_pattern]
 def imp'_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
@@ -470,13 +467,28 @@ def forall_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
 @[match_pattern]
 def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Exists [u]) domain' (.lam name domain body bi)
-@[match_pattern]
-def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
-  mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
 
 @[match_pattern]
 def instance_pattern {name : Name} (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Instance [u]) cls' (.lam name cls body bi)
+
+
+@[match_pattern]
+def regular_and_pattern (p q : Expr) : Expr :=
+  mkApp2 (.const `And []) p q
+@[match_pattern]
+def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
+  mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
+@[match_pattern]
+def regular_iff_pattern (p q : Expr) : Expr :=
+  mkApp2 (.const `Iff []) p q
+@[match_pattern]
+def regular_or_pattern (p q : Expr) : Expr :=
+  mkApp2 (.const `Or []) p q
+@[match_pattern]
+def regular_not_pattern (p : Expr) : Expr :=
+  .app (.const `Not []) p
+
 
 structure Recursor (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → α) → α
@@ -619,6 +631,10 @@ partial def makeTree : Expr → MetaM Expr
       else
         return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
 
+  | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree p) (← makeTree q)
+  | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree p) (← makeTree q)
+  | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree p)
+  
   | e => return e
 
 open Elab Tactic
