@@ -102,21 +102,11 @@ open Lean Meta
 
 abbrev RewriteOrdInfo := Expr × Expr
 
--- def PreordertoLE (u : Level) (α inst : Expr) : Expr :=
---   mkApp2 (.const ``Preorder.toLE [u]) α inst
-
--- def PreordertoLT (u : Level) (α inst : Expr) : Expr :=
---   mkApp2 (.const ``Preorder.toLT [u]) α inst
-
 def mkLE (u : Level) (α preorder : Expr) : Expr :=
   mkApp2 (.const ``LE.le [u]) α (mkApp2 (.const ``Preorder.toLE [u]) α preorder)
 
 def mkLT (u : Level) (α preorder : Expr) : Expr :=
   mkApp2 (.const ``LT.lt [u]) α (mkApp2 (.const ``Preorder.toLT [u]) α preorder)
-def Prop.preorder : Preorder Prop where
-  le := LE.le
-  le_refl := le_refl
-  le_trans := fun _ _ _ => le_trans
 
 private inductive Pattern where
   | le
@@ -124,26 +114,31 @@ private inductive Pattern where
   | imp
 deriving BEq
 
-def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × Expr × Expr) := do
+def Prop.preorder : Preorder Prop where
+  le := LE.le
+  le_refl := le_refl
+  le_trans := fun _ _ _ => le_trans
+
+def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × Expr × Expr) :=
   match rel with
-    | .app (.app r lhs) rhs => do
-      if ← isDefEq r (mkLE u α preorder) then
-        return (.le, lhs, rhs)
+  | .app (.app r lhs) rhs => do
+    if ← isDefEq r (mkLE u α preorder) then
+      return (.le, lhs, rhs)
 
-      if ← isDefEq r (mkLT u α preorder) then
-        return (.lt, lhs, rhs)
+    if ← isDefEq r (mkLT u α preorder) then
+      return (.lt, lhs, rhs)
 
-      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
-    
-    | .forallE _ lhs rhs _ => do
-      if rhs.hasLooseBVars then
-        throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}" 
-      if ← isDefEq preorder (.const ``Prop.preorder []) then
-        return (.imp, lhs, rhs)
+    throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
+  
+  | .forallE _ lhs rhs _ => do
+    if rhs.hasLooseBVars then
+      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}" 
+    if ← isDefEq preorder (.const ``Prop.preorder []) then
+      return (.imp, lhs, rhs)
 
-      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
+    throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
 
-    | _ => throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
+  | _ => throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
 
 
 def getLEsides! : Pattern → Expr → Expr × Expr
@@ -320,7 +315,8 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
-  lib_apply Tree.exists_mem_Ioo [1,1,1,1,1]
+  lib_rewrite_rev Set.nonempty_def [1,1,1]
+  lib_rewrite Set.nonempty_Ioo [1,1,1]
   tree_apply [1,1,0,1] [1,1,1]
 
 
