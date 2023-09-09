@@ -4,7 +4,6 @@ import TreeApply
 import TreeRewrite
 import Mathlib.Algebra.Order.Group.Defs
 
-namespace Tree
 
 open Function
 
@@ -40,8 +39,8 @@ instance le_left_anti [Preorder α] : MonotoneClass (α := α) (. ≤ .) where
   anti := true
   elim _ _ h _ := le_trans h
 
-instance imp_right_mono (a : Prop) : MonotoneClass (Imp a) := le_right_mono a
-instance imp_left_anti : MonotoneClass Imp := le_left_anti
+instance imp_right_mono (a : Prop) : MonotoneClass (Tree.Imp a) := le_right_mono a
+instance imp_left_anti : MonotoneClass Tree.Imp := le_left_anti
 
 instance sub_right_mono (a : Set α) : MonotoneClass (a ⊆ ·) := le_right_mono a
 instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) := le_left_anti 
@@ -52,6 +51,9 @@ instance lt_right_mono [Preorder α] (a : α) : MonotoneClass (a < ·) where
 instance lt_left_anti [Preorder α] : MonotoneClass (α := α) (· < .) where
   anti := true
   elim _ _ h _ := lt_of_le_of_lt h
+
+instance ssub_right_mono (a : Set α) : MonotoneClass (a ⊂ ·) := lt_right_mono a
+instance ssub_left_anti : MonotoneClass (α := Set α) (. ⊂ .) := lt_left_anti 
 
 instance set_mono : MonotoneClass (@setOf α) where
   anti := false
@@ -91,6 +93,7 @@ instance div_right_anti [OrderedCommGroup α] {a : α} : MonotoneClass (a / · :
 
 
 
+namespace Tree
 
 
 
@@ -99,25 +102,63 @@ open Lean Meta
 
 abbrev RewriteOrdInfo := Expr × Expr
 
-def getLEsides [Monad m] [MonadError m] : Expr → m (Expr × Expr)
-| .app (.app _ lhs) rhs => return (lhs, rhs)
-| .forallE _ lhs rhs _ => return (lhs, rhs)
-| e => throwError "relation expected{indentExpr e}"
+-- def PreordertoLE (u : Level) (α inst : Expr) : Expr :=
+--   mkApp2 (.const ``Preorder.toLE [u]) α inst
 
-def PreordertoLE (inst : Expr) : MetaM Expr :=
-  mkAppOptM ``Preorder.toLE #[none, inst]
+-- def PreordertoLT (u : Level) (α inst : Expr) : Expr :=
+--   mkApp2 (.const ``Preorder.toLT [u]) α inst
 
-def mkLE (u : Level) (α instLE lhs rhs : Expr) (swap? : Bool) : Expr :=
-  (if swap? then swap else id) (mkApp4 (.const ``LE.le [u]) α instLE) lhs rhs
+def mkLE (u : Level) (α preorder : Expr) : Expr :=
+  mkApp2 (.const ``LE.le [u]) α (mkApp2 (.const ``Preorder.toLE [u]) α preorder)
+
+def mkLT (u : Level) (α preorder : Expr) : Expr :=
+  mkApp2 (.const ``LT.lt [u]) α (mkApp2 (.const ``Preorder.toLT [u]) α preorder)
+def Prop.preorder : Preorder Prop where
+  le := LE.le
+  le_refl := le_refl
+  le_trans := fun _ _ _ => le_trans
+
+private inductive Pattern where
+  | le
+  | lt
+  | imp
+deriving BEq
+
+def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × Expr × Expr) := do
+  match rel with
+    | .app (.app r lhs) rhs => do
+      if ← isDefEq r (mkLE u α preorder) then
+        return (.le, lhs, rhs)
+
+      if ← isDefEq r (mkLT u α preorder) then
+        return (.lt, lhs, rhs)
+
+      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
+    
+    | .forallE _ lhs rhs _ => do
+      if rhs.hasLooseBVars then
+        throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}" 
+      if ← isDefEq preorder (.const ``Prop.preorder []) then
+        return (.imp, lhs, rhs)
+
+      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
+
+    | _ => throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
 
 
-def rewriteOrdUnify (fvars : Array Expr) (rel target type preorder : Expr) (hypContext : HypothesisContext) (pol : Bool) : MetaM' RewriteOrdInfo := do
+def getLEsides! : Pattern → Expr → Expr × Expr
+  | .imp, .forallE _ lhs rhs _  => (lhs, rhs)
+  | _   , .app (.app _ lhs) rhs => (lhs, rhs)
+  | _, _ => panic! ""
 
-  let le ← PreordertoLE preorder
-  let side := (if pol then Prod.snd else Prod.fst) (← getLEsides rel)
+def rewriteOrdUnify (fvars : Array Expr) (u : Level) (α preorder rel target : Expr) (hypContext : HypothesisContext) (pol : Bool) : MetaM' RewriteOrdInfo := do
   let {metaIntro, instMetaIntro, hypProofM} := hypContext
   let mvars ← metaIntro
   let instMVars ← instMetaIntro
+
+  let (pattern, lhs, rhs) ← getLEsides u rel α preorder target
+  let side := if pol then rhs else lhs
+
   if (← isDefEq side target)
   then
     synthMetaInstances instMVars
@@ -125,10 +166,15 @@ def rewriteOrdUnify (fvars : Array Expr) (rel target type preorder : Expr) (hypC
       _ ← elimMVarDeps fvars mvar
 
     let (newRel, proof) ← hypProofM
-    let (lhs, rhs) ← getLEsides newRel
-    let newRel ← mkAppOptM ``LE.le #[type, le, lhs, rhs]
-    let proof ← mkExpectedTypeHint proof newRel
-    return (if pol then lhs else rhs, proof)
+    let (lhs, rhs) := getLEsides! pattern newRel
+    if pattern != .lt
+    then
+      let newRel := mkApp2 (mkLE u α preorder) lhs rhs
+      let proof := mkApp2 (mkConst ``id [.zero]) newRel proof
+      return (if pol then lhs else rhs, proof)
+    else
+      let proof := mkApp5 (.const ``le_of_lt [u]) α preorder lhs rhs proof
+      return (if pol then lhs else rhs, proof)
   else
     throwError m!"subexpression '{target}' does not match side '{side}'"
 
@@ -142,15 +188,11 @@ lemma funext_ord {α : Type u} {β : Type v} [Preorder β] {f g : α → β} (h 
 def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → β) := Pi.preorder
 
 
-def Prop.preorder : Preorder Prop where
-  le := LE.le
-  le_refl := le_refl
-  le_trans := fun _ _ _ => le_trans
 
 def Prop.LE : LE Prop where
   le := LE.le
 
-private partial def recurseToPosition (rel : Expr) (hypContext : HypothesisContext) (position : List Nat) (pol : Bool) (e : Expr) : MetaM' RewriteOrdInfo :=
+partial def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
   
   let rec visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
     -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
@@ -158,7 +200,7 @@ private partial def recurseToPosition (rel : Expr) (hypContext : HypothesisConte
       let (rhs, h) ← visit u α preorder fvars pol xs lhs
       return (.mdata d rhs, h)
 
-    | [], lhs => rewriteOrdUnify fvars rel lhs α preorder hypContext pol
+    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol
       
     | 0::xs, .app lhs a => do
       let α' ← inferType a
@@ -207,7 +249,7 @@ private partial def recurseToPosition (rel : Expr) (hypContext : HypothesisConte
       unless ← isDefEq preorder (.const ``Prop.preorder []) do
         throwError m!"Prop is the only type with an order{indentExpr b}"
       let (rhs, h) ← visit u α preorder fvars (!pol) xs lhs
-      let h ← mkExpectedTypeHint h (mkLE u α (.const ``Prop.LE []) lhs rhs !pol)
+      let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then id else swap) (mkApp2 (mkLE u α preorder)) lhs rhs) h
       return (.forallE n rhs b bi, mkApp ((if pol then id else swap) (mkApp3 (.const ``imp_left_anti' []) b) lhs rhs) h)
 
     | 1::xs, .forallE n t lhs bi => do
@@ -216,26 +258,19 @@ private partial def recurseToPosition (rel : Expr) (hypContext : HypothesisConte
 
       withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
       let (rhs, h) ← visit u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
-
-      let h ← mkExpectedTypeHint h (mkLE u α (.const ``Prop.LE []) lhs rhs pol)
+      let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then swap else id) (mkApp2 (mkLE u α preorder)) lhs rhs) h
       let h   := .lam n t (h.abstract #[fvar]) bi
+      
       let lhs := .lam n t (lhs.abstract #[fvar]) bi
-      let (rhs, rhs') := let abs := rhs.abstract #[fvar] 
-        (.forallE n t abs bi, .lam n t abs bi)
-
+      let rhs := rhs.abstract #[fvar]
+      let (rhs, rhs') := (.forallE n t rhs bi, .lam n t rhs bi)
+      
       return (rhs, mkApp ((if pol then swap else id) (mkApp3 (.const  ``forall_mono [← getLevel t]) t) lhs rhs') h)
 
     | list, lhs => throwError "could not find sub position {list} in '{repr lhs}'"
       
-  visit (.zero) (.sort .zero) (.const ``Prop.preorder []) #[] pol position e
-
-
-
-
-
-def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
-  let (newSide, proof) ← recurseToPosition rel hypContext pos pol target
-  return { newTree := newSide, proof}
+  let (newTree, proof) ← visit (.zero) (.sort .zero) (.const ``Prop.preorder []) #[] pol pos target
+  return { newTree, proof}
 
 
 
@@ -262,10 +297,6 @@ def evalLibRewriteOrd : Tactic := fun stx => do
 
 
 
-
-
-
--- set_option pp.all true
 example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   → UniformContinuous f → Continuous f := by
   make_tree
@@ -280,15 +311,13 @@ lemma exists_mem_Ioo (a b : ℝ) (h : a < b) : ∃ x, x ∈ Set.Ioo a b :=
   ⟨(a + b) / 2, ⟨by linarith, by linarith⟩⟩
 
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) -- (k : NNReal)
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   : LipschitzWith 1 f → Continuous f := by
   make_tree
   lib_rewrite Metric.continuous_iff [1]
   lib_rewrite lipschitzWith_iff_dist_le_mul [0,1]
   norm_num
   tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_intro le_of_lt
-  tree_rewrite_ord [0,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
   lib_apply Tree.exists_mem_Ioo [1,1,1,1,1]
@@ -315,7 +344,10 @@ example (p q : Prop) : Imp (p → q) <| True ∨ (p → q) := by
   tree_rewrite_ord [0,1] [1,1,0]
   sorry
 
-
+example (𝔸 : Set (Set α)) (B C : Set α) : (C ⊆ B) → {A ∈ 𝔸 | B ⊂ A} ⊆ {A ∈ 𝔸 | C ⊂ A} := by
+  make_tree
+  tree_rewrite_ord [0,1] [1,0,1,1,1,1,0,1]
+  rfl
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
