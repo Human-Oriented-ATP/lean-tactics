@@ -1,6 +1,7 @@
 import Mathlib.Algebra.CovariantAndContravariant
 import Mathlib.Data.SetLike.Basic
 import TreeApply
+import TreeRewrite
 import Mathlib.Algebra.Order.Group.Defs
 
 namespace Tree
@@ -93,17 +94,10 @@ instance div_right_anti [OrderedCommGroup α] {a : α} : MonotoneClass (a / · :
 
 
 
-open Lean Meta Elab.Tactic Parser.Tactic
+open Lean Meta
 
 
 abbrev RewriteOrdInfo := Expr × Expr
-
-
-structure OrdRewriteResult where
-  eNew     : Expr
-  leProof  : Expr
-  mvarIds  : List MVarId
-
 
 def getLEsides [Monad m] [MonadError m] : Expr → m (Expr × Expr)
 | .app (.app _ lhs) rhs => return (lhs, rhs)
@@ -156,7 +150,7 @@ def Prop.preorder : Preorder Prop where
 def Prop.LE : LE Prop where
   le := LE.le
 
-partial def recurseToPosition (rel : Expr) (hypContext : HypothesisContext) (position : List Nat) (pol : Bool) (e : Expr) : MetaM' RewriteOrdInfo :=
+private partial def recurseToPosition (rel : Expr) (hypContext : HypothesisContext) (position : List Nat) (pol : Bool) (e : Expr) : MetaM' RewriteOrdInfo :=
   
   let rec visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
     -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
@@ -245,7 +239,7 @@ def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : List Nat
 
 
 
-open Elab Tactic
+open Elab.Tactic
 
 syntax (name := tree_rewrite_ord) "tree_rewrite_ord" treePos treePos : tactic
 
@@ -259,10 +253,48 @@ def evalTreeRewriteOrd : Tactic := fun stx => do
 syntax (name := lib_rewrite_ord) "lib_rewrite_ord" ident treePos : tactic
 
 @[tactic lib_rewrite_ord]
-def evalLibRewrite : Tactic := fun stx => do
+def evalLibRewriteOrd : Tactic := fun stx => do
   let hypPos := stx[1].getId
   let goalPos := get_positions stx[2]
   workOnTree (applyUnbound hypPos goalPos · treeRewriteOrd)
+
+
+
+
+
+
+
+
+-- set_option pp.all true
+example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
+  → UniformContinuous f → Continuous f := by
+  make_tree
+  lib_rewrite Metric.uniformContinuous_iff [1,1,1,1,1,1,0,1]
+  lib_rewrite Metric.continuous_iff [1,1,1,1,1,1,1]
+  tree_apply [1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,0,1] [1,1,1,0,1]
+  tree_apply [1,1,0,1] [1,1,1]
+
+
+lemma exists_mem_Ioo (a b : ℝ) (h : a < b) : ∃ x, x ∈ Set.Ioo a b :=
+  ⟨(a + b) / 2, ⟨by linarith, by linarith⟩⟩
+
+
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) -- (k : NNReal)
+  : LipschitzWith 1 f → Continuous f := by
+  make_tree
+  lib_rewrite Metric.continuous_iff [1]
+  lib_rewrite lipschitzWith_iff_dist_le_mul [0,1]
+  norm_num
+  tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_intro le_of_lt
+  tree_rewrite_ord [0,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
+  lib_apply Tree.exists_mem_Ioo [1,1,1,1,1]
+  tree_apply [1,1,0,1] [1,1,1]
+
+
 
 
 example : (0 ≤ 1) → 0 ≤ 1 := by

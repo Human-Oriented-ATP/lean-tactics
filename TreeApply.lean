@@ -1,6 +1,5 @@
 import Tree
 import PrintTree
-import Mathlib.Topology.MetricSpace.Basic
 open Tree Lean Meta
 
 inductive HypBinder where
@@ -230,14 +229,14 @@ where
   addBinder (hypBinder : HypBinder) : MetaM' Unit := do
       modify fun s => { s with binders := s.binders.push hypBinder }
 
-def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : List TreeNodeKind) (k : Expr → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
+def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : List TreeBinderKind) (k : Expr → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
   HypothesisRec.recurseM true tree pos (fun _pol => k) |>.run {hypProofM := pure (tree, hypProof)}
 
 
 
 
 
-def getHypothesisRec (hypPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr × List TreeNodeKind) where
+def getHypothesisRec (hypPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr × List TreeBinderKind) where
   all _ _ _ _ _ _ := none
   ex  _ _ _ _ _ _ := none
   inst _ _ _ _ _  := none
@@ -247,7 +246,7 @@ def getHypothesisRec (hypPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr �
   and_left  p pol tree k := if !hypPol then none else some <| Bifunctor.fst (AndLeftWithHyp  p pol tree) k
 
 
-def getHypothesis (delete? hypPol pol : Bool) (tree : Expr) (path : List TreeNodeKind) : TreeHyp × Bool × Expr × List TreeNodeKind :=
+def getHypothesis (delete? hypPol pol : Bool) (tree : Expr) (path : List TreeBinderKind) : TreeHyp × Bool × Expr × List TreeBinderKind :=
   (getHypothesisRec hypPol).recurse pol tree path fun pol tree path => (MakeHyp delete? pol tree, pol, tree, path)
 
 
@@ -317,7 +316,7 @@ where
 
 abbrev UnificationProof := Expr → HypothesisContext → List Nat → Bool → Expr → MetaM' TreeProof
 
-partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeNodeKind) (goalPos : List Nat) (unification : UnificationProof)
+partial def applyAux (hypProof : Expr) (hypothesis tree : Expr) (pol : Bool) (hypPath goalPath : List TreeBinderKind) (goalPos : List Nat) (unification : UnificationProof)
   : MetaM' (MetaM' TreeProof) :=
   unfoldHypothesis hypProof hypothesis hypPath
     fun hypothesis hypContext =>
@@ -396,7 +395,7 @@ def treeApply (hypothesis : Expr) (hypContext : HypothesisContext) (pos : List N
     throwError m!"couldn't unify hypothesis {hypothesis} with target {target}"
 
 
-open Elab Tactic
+open Elab.Tactic
 
 syntax (name := tree_apply) "tree_apply" treePos treePos : tactic
 
@@ -430,23 +429,6 @@ example : ({α : Type 0} → {r : α → α → Prop} → [IsRefl α r] → (a :
   
 
 
-
--- def d := Dist.dist (α := ℝ)
-example (d : ℝ → ℝ → ℝ) : ∀ f : ℝ → ℝ,
-  (∀ ε > 0, ∃ δ > 0, ∀ x y, d x y < δ → d (f x) (f y) < ε) →
-  ∀ x, ∀ ε > 0, ∃ δ > 0, ∀ y, d x y < δ → d (f x) (f y) < ε := by
-  make_tree
-  tree_apply [1,1,0,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
-
-example [PseudoMetricSpace α] [PseudoMetricSpace β] {f : α → β}
-  : UniformContinuous f → Continuous f := by
-  rewrite [Metric.uniformContinuous_iff, Metric.continuous_iff]
-  make_tree
-  tree_apply [0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
 
         
 example :
@@ -504,3 +486,33 @@ example (p q : Prop) : p ∧ (p → q) → q := by
 example (p : Prop) : p → p := by
   make_tree
   tree_apply [0,1] [1]
+
+
+
+/-
+I was wondering what the exact way should be in which quantifiers are handled by the tree apply/rewrite moves.
+The simplest example where this is non-trivial is this:
+-/
+
+example (p q : Prop) : (p → q ∧ r) → q ∧ (p → r) := by
+  make_tree
+  tree_apply [0,1,1,1] [1,1,1]
+  tree_apply [1,0,1] [1,1]
+  exact (sorry : q)
+
+/-
+then applying the first r to the second r could have 3 different results that all make some sense:
+· q ∧ p ⇨ p
+· p ∧ q ⇨ q
+· (p ⇨ q) ⇨ q ∧ p ⇨ p
+
+which after a trivial simplification turn into
+· q
+· p
+· (p ⇨ q) ⇨ q
+
+The current version does the first option, but I see arguments for both other versions.
+The first two options have the nice property that the order of quantifiers from the hypothesis is maintained.
+The third option requires a 'skolemization' of the q in the hypothesis.
+The big advantage of the third option is that it is more safe.
+-/

@@ -1,4 +1,5 @@
 import TreeApply
+import Mathlib.Topology.MetricSpace.Lipschitz
 
 namespace Tree
 
@@ -31,7 +32,7 @@ def rewriteUnify (fvars : Array Expr) (side target : Expr) (hypContext : Hypothe
   else
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
-def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : List Nat) : MetaM' RewriteInfo :=
+private def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : List Nat) : MetaM' RewriteInfo :=
   
   let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM' RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
@@ -96,7 +97,7 @@ def treeRewrite (symm : Bool) (eq : Expr) (hypContext : HypothesisContext) (pos 
     
 
 
-open Elab Tactic
+open Elab.Tactic
 
 syntax (name := tree_rewrite) "tree_rewrite" treePos treePos : tactic
 syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
@@ -129,23 +130,7 @@ def evalLibRewriteRev : Tactic := fun stx => do
   let goalPos := get_positions stx[2]
   workOnTree (applyUnbound hypPos goalPos · (treeRewrite true))
 
-
-
-
-
-
-
-
-example [PseudoMetricSpace α] [PseudoMetricSpace β] {f : α → β}
-  : UniformContinuous f → Continuous f := by
-  make_tree
-  lib_rewrite Metric.uniformContinuous_iff [0,1]
-  lib_rewrite Metric.continuous_iff [1]
-  tree_apply [0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
-
-
+  
 
 
 example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := by

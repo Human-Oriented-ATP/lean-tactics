@@ -307,17 +307,23 @@ end nonDependent
 section typeBinders
 variable {α : Type u} {old new : α → Prop}
 
-def bindTypeBinder (name : Name) (u : Level) (domain var : Expr) (isForall : Bool) (imp_lemma imp_lemma' non_dep_lemma non_dep_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
+inductive TypeBinderKind where
+| all
+| ex
+| inst
+deriving BEq
+
+def bindTypeBinder (name : Name) (u : Level) (domain var : Expr) (kind : TypeBinderKind) (imp_lemma imp_lemma' non_dep_lemma non_dep_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
-  let mkLam b := .lam name domain (b.abstract #[var]) .default
-  let proof   := mkLam proof
-  let isClosed := pol == isForall
-  let nonempty := mkApp (.const ``Nonempty [.succ u]) domain
+  let mkLam b  := .lam name domain (b.abstract #[var]) .default
+  let proof    := mkLam proof
+  let isClosed := pol != (kind == .ex)
+  let nonempty (_ : Unit) := mkApp (.const ``Nonempty [if kind == .inst then u else .succ u]) domain
   match newTree with
   | none =>
     let newTree := if isClosed
       then none
-      else some <| if isForall then mkApp (.const ``Not []) nonempty else nonempty
+      else some <| if (kind == .ex) then nonempty () else mkApp (.const ``Not []) (nonempty ())
     { newTree, proof := mkApp3 (.const (if pol then close_lemma else close_lemma') [u]) domain tree proof }
 
   | some newTree =>
@@ -325,12 +331,12 @@ def bindTypeBinder (name : Name) (u : Level) (domain var : Expr) (isForall : Boo
     if newTree.hasLooseBVars
     then
       let newTree := .lam name domain newTree .default
-      { newTree := mkApp2 (.const (if isForall then ``Forall else ``Exists) [u]) domain newTree,
+      { newTree := mkApp2 (.const (match kind with | .all => ``Forall | .ex => ``Exists | .inst => ``Instance) [u]) domain newTree,
         proof := mkApp4 (.const (if pol then imp_lemma else imp_lemma') [u]) domain tree newTree proof }
     else
       { newTree := if isClosed
           then newTree
-          else mkApp2 (.const (if isForall then ``Imp else ``And) []) nonempty newTree
+          else mkApp2 (.const (if kind == .ex then ``And else ``Imp) []) (nonempty ()) newTree
         proof := mkApp4 (.const (if pol then non_dep_lemma else non_dep_lemma') [u]) domain tree newTree proof }
 
 lemma forall_imp  (h : ∀ a, new a → old a) : Forall α new → Forall α old := _root_.forall_imp h
@@ -343,7 +349,7 @@ lemma closed_forall_imp  (h : ∀ a,   old a) : Forall α old := h
 lemma closed_forall_imp' (h : ∀ a, ¬ old a) : Forall α old → ¬ Nonempty α := fun g ⟨a⟩ => h a (g a)
 
 def bindForall (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u domain var true ``forall_imp ``forall_imp' ``non_dep_forall_imp ``non_dep_forall_imp' ``closed_forall_imp ``closed_forall_imp'
+  bindTypeBinder name u domain var .all ``forall_imp ``forall_imp' ``non_dep_forall_imp ``non_dep_forall_imp' ``closed_forall_imp ``closed_forall_imp'
 
 variable {new : α → Prop}
 lemma exists_imp  (h : ∀ a, new a → old a) : Exists α new → Exists α old := Exists.imp h
@@ -356,7 +362,7 @@ lemma closed_exists_imp  (h : ∀ a,   old a) : Nonempty α → Exists α old :=
 lemma closed_exists_imp' (h : ∀ a, ¬ old a) : ¬ Exists α old := fun ⟨a, ha⟩ => h a ha
 
 def bindExists (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u domain var false ``exists_imp ``exists_imp' ``non_dep_exists_imp ``non_dep_exists_imp' ``closed_exists_imp ``closed_exists_imp'
+  bindTypeBinder name u domain var .ex ``exists_imp ``exists_imp' ``non_dep_exists_imp ``non_dep_exists_imp' ``closed_exists_imp ``closed_exists_imp'
 
 
 variable {α : Sort u} {old new : α → Prop}
@@ -371,7 +377,7 @@ lemma closed_instance_imp  (h : ∀ a,   old a) : Instance α old := h
 lemma closed_instance_imp' (h : ∀ a, ¬ old a) : Instance α old → ¬ Nonempty α := fun g ⟨a⟩ => h a (g a)
 
 def bindInstance (name : Name) (u : Level) (cls var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u cls var true ``instance_imp ``instance_imp' ``non_dep_instance_imp ``non_dep_instance_imp' ``closed_instance_imp ``closed_instance_imp'
+  bindTypeBinder name u cls var .inst ``instance_imp ``instance_imp' ``non_dep_instance_imp ``non_dep_instance_imp' ``closed_instance_imp ``closed_instance_imp'
 
 
 variable {α : Type u} {old : Prop} {new : α → Prop}
@@ -402,7 +408,7 @@ lemma closed_exists_make  (h : α →   old) : Nonempty α → old   := fun ⟨a
 
 
 def bindMVar (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) : Expr → TreeProof → TreeProof := 
-  bindTypeBinder name u type (.mvar mvarId) (!pol) ``exists_make ``forall_make' ``non_dep_exists_make ``non_dep_forall_make' ``closed_exists_make ``closed_forall_make' pol
+  bindTypeBinder name u type (.mvar mvarId) (if pol then .ex else .all) ``exists_make ``forall_make' ``non_dep_exists_make ``non_dep_forall_make' ``closed_exists_make ``closed_forall_make' pol
 
 -- variable {new : α → Prop}
 -- lemma instance_forall_make' (h : ∀ a, old → new a) : old → Imp' (fun inst => @Forall α inst new) := fun g _ a => h a g
@@ -513,7 +519,7 @@ structure OptionRecursor (α : Type u) where
   inst (u : Level) (cls : Expr) : Bool → Expr → (Expr → α) → Option α
 
 
-inductive TreeNodeKind where
+inductive TreeBinderKind where
   | imp_right
   | and_right
   | imp_left
@@ -522,7 +528,7 @@ inductive TreeNodeKind where
   | ex
   | inst
 deriving BEq
-instance : ToString TreeNodeKind where
+instance : ToString TreeBinderKind where
   toString := fun 
     | .imp_right => "· ⇨"
     | .and_right => "· ∧"
@@ -532,8 +538,8 @@ instance : ToString TreeNodeKind where
     | .ex => "∃"
     | .inst => "[·] ⇨"
 
-partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool := true) (tree : Expr) (pos : List TreeNodeKind) (k : Bool → Expr → m α) : m α :=
-  let rec visit [Inhabited α] (pol : Bool) : List TreeNodeKind → Expr → m α  
+partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind) (k : Bool → Expr → m α) : m α :=
+  let rec visit [Inhabited α] (pol : Bool) : List TreeBinderKind → Expr → m α  
     | .all      ::xs, forall_pattern n u α b => r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
     | .ex       ::xs, exists_pattern n u α b => r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
     | .imp_right::xs, imp_pattern p tree     => r.imp_right p pol tree (visit   pol  xs tree)
@@ -546,9 +552,9 @@ partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recur
   visit pol pos tree
 
 
-partial def OptionRecursor.recurse [Inhabited α] (r : OptionRecursor α) (pol : Bool := true) (tree : Expr) (pos : List TreeNodeKind)
-  (k : Bool → Expr → List TreeNodeKind → α) : α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeNodeKind) (e : Expr) : α :=
+partial def OptionRecursor.recurse [Inhabited α] (r : OptionRecursor α) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind)
+  (k : Bool → Expr → List TreeBinderKind → α) : α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : α :=
     let kOption := fun
       | some k => k
       | none => k pol e ys
@@ -566,8 +572,8 @@ partial def OptionRecursor.recurse [Inhabited α] (r : OptionRecursor α) (pol :
 
 
 -- this is more efficient, as it doesn't require instantiation of the loose bound variables.
-def positionToNodesAndPolarities : List Nat → Expr → List (TreeNodeKind × Bool) × List Nat :=
-  let rec visit (pol : Bool) : List Nat → Expr → List (TreeNodeKind × Bool) × List Nat
+def positionToNodesAndPolarities : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat :=
+  let rec visit (pol : Bool) : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat
     | 1::1::xs, forall_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.all      , pol)) <| visit   pol  xs tree
     | 1::1::xs, exists_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.ex       , pol)) <| visit   pol  xs tree
     | 1::xs,    imp_pattern _ tree                 => Bifunctor.fst (List.cons (.imp_right, pol)) <| visit   pol  xs tree
@@ -578,15 +584,15 @@ def positionToNodesAndPolarities : List Nat → Expr → List (TreeNodeKind × B
     | xs, _ => ([], xs)
   visit true
 
-def positionToPath (pos : List Nat) (tree : Expr) : List (TreeNodeKind) × List Nat :=
+def positionToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × List Nat :=
   (Bifunctor.fst <| List.map Prod.fst) (positionToNodesAndPolarities pos tree)
 
-def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeNodeKind)) :=
+def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
   match positionToPath pos tree with
   | (nodes, []) => return nodes
   | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
 
-def getPath : Expr → List TreeNodeKind
+def getPath : Expr → List TreeBinderKind
   | forall_pattern (body := tree) ..   => .all       :: getPath tree
   | exists_pattern (body := tree) ..   => .ex        :: getPath tree
   | imp_pattern _ tree                 => .imp_right :: getPath tree
@@ -594,7 +600,7 @@ def getPath : Expr → List TreeNodeKind
   | instance_pattern (body := tree) .. => .inst      :: getPath tree
   | _ => []
 
-def nodesToPosition (nodes : List TreeNodeKind) : List Nat :=
+def nodesToPosition (nodes : List TreeBinderKind) : List Nat :=
   (nodes.map fun | .imp_left | .and_left => [0,1] | .imp_right | .and_right => [1] | _ => [1,1]).join
 
 
@@ -675,3 +681,14 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
+lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
+
+elab "lib_intro" h:ident : tactic =>
+  workOnTree fun tree => do
+  let h := h.getId
+  let h ← mkConstWithFreshMVarLevels h
+  let p ← makeTree (← inferType h)
+  return {
+    newTree := mkApp2 (.const ``Imp []) p tree
+    proof := mkApp3 (.const ``imp []) p tree h
+  }
