@@ -139,3 +139,5 @@ syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (loca
       (rewriteLocalDecl' position term symm · cfg)
       (rewriteTarget' position term symm cfg)
       (throwTacticEx `rewriteAt · "did not find instance of the pattern in the current goal")
+
+
