@@ -100,8 +100,6 @@ namespace Tree
 open Lean Meta
 
 
-abbrev RewriteOrdInfo := Expr × Expr
-
 def mkLE (u : Level) (α preorder : Expr) : Expr :=
   mkApp2 (.const ``LE.le [u]) α (mkApp2 (.const ``Preorder.toLE [u]) α preorder)
 
@@ -114,10 +112,7 @@ private inductive Pattern where
   | imp
 deriving BEq
 
-def Prop.preorder : Preorder Prop where
-  le := LE.le
-  le_refl := le_refl
-  le_trans := fun _ _ _ => le_trans
+def PropPreorder : Expr := mkApp2 (.const ``PartialOrder.toPreorder [.zero]) (.sort .zero) (.const ``Prop.partialOrder [])
 
 def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × Expr × Expr) :=
   match rel with
@@ -133,7 +128,7 @@ def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × E
   | .forallE _ lhs rhs _ => do
     if rhs.hasLooseBVars then
       throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}" 
-    if ← isDefEq preorder (.const ``Prop.preorder []) then
+    if ← isDefEq preorder PropPreorder then
       return (.imp, lhs, rhs)
 
     throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
@@ -146,7 +141,7 @@ def getLEsides! : Pattern → Expr → Expr × Expr
   | _   , .app (.app _ lhs) rhs => (lhs, rhs)
   | _, _ => panic! ""
 
-def rewriteOrdUnify (fvars : Array Expr) (u : Level) (α preorder rel target : Expr) (hypContext : HypothesisContext) (pol : Bool) : MetaM' RewriteOrdInfo := do
+def rewriteOrdUnify (fvars : Array Expr) (u : Level) (α preorder rel target : Expr) (hypContext : HypothesisContext) (hypPos : List Nat) (pol : Bool) : MetaM' (Expr × Expr) := do
   let {metaIntro, instMetaIntro, hypProofM} := hypContext
   let mvars ← metaIntro
   let instMVars ← instMetaIntro
@@ -184,24 +179,21 @@ def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → �
 
 
 
-def Prop.LE : LE Prop where
-  le := LE.le
-
 
 partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat)
   : MetaM' TreeProof := do
   unless hypPath == [] do
     throwError m! "cannot rewrite using a hypothesis in a hypothesis"
-  let (newTree, proof) ← visit (.zero) (.sort .zero) (.const ``Prop.preorder []) #[] pol goalPos target
+  let (newTree, proof) ← visit (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
   return { newTree, proof }
 where
-  visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
+  visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' (Expr × Expr)
     -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
     | xs, .mdata d lhs => do
       let (rhs, h) ← visit u α preorder fvars pol xs lhs
       return (.mdata d rhs, h)
 
-    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol
+    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext hypPos pol
       
     | 0::xs, .app lhs a => do
       let α' ← inferType a
@@ -247,14 +239,14 @@ where
 
 
     | 0::xs, .forallE n lhs b bi => do
-      unless ← isDefEq preorder (.const ``Prop.preorder []) do
+      unless ← isDefEq preorder PropPreorder do
         throwError m!"Prop is the only type with an order{indentExpr b}"
       let (rhs, h) ← visit u α preorder fvars (!pol) xs lhs
       let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then id else swap) (mkApp2 (mkLE u α preorder)) lhs rhs) h
       return (.forallE n rhs b bi, mkApp ((if pol then id else swap) (mkApp3 (.const ``imp_left_anti' []) b) lhs rhs) h)
 
     | 1::xs, .forallE n t lhs bi => do
-      unless ← isDefEq preorder (.const ``Prop.preorder []) do
+      unless ← isDefEq preorder PropPreorder do
         throwError m!"Prop is the only type with an order{indentExpr lhs}"
 
       withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
@@ -289,7 +281,7 @@ syntax (name := lib_rewrite_ord) "lib_rewrite_ord" ident treePos : tactic
 def evalLibRewriteOrd : Tactic := fun stx => do
   let hypName := stx[1].getId
   let goalPos := get_positions stx[2]
-  workOnTree (applyUnbound hypName goalPos treeRewriteOrd)
+  workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [])) goalPos treeRewriteOrd)
 
 
 
@@ -348,10 +340,12 @@ example (𝔸 : Set (Set α)) (B C : Set α) : (C ⊆ B) → {A ∈ 𝔸 | B ⊂
   tree_rewrite_ord [0,1] [1,0,1,1,1,1,0,1]
   rfl
 
+lemma testLib : ∀ x, x - 1 ≤ x := by simp
+
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
-  tree_rewrite_ord [0,1,1,1] [1,0,1,1,1,0,1]
-  rfl
+  lib_rewrite_ord Tree.testLib [1,0,1,1,1,0,1]
+  lib_apply refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1,1,1] [1,1,1,1]

@@ -222,8 +222,16 @@ def HypothesisRec : OptionRecursor (ReaderT HypothesisContext MetaM' α) where
     }) do
     k
     
+  and_left _p _pol _tree k := some do
+    withReader (fun c => { c with
+      hypProofM := do
+        let (and_pattern tree p, hypProof) ← c.hypProofM | panic! ""
+        addBinder (.known (.proj `And 1 hypProof) p)
+        return (tree, .proj `And 0 hypProof)
+    }) do
+    k
+    
   imp_left _p _pol _tree _k := none --some <| throwError m!"{tree} → {p}: can only move to the right of an implication when unfolding a hypothesis"
-  and_left _p _pol _tree _k := none --some <| throwError m!"{tree} ∧ {p}: can only move to the right of a conjunction when unfolding a hypothesis"
 
 where
   addBinder (hypBinder : HypBinder) : MetaM' Unit := do
@@ -362,12 +370,13 @@ where
 
 
 
-partial def applyUnbound (hypName : Name) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
+partial def applyUnbound (hypName : Name) (getHypPos : Expr → List TreeBinderKind → List TreeBinderKind × List Nat) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
   let (goalPath, goalPos) := positionToPath goalPos tree
   let hypProof ← mkConstWithFreshMVarLevels hypName
   let hyp ← makeTree (← inferType hypProof)
+  let (hypPath, hypPos) := getHypPos hyp goalPath
 
-  let treeProofM ← applyAux hypProof hyp tree true (getPath hyp) goalPath [] goalPos unification
+  let treeProofM ← applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification
   treeProofM : MetaM' _).run' {}
 
 -- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
@@ -424,6 +433,8 @@ def treeApply (hypContext : HypothesisContext) (hypothesis goal : Expr) (pol : B
   
   | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hypothesis}"
 
+def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : List TreeBinderKind × List Nat :=
+  (if PathToPolarity goalPath then getPath hyp else panic! "", [])
 
 open Elab.Tactic
 
@@ -441,13 +452,14 @@ syntax (name := lib_apply) "lib_apply" ident treePos : tactic
 def evalLibApply : Tactic := fun stx => do
   let hypName := stx[1].getId
   let goalPos := get_positions stx[2]
-  workOnTree (applyUnbound hypName goalPos treeApply)
+  workOnTree (applyUnbound hypName getApplyPos goalPos treeApply)
 
 
-example (p q : Prop) : (p ∧ (p → q)) → (q → False) → False := by
+example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by
   make_tree
-  tree_apply [0,1,1,1] [1,0,1,0,1]
-  sorry
+  tree_apply [0,1,0,1,1] [1,0,1,0,1]
+  tree_apply [0,1] [1,0,1,0,1]
+  tree_apply [0,1] [1]
 
 def Tree.rfl [Nonempty α] : Tree.Forall α fun a => a = a := IsRefl.refl
 
