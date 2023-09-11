@@ -87,6 +87,7 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
 
     match hypPos with
     | [1] => cont true rhs <| Bifunctor.fst (·.appFn!.appArg!) <$> hypProofM
+    | []
     | [0,1] => cont false lhs <| Bifunctor.fst (·.appArg!) <$> hypProofM
     | _ => throwError m! "cannot rewrite with position {hypPos} in {eq}"
 
@@ -144,11 +145,11 @@ example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := 
 
 example : (∀ n : Nat, n = n+1) → (∃ m : Nat, m = m+1) → True := by
   make_tree
-  tree_rewrite [0,1,1,1,0,1] [1,0,1,1,1,0,1]
+  tree_rewrite [0,1,1,1] [1,0,1,1,1,0,1]
   sorry
 
 
 example : (∀ n l : Nat, n = l+n) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} := by
   make_tree
-  tree_rewrite [0,1,1,1,1,1,0,1] [1,1,1,0,1,1,1,0,1]
+  tree_rewrite [0,1,1,1,1,1] [1,1,1,0,1,1,1,0,1]
   sorry
