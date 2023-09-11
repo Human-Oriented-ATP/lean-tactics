@@ -187,9 +187,15 @@ def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → �
 def Prop.LE : LE Prop where
   le := LE.le
 
-partial def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof := do
-  
-  let rec visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
+
+partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat)
+  : MetaM' TreeProof := do
+  unless hypPath == [] do
+    throwError m! "cannot rewrite using a hypothesis in a hypothesis"
+  let (newTree, proof) ← visit (.zero) (.sort .zero) (.const ``Prop.preorder []) #[] pol goalPos target
+  return { newTree, proof }
+where
+  visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' RewriteOrdInfo
     -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
     | xs, .mdata d lhs => do
       let (rhs, h) ← visit u α preorder fvars pol xs lhs
@@ -264,9 +270,6 @@ partial def treeRewriteOrd (rel : Expr) (hypContext : HypothesisContext) (pos : 
 
     | list, lhs => throwError "could not find sub position {list} in '{repr lhs}'"
       
-  let (newTree, proof) ← visit (.zero) (.sort .zero) (.const ``Prop.preorder []) #[] pol pos target
-  return { newTree, proof}
-
 
 
 open Elab.Tactic
@@ -277,16 +280,16 @@ syntax (name := tree_rewrite_ord) "tree_rewrite_ord" treePos treePos : tactic
 def evalTreeRewriteOrd : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
-  workOnTree (applyBound hypPos goalPos · true (treeRewriteOrd))
+  workOnTree (applyBound hypPos goalPos true treeRewriteOrd)
 
 
 syntax (name := lib_rewrite_ord) "lib_rewrite_ord" ident treePos : tactic
 
 @[tactic lib_rewrite_ord]
 def evalLibRewriteOrd : Tactic := fun stx => do
-  let hypPos := stx[1].getId
+  let hypName := stx[1].getId
   let goalPos := get_positions stx[2]
-  workOnTree (applyUnbound hypPos goalPos · treeRewriteOrd)
+  workOnTree (applyUnbound hypName goalPos treeRewriteOrd)
 
 
 

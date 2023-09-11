@@ -241,7 +241,7 @@ lemma use_hyp_imp_left'  (h₁ : (hyp → old) → new) (h₂ : hyp → (new' �
 lemma closed_use_hyp_imp_left'  (h₁ : (hyp → old) → new) (h₂ : hyp →   old') : Imp old' old →   new := fun g  => h₁ (fun hh => g (h₂ hh))
 
 def UseHypImpLeft (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId → TreeProof → TreeProof :=
-  UseHyp tree hyp true false pol 
+  UseHyp tree hyp true true pol 
   ``use_hyp_imp_left ``use_hyp_imp_left' .anonymous .anonymous .anonymous ``closed_use_hyp_imp_left' .anonymous
 
 
@@ -255,7 +255,7 @@ lemma closed_use_closed_hyp_and_right   (h₁ : hyp ∧ old) (h₂ : hyp →   o
 -- lemma closed_use_closed_hyp_and_right'  (h₁ : old → hyp) (h₂ : hyp → ¬ old') : ¬ And old old' := fun ⟨h₃, h₄⟩ => h₂ (h₁ h₃) h₄
 
 def UseHypAndRight (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId → TreeProof → TreeProof :=
-  UseHyp tree hyp true false pol 
+  UseHyp tree hyp false false pol 
   ``use_hyp_and_right ``use_hyp_and_right' ``use_closed_hyp_and_right ``use_closed_hyp_and_right' ``closed_use_hyp_and_right .anonymous ``closed_use_closed_hyp_and_right
 
 
@@ -269,7 +269,7 @@ lemma closed_use_closed_hyp_and_left    (h₁ : hyp ∧ old) (h₂ : hyp →   o
 -- lemma closed_use_closed_hyp_and_left'   (h₁ : old → hyp) (h₂ : hyp → ¬ old') : ¬ And old' old := fun ⟨h₄, h₃⟩ => h₂ (h₁ h₃) h₄
 
 def UseHypAndLeft (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId → TreeProof → TreeProof :=
-  UseHyp tree hyp true false pol 
+  UseHyp tree hyp false true pol 
   ``use_hyp_and_left ``use_hyp_and_left' ``use_closed_hyp_and_left ``use_closed_hyp_and_left' ``closed_use_hyp_and_left .anonymous ``closed_use_closed_hyp_and_left
 
 
@@ -536,7 +536,7 @@ instance : ToString TreeBinderKind where
     | .and_left => "∧ ·"
     | .all => "∀"
     | .ex => "∃"
-    | .inst => "[·] ⇨"
+    | .inst => "[·]"
 
 partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind) (k : Bool → Expr → m α) : m α :=
   let rec visit [Inhabited α] (pol : Bool) : List TreeBinderKind → Expr → m α  
@@ -587,10 +587,10 @@ def positionToNodesAndPolarities : List Nat → Expr → List (TreeBinderKind ×
 def positionToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × List Nat :=
   (Bifunctor.fst <| List.map Prod.fst) (positionToNodesAndPolarities pos tree)
 
-def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
-  match positionToPath pos tree with
-  | (nodes, []) => return nodes
-  | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
+-- def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
+--   match positionToPath pos tree with
+--   | (nodes, []) => return nodes
+--   | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
 
 def getPath : Expr → List TreeBinderKind
   | forall_pattern (body := tree) ..   => .all       :: getPath tree
@@ -600,9 +600,13 @@ def getPath : Expr → List TreeBinderKind
   | instance_pattern (body := tree) .. => .inst      :: getPath tree
   | _ => []
 
-def nodesToPosition (nodes : List TreeBinderKind) : List Nat :=
+def PathToPosition (nodes : List TreeBinderKind) : List Nat :=
   (nodes.map fun | .imp_left | .and_left => [0,1] | .imp_right | .and_right => [1] | _ => [1,1]).join
 
+def PathToPolarity : List TreeBinderKind → Bool
+| .imp_left::xs => !PathToPolarity xs
+| _::xs => PathToPolarity xs
+| [] => true
 
 partial def makeTree : Expr → MetaM Expr
   | .forallE name domain body bi =>
@@ -676,7 +680,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       let mvarNew  ← mkFreshExprSyntheticOpaqueMVar newTree
       let proof  := .app proof mvarNew
       unless ← isTypeCorrect proof do 
-        throwError m!"changing the goal does not type check{indentExpr proof} {indentExpr newTree}"
+        throwError m!"changing the goal does not type check:{indentExpr proof} \nnewTree: {indentExpr newTree}"
       (← getMainGoal).assign proof
       replaceMainGoal [mvarNew.mvarId!]
 

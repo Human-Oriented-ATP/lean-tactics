@@ -73,11 +73,14 @@ lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b
 lemma substitute' {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive a → motive b :=
   Eq.subst h₁
 
-def treeRewrite (symm : Bool) (eq : Expr) (hypContext : HypothesisContext) (pos : List Nat) (pol : Bool) (target : Expr) : MetaM' TreeProof :=
+def treeRewrite (symm : Bool) (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat)
+  : MetaM' TreeProof := do
+  unless hypPath == [] do
+    throwError m! "cannot rewrite using a hypothesis of a hypothesis"
   let cont (lhs rhs : Expr) (hypProofM : MetaM' (Expr × Expr)) :=
     let cont (side : Expr) (hypProofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
     
-      let (motive_core, newSide, proof, type) ← recurseToPosition side target {hypContext with hypProofM} pos
+      let (motive_core, newSide, proof, type) ← recurseToPosition side target {hypContext with hypProofM} goalPos
       let motive := Expr.lam `_a type motive_core .default
       let proof ← mkAppM (if pol != symm then ``substitute else ``substitute') #[motive, proof]
       return { newTree := newSide, proof}
@@ -106,13 +109,13 @@ syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
 def evalTreeRewrite : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
-  workOnTree (applyBound hypPos goalPos · true (treeRewrite false))
+  workOnTree (applyBound hypPos goalPos true (treeRewrite false))
 
 @[tactic tree_rewrite_rev]
 def evalTreeRewriteRev : Tactic := fun stx => do
   let hypPos := get_positions stx[1]
   let goalPos := get_positions stx[2]
-  workOnTree (applyBound hypPos goalPos · true (treeRewrite true))
+  workOnTree (applyBound hypPos goalPos true (treeRewrite true))
 
 
 syntax (name := lib_rewrite) "lib_rewrite" ident treePos : tactic
@@ -120,15 +123,15 @@ syntax (name := lib_rewrite_rev) "lib_rewrite_rev" ident treePos : tactic
 
 @[tactic lib_rewrite]
 def evalLibRewrite : Tactic := fun stx => do
-  let hypPos := stx[1].getId
+  let hypName := stx[1].getId
   let goalPos := get_positions stx[2]
-  workOnTree (applyUnbound hypPos goalPos · (treeRewrite false))
+  workOnTree (applyUnbound hypName goalPos (treeRewrite false))
 
 @[tactic lib_rewrite_rev]
 def evalLibRewriteRev : Tactic := fun stx => do
-  let hypPos := stx[1].getId
+  let hypName := stx[1].getId
   let goalPos := get_positions stx[2]
-  workOnTree (applyUnbound hypPos goalPos · (treeRewrite true))
+  workOnTree (applyUnbound hypName goalPos (treeRewrite true))
 
   
 
