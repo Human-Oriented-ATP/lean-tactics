@@ -44,7 +44,31 @@ lean_lib RewriteOrd {
   -- add any library configuration options here
 }
 
+lean_lib Tree {
+  -- add any library configuration options here
+}
+
+lean_lib PrintTree {
+  -- add any library configuration options here
+}
+
+lean_lib TreeApply {
+  -- add any library configuration options here
+}
+
+lean_lib TreeRewrite {
+  -- add any library configuration options here
+}
+
+lean_lib TreeRewriteOrd {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
+  -- add any library configuration options here
+}
+
+lean_lib MotivatedProofInterface {
   -- add any library configuration options here
 }
 

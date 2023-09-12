@@ -50,7 +50,18 @@ instance le_right_mono [Preorder α] (a : α) : MonotoneClass (a ≤ ·) where
   anti := false
   order := inferInstance
   elim _ _ := Function.swap le_trans
+
 instance le_left_anti [Preorder α] : MonotoneClass (α := α) (. ≤ .) where
+  anti := true
+  order := inferInstance
+  elim _ _ h _ := le_trans h
+
+instance sub_right_mono (a : Set α) : MonotoneClass (a ⊆ ·) where
+  anti := false
+  order := inferInstance
+  elim _ _ := Function.swap le_trans
+
+instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) where
   anti := true
   order := inferInstance
   elim _ _ h _ := le_trans h
@@ -298,6 +309,3 @@ syntax (name := orewriteSeq') "rewriteOrdAt" "[" num,* "]" (config)? rwRuleSeq (
       (ord_rewriteLocalDecl position term symm · cfg)
       (ord_rewriteTarget position term symm cfg)
       (throwTacticEx `rewriteAt · "did not find instance of the pattern in the current goal")
-
-
-
