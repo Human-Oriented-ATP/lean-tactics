@@ -410,24 +410,6 @@ lemma closed_exists_make  (h : α →   old) : Nonempty α → old   := fun ⟨a
 def bindMVar (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) : Expr → TreeProof → TreeProof := 
   bindTypeBinder name u type (.mvar mvarId) (if pol then .ex else .all) ``exists_make ``forall_make' ``non_dep_exists_make ``non_dep_forall_make' ``closed_exists_make ``closed_forall_make' pol
 
--- variable {new : α → Prop}
--- lemma instance_forall_make' (h : ∀ a, old → new a) : old → Imp' (fun inst => @Forall α inst new) := fun g _ a => h a g
--- lemma instance_exists_make  (h : ∀ a, new a → old) : And' (fun inst => @Exists α inst new) → old := fun ⟨_, a, g⟩ => h a g
-
--- lemma instance_choose_mvar  (h : α →   old) : Nonempty α → old   := fun   inst => h (Classical.choice inst)
--- lemma instance_choose_mvar' (h : α → ¬ old) : old → ¬ Nonempty α := fun g inst => h (Classical.choice inst) g
-
--- def bindMVarWithoutInst (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) (tree : Expr) : TreeProof → TreeProof := 
---   fun {newTree, proof} => match newTree with
---   | none => panic! "still have to implement"
---   | some newTree =>
---     let mkLam b := .lam name type (b.abstract #[.mvar mvarId]) .default
---     let newTree := mkLam newTree
---     let proof   := mkLam proof
---     {
---       newTree := mkApp2 (.const (if pol then ``Tree.Exists          else ``Forall               ) [u]) type newTree,
---       proof   := mkApp4 (.const (if pol then ``instance_exists_make else ``instance_forall_make') [u]) type tree newTree proof}
-
 
 
 variable {old : α → Prop} {new : Prop}
@@ -593,12 +575,22 @@ def positionToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × Lis
 --   | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
 
 def getPath : Expr → List TreeBinderKind
-  | forall_pattern (body := tree) ..   => .all       :: getPath tree
-  | exists_pattern (body := tree) ..   => .ex        :: getPath tree
   | imp_pattern _ tree                 => .imp_right :: getPath tree
   | and_pattern _ tree                 => .and_right :: getPath tree
+  | forall_pattern (body := tree) ..   => .all       :: getPath tree
+  | exists_pattern (body := tree) ..   => .ex        :: getPath tree
   | instance_pattern (body := tree) .. => .inst      :: getPath tree
   | _ => []
+
+def getPathToHyp : Expr → Option (List TreeBinderKind)
+  | imp_pattern _ tree => match getPathToHyp tree with
+      | some path => .imp_right :: path
+      | none => some [.imp_left]
+  | and_pattern _ tree                 => (.and_right :: ·) <$> getPathToHyp tree
+  | forall_pattern (body := tree) ..   => (.all       :: ·) <$> getPathToHyp tree
+  | exists_pattern (body := tree) ..   => (.ex        :: ·) <$> getPathToHyp tree
+  | instance_pattern (body := tree) .. => (.inst      :: ·) <$> getPathToHyp tree
+  | _ => none
 
 def PathToPosition (nodes : List TreeBinderKind) : List Nat :=
   (nodes.map fun | .imp_left | .and_left => [0,1] | .imp_right | .and_right => [1] | _ => [1,1]).join
@@ -618,44 +610,42 @@ def bulletName : Name → Name
 | .str pre str => .str pre (str ++ "?")
 | .num pre i => .num (starName pre) i
 
-partial def makeTree (pol : Option Bool := true) : Expr → MetaM Expr
+partial def makeTree : Expr → MetaM Expr
   | .forallE name domain body bi =>
-      -- let name := if pol == false then starName name else name
       withLocalDeclD name domain fun fvar => do
       let body' := body.instantiate1 fvar
       let u' ← getLevel domain
       if bi.isInstImplicit
       then
-        return mkApp2 (.const ``Instance [u']) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``Instance [u']) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
       else
         let u ← mkFreshLevelMVar
         if ← isLevelDefEq u' (.succ u)
         then
-          return mkApp2 (.const ``Forall [u]) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
+          return mkApp2 (.const ``Forall [u]) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
         else
           if body.hasLooseBVars
           then
-            return mkApp2 (.const ``Imp' []) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
+            return mkApp2 (.const ``Imp' []) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
           else
-            return mkApp2 (.const ``Imp []) (← makeTree (not <$> pol) domain) (← makeTree pol body)
+            return mkApp2 (.const ``Imp []) (← makeTree domain) (← makeTree body)
 
   | regular_and_pattern p q =>
-      return mkApp2 (.const ``And []) (← makeTree pol p) (← makeTree pol q)
+      return mkApp2 (.const ``And []) (← makeTree p) (← makeTree q)
 
   | regular_exists_pattern name u' domain body _bi =>
-      -- let name := if pol == true then bulletName name else name
       withLocalDeclD name domain fun fvar => do
       let body' := body.instantiate1 fvar
       let u ← mkFreshLevelMVar
       if ← isLevelDefEq u' (.succ u)
       then
-        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
       else
-        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
 
-  | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree pol p) (← makeTree pol q)
-  | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree pol p) (← makeTree pol q)
-  | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree  (not <$> pol) p)
+  | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree p) (← makeTree q)
+  | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree p) (← makeTree q)
+  | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree p)
   
   | e => return e
 
@@ -663,7 +653,7 @@ open Elab Tactic
 
 
 elab "make_tree" : tactic => do
-  replaceMainGoal [← (← getMainGoal).change (← makeTree true (← getMainTarget))]
+  replaceMainGoal [← (← getMainGoal).change (← makeTree (← getMainTarget))]
 
 syntax treePos := "[" num,* "]"
 
@@ -703,7 +693,7 @@ elab "lib_intro" h:ident : tactic =>
   workOnTree fun tree => do
   let h := h.getId
   let h ← mkConstWithFreshMVarLevels h
-  let p ← makeTree true (← inferType h)
+  let p ← makeTree (← inferType h)
   return {
     newTree := mkApp2 (.const ``Imp []) p tree
     proof := mkApp3 (.const ``imp []) p tree h

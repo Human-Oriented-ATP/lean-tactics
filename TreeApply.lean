@@ -448,7 +448,7 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
   | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hyp}"
 
 def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : List TreeBinderKind × List Nat :=
-  (if PathToPolarity goalPath then getPath hyp else panic! "", [])
+  (if PathToPolarity goalPath then getPath hyp else (getPathToHyp hyp).getD [], [])
 
 open Elab.Tactic
 
@@ -560,7 +560,20 @@ example (p : Prop) : p → p := by
   make_tree
   tree_apply [0,1] [1]
 
-
+example [Preorder α] (a b : α) : a < b → a ≤ b := by
+  make_tree
+  lib_apply le_of_lt [0,1]
+  tree_apply [0,1] [1]
+  
+example [Preorder α] (a b : α) : a < b → a ≤ b := by
+  make_tree
+  lib_apply le_of_lt [1]
+  tree_apply [0,1] [1]
+  
+example [Preorder α] (a b : α) : a < b → a ≤ b := by
+  make_tree
+  lib_intro le_of_lt
+  tree_apply [0,1,1,1,1,1,1,1,1,1] [1]
 
 /-
 I was wondering what the exact way should be in which quantifiers are handled by the tree apply/rewrite moves.
