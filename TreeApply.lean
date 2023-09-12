@@ -243,18 +243,18 @@ def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos 
 
 
 
-def getHypothesisRec (hypPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr × List TreeBinderKind) where
+def getHypothesisRec (wantedPol : Bool) : OptionRecursor (TreeHyp × Bool × Expr × List TreeBinderKind) where
   all _ _ _ _ _ _ := none
   ex  _ _ _ _ _ _ := none
   inst _ _ _ _ _  := none
-  imp_right p pol tree k := if  hypPol then none else some <| Bifunctor.fst (ImpRightWithHyp p pol tree) k
-  imp_left  p pol tree k := if  hypPol then none else some <| Bifunctor.fst (ImpLeftWithHyp  p pol tree) k
-  and_right p pol tree k := if !hypPol then none else some <| Bifunctor.fst (AndRightWithHyp p pol tree) k
-  and_left  p pol tree k := if !hypPol then none else some <| Bifunctor.fst (AndLeftWithHyp  p pol tree) k
+  imp_right p pol tree k := if wantedPol == pol then none else some <| Bifunctor.fst (ImpRightWithHyp p pol tree) k
+  imp_left  p pol tree k := if wantedPol == pol then none else some <| Bifunctor.fst (ImpLeftWithHyp  p pol tree) k
+  and_right p pol tree k := if wantedPol != pol then none else some <| Bifunctor.fst (AndRightWithHyp p pol tree) k
+  and_left  p pol tree k := if wantedPol != pol then none else some <| Bifunctor.fst (AndLeftWithHyp  p pol tree) k
 
 
-def getHypothesis (delete? hypPol pol : Bool) (tree : Expr) (path : List TreeBinderKind) : TreeHyp × Bool × Expr × List TreeBinderKind :=
-  (getHypothesisRec hypPol).recurse pol tree path fun pol tree path => (MakeHyp delete? pol tree, pol, tree, path)
+def getHypothesis (delete? wantedPol pol : Bool) (tree : Expr) (path : List TreeBinderKind) : TreeHyp × Bool × Expr × List TreeBinderKind :=
+  (getHypothesisRec wantedPol).recurse pol tree path fun pol tree path => (MakeHyp delete? pol tree, pol, tree, path)
 
 
 
@@ -347,10 +347,10 @@ partial def applyBound (hypPos goalPos : List Nat) (delete? : Bool) (unification
     fun pol tree => do
 
       let (p, goal, goalPath, goalPol, useHypProof, hypProof, _hypPol, hyp, hypPath) ← match tree, hypPath, goalPath with
-        | imp_pattern p goal, .imp_left ::hypPath, .imp_right::goalPath => pure (p, goal, goalPath,  pol, UseHypImpRight, getHypothesis delete? true (!pol) p hypPath)
-        | imp_pattern goal p, .imp_right::hypPath, .imp_left ::goalPath => pure (p, goal, goalPath, !pol, UseHypImpLeft,  getHypothesis delete? false  pol  p hypPath)
-        | and_pattern p goal, .and_left ::hypPath, .and_right::goalPath => pure (p, goal, goalPath,  pol, UseHypAndRight, getHypothesis delete? true   pol  p hypPath)
-        | and_pattern goal p, .and_right::hypPath, .and_left ::goalPath => pure (p, goal, goalPath,  pol, UseHypAndLeft,  getHypothesis delete? true   pol  p hypPath)
+        | imp_pattern p goal, .imp_left ::hypPath, .imp_right::goalPath => pure (p, goal, goalPath,  pol, UseHypImpRight, getHypothesis delete? (!pol) (!pol) p hypPath)
+        | imp_pattern goal p, .imp_right::hypPath, .imp_left ::goalPath => pure (p, goal, goalPath, !pol, UseHypImpLeft,  getHypothesis delete? (!pol)  pol  p hypPath)
+        | and_pattern p goal, .and_left ::hypPath, .and_right::goalPath => pure (p, goal, goalPath,  pol, UseHypAndRight, getHypothesis delete?   pol   pol  p hypPath)
+        | and_pattern goal p, .and_right::hypPath, .and_left ::goalPath => pure (p, goal, goalPath,  pol, UseHypAndLeft,  getHypothesis delete?   pol   pol  p hypPath)
         | _, _, _ => throwError m!"cannot have hypothesis at {hypPath} and goal at {goalPath} in {tree}"
 
       withLocalDeclD `hyp hyp fun fvar => do
@@ -411,9 +411,9 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
       unless ← mvarId.isAssigned do
         mvarId.assign (← synthInstance (← mvarId.getType))
 
-def treeApply (hypContext : HypothesisContext) (hypothesis goal : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
+def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
   unless hypPos == [] do    
-    throwError m!"cannot apply a subexpression: position {hypPos} in {hypothesis}"
+    throwError m!"cannot apply a subexpression: position {hypPos} in {hyp}"
   unless goalPos == [] do
     throwError m!"cannot apply in a subexpression: position {goalPos} in {goal}"
   match hypPath with
@@ -423,15 +423,29 @@ def treeApply (hypContext : HypothesisContext) (hypothesis goal : Expr) (pol : B
     let {metaIntro, instMetaIntro, hypProofM} := hypContext
     _ ← metaIntro
     let instMVars ← instMetaIntro
-    if ← isDefEq goal hypothesis
+    if ← isDefEq goal hyp
     then
       synthMetaInstances instMVars
       let (_hyp, proof) ← hypProofM
       return {proof}
     else 
-      throwError m!"couldn't unify hypothesis {hypothesis} with target {goal}"
-  
-  | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hypothesis}"
+      throwError m!"couldn't unify hypothesis {hyp} with target {goal}"
+
+  | [.imp_left] =>
+    if pol then
+      throwError m!"cannot apply a hypothesis of a hypothesis in positive position"
+    let {metaIntro, instMetaIntro, hypProofM} := hypContext
+    _ ← metaIntro
+    let instMVars ← instMetaIntro
+    let imp_pattern cond _ := hyp | panic! "imp_left didn't give imp_pattern"
+    if ← isDefEq goal cond then
+      synthMetaInstances instMVars
+      let (hyp, proof) ← hypProofM
+      let imp_pattern _ newTree := hyp | panic! "imp_left didn't give imp_pattern"
+      return {proof, newTree}
+    else
+      throwError m!"couldn't unify condition {cond} with target {goal}"
+  | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hyp}"
 
 def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : List TreeBinderKind × List Nat :=
   (if PathToPolarity goalPath then getPath hyp else panic! "", [])
@@ -488,7 +502,7 @@ example (p q : Prop) : (q → p) → ∃ n:Nat, p := by
 example (p : Prop) : (∀ _n:Nat, p) → p := by
   make_tree
   tree_apply [0,1,1,1] [1]
-  use default
+  lib_apply inferInstance []
 
 example (p : Nat → Prop): (∀ m, (1=1 → p m)) → ∀ m:Nat, p m := by
   make_tree
@@ -506,6 +520,17 @@ example (p q : Prop) : p → (p → q) → q := by
   tree_apply [1,0,1,1] [1,1]
   -- p → p
   tree_apply [0,1] [1]
+  
+example (p q : Prop) : p → (p → q) → q := by
+  make_tree
+  tree_apply [1,0,1,0,1] [0,1]
+  -- p → p
+  tree_apply [0,1] [1]
+
+example (p q r : Prop) : (q → p) → (q ∧ r) → p := by
+  make_tree
+  tree_apply [1,0,1,0,1] [0,1,0,1]
+  tree_apply [0,1] [1,1]
 
 example (p q : Prop) : p ∧ (p → q) → q := by
   make_tree
@@ -524,6 +549,12 @@ example (p q : Prop) : (p → q) → p → q := by
   tree_apply [1,0,1] [0,1,0,1]
   -- q → q
   tree_apply [0,1] [1]
+
+example (p q r s: Prop) : (p → q → r → s) → q → True := by
+  make_tree
+  tree_apply [0,1,1,0,1] [1,0,1]
+  -- q → q
+  lib_apply trivial [1]
 
 example (p : Prop) : p → p := by
   make_tree

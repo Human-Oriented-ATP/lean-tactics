@@ -608,42 +608,54 @@ def PathToPolarity : List TreeBinderKind → Bool
 | _::xs => PathToPolarity xs
 | [] => true
 
-partial def makeTree : Expr → MetaM Expr
+def starName : Name → Name
+| .anonymous => .anonymous
+| .str pre str => .str pre (str ++ "!")
+| .num pre i => .num (starName pre) i
+
+def bulletName : Name → Name
+| .anonymous => .anonymous
+| .str pre str => .str pre (str ++ "?")
+| .num pre i => .num (starName pre) i
+
+partial def makeTree (pol : Option Bool := true) : Expr → MetaM Expr
   | .forallE name domain body bi =>
+      -- let name := if pol == false then starName name else name
       withLocalDeclD name domain fun fvar => do
       let body' := body.instantiate1 fvar
       let u' ← getLevel domain
       if bi.isInstImplicit
       then
-        return mkApp2 (.const ``Instance [u']) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``Instance [u']) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
       else
         let u ← mkFreshLevelMVar
         if ← isLevelDefEq u' (.succ u)
         then
-          return mkApp2 (.const ``Forall [u]) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+          return mkApp2 (.const ``Forall [u]) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
         else
           if body.hasLooseBVars
           then
-            return mkApp2 (.const ``Imp' []) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+            return mkApp2 (.const ``Imp' []) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
           else
-            return mkApp2 (.const ``Imp []) (← makeTree domain) (← makeTree body)
+            return mkApp2 (.const ``Imp []) (← makeTree (not <$> pol) domain) (← makeTree pol body)
 
   | regular_and_pattern p q =>
-      return mkApp2 (.const ``And []) (← makeTree p) (← makeTree q)
+      return mkApp2 (.const ``And []) (← makeTree pol p) (← makeTree pol q)
 
   | regular_exists_pattern name u' domain body _bi =>
+      -- let name := if pol == true then bulletName name else name
       withLocalDeclD name domain fun fvar => do
       let body' := body.instantiate1 fvar
       let u ← mkFreshLevelMVar
       if ← isLevelDefEq u' (.succ u)
       then
-        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
       else
-        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree pol body').abstract #[fvar]) .default)
 
-  | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree p) (← makeTree q)
-  | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree p) (← makeTree q)
-  | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree p)
+  | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree pol p) (← makeTree pol q)
+  | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree pol p) (← makeTree pol q)
+  | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree  (not <$> pol) p)
   
   | e => return e
 
@@ -651,7 +663,7 @@ open Elab Tactic
 
 
 elab "make_tree" : tactic => do
-  replaceMainGoal [← (← getMainGoal).change (← makeTree (← getMainTarget))]
+  replaceMainGoal [← (← getMainGoal).change (← makeTree true (← getMainTarget))]
 
 syntax treePos := "[" num,* "]"
 
@@ -691,7 +703,7 @@ elab "lib_intro" h:ident : tactic =>
   workOnTree fun tree => do
   let h := h.getId
   let h ← mkConstWithFreshMVarLevels h
-  let p ← makeTree (← inferType h)
+  let p ← makeTree true (← inferType h)
   return {
     newTree := mkApp2 (.const ``Imp []) p tree
     proof := mkApp3 (.const ``imp []) p tree h
