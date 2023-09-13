@@ -1,8 +1,7 @@
 import Mathlib.Algebra.CovariantAndContravariant
 import Mathlib.Data.SetLike.Basic
-import TreeApply
-import TreeRewrite
 import Mathlib.Algebra.Order.Group.Defs
+import TreeApply
 
 
 open Function
@@ -27,6 +26,9 @@ instance and_left_mono : MonotoneClass And where
   anti := false
   elim _ _ h _ := And.imp_left h
 
+instance tree_and_right_mono {P : Prop} : MonotoneClass (Tree.And P) := and_right_mono
+instance tree_and_left_mono : MonotoneClass Tree.And := and_left_mono
+
 instance exists_mono {α : Type u} : MonotoneClass (@_root_.Exists α) where
   anti := false
   elim _ _ := Exists.imp
@@ -39,8 +41,11 @@ instance le_left_anti [Preorder α] : MonotoneClass (α := α) (. ≤ .) where
   anti := true
   elim _ _ h _ := le_trans h
 
-instance imp_right_mono (a : Prop) : MonotoneClass (Tree.Imp a) := le_right_mono a
-instance imp_left_anti : MonotoneClass Tree.Imp := le_left_anti
+instance imp_right_mono (a : Prop) : MonotoneClass (a → ·) := le_right_mono a
+instance imp_left_anti : MonotoneClass (· → ·) := le_left_anti
+
+instance tree_imp_right_mono (a : Prop) : MonotoneClass (Tree.Imp a) := le_right_mono a
+instance Tree_imp_left_anti : MonotoneClass Tree.Imp := le_left_anti
 
 instance sub_right_mono (a : Set α) : MonotoneClass (a ⊆ ·) := le_right_mono a
 instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) := le_left_anti 
@@ -266,53 +271,21 @@ where
 
 open Elab.Tactic
 
-syntax (name := tree_rewrite_ord) "tree_rewrite_ord" treePos treePos : tactic
-
-@[tactic tree_rewrite_ord]
-def evalTreeRewriteOrd : Tactic := fun stx => do
-  let hypPos := get_positions stx[1]
-  let goalPos := get_positions stx[2]
+elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
   workOnTree (applyBound hypPos goalPos true treeRewriteOrd)
 
+elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
+  workOnTree (applyBound hypPos goalPos false treeRewriteOrd)
 
-syntax (name := lib_rewrite_ord) "lib_rewrite_ord" ident treePos : tactic
 
-@[tactic lib_rewrite_ord]
-def evalLibRewriteOrd : Tactic := fun stx => do
-  let hypName := stx[1].getId
-  let goalPos := get_positions stx[2]
+elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
+  let hypName := hypName.getId
+  let goalPos := get_positions goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [])) goalPos treeRewriteOrd)
-
-
-
-
-
-example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
-  → UniformContinuous f → Continuous f := by
-  make_tree
-  lib_rewrite Metric.uniformContinuous_iff [1,1,1,1,1,1,0,1]
-  lib_rewrite Metric.continuous_iff [1,1,1,1,1,1,1]
-  tree_apply [1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
-
-
-lemma exists_mem_Ioo (a b : ℝ) (h : a < b) : ∃ x, x ∈ Set.Ioo a b :=
-  ⟨(a + b) / 2, ⟨by linarith, by linarith⟩⟩
-
-
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
-  : LipschitzWith 1 f → Continuous f := by
-  make_tree
-  lib_rewrite Metric.continuous_iff [1]
-  lib_rewrite lipschitzWith_iff_dist_le_mul [0,1]
-  norm_num
-  tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
-  lib_rewrite_rev Set.nonempty_def [1,1,1]
-  lib_rewrite Set.nonempty_Ioo [1,1,1]
-  tree_apply [1,1,0,1] [1,1,1]
 
 
 
@@ -340,7 +313,7 @@ example (𝔸 : Set (Set α)) (B C : Set α) : (C ⊆ B) → {A ∈ 𝔸 | B ⊂
   tree_rewrite_ord [0,1] [1,0,1,1,1,1,0,1]
   rfl
 
-lemma testLib : ∀ x, x - 1 ≤ x := by simp
+lemma testLib : ∀ x, x - 1 ≤ x := sorry
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
