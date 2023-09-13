@@ -9,9 +9,9 @@ package «leanTactics» {
 
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
+require proofwidgets from git 
+  "https://github.com/EdAyers/ProofWidgets4" @ "v0.0.15"
 
-require pointAndClick from git 
-  "https://github.com/MantasBaksys/PointAndClick.git"
 
 @[default_target]
 lean_lib «LeanTactics» {
