@@ -600,21 +600,11 @@ def PathToPolarity : List TreeBinderKind → Bool
 | _::xs => PathToPolarity xs
 | [] => true
 
-def starName : Name → Name
-| .anonymous => .anonymous
-| .str pre str => .str pre (str ++ "!")
-| .num pre i => .num (starName pre) i
-
-def bulletName : Name → Name
-| .anonymous => .anonymous
-| .str pre str => .str pre (str ++ "?")
-| .num pre i => .num (starName pre) i
-
 partial def makeTree : Expr → MetaM Expr
   | .forallE name domain body bi =>
       withLocalDeclD name domain fun fvar => do
       let body' := body.instantiate1 fvar
-      let u' ← getLevel domain
+            let u' ← getLevel domain
       if bi.isInstImplicit
       then
         return mkApp2 (.const ``Instance [u']) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
@@ -629,24 +619,32 @@ partial def makeTree : Expr → MetaM Expr
             return mkApp2 (.const ``Imp' []) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
           else
             return mkApp2 (.const ``Imp []) (← makeTree domain) (← makeTree body)
-
-  | regular_and_pattern p q =>
-      return mkApp2 (.const ``And []) (← makeTree p) (← makeTree q)
+            
 
   | regular_exists_pattern name u' domain body _bi =>
       withLocalDeclD name domain fun fvar => do
-      let body' := body.instantiate1 fvar
+      let body := body.instantiate1 fvar
       let u ← mkFreshLevelMVar
       if ← isLevelDefEq u' (.succ u)
       then
-        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTree body).abstract #[fvar]) .default)
       else
-        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree body').abstract #[fvar]) .default)
+        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTree body).abstract #[fvar]) .default)
 
+  | regular_and_pattern p q => return mkApp2 (.const ``And []) (← makeTree p) (← makeTree q)
   | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree p) (← makeTree q)
   | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree p) (← makeTree q)
   | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree p)
-  
+
+  | and_pattern  p q => return mkApp2 (.const ``And  []) (← makeTree p) (← makeTree q)
+  | imp_pattern  p q => return mkApp2 (.const ``Imp  []) (← makeTree p) (← makeTree q)
+
+  | forall_pattern n u d b => withLocalDeclD n d fun fvar =>
+    return mkApp2 (.const ``Forall [u]) d (.lam n d ((← makeTree (b.instantiate1 fvar)).abstract #[fvar]) .default)
+  | exists_pattern n u d b => withLocalDeclD n d fun fvar =>
+    return mkApp2 (.const ``Exists [u]) d (.lam n d ((← makeTree (b.instantiate1 fvar)).abstract #[fvar]) .default)
+
+
   | e => return e
 
 open Elab Tactic

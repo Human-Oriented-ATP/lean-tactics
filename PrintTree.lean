@@ -9,11 +9,20 @@ def newLineTermParser := ppDedent $ "⠀" >> ppLine >> termParser
 syntax "∀ " ident "* : " term newLineTermParser : term
 syntax "∃ " ident "• : " term newLineTermParser : term
 syntax "[" ident " : " term "]" newLineTermParser : term
-syntax "⬐ " term newLineTermParser : term
-syntax "⊢ " term newLineTermParser : term
+syntax "⬐" ppHardSpace term newLineTermParser : term
+syntax "⊢" ppHardSpace term newLineTermParser : term
 
 syntax ident "•" : term
 syntax ident "*" : term
+
+macro_rules
+| `(∀ $a* : $b⠀$c) => `(Tree.Forall $b fun $a => $c)
+| `(∃ $a• : $b⠀$c) => `(Tree.Exists $b fun $a => $c)
+| `([$a : $b]⠀$c) => `(Tree.Instance $b fun $a => $c)
+| `(⬐ $a⠀$b) => `(Tree.Imp $a $b)
+| `(⊢ $a⠀$b) => `(Tree.Imp $a $b)
+| `($a:ident *) => `($a)
+| `($a:ident •) => `($a)
 
 -- @[app_unexpander Forall] def unexpandForall' : Lean.PrettyPrinter.Unexpander
 --   | `($(_) $t fun $x:ident => $b)

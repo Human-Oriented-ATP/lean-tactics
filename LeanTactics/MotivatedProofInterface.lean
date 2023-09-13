@@ -1,13 +1,11 @@
 import ProofWidgets.Component.HtmlDisplay
-import ProofWidgets.Component.Panel
+import ProofWidgets.Component.Panel.Basic
 import RewriteExperiments
 import RewriteOrd
-import SelectInsertPanel
 import Aesop
 import TreeApply
 import TreeRewrite
 import Mathlib.Data.SetLike.Basic
-import ProofWidgets.Component.SelectionPanel
 
 open Lean Server
 
@@ -76,10 +74,11 @@ def insertRewriteOrdAt' (subexprPos : Array (WithRpcRef Elab.ContextInfo × SubE
   let ⟨_, .target subexprPos1⟩   := pos1.2 | throwError "You must select something in the goal."
   return "rewriteOrdAt " ++ ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " [" ++ (hypName.userName.toString) ++ "]"
 
+
 mkSelectInsertTacticTwo "rewriteOrdAt?" "rewriteOrdAt 🔍"
   "Use shift-click to select one sub-expression in the goal that you want to zoom on."
   insertRewriteOrdAt
-
+  
 def insertTreeApplyAt (subexprPos : Array Lean.SubExpr.GoalsLocation) (goals_ : goalLocation): MetaM String := do
   let some pos1 := subexprPos[0]? | throwError "You must select something."
   let some pos2 := subexprPos[1]? | throwError "You must select something."
@@ -245,7 +244,7 @@ end MotivatedProofInterface
 -- `tree apply` example
 example {p q r : Prop}: (p → q) → (q → r) → (p → r) := by
 motivated_proof
-    make_tree 
+    make_tree
     tree_apply [0, 1, 1] [1, 0, 1, 0, 1]
     tree_apply [0, 1, 1] [1, 1]
     tree_apply [0, 1] [1]
@@ -255,7 +254,7 @@ motivated_proof
   rewriteAt [0] [h] 
   sorry
 
---`tree rewrite + apply` example
+--`tree rewrite + apply` example   
 example {p q : Prop} : p = q → (p → q) := by 
 motivated_proof
   make_tree
@@ -263,11 +262,11 @@ motivated_proof
   tree_apply [0, 1] [1]
   
 -- `ordered rewrite` example
-example {m n : Nat} (h : m ≤ n) : m ≤ 2 * n := by 
-motivated_proof
+example {m n : Nat} (h : m ≤ n) : m ≤ 2 * n := by
   rewriteOrdAt [0, 1] [h]
   sorry
 
-
 /- `TODO`: Fix placing of inserted tactic blocks as on repeated clicks the 
     insertion appears too high up the block. Currently have to click on and off. -/
+
+#check Lean.Widget.getInteractiveDiagnostics

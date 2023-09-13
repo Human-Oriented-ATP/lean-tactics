@@ -29,7 +29,7 @@ structure HypBinderState where
 abbrev MetaM' := StateRefT HypBinderState MetaM
 
 def bindMeta (mvarId : MVarId) (type : Expr) (pol : Bool) (tree : Expr) (treeProof : TreeProof) : MetaM' TreeProof := do
-  match (← get).mvarInfos.find? mvarId with
+    match (← get).mvarInfos.find? mvarId with
   | some {name, u} => return bindMVar mvarId type name u pol tree treeProof
   | none =>
     let name ← mkFreshUserName `m -- in the future make a more sophisticated name generator
@@ -305,7 +305,7 @@ where
       let nonHypMVars := ((assignment.collectMVars {}).result).filter (!boundMVars.contains ·)
       let nonHypBinders ← liftMetaM <| nonHypMVars.mapM mkMetaHypBinder
 
-      let type := mkApp2 (.const ``Tree.Exists [u]) domain tree
+      let type := mkApp2 (.const (if pol then ``Tree.Exists else ``Tree.Forall) [u]) domain tree
       let bindNonHyp := nonHypBinders.foldrM (fun hypBinder => revertHypBinder hypBinder pol type)
       let (bindHyp, binders) := takeHypBinders assignment binders pol type
       let (bindKnownHyp, binders) := if hypInScope then takeKnownHypBinders binders pol type else (pure, binders)
@@ -452,41 +452,38 @@ def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : List TreeBinderK
 
 open Elab.Tactic
 
-syntax (name := tree_apply) "tree_apply" treePos treePos : tactic
-
-@[tactic tree_apply]
-def evalTreeApply : Tactic := fun stx => do
-  let hypPos := get_positions stx[1]
-  let goalPos := get_positions stx[2]
+elab "tree_apply" hypPos:treePos goalPos:treePos : tactic => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
   workOnTree (applyBound hypPos goalPos true treeApply)
 
-syntax (name := lib_apply) "lib_apply" ident treePos : tactic
+elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
+  workOnTree (applyBound hypPos goalPos false treeApply)
 
-@[tactic lib_apply]
-def evalLibApply : Tactic := fun stx => do
-  let hypName := stx[1].getId
-  let goalPos := get_positions stx[2]
+elab "lib_apply" hypName:ident goalPos:treePos : tactic => do
+  let hypName := hypName.getId
+  let goalPos := get_positions goalPos
   workOnTree (applyUnbound hypName getApplyPos goalPos treeApply)
 
 
 example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by
   make_tree
   tree_apply [0,1,0,1,1] [1,0,1,0,1]
-  tree_apply [0,1] [1,0,1,0,1]
-  tree_apply [0,1] [1]
+  tree_apply' [0,1] [1,0,1,0,1]
+  tree_apply [1,0,1] [1,1]
 
-def Tree.rfl [Nonempty α] : Tree.Forall α fun a => a = a := IsRefl.refl
 
 
 example : ({α : Type 0} → {r : α → α → Prop} → [IsRefl α r] → (a : α) → r a a) → 3 = 3 := by
   make_tree
   tree_apply [0,1,1,1,1,1,1,1,1,1] [1]
   -- lib_apply refl [1]
-  
 
+set_option checkBinderAnnotations false in
+abbrev Tree.infer {α : Prop} [i : α] := i
 
-
-        
 example :
   (∀ hh > 0, 0 < hh) → ∀ ε:Nat,
   0 < ε := by
@@ -502,7 +499,7 @@ example (p q : Prop) : (q → p) → ∃ n:Nat, p := by
 example (p : Prop) : (∀ _n:Nat, p) → p := by
   make_tree
   tree_apply [0,1,1,1] [1]
-  lib_apply inferInstance []
+  lib_apply Tree.infer []
 
 example (p : Nat → Prop): (∀ m, (1=1 → p m)) → ∀ m:Nat, p m := by
   make_tree

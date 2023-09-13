@@ -1,5 +1,4 @@
 import TreeApply
-import Mathlib.Topology.MetricSpace.Lipschitz
 
 namespace Tree
 
@@ -104,35 +103,26 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
 
 open Elab.Tactic
 
-syntax (name := tree_rewrite) "tree_rewrite" treePos treePos : tactic
--- syntax (name := tree_rewrite_rev) "tree_rewrite_rev" treePos treePos : tactic
-
-@[tactic tree_rewrite]
-def evalTreeRewrite : Tactic := fun stx => do
-  let hypPos := get_positions stx[1]
-  let goalPos := get_positions stx[2]
+elab "tree_rewrite" hypPos:treePos goalPos:treePos : tactic => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
   workOnTree (applyBound hypPos goalPos true treeRewrite)
 
--- @[tactic tree_rewrite_rev]
--- def evalTreeRewriteRev : Tactic := fun stx => do
---   let hypPos := get_positions stx[1]
---   let goalPos := get_positions stx[2]
---   workOnTree (applyBound hypPos goalPos true treeRewrite)
+elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
+  let hypPos := get_positions hypPos
+  let goalPos := get_positions goalPos
+  workOnTree (applyBound hypPos goalPos false treeRewrite)
 
 
-syntax (name := lib_rewrite) "lib_rewrite" ident treePos : tactic
-syntax (name := lib_rewrite_rev) "lib_rewrite_rev" ident treePos : tactic
 
-@[tactic lib_rewrite]
-def evalLibRewrite : Tactic := fun stx => do
-  let hypName := stx[1].getId
-  let goalPos := get_positions stx[2]
+elab "lib_rewrite" hypName:ident goalPos:treePos : tactic => do
+  let hypName := hypName.getId
+  let goalPos := get_positions goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [0,1])) goalPos treeRewrite)
 
-@[tactic lib_rewrite_rev]
-def evalLibRewriteRev : Tactic := fun stx => do
-  let hypName := stx[1].getId
-  let goalPos := get_positions stx[2]
+elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
+  let hypName := hypName.getId
+  let goalPos := get_positions goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [1])) goalPos treeRewrite)
 
   
