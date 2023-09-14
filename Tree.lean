@@ -52,10 +52,8 @@ lemma imp_dep  (h : p → new → old) : Imp p new → Imp p old := fun g hp => 
 lemma imp_dep' (h : p → old → new) : Imp p old → Imp p new := fun g hp => h hp (g hp)
 lemma closed_imp_dep  (h : p → old) : Imp p old     := h
 
-def bindImpRight (p : Expr) (fvar? : Option FVarId) : Bool → Expr → TreeProof → TreeProof :=
-  if fvar? == none 
-  then bindPropBinder p fvar? true false ``imp_right ``imp_right' ``closed_imp_right .anonymous
-  else bindPropBinder p fvar? true false ``imp_dep   ``imp_dep'   ``closed_imp_dep   .anonymous
+def bindImpRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder p none true false ``imp_right ``imp_right' ``closed_imp_right .anonymous
 
 lemma and_right  (h : new → old) : And p new → And p old := And.imp_right h
 lemma and_right' (h : old → new) : And p old → And p new := And.imp_right h
@@ -65,10 +63,8 @@ lemma and_dep  (h : p → new → old) : And p new → And p old := fun ⟨hp, g
 lemma and_dep' (h : p → old → new) : And p old → And p new := fun ⟨hp, g⟩ => ⟨hp, h hp g⟩
 lemma closed_and_dep  (h : p → old) : p → And p old := fun hp => ⟨hp, h hp⟩
 
-def bindAndRight (p : Expr) (fvar? : Option FVarId) : Bool → Expr → TreeProof → TreeProof :=
-  if fvar? == none 
-  then bindPropBinder p fvar? false false ``and_right ``and_right' ``closed_and_right .anonymous
-  else bindPropBinder p fvar? false false ``and_dep   ``and_dep'   ``closed_and_dep   .anonymous
+def bindAndRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder p none false false ``and_right ``and_right' ``closed_and_right .anonymous
 
 lemma imp_left   (h : old → new) : Imp new p → Imp old p := (· ∘ h)
 lemma imp_left'  (h : new → old) : Imp old p → Imp new p := (· ∘ h)
@@ -85,13 +81,13 @@ def bindAndLeft (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
   bindPropBinder p none false true ``and_left ``and_left' ``closed_and_left .anonymous
 
 
-lemma imp_use  (h : p → new → old) : new → Imp p old := fun g hp => h hp g
-alias closed_imp_dep ← closed_imp_use
+-- lemma imp_use  (h : p → new → old) : new → Imp p old := fun g hp => h hp g
+-- alias closed_imp_use := closed_imp_dep
 
-def bindUsedImp (p : Expr) (fvar : FVarId) (delete? : Bool) (pol : Bool) : Expr → TreeProof → TreeProof := 
-  if delete? && pol
-  then bindPropBinder p fvar none false ``imp_use .anonymous ``closed_imp_use .anonymous pol
-  else bindImpRight p fvar pol
+-- def bindUsedImp (p : Expr) (fvar : FVarId) (delete? : Bool) (pol : Bool) : Expr → TreeProof → TreeProof := 
+--   if delete? && pol
+--   then bindPropBinder p fvar none false ``imp_use .anonymous ``closed_imp_use .anonymous pol
+--   else bindImpRight p fvar pol
 
 
 lemma and_make  (h : p → new → old) : And p new → old := fun ⟨g, f⟩ => h g f

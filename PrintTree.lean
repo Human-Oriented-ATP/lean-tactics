@@ -20,7 +20,7 @@ macro_rules
 | `(∃ $a• : $b⠀$c) => `(Tree.Exists $b fun $a => $c)
 | `([$a : $b]⠀$c) => `(Tree.Instance $b fun $a => $c)
 | `(⬐ $a⠀$b) => `(Tree.Imp $a $b)
-| `(⊢ $a⠀$b) => `(Tree.Imp $a $b)
+| `(⊢ $a⠀$b) => `(Tree.And $a $b)
 | `($a:ident *) => `($a)
 | `($a:ident •) => `($a)
 
@@ -60,42 +60,42 @@ macro_rules
 
 open PrettyPrinter.Delaborator SubExpr
 
-def mkAnnotatedIdent [Monad m] [MonadQuotation m] : Name → m Ident
-| .str n "*" => `($(mkIdent n):ident *)
-| .str n "•" => `($(mkIdent n):ident •)
-| n => return mkIdent n
+
 
 @[delab app.Tree.Forall]
 def delabForall : Delab := do
-  let e ← getExpr
-  let forall_pattern n _u d b := e | failure
+  let forall_pattern n _u d b ← getExpr | failure
+  let n ← getUnusedName n b
   let stxD ← withAppFn $ withAppArg $ delab
-  let stxB ← Meta.withLocalDeclD (.str n "*") d fun fvar => do
-    let b := b.instantiate1 fvar
+  let stxB ← Meta.withLocalDeclD n d fun fvar => do
+    let b := b.instantiate1 (mkAnnotation `star fvar)
     withAppArg $ descend b 1 delab
   let stxN := mkIdent n
   `(∀ $stxN* : $stxD⠀$stxB)
   
 @[delab app.Tree.Exists]
 def delabExists : Delab := do
-  let e ← getExpr
-  let exists_pattern n _u d b := e | failure
+  let exists_pattern n _u d b ← getExpr | failure
+  let n ← getUnusedName n b
   let stxD ← withAppFn $ withAppArg $ delab
-  let stxB ← Meta.withLocalDeclD (.str n "•") d fun fvar => do
-    let b := b.instantiate1 fvar
+  let stxB ← Meta.withLocalDeclD n d fun fvar => do
+    let b := b.instantiate1 (mkAnnotation `bullet fvar)
     withAppArg $ descend b 1 delab
   let stxN := mkIdent n
   `(∃ $stxN• : $stxD⠀$stxB)
   
 
-@[delab fvar]
-def delabFVar : Delab := do
-  let Expr.fvar fvarId ← getExpr | unreachable!
-  let l ← try fvarId.getDecl catch _ => failure
-  let id ← mkAnnotatedIdent l.userName
-  maybeAddBlockImplicit id
+
+@[delab mdata]
+def delabAnnotation : Delab := do
+  if (annotation? `star (← getExpr)).isSome then
+    `($(← withMDataExpr delab):ident *)
+  else
+  if (annotation? `bullet (← getExpr)).isSome then
+    `($(← withMDataExpr delab):ident •)
+  else failure
 
 
--- example (p : Prop) (q : Nat → Prop) :( ∀ n : Nat, q n) →  p → (p → p) →  ∃ m : Nat, q m := by
---   make_tree
---   sorry
+example (p : Prop) (q : Nat → Prop) :( ∀ n : Nat, q n) →  p → (p → p) →  ∃ m : Nat, q m := by
+  make_tree
+  sorry

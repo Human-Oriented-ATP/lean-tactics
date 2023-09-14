@@ -3,7 +3,7 @@ import TreeRewriteOrd
 import TreeRewrite
 
 
-example : True := trivial
+example : True := by lib_apply trivial []
 
 
 
@@ -15,8 +15,6 @@ example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   tree_apply [1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
   tree_apply [1,1,0,1] [1,1,1,0,1]
   tree_apply [1,1,0,1] [1,1,1]
-
-
 
 example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   : LipschitzWith 1 f → Continuous f := by
@@ -31,14 +29,6 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   lib_rewrite Set.nonempty_Ioo [1,1,1]
   tree_apply [1,1,0,1] [1,1,1]
 
-#check dist_comm
-#check dist_triangle
-lemma impswap (p q r : Prop) : p → q → r ↔ q → p → r := imp.swap
-abbrev Imp p q := p → q 
-lemma exswap {α : Type u} (p : α → Prop) (q : Prop) : (∃ a, q → p a) → Imp q (∃ a, p a) :=
-  fun ⟨a, h⟩ hq => ⟨a, h hq⟩ 
-lemma andswap {α : Prop} (p : Prop) (q : Prop) : (a ∧ (q → p)) → Imp q (a ∧ p) :=
-  fun ⟨a, h⟩ hq => ⟨a, h hq⟩ 
 
 example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
   : (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
@@ -54,23 +44,48 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   tree_rewrite_ord [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1]
   
   lib_rewrite Metric.continuous_iff [0,1,1,1]
-  lib_rewrite imp_forall_iff []
-  lib_rewrite imp_forall_iff [1,1]
-  lib_rewrite impswap [1,1,1,1]
-  lib_apply exswap [1,1,1,1,1]
-  simp
-  lib_apply andswap [1,1,1,1,1,1,1]
-  lib_rewrite imp_forall_iff [1,1,1,1,1,1,1,1,1]
-  simp; make_tree
-  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  -- tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
   sorry
-#check Metric.tendstoUniformly_iff
-#check Filter.eventually_atTop
--- variable [PseudoMetricSpace α]
+lemma lem : ∀ x:ℝ, x > 0 →  x/4 + (x/4 + x/4) < x := by intros; linarith
 
--- #check TendstoUniformly (fun (_ : Nat) => @id α) id .atTop
 
--- #check Filter.atTop
-
--- #synth Top (Filter ℕ)
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
+: 
+∀ b* : α⠀
+∀ ε* : ℝ⠀
+⬐ ε* > 0⠀
+∃ ε_1• : ℝ⠀
+⊢ 0 < ε_1•⠀
+∀ a* : ℕ⠀
+∃ ε_2• : ℝ⠀
+⊢ 0 < ε_2•⠀
+⬐ ∀ n* : ℕ⠀
+  ∀ b'* : α⠀
+  ∀ ε'* : ℝ⠀
+  ⬐ ε'* > 0⠀
+  ∃ δ• : ℝ⠀
+  ⊢ δ• > 0⠀
+  ∀ a* : α⠀
+  ⬐ dist (a*) (b'*) < δ•⠀
+  dist (F (n*) (a*)) (F (n*) (b'*)) < ε'*⠀
+∀ a_1* : ℕ⠀
+∃ δ• : ℝ⠀
+⊢ δ• > 0⠀
+∀ a_2* : α⠀
+⬐ dist (a_2*) (b*) < δ•⠀
+∃ b_1• : ℕ⠀
+⊢ a_1* ≤ b_1•⠀
+∃ b_2• : ℕ⠀
+⊢ a* ≤ b_2•⠀
+ε_2• + (dist (F (b_1•) (a_2*)) (F (b_2•) (b*)) + ε_1•) < ε*
+:= by
+  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_apply lem [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply' [1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,0,1] [1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite_rev max_le_iff [1,1,1,1,1,1,1,1,1,1]
+  lib_apply refl [1,1,1,1,1,1,1,1,1,1]
+  intro _ _
+  linarith
