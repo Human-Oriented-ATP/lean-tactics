@@ -118,7 +118,7 @@ def rewriteLocalDecl' (position : List Nat) (stx : Syntax) (symm : Bool) (fvarId
     replaceMainGoal (replaceResult.mvarId :: rwResult.mvarIds)
 
 
-def get_positions : List Syntax → List Nat
+def getPosition : List Syntax → List Nat
 | [] => []
 | x :: xs =>
   let rec go : List Syntax → List Nat
@@ -131,7 +131,7 @@ def get_positions : List Syntax → List Nat
 syntax (name := rewriteSeq') "rewriteAt" "[" num,* "]" (config)? rwRuleSeq (location)? : tactic
 
 @[tactic rewriteSeq'] def evalRewriteSeq' : Tactic := fun stx => do
-  let position := get_positions (stx[2].getArgs.toList)
+  let position := getPosition (stx[2].getArgs.toList)
   let cfg ← elabRewriteConfig stx[4]
   let loc   := expandOptLocation stx[6]
   withRWRulesSeq stx[0] stx[5] fun symm term => do

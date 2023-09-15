@@ -33,13 +33,13 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
 
 
 lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ε - η = ζ :=
-  fun ε hε => 
-    let hε2 : ε / 2 > 0 := by linarith [hε]
+  fun ε hε =>
+    let hε2 : ε / 2 > 0 := div_pos hε (by simp)
     ⟨ε/2, hε2, ε/2, hε2, by ring⟩
 
 lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
-    ⟨ε/2, by linarith [hε], by linarith [hε]⟩
+    ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
 
 example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
   : (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
@@ -93,3 +93,21 @@ lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
   -- lib_rewrite 
 #check Subgroup.mk
 #check Subgroup.closure
+open BigOperators
+#check Fin.sum_univ_succAbove
+-- #eval ∏ s : Fin 6, (s+1 : ℕ)
+#check Lean.Core.betaReduce
+#check Lean.instantiateMVars
+lemma induction {p : Nat → Prop} : (p 0 ∧ ∀ n, (p n → p (n + 1))) → ∀ n, p n := 
+  fun ⟨zero, succ⟩ => Nat.rec zero succ
+
+-- example : ∀ n : ℕ, n = (n * (n - 1) / 2) := by
+--   make_tree
+--   lib_intro Nat.rec
+--   tree_apply [0,1,1,1,1,1] [1]
+--   simp
+
+
+
+example (n : Nat) : n = n := by
+  induction n; rfl

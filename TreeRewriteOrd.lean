@@ -272,19 +272,19 @@ where
 open Elab.Tactic
 
 elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos true treeRewriteOrd)
 
 elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeRewriteOrd)
 
 
 elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
-  let hypName := hypName.getId
-  let goalPos := get_positions goalPos
+  let hypName := Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [])) goalPos treeRewriteOrd)
 
 

@@ -6,27 +6,27 @@ open Lean TSyntax.Compat Parser
 
 def newLineTermParser := ppDedent $ "⠀" >> ppLine >> termParser
 
-syntax "∀ " ident "* : " term newLineTermParser : term
+syntax "∀ " ident "⋆ : " term newLineTermParser : term
 syntax "∃ " ident "• : " term newLineTermParser : term
 syntax "[" ident " : " term "]" newLineTermParser : term
 syntax "⬐" ppHardSpace term newLineTermParser : term
 syntax "⊢" ppHardSpace term newLineTermParser : term
 
 syntax ident "•" : term
-syntax ident "*" : term
+syntax ident "⋆" : term
 
 macro_rules
-| `(∀ $a* : $b⠀$c) => `(Tree.Forall $b fun $a => $c)
+| `(∀ $a⋆ : $b⠀$c) => `(Tree.Forall $b fun $a => $c)
 | `(∃ $a• : $b⠀$c) => `(Tree.Exists $b fun $a => $c)
 | `([$a : $b]⠀$c) => `(Tree.Instance $b fun $a => $c)
 | `(⬐ $a⠀$b) => `(Tree.Imp $a $b)
 | `(⊢ $a⠀$b) => `(Tree.And $a $b)
-| `($a:ident *) => `($a)
+| `($a:ident ⋆) => `($a)
 | `($a:ident •) => `($a)
 
 -- @[app_unexpander Forall] def unexpandForall' : Lean.PrettyPrinter.Unexpander
 --   | `($(_) $t fun $x:ident => $b)
---   | `($(_) $t fun ($x:ident : $_) => $b) => `(∀ $x:ident* : $t⠀$b)
+--   | `($(_) $t fun ($x:ident : $_) => $b) => `(∀ $x:ident⋆ : $t⠀$b)
 --   | _ => throw ()
 
 -- @[app_unexpander Exists] def unexpandExists' : Lean.PrettyPrinter.Unexpander
@@ -71,7 +71,7 @@ def delabForall : Delab := do
     let b := b.instantiate1 (mkAnnotation `star fvar)
     withAppArg $ descend b 1 delab
   let stxN := mkIdent n
-  `(∀ $stxN* : $stxD⠀$stxB)
+  `(∀ $stxN⋆ : $stxD⠀$stxB)
   
 @[delab app.Tree.Exists]
 def delabExists : Delab := do
@@ -89,7 +89,7 @@ def delabExists : Delab := do
 @[delab mdata]
 def delabAnnotation : Delab := do
   if (annotation? `star (← getExpr)).isSome then
-    `($(← withMDataExpr delab):ident *)
+    `($(← withMDataExpr delab):ident ⋆)
   else
   if (annotation? `bullet (← getExpr)).isSome then
     `($(← withMDataExpr delab):ident •)

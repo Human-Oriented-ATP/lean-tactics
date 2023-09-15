@@ -104,25 +104,25 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
 open Elab.Tactic
 
 elab "tree_rewrite" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos true treeRewrite)
 
 elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeRewrite)
 
 
 
 elab "lib_rewrite" hypName:ident goalPos:treePos : tactic => do
-  let hypName := hypName.getId
-  let goalPos := get_positions goalPos
+  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [0,1])) goalPos treeRewrite)
 
 elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
-  let hypName := hypName.getId
-  let goalPos := get_positions goalPos
+  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [1])) goalPos treeRewrite)
 
   

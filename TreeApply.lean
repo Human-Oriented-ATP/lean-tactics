@@ -344,10 +344,10 @@ In addition, we want all free variables and knowns from the hypothesis to be bou
 side goal or existential is bound in positive polarity, because it may be useful for proving that goal or instantiating that variable.
 -/
 def TreeRecMeta (hypInScope : Bool) : Recursor (MetaM' (MetaM' TreeProof)) where
-  imp_right := introProp true false bindImpRight
-  imp_left  := introProp true true bindImpLeft
+  imp_right := introProp true  false bindImpRight
+  imp_left  := introProp true  true  bindImpLeft
   and_right := introProp false false bindAndRight
-  and_left  := introProp false true bindAndLeft
+  and_left  := introProp false true  bindAndLeft
 
   all name u domain pol :=
     if pol
@@ -461,15 +461,18 @@ where
     else ([], xs', ys')
 
 
-
-partial def applyUnbound (hypName : Name) (getHypPos : Expr → List TreeBinderKind → List TreeBinderKind × List Nat) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
+#check Monad.join
+partial def applyUnbound (hypName : Name) (getHypPos : Expr → List TreeBinderKind → List TreeBinderKind × List Nat)
+    (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := do
+  let cinfo ← getConstInfo hypName
+  let us ← mkFreshLevelMVarsFor cinfo
+  let hypProof := .const hypName us
+  let hyp ← makeTree (cinfo.instantiateTypeLevelParams us)
+  
   let (goalPath, goalPos) := positionToPath goalPos tree
-  let hypProof ← mkConstWithFreshMVarLevels hypName
-  let hyp ← makeTree (← inferType hypProof)
   let (hypPath, hypPos) := getHypPos hyp goalPath
 
-  let treeProofM ← applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification
-  treeProofM : MetaM' _).run' {}
+  Monad.join (applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification) |>.run' {}
 
 -- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
 --   let (goalPath, goalPos) := positionToPath goalPos tree
@@ -545,18 +548,18 @@ def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : List TreeBinderK
 open Elab.Tactic
 
 elab "tree_apply" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos true treeApply)
 
 elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := get_positions hypPos
-  let goalPos := get_positions goalPos
+  let hypPos := getPosition hypPos
+  let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeApply)
 
 elab "lib_apply" hypName:ident goalPos:treePos : tactic => do
-  let hypName := hypName.getId
-  let goalPos := get_positions goalPos
+  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName getApplyPos goalPos treeApply)
 
 
