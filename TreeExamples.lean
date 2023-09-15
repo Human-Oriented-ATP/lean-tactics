@@ -1,4 +1,6 @@
 import Mathlib.Topology.MetricSpace.Lipschitz
+import Mathlib.Topology.Sequences
+import Mathlib.GroupTheory.Subgroup.Basic
 import TreeRewriteOrd
 import TreeRewrite
 
@@ -30,6 +32,15 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   tree_apply [1,1,0,1] [1,1,1]
 
 
+lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ε - η = ζ :=
+  fun ε hε => 
+    let hε2 : ε / 2 > 0 := by linarith [hε]
+    ⟨ε/2, hε2, ε/2, hε2, by ring⟩
+
+lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
+  fun ε hε =>
+    ⟨ε/2, by linarith [hε], by linarith [hε]⟩
+
 example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
   : (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
   make_tree
@@ -39,53 +50,46 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   lib_rewrite Metric.continuous_iff [1,1]
   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord' [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1]
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
-  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1]
-  tree_rewrite_ord [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1]
-  
+  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
+  tree_rewrite_ord [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
+  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
+
   lib_rewrite Metric.continuous_iff [0,1,1,1]
-  sorry
-lemma lem : ∀ x:ℝ, x > 0 →  x/4 + (x/4 + x/4) < x := by intros; linarith
+  tree_rewrite_ord [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,1,0,1] [1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite_rev max_le_iff [1,1,1,1,1,1]
+  lib_apply refl [1,1,1,1,1,1]
 
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
-: 
-∀ b* : α⠀
-∀ ε* : ℝ⠀
-⬐ ε* > 0⠀
-∃ ε_1• : ℝ⠀
-⊢ 0 < ε_1•⠀
-∀ a* : ℕ⠀
-∃ ε_2• : ℝ⠀
-⊢ 0 < ε_2•⠀
-⬐ ∀ n* : ℕ⠀
-  ∀ b'* : α⠀
-  ∀ ε'* : ℝ⠀
-  ⬐ ε'* > 0⠀
-  ∃ δ• : ℝ⠀
-  ⊢ δ• > 0⠀
-  ∀ a* : α⠀
-  ⬐ dist (a*) (b'*) < δ•⠀
-  dist (F (n*) (a*)) (F (n*) (b'*)) < ε'*⠀
-∀ a_1* : ℕ⠀
-∃ δ• : ℝ⠀
-⊢ δ• > 0⠀
-∀ a_2* : α⠀
-⬐ dist (a_2*) (b*) < δ•⠀
-∃ b_1• : ℕ⠀
-⊢ a_1* ≤ b_1•⠀
-∃ b_2• : ℕ⠀
-⊢ a* ≤ b_2•⠀
-ε_2• + (dist (F (b_1•) (a_2*)) (F (b_2•) (b*)) + ε_1•) < ε*
-:= by
-  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1]
-  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_apply lem [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply' [1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,1,0,1] [1,1,1,1,1,1,0,1]
-  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  tree_apply [1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite_rev max_le_iff [1,1,1,1,1,1,1,1,1,1]
-  lib_apply refl [1,1,1,1,1,1,1,1,1,1]
-  intro _ _
-  linarith
+
+
+variable [TopologicalSpace X]
+open Set Function Filter TopologicalSpace Topology Uniformity
+lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
+ ∀ ⦃x : ℕ → X⦄, (∀ n, x n ∈ (@Set.univ X)) → ∃ a ∈ (@Set.univ X), ∃ φ : ℕ → ℕ, StrictMono φ ∧ Tendsto (x ∘ φ) atTop (𝓝 a) := by
+  rfl
+
+-- lemma seqCompactSpace_iff' : IsSeqCompact (@Set.univ X) ↔
+--   ∀ ⦃x : ℕ → X⦄, ∃ a : X, ∃ φ : ℕ → ℕ, StrictMono φ ∧ Tendsto (x ∘ φ) atTop (𝓝 a) := by
+--   lib_rewrite seqCompactSpace_iff'' [0,1]
+--   simp
+
+#check IsCompact.isSeqCompact
+-- example [TopologicalSpace X] : CompactSpace X → SeqCompactSpace X := by
+--   make_tree
+--   lib_rewrite seqCompactSpace_iff [1]
+  -- lib_rewrite 
+#check Subgroup.mk
+#check Subgroup.closure

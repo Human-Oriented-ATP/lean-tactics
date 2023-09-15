@@ -467,6 +467,9 @@ def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : 
 def regular_iff_pattern (p q : Expr) : Expr :=
   mkApp2 (.const `Iff []) p q
 @[match_pattern]
+def eq_pattern (u : Level) (α p q : Expr) : Expr :=
+  mkApp3 (.const `Eq [u]) α p q
+@[match_pattern]
 def regular_or_pattern (p q : Expr) : Expr :=
   mkApp2 (.const `Or []) p q
 @[match_pattern]
@@ -629,6 +632,7 @@ partial def makeTree : Expr → MetaM Expr
 
   | regular_and_pattern p q => return mkApp2 (.const ``And []) (← makeTree p) (← makeTree q)
   | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTree p) (← makeTree q)
+  | eq_pattern      u α p q => return mkApp3 (.const ``Eq [u]) α (← makeTree p) (← makeTree q)
   | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTree p) (← makeTree q)
   | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTree p)
 
