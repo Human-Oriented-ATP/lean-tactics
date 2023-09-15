@@ -2,13 +2,16 @@ import Lean.Server.Rpc.Basic
 import ProofWidgets.Data.Html
 import ProofWidgets.Component.HtmlDisplay
 import ProofWidgets.Component.OfRpcMethod
+import ProofWidgets.Demos.Macro
+import Std.Lean.Position
 
 namespace ProofWidgets
-open Lean Server Elab
+open Lean Server Elab Command
 
 structure EditParams where
   edit : Lsp.TextDocumentEdit
   newCursorPos? : Option Lsp.Position := none
+deriving RpcEncodable
 
 /-- Replace `range` with `newText` and then place the cursor at the end of the new text. -/
 def EditParams.ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
@@ -33,8 +36,9 @@ def EditParams.insertLine (meta : Server.DocumentMeta) (line : Nat)
   }
   ⟨edit, newCursorPos?⟩ 
 
-structure DynamicButtonProps extends EditParams where
+structure DynamicButtonProps where
   label : String
+  edit? : Option EditParams := none
   html? : Option Html := none
 deriving RpcEncodable
 
@@ -44,8 +48,8 @@ deriving RpcEncodable
 
 structure DynamicEditButtonProps where
   label : String
-  range : Lsp.Range
-  insertion : String
+  range? : Option Lsp.Range := none
+  insertion? : Option String := none
   html? : Option Html := none
 deriving RpcEncodable
 
@@ -53,10 +57,13 @@ deriving RpcEncodable
 def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTask Html) := do
   RequestM.asTask do
     let doc ← RequestM.readDoc
-    let editParams := EditParams.ofReplaceRange doc.meta props.range props.insertion
+    let editParams? : Option EditParams := do 
+      let range ← props.range?
+      let insertion ← props.insertion?
+      return .ofReplaceRange doc.meta range insertion
     return .ofComponent DynamicButton (children := #[])
-      { editParams with
-        label := props.label
+      { label := props.label
+        edit? := editParams?
         html? := props.html? }
 
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
