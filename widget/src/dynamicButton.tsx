@@ -2,12 +2,15 @@
 Copyright (c) 2022 E.W.Ayers. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: E.W.Ayers, Wojciech Nawrocki
+
+Modified from `htmlDisplay.tsx` and `makeEditLink.tsx` in the `ProofWidgets` repository. 
 */
 
 import React, { useState } from 'react';
-import { DocumentPosition, RpcContext, RpcSessionAtPos, importWidgetModule, mapRpcError,
-    useAsyncPersistent } from '@leanprover/infoview';
+import { EditorContext, DocumentPosition, RpcContext, RpcSessionAtPos, 
+    importWidgetModule, mapRpcError, useAsyncPersistent } from '@leanprover/infoview';
 import type { DynamicComponent } from '@leanprover/infoview';
+import { TextDocumentEdit } from 'vscode-languageserver-protocol';
 
 type HtmlAttribute = [string, any]
 
@@ -70,22 +73,32 @@ function HtmlDisplay({pos, html} : {pos: DocumentPosition, html: Html}):
     return <></>
 }
 
-const customJSX : JSX.Element =
-  <b>Hello!</b>
-
 interface DynamicButtonProps {
-    pos : DocumentPosition,
-    label : string,
-    html : Html
+    pos : DocumentPosition
+    label : string
+    edit : TextDocumentEdit
+    newCursorPos? : DocumentPosition
+    html? : Html
 }
 
 export default function DynamicButton(props:DynamicButtonProps) {
     const [isHTMLVisible, setHTMLVisible] = useState(false);
+    const ec = React.useContext(EditorContext)
+
+    async function onClick () {
+        setHTMLVisible(true);
+    
+        await ec.api.applyEdit({ documentChanges: [props.edit] })
+        // TODO: https://github.com/leanprover/vscode-lean4/issues/225
+        if (props.newCursorPos)
+            await ec.revealPosition({ ...props.newCursorPos, uri: props.edit.textDocument.uri })
+    }
 
     return (
         <div>
-            <button onClick={() => setHTMLVisible(true)}>{props.label}</button>
-            {isHTMLVisible ? <HtmlDisplay pos={props.pos} html={props.html}/> : null}
+            <button onClick={onClick}>{props.label}</button>
+            { (isHTMLVisible && props.html) ? 
+                <HtmlDisplay pos={props.pos} html={props.html}/> : null }
         </div>
     );
 }
