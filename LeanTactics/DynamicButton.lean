@@ -2,11 +2,9 @@ import Lean.Server.Rpc.Basic
 import ProofWidgets.Data.Html
 import ProofWidgets.Component.HtmlDisplay
 import ProofWidgets.Component.OfRpcMethod
-import ProofWidgets.Demos.Macro
-import Std.Lean.Position
 
 namespace ProofWidgets
-open Lean Server Elab Command
+open Lean Server Elab
 
 structure EditParams where
   edit : Lsp.TextDocumentEdit
@@ -63,24 +61,3 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
 
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
   mk_rpc_widget% DynamicEditButton.rpc
-
-syntax (name := button) "#button" str str : command
-
-open scoped Json Jsx in
-@[command_elab button]
-def buttonCmd : CommandElab
-  | stx@`(command| #button $label $insertion) => do
-    let fileMap ← getFileMap
-    let some stxRange := fileMap.rangeOfStx? stx | return ()
-    let elmt : Html := .ofComponent DynamicEditButton (children := #[]) {
-      label := label.getString,
-      range := stxRange,
-      insertion := insertion.getString,
-      html? := some <b> Hello World </b>
-    }
-    runTermElabM fun _ => do
-      savePanelWidgetInfo stx ``HtmlDisplayPanel do
-        return json% { html: $(← rpcEncode elmt) }
-  |                        _                       => throwUnsupportedSyntax
-
-#button "Click here" "Some text"
