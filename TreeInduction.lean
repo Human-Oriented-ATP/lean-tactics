@@ -4,8 +4,10 @@ namespace Tree
 
 open Lean Meta Elab.Tactic
 
-
-
+def getInductionPos (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+  let hypTree ← makeTree hyp
+  let path := getPath hypTree
+  return (← makeTreePath path hyp, path.take (path.length - 1), [])
 
 elab "tree_induction" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
@@ -27,51 +29,11 @@ elab "tree_induction" goalPos:treePos : tactic => do
         if val.isNested then
           throwError "'induction' move does not support nested inductive types, the eliminator '{mkRecName val.name}' has multiple motives"
         
-        let init l := l.take (l.length - 1)
-        let recName := .str val.name (if val.name == `Nat then "recAux" else "rec")
-        applyUnbound recName (fun recType _ => (init (getPath recType),[])) [] treeApply tree
+        let recName : Name := .str val.name (if val.name == `Nat then "recAux" else "rec")
+        applyUnbound recName getInductionPos [] treeApply tree
       )
     else
       throwError m! "cannot do induction in negative position"
         
 
-  | _ => throwError m! "can't apply induction"
-
--- inductive ind (α β : Type) (x y : Nat) where
--- | two : ind α β x 0 
--- | one : ind α β x y → ind α β x (y + 1)
--- #check Vector
-
--- inductive Vector : Type u → Nat → Type (u + 1) where
--- | cons : α →  (Vector α n) → Vector α (n+1)
--- -- | nil : Vector α 0
-
--- #check Vector.cons
-
--- inductive Vector' : Nat → Type u → Type (u + 1) where
--- | cons : α → Vector' n α → Vector' (n+1) α 
--- | nil : Vector' 0 α 
-
--- #check Vector.rec
--- #check Vector'.rec
--- #check Eq.rec
--- #eval show MetaM _ from do
---   match (← getEnv).find? `Tree.Vector with
---     -- n throwError "")
---     | some (.inductInfo val) => return (val.numIndices, val.numParams)
---     | _ => throwError ""
---   -- throwError "nono"
-
--- example : p ∨ q → q ∨ p := by
---   make_tree
---   tree_induction []
-#check Nat.recAux
-example : ∀ n : ℕ, n = (n * (n - 1) / 2) := by
-  make_tree
-  tree_induction []
-  simp
-  lib_apply trivial [0,1]
-  sorry
-
-universe u v w
-variable {α : Type imax u v w}
+  | _ => throwError m! "cannot apply induction at {tree}"

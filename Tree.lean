@@ -7,11 +7,8 @@ namespace Tree
 def Imp (p q : Prop) := p → q
 def And (p q : Prop) := p ∧ q
 
-def Imp' {p : Prop} (q : p → Prop) := ∀ h : p, q h
-def And' {α : Prop} (β : α → Prop) := ∃ a : α, β a
-
-def Forall (α : Type u) (p : α → Prop) := ∀ a : α, p a
-def Exists (α : Type u) (p : α → Prop) := ∃ a : α, p a
+def Forall (α : Sort u) (p : α → Prop) := ∀ a : α, p a
+def Exists (α : Sort u) (p : α → Prop) := ∃ a : α, p a
 
 def Instance (α : Sort u) (p : α → Prop) := (inst : α) → p inst
 
@@ -25,22 +22,39 @@ deriving Inhabited
 
 section nonDependent
 
-private def bindPropBinder (p : Expr) (fvar? : Option FVarId) (isImp : Option Bool) (isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
+def bindPropBinder (p : Expr) (isImp isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
-  let proof := match fvar? with
-    | none => proof
-    | some fvar => .lam `h p (proof.abstract #[.fvar fvar]) .default
   match newTree with
   | none =>
-    let isClosedProof := match isImp with
-      | none => true
-      | some isImp => isImp == pol
-    { newTree := if isClosedProof then none else p,
+    let keepsClosed := isImp == pol
+    { newTree := if keepsClosed then none else p,
       proof := mkApp3 (.const (if pol then close_lemma else close_lemma') []) p tree proof }
 
   | some newTree => {
-    newTree := match isImp with | none => newTree | some isImp => (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``And) [])) p newTree
+    newTree := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``And) [])) p newTree
     proof := mkApp4 (.const (if pol then imp_lemma else imp_lemma') []) p tree newTree proof }
+
+def bindDepPropBinder (p fvar : Expr) (isImp isRev delete? : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' forget_lemma : Name)
+  (nonDep : Expr → Bool → Expr → TreeProof → TreeProof) (pol : Bool) (tree : Expr)  : TreeProof → TreeProof :=
+  fun t@{newTree, proof} =>
+  let proof := proof.abstract #[fvar]
+  if !proof.hasLooseBVars
+  then nonDep p pol tree t
+  else
+    let proof := .lam `h p proof .default
+    let keepsClosed := isImp == pol
+    match newTree with
+    | none => {
+      newTree := if keepsClosed then none else p,
+      proof := mkApp3 (.const (if pol then close_lemma else close_lemma') []) p tree proof }
+
+    | some newTree => if keepsClosed && delete?
+      then {
+        newTree
+        proof := mkApp4 (.const forget_lemma []) p tree newTree proof }
+      else {
+      newTree := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``And) [])) p newTree
+      proof := mkApp4 (.const (if pol then imp_lemma else imp_lemma') []) p tree newTree proof }
 
 variable {p : Prop} {old new : Prop}
 
@@ -51,9 +65,12 @@ lemma closed_imp_right  (h : old) : Imp p old     := imp_right (fun _ => h) (fun
 lemma imp_dep  (h : p → new → old) : Imp p new → Imp p old := fun g hp => h hp (g hp)
 lemma imp_dep' (h : p → old → new) : Imp p old → Imp p new := fun g hp => h hp (g hp)
 lemma closed_imp_dep  (h : p → old) : Imp p old     := h
+lemma forget_imp_right (h : p → new → old) : new → Imp p old := Function.swap h
 
 def bindImpRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p none true false ``imp_right ``imp_right' ``closed_imp_right .anonymous
+  bindPropBinder p true false ``imp_right ``imp_right' ``closed_imp_right .anonymous
+def bindImpRightDep (delete? : Bool) (p fvar : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindDepPropBinder p fvar true false delete? ``imp_dep ``imp_dep' ``closed_imp_dep .anonymous ``forget_imp_right bindImpRight
 
 lemma and_right  (h : new → old) : And p new → And p old := And.imp_right h
 lemma and_right' (h : old → new) : And p old → And p new := And.imp_right h
@@ -62,40 +79,35 @@ lemma closed_and_right  (h : old) : p → And p old := fun hp => ⟨hp, h⟩
 lemma and_dep  (h : p → new → old) : And p new → And p old := fun ⟨hp, g⟩ => ⟨hp, h hp g⟩
 lemma and_dep' (h : p → old → new) : And p old → And p new := fun ⟨hp, g⟩ => ⟨hp, h hp g⟩
 lemma closed_and_dep  (h : p → old) : p → And p old := fun hp => ⟨hp, h hp⟩
+lemma forget_and_right (h : p → old → new) : And p old → new := fun ⟨hp, g⟩ => h hp g
 
 def bindAndRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p none false false ``and_right ``and_right' ``closed_and_right .anonymous
+  bindPropBinder p false false ``and_right ``and_right' ``closed_and_right .anonymous
+def bindAndRightDep (delete? : Bool) (p fvar : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindDepPropBinder p fvar false false delete? ``and_dep ``and_dep' ``closed_and_dep .anonymous ``forget_and_right bindAndRight
 
 lemma imp_left   (h : old → new) : Imp new p → Imp old p := (· ∘ h)
 lemma imp_left'  (h : new → old) : Imp old p → Imp new p := (· ∘ h)
 lemma closed_imp_left'  (h : old) : Imp old p → p := fun g => g h
 
 def bindImpLeft (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p none true true ``imp_left ``imp_left' .anonymous ``closed_imp_left'
+  bindPropBinder p true true ``imp_left ``imp_left' .anonymous ``closed_imp_left'
 
 lemma and_left   (h : new → old) : And new p → And old p := And.imp_left h
 lemma and_left'  (h : old → new) : And old p → And new p := And.imp_left h
 lemma closed_and_left   (h : old) : p → And old p := fun hp => ⟨h, hp⟩
 
 def bindAndLeft (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p none false true ``and_left ``and_left' ``closed_and_left .anonymous
+  bindPropBinder p false true ``and_left ``and_left' ``closed_and_left .anonymous
 
-
--- lemma imp_use  (h : p → new → old) : new → Imp p old := fun g hp => h hp g
--- alias closed_imp_use := closed_imp_dep
-
--- def bindUsedImp (p : Expr) (fvar : FVarId) (delete? : Bool) (pol : Bool) : Expr → TreeProof → TreeProof := 
---   if delete? && pol
---   then bindPropBinder p fvar none false ``imp_use .anonymous ``closed_imp_use .anonymous pol
---   else bindImpRight p fvar pol
-
+lemma non_dep_make (h : new → old) : new → old := h
 
 lemma and_make  (h : p → new → old) : And p new → old := fun ⟨g, f⟩ => h g f
 lemma imp_make' (h : p → old → new) : old → Imp p new := fun g f => h f g
 lemma closed_and_make  (h : p → old) : p → old := h
 
-def bindUnknown (p : Expr) (fvar : FVarId) (pol : Bool) : Expr → TreeProof → TreeProof :=
-  bindPropBinder p fvar (!pol) false ``and_make ``imp_make' ``closed_and_make .anonymous pol
+def bindUnknown (p fvar : Expr) (pol : Bool) : Expr → TreeProof → TreeProof :=
+  bindDepPropBinder p fvar (!pol) false false ``and_make ``imp_make' ``closed_and_make .anonymous .anonymous (fun _ _ _ => id) pol
 
 
 lemma imp_make  (hp : p) (h : new → old) : Imp p new → old := fun g => h (g hp)
@@ -130,7 +142,7 @@ private def bindPropBinderWithHyp (p : Expr) (isImp : Bool) (isRev : Bool) (lemm
     proof := mkApp5 (.const (if pol then lemma_ else lemma') []) p hyp tree newTree proof }
 
 
--- we need to manage a hypothesis that we want to use.
+-- we need to manage the hypothesis that we want to use.
 -- this is done by putting the hypothesis in the proof as either a hypothesis in the hypothesis or a conjuction in the conclustion.
 
 variable {hyp old new : Prop}
@@ -189,19 +201,19 @@ def MakeHyp (delete? pol : Bool) (tree : Expr) : TreeHyp :=
 
 def UseHyp (tree : Expr) (hyp : TreeHyp) (isImp isRev pol : Bool) (use use' use_closed use_closed' closed_use closed_use' closed_use_closed : Name) (tree' : Expr) (fvar : FVarId) : TreeProof → TreeProof :=
   let {hyp, newTree, proof} := hyp
-  let (isClosed, application) := match newTree with
+  let (keepsClosed, application) := match newTree with
     | none         => (true, fun c => mkApp2 c hyp tree)
     | some newTree => (false, fun c => mkApp3 c hyp tree newTree)
   fun {newTree := newTree', proof := proof'} =>
-  let (isClosed', application') := match newTree' with
+  let (keepsClosed', application') := match newTree' with
     | none         => (true, fun c => mkApp  c tree')
     | some newTree' => (false, fun c => mkApp2 c tree' newTree')
   let proof' := .lam `h hyp (proof'.abstract #[.fvar fvar]) .default
-  let lemma_ := if isClosed
-    then if isClosed'
+  let lemma_ := if keepsClosed
+    then if keepsClosed'
       then ite pol closed_use_closed .anonymous
       else ite pol use_closed use_closed'
-    else if isClosed'
+    else if keepsClosed'
       then ite pol closed_use closed_use'
       else ite pol use use'
   {
@@ -274,34 +286,32 @@ def UseHypAndLeft (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId �
 end nonDependent
 
 
+partial def _root_.Lean.Expr.replace1BetaAux [Monad m] [STWorld ω m] [MonadLiftT (ST ω) m] (e var subst : Expr) : MonadCacheT ExprStructEq Expr m Expr :=
+  if !(e.hasFVar || e.hasMVar) then
+    pure e
+  else checkCache { val := e : ExprStructEq } fun _ => do match e with
+    | .proj _ _ s      => return e.updateProj! (← s.replace1BetaAux var subst)
+    | .forallE _ d b _ => return e.updateForallE! (← d.replace1BetaAux var subst) (← b.replace1BetaAux var subst)
+    | .lam _ d b _     => return e.updateLambdaE! (← d.replace1BetaAux var subst) (← b.replace1BetaAux var subst)
+    | .letE _ t v b _  => return e.updateLet! (← t.replace1BetaAux var subst) (← v.replace1BetaAux var subst) (← b.replace1BetaAux var subst)
+    | .mdata _ b       => return e.updateMData! (← b.replace1BetaAux var subst)
+    | .app ..          => e.withApp fun f args => do
+      let wasVar := f.isFVar || f.isMVar
+      let f ← f.replace1BetaAux var subst
+      if wasVar && f.isLambda then
+        (f.betaRev args.reverse).replace1BetaAux var subst
+      else
+        let args ← args.mapM (·.replace1BetaAux var subst)
+        return mkAppN f args
+    | e => return if e == var then subst else e
 
--- section propDependent
--- variable {p : Prop} {old new : p → Prop}
-
--- lemma imp'_imp  (h : ∀ hp, old hp → new hp) : Imp' old → Imp' new := forall_imp h
--- lemma imp'_imp' (h : ∀ hp, new hp → old hp) : Imp' new → Imp' old := forall_imp h
--- lemma and'_imp  (h : ∀ hp, old hp → new hp) : And' old → And' new := Exists α.imp h
--- lemma and'_imp' (h : ∀ hp, new hp → old hp) : And' new → And' old := Exists α.imp h
-
--- def revertPropBinder (name : Name) (p tree var : Expr) (mkBinder proveImp : Name) : NewTreeProof → NewTreeProof :=
---   fun {newTree, proof} =>
---   let mkLam b := .lam name p (b.abstract #[var]) .default
---   let newTree := mkLam newTree
---   let proof := mkLam proof
---   {newTree := mkApp2 (.const mkBinder []) p newTree, proof := mkApp4 (.const proveImp []) p tree newTree proof}
-
--- def revertPropBinderWithDef (name : Name) (p tree var definition : Expr) (mkBinder proveImp : Name) : NewTreeProof → NewTreeProof :=
---   fun {newTree, proof} =>
---   let mkLam b := .lam name p (b.abstract #[var]) .default
---   let newTree := mkLam newTree
---   {newTree := mkApp2 (.const mkBinder []) p newTree,
---    proof   := mkApp5 (.const proveImp []) p tree newTree definition proof}
--- end propDependent
-
+def _root_.Lean.Expr.replace1Beta (e var subst : Expr) : Expr :=
+  let instantiate {ω} (e : Expr) : (MonadCacheT ExprStructEq Expr <| (ST ω)) Expr :=
+    e.replace1BetaAux var subst
+  runST fun _ => instantiate e |>.run
 
 
 section typeBinders
-variable {α : Type u} {old new : α → Prop}
 
 inductive TypeBinderKind where
 | all
@@ -309,31 +319,41 @@ inductive TypeBinderKind where
 | inst
 deriving BEq
 
-def bindTypeBinder (name : Name) (u : Level) (domain var : Expr) (kind : TypeBinderKind) (imp_lemma imp_lemma' non_dep_lemma non_dep_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
-  fun {newTree, proof} =>
-  let mkLam b  := .lam name domain (b.abstract #[var]) .default
-  let proof    := mkLam proof
-  let isClosed := pol != (kind == .ex)
-  let nonempty (_ : Unit) := mkApp (.const ``Nonempty [if kind == .inst then u else .succ u]) domain
+def bindTypeBinder (name : Name) (u : Level) (domain var : Expr) (kind : TypeBinderKind) (imp_lemma imp_lemma' non_dep_lemma non_dep_lemma' prop_lemma prop_lemma' close_lemma close_lemma' close_prop_lemma close_prop_lemma': Name)
+    (pol : Bool) (tree : Expr) : TreeProof → MetaM TreeProof :=
+  fun {newTree, proof} => do
+  let proof    := .lam name domain (proof.abstract #[var]) .default
+  let keepsClosed := pol != (kind == .ex)
+  let isProp ← isProp domain 
+  let us := if isProp then [] else [u]
+  let prop := if isProp then domain else mkApp (.const ``Nonempty [u]) domain
   match newTree with
-  | none =>
-    let newTree := if isClosed
+  | none => pure {
+    newTree := if keepsClosed
       then none
-      else some <| if (kind == .ex) then nonempty () else mkApp (.const ``Not []) (nonempty ())
-    { newTree, proof := mkApp3 (.const (if pol then close_lemma else close_lemma') [u]) domain tree proof }
+      else some <| if (kind == .ex) then prop else mkApp (.const ``Not []) prop
+    proof := mkApp3 (.const (iteite (!isProp) pol close_lemma close_lemma' close_prop_lemma close_prop_lemma') us) domain tree proof }
 
-  | some newTree =>
+  | some newTree => do
+    let newTree ← instantiateMVars newTree
     let newTree := newTree.abstract #[var]
-    if newTree.hasLooseBVars
+    return if newTree.hasLooseBVars
     then
       let newTree := .lam name domain newTree .default
       { newTree := mkApp2 (.const (match kind with | .all => ``Forall | .ex => ``Exists | .inst => ``Instance) [u]) domain newTree,
         proof := mkApp4 (.const (if pol then imp_lemma else imp_lemma') [u]) domain tree newTree proof }
     else
-      { newTree := if isClosed
+      { newTree := if keepsClosed
           then newTree
-          else mkApp2 (.const (if kind == .ex then ``And else ``Imp) []) (nonempty ()) newTree
-        proof := mkApp4 (.const (if pol then non_dep_lemma else non_dep_lemma') [u]) domain tree newTree proof }
+          else mkApp2 (.const (if kind == .ex then ``And else ``Imp) []) prop newTree
+        proof := mkApp4 (.const (iteite (!isProp) pol non_dep_lemma non_dep_lemma' prop_lemma prop_lemma') us) domain tree newTree proof }
+where
+  iteite b₁ b₂ a₁ a₂ a₃ a₄ := match b₁, b₂ with
+    | true , true  => a₁
+    | true , false => a₂
+    | false, true  => a₃
+    | false, false => a₄
+variable {α : Sort u} {old new : α → Prop} {p : Prop} {pold : p → Prop}
 
 lemma forall_imp  (h : ∀ a, new a → old a) : Forall α new → Forall α old := _root_.forall_imp h
 lemma forall_imp' (h : ∀ a, old a → new a) : Forall α old → Forall α new := _root_.forall_imp h
@@ -341,11 +361,18 @@ variable {new : Prop}
 lemma non_dep_forall_imp  (h : ∀ a, new → old a) : new → Forall α old := fun g a => h a g
 lemma non_dep_forall_imp' (h : ∀ a, old a → new) : Forall α old → Imp (Nonempty α) new := fun g ⟨a⟩ => h a (g a)
 
+lemma prop_forall_imp  (h : ∀ a, new → pold a) : new → Forall p pold := fun g a => h a g
+lemma prop_forall_imp' (h : ∀ a, pold a → new) : Forall p pold → Imp p new := fun g a => h a (g a)
+
 lemma closed_forall_imp  (h : ∀ a,   old a) : Forall α old := h
 lemma closed_forall_imp' (h : ∀ a, ¬ old a) : Forall α old → ¬ Nonempty α := fun g ⟨a⟩ => h a (g a)
 
-def bindForall (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u domain var .all ``forall_imp ``forall_imp' ``non_dep_forall_imp ``non_dep_forall_imp' ``closed_forall_imp ``closed_forall_imp'
+lemma closed_prop_forall_imp  (h : ∀ a,   pold a) : Forall p pold := h
+lemma closed_prop_forall_imp' (h : ∀ a, ¬ pold a) : Forall p pold → ¬ p := fun g a => h a (g a)
+
+def bindForall (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → MetaM TreeProof :=
+  bindTypeBinder name u domain var .all ``forall_imp ``forall_imp' ``non_dep_forall_imp ``non_dep_forall_imp' 
+  ``prop_forall_imp ``prop_forall_imp' ``closed_forall_imp ``closed_forall_imp' ``closed_prop_forall_imp ``closed_prop_forall_imp'
 
 variable {new : α → Prop}
 lemma exists_imp  (h : ∀ a, new a → old a) : Exists α new → Exists α old := Exists.imp h
@@ -354,14 +381,21 @@ variable {new : Prop}
 lemma non_dep_exists_imp  (h : ∀ a, new → old a) : And (Nonempty α) new → Exists α old := fun ⟨⟨a⟩, g⟩ => ⟨a, h a g⟩
 lemma non_dep_exists_imp' (h : ∀ a, old a → new) : Exists α old → new := fun ⟨a, g⟩ => h a g
 
+lemma prop_exists_imp  (h : ∀ a, new → pold a) : And p new → Exists p pold := fun ⟨a, g⟩ => ⟨a, h a g⟩
+lemma prop_exists_imp' (h : ∀ a, pold a → new) : Exists p pold → new := fun ⟨a, g⟩ => h a g
+
 lemma closed_exists_imp  (h : ∀ a,   old a) : Nonempty α → Exists α old := fun ⟨a⟩ => ⟨a, h a⟩
 lemma closed_exists_imp' (h : ∀ a, ¬ old a) : ¬ Exists α old := fun ⟨a, ha⟩ => h a ha
 
-def bindExists (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u domain var .ex ``exists_imp ``exists_imp' ``non_dep_exists_imp ``non_dep_exists_imp' ``closed_exists_imp ``closed_exists_imp'
+lemma closed_prop_exists_imp  (h : ∀ a,   pold a) : p → Exists p pold := fun a => ⟨a, h a⟩
+lemma closed_prop_exists_imp' (h : ∀ a, ¬ pold a) :   ¬ Exists p pold := fun ⟨a, ha⟩ => h a ha
+
+def bindExists (name : Name) (u : Level) (domain var : Expr) : Bool → Expr → TreeProof → MetaM TreeProof :=
+  bindTypeBinder name u domain var .ex ``exists_imp ``exists_imp' ``non_dep_exists_imp ``non_dep_exists_imp' 
+  ``prop_exists_imp ``prop_exists_imp' ``closed_exists_imp ``closed_exists_imp' ``closed_prop_exists_imp ``closed_prop_exists_imp'
 
 
-variable {α : Sort u} {old new : α → Prop}
+variable {new : α → Prop}
 
 lemma instance_imp  (h : ∀ a, new a → old a) : Instance α new → Instance α old := _root_.forall_imp h
 lemma instance_imp' (h : ∀ a, old a → new a) : Instance α old → Instance α new := _root_.forall_imp h
@@ -369,42 +403,78 @@ variable {new : Prop}
 lemma non_dep_instance_imp  (h : ∀ a, new → old a) : new → Instance α old := fun g a => h a g
 lemma non_dep_instance_imp' (h : ∀ a, old a → new) : Instance α old → Imp (Nonempty α) new := fun g ⟨a⟩ => h a (g a)
 
+lemma prop_instance_imp  (h : ∀ a, new → pold a) : new → Instance p pold := fun g a => h a g
+lemma prop_instance_imp' (h : ∀ a, pold a → new) : Instance p pold → Imp (Nonempty p) new := fun g ⟨a⟩ => h a (g a)
+
 lemma closed_instance_imp  (h : ∀ a,   old a) : Instance α old := h
 lemma closed_instance_imp' (h : ∀ a, ¬ old a) : Instance α old → ¬ Nonempty α := fun g ⟨a⟩ => h a (g a)
 
-def bindInstance (name : Name) (u : Level) (cls var : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindTypeBinder name u cls var .inst ``instance_imp ``instance_imp' ``non_dep_instance_imp ``non_dep_instance_imp' ``closed_instance_imp ``closed_instance_imp'
+lemma closed_prop_instance_imp  (h : ∀ a,   pold a) : Instance p pold := h
+lemma closed_prop_instance_imp' (h : ∀ a, ¬ pold a) : Instance p pold → ¬ p := fun g a => h a (g a)
+
+def bindInstance (name : Name) (u : Level) (cls var : Expr) : Bool → Expr → TreeProof → MetaM TreeProof :=
+  bindTypeBinder name u cls var .inst ``instance_imp ``instance_imp' ``non_dep_instance_imp ``non_dep_instance_imp' 
+  ``prop_instance_imp ``prop_instance_imp' ``closed_instance_imp ``closed_instance_imp' ``closed_prop_instance_imp ``closed_prop_instance_imp'
 
 
-variable {α : Type u} {old : Prop} {new : α → Prop}
+variable {old : Prop} {new : α → Prop}
 
 lemma forall_make  (a : α) (h : new a → old) : Forall α new → old := fun g => h (g a)
 lemma exists_make' (a : α) (h : old → new a) : old → Exists α new := fun g => ⟨a, h g⟩
+variable {new : Prop}
+lemma non_dep_forall_make  (a : α) (h : new → old) : Imp (Nonempty α) new → old := fun g => h (g ⟨a⟩)
+lemma non_dep_exists_make' (a : α) (h : old → new) : old → And (Nonempty α) new := fun g => ⟨⟨a⟩, h g⟩
 
-def bindFVar (fvar : FVarId) (name : Name) (u : Level) (domain definition : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
+lemma prop_forall_make  (a : p) (h : new → old) : Imp p new → old := fun g => h (g a)
+lemma prop_exists_make' (a : p) (h : old → new) : old → And p new := fun g => ⟨a, h g⟩
+
+def bindFVar (fvar : FVarId) (name : Name) (u : Level) (domain definition : Expr) (pol : Bool) (tree : Expr) : TreeProof → MetaM TreeProof :=
   fun {newTree, proof} =>
-    let mkLet b := .letE name domain definition (b.abstract #[.fvar fvar]) false
-    let proof := mkLet proof
+    let proof := .letE name domain definition (proof.abstract #[.fvar fvar]) false
     match newTree with
-    | none => {proof}
-    | some newTree =>
-      let mkLam b := .lam name domain (b.abstract #[.fvar fvar]) .default
-      let newTree := mkLam newTree
-      { newTree := mkApp2 (.const (if pol then ``Forall      else ``Exists      ) [u]) domain newTree,
-        proof   := mkApp5 (.const (if pol then ``forall_make else ``exists_make') [u]) domain tree newTree definition proof}
+    | none => pure {proof}
+    | some newTree => do
+      let newTree ← instantiateMVars newTree
+      let newTree := newTree.abstract #[.fvar fvar]
+      if newTree.hasLooseBVars
+      then
+        let newTree := .lam name domain newTree .default
+        pure {
+          newTree := mkApp2 (.const (if pol then ``Forall      else ``Exists      ) [u]) domain newTree,
+          proof   := mkApp5 (.const (if pol then ``forall_make else ``exists_make') [u]) domain tree newTree definition proof}
+      else do
+        let isProp ← isProp domain
+        let prop := if isProp then mkApp (.const ``Nonempty [u]) domain else domain
+        pure {
+          newTree := mkApp2 (.const (if pol then ``Imp else ``And) []) prop newTree
+          proof := mkApp5 (.const (iteite isProp pol ``non_dep_forall_make ``non_dep_exists_make' ``prop_forall_make ``prop_exists_make') [u]) domain tree newTree definition proof }
+where
+  iteite b₁ b₂ a₁ a₂ a₃ a₄ := match b₁, b₂ with
+    | true , true  => a₁
+    | true , false => a₂
+    | false, true  => a₃
+    | false, false => a₄
 
+variable {new : α → Prop}
 lemma forall_make' (h : ∀ a, old → new a) : old → Forall α new := fun g a => h a g
 lemma exists_make  (h : ∀ a, new a → old) : Exists α new → old := fun ⟨a, g⟩ => h a g
 variable {new : Prop}
 lemma non_dep_forall_make' (h : α → (old → new)) : old → Imp (Nonempty α) new := fun g ⟨a⟩ => h a g
 lemma non_dep_exists_make  (h : α → (new → old)) : And (Nonempty α) new → old := fun ⟨⟨a⟩, g⟩ => h a g
 
+lemma prop_forall_make' (h : p → (old → new)) : old → Imp p new := fun g a => h a g
+lemma prop_exists_make  (h : p → (new → old)) : And p new → old := fun ⟨a, g⟩ => h a g
+
 lemma closed_forall_make' (h : α → ¬ old) : old → ¬ Nonempty α := fun g ⟨a⟩ => h a g
 lemma closed_exists_make  (h : α →   old) : Nonempty α → old   := fun ⟨a⟩ => h a
 
+lemma closed_prop_forall_make' (h : p → ¬ old) : old → ¬ p := fun g a => h a g
+lemma closed_prop_exists_make  (h : p →   old) : p → old   := fun a => h a
 
-def bindMVar (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) : Expr → TreeProof → TreeProof := 
-  bindTypeBinder name u type (.mvar mvarId) (if pol then .ex else .all) ``exists_make ``forall_make' ``non_dep_exists_make ``non_dep_forall_make' ``closed_exists_make ``closed_forall_make' pol
+
+def bindMVar (mvarId : MVarId) (type : Expr) (name : Name) (u : Level) (pol : Bool) : Expr → TreeProof → MetaM TreeProof := 
+  bindTypeBinder name u type (.mvar mvarId) (if pol then .ex else .all) ``exists_make ``forall_make' ``non_dep_exists_make ``non_dep_forall_make' 
+  ``prop_exists_make ``prop_forall_make' ``closed_exists_make ``closed_forall_make' ``closed_prop_exists_make ``closed_prop_forall_make' pol
 
 
 
@@ -419,12 +489,11 @@ lemma closed_destroy_forall (a : α) (h : ¬ old a) : ¬ Forall α old := fun g 
 
 def introMVar (mvarId : MVarId) (name : Name) (u : Level) (type assignment : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
-  let mkLet e := .letE name type assignment (e.abstract #[.mvar mvarId]) false
-  let proof := mkLet proof
+  let proof := .letE name type assignment (proof.abstract #[.mvar mvarId]) false
   match newTree with
   | none => { proof := mkApp4 (.const (if pol then ``closed_destroy_exists else ``closed_destroy_forall) [u]) type tree assignment proof }
   | some newTree =>
-    let newTree := newTree.replaceFVar (.mvar mvarId) assignment
+    let newTree := newTree.replace1Beta (.mvar mvarId) assignment
     { newTree, proof := mkApp5 (.const (if pol then ``destroy_exists else ``destroy_forall) [u]) type tree newTree assignment proof }
 
 
@@ -439,13 +508,6 @@ def and_pattern (p q : Expr) : Expr :=
   mkApp2 (.const ``And []) p q
 
 @[match_pattern]
-def imp'_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
-  mkApp2 (.const ``Imp' [u]) domain' (.lam name domain body bi)
-@[match_pattern]
-def and'_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
-  mkApp2 (.const ``And' [u]) domain' (.lam name domain body bi)
-
-@[match_pattern]
 def forall_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Forall [u]) domain' (.lam name domain body bi)
 @[match_pattern]
@@ -453,7 +515,7 @@ def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
   mkApp2 (.const ``Exists [u]) domain' (.lam name domain body bi)
 
 @[match_pattern]
-def instance_pattern {name : Name} (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
+def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Instance [u]) cls' (.lam name cls body bi)
 
 
@@ -486,18 +548,18 @@ structure Recursor (α : Type u) where
   imp_left  (p : Expr) : Bool → Expr → α → α
   and_left  (p : Expr) : Bool → Expr → α → α
 
-  inst (u : Level) (cls : Expr) : Bool → Expr → (Expr → α) → α
+  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → α) → α
 
-structure OptionRecursor (α : Type u) where
-  all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → α) → Option α
-  ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → α) → Option α
+structure OptionRecursor (m : Type u → Type v) (α : Type u) where
+  all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
+  ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
-  imp_right (p : Expr) : Bool → Expr → α → Option α
-  and_right (p : Expr) : Bool → Expr → α → Option α
-  imp_left  (p : Expr) : Bool → Expr → α → Option α
-  and_left  (p : Expr) : Bool → Expr → α → Option α
+  imp_right (p : Expr) : Bool → Expr → m α → OptionT m α
+  and_right (p : Expr) : Bool → Expr → m α → OptionT m α
+  imp_left  (p : Expr) : Bool → Expr → m α → OptionT m α
+  and_left  (p : Expr) : Bool → Expr → m α → OptionT m α
 
-  inst (u : Level) (cls : Expr) : Bool → Expr → (Expr → α) → Option α
+  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
 
 inductive TreeBinderKind where
@@ -519,36 +581,50 @@ instance : ToString TreeBinderKind where
     | .ex => "∃"
     | .inst => "[·]"
 
-partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool) (tree : Expr) (pos : List TreeBinderKind) (k : Bool → Expr → m α) : m α :=
-  let rec visit [Inhabited α] (pol : Bool) : List TreeBinderKind → Expr → m α  
-    | .all      ::xs, forall_pattern n u α b => r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .ex       ::xs, exists_pattern n u α b => r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .imp_right::xs, imp_pattern p tree     => r.imp_right p pol tree (visit   pol  xs tree)
-    | .and_right::xs, and_pattern p tree     => r.and_right p pol tree (visit   pol  xs tree)
-    | .imp_left ::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
-    | .and_left ::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
-    | .inst     ::xs, instance_pattern u α b => r.inst u α pol (.lam `_inst α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | [], e => k pol e
-    | xs, e => throwError m!"could not tree-recurse to position {xs} in term {e}"
-  visit pol pos tree
+-- partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool) (tree : Expr) (pos : List TreeBinderKind) (k : Bool → Expr → m α) : m α :=
+--   let rec visit [Inhabited α] (pol : Bool) : List TreeBinderKind → Expr → m α  
+--     | .all      ::xs, forall_pattern n u α b => r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+--     | .ex       ::xs, exists_pattern n u α b => r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+--     | .imp_right::xs, imp_pattern p tree     => r.imp_right p pol tree (visit   pol  xs tree)
+--     | .and_right::xs, and_pattern p tree     => r.and_right p pol tree (visit   pol  xs tree)
+--     | .imp_left ::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
+--     | .and_left ::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
+--     | .inst     ::xs, instance_pattern n u α b => r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+--     | [], e => k pol e
+--     | xs, e => throwError m!"could not tree-recurse to position {xs} in term {e}"
+--   visit pol pos tree
 
-
-partial def OptionRecursor.recurse [Inhabited α] (r : OptionRecursor α) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind)
-  (k : Bool → Expr → List TreeBinderKind → α) : α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : α :=
-    let k? := (·.getD (k pol e ys))
+partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind)
+  (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
+    let k? l := do (Option.getDM (← l) (k pol e ys))
     match ys, e with
-    | .all      ::xs, forall_pattern n u α b => k? <| r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .ex       ::xs, exists_pattern n u α b => k? <| r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .imp_right::xs, imp_pattern p tree     => k? <| r.imp_right p pol tree (visit   pol  xs tree)
-    | .and_right::xs, and_pattern p tree     => k? <| r.and_right p pol tree (visit   pol  xs tree)
-    | .imp_left ::xs, imp_pattern tree p     => k? <| r.imp_left  p pol tree (visit (!pol) xs tree)
-    | .and_left ::xs, and_pattern tree p     => k? <| r.and_left  p pol tree (visit   pol  xs tree)
-    | .inst     ::xs, instance_pattern u α b => k? <| r.inst u α pol (.lam `_inst α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | _, _ => k pol e ys
+    | .all      ::xs, forall_pattern n u α b => k? do r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | .ex       ::xs, exists_pattern n u α b => k? do r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | .imp_right::xs, imp_pattern p tree     => k? do r.imp_right p pol tree (visit   pol  xs tree)
+    | .and_right::xs, and_pattern p tree     => k? do r.and_right p pol tree (visit   pol  xs tree)
+    | .imp_left ::xs, imp_pattern tree p     => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
+    | .and_left ::xs, and_pattern tree p     => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | .inst     ::xs, instance_pattern n u α b => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | [], e => k pol e []
+    | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
   visit pol pos tree
 
-
+partial def OptionRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m] [MonadLiftT MetaM m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
+  (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
+    let k? l := do (Option.getDM (← l) (k pol e ys))
+    match ys, e with
+    | .all      ::xs, .forallE n α b _bi               => k? do r.all n default α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | .ex       ::xs, regular_exists_pattern n u α b _ => k? do r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | .imp_right::xs, .forallE _ p tree _bi            => k? do r.imp_right p pol tree (visit   pol  xs tree)
+    | .and_right::xs, regular_and_pattern p tree       => k? do r.and_right p pol tree (visit   pol  xs tree)
+    | .imp_left ::xs, .forallE _ tree p _bi            => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
+    | .and_left ::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | .inst     ::xs, .forallE n α b _bi               => k? do r.inst n default α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | [], e => k pol e []
+    | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
+  visit pol path tree
 
 -- this is more efficient, as it doesn't require instantiation of the loose bound variables.
 def positionToNodesAndPolarities : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat :=
@@ -601,32 +677,22 @@ partial def makeTreeAux : Expr → MetaM Expr
   | .forallE name domain body bi =>
       withLocalDeclD name domain fun fvar => do
       let body' := (← makeTreeAux (body.instantiate1 fvar)).abstract #[fvar]
-      let u' ← getLevel domain
+      let u ← getLevel domain
       if bi.isInstImplicit
       then
-        return mkApp2 (.const ``Instance [u']) domain (.lam name domain body' .default)
+        return mkApp2 (.const ``Instance [u]) domain (.lam name domain body' .default)
       else
-        let u ← mkFreshLevelMVar
-        if ← isLevelDefEq u' (.succ u)
+        if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
         then
-          return mkApp2 (.const ``Forall [u]) domain (.lam name domain body' .default)
+          return mkApp2 (.const ``Imp []) (← makeTreeAux domain) body'
         else
-          if body.hasLooseBVars
-          then
-            return mkApp2 (.const ``Imp' []) domain (.lam name domain body' .default)
-          else
-            return mkApp2 (.const ``Imp []) (← makeTreeAux domain) body'
+          return mkApp2 (.const ``Forall [u]) domain (.lam name domain body' .default)
             
 
-  | regular_exists_pattern name u' domain body _bi =>
+  | regular_exists_pattern name u domain body _bi =>
       withLocalDeclD name domain fun fvar => do
       let body := body.instantiate1 fvar
-      let u ← mkFreshLevelMVar
-      if ← isLevelDefEq u' (.succ u)
-      then
-        return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTreeAux body).abstract #[fvar]) .default)
-      else
-        return mkApp2 (.const ``And'   [] ) domain (.lam name domain ((← makeTreeAux body).abstract #[fvar]) .default)
+      return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTreeAux body).abstract #[fvar]) .default)
 
   | regular_and_pattern p q => return mkApp2 (.const ``And []) (← makeTreeAux p) (← makeTreeAux q)
   | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTreeAux p) (← makeTreeAux q)
@@ -639,6 +705,8 @@ partial def makeTreeAux : Expr → MetaM Expr
   | and_pattern  p q => return mkApp2 (.const ``And  []) (← makeTreeAux p) (← makeTreeAux q)
   | imp_pattern  p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
 
+  | instance_pattern n u d b => withLocalDeclD n d fun fvar =>
+    return mkApp2 (.const ``Instance [u]) d (.lam n d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar]) .default)
   | forall_pattern n u d b => withLocalDeclD n d fun fvar =>
     return mkApp2 (.const ``Forall [u]) d (.lam n d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar]) .default)
   | exists_pattern n u d b => withLocalDeclD n d fun fvar =>
@@ -651,7 +719,19 @@ def makeTree (e : Expr) : MetaM Expr := do
     makeTreeAux e
   else
     throwError m! "can't turn {e} : {(← inferType e)} into a tree since it is not a Prop"
-    
+
+def makeTreePathRec : OptionRecursor MetaM Expr where
+  all n _ α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Forall [← getLevel α]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
+  ex  n u α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Exists [u]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
+  imp_right p _ _ k := return mkApp2 (.const ``Imp []) p (← k)
+  and_right p _ _ k := return mkApp2 (.const ``And []) p (← k)
+  imp_left  p _ _ k := return mkApp2 (.const ``Imp []) (← k) p
+  and_left  p _ _ k := return mkApp2 (.const ``And []) (← k) p
+  inst n _ α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Instance [← getLevel α]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
+
+def makeTreePath (path : List TreeBinderKind) (tree : Expr) : MetaM Expr :=
+  makeTreePathRec.recurseNonTree true tree path (fun _ leaf _ => pure leaf)
+
 open Elab Tactic
 
 elab "make_tree" : tactic => do
@@ -663,7 +743,7 @@ def getPosition (stx : Syntax) : List Nat :=
   (stx[1].getSepArgs.map (·.isNatLit?.get!)).toList
 
 
-def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
+def workOnTree [Monad m] [MonadLiftT m TacticM] (move : Expr → m TreeProof) : TacticM Unit := do
   withMainContext do
     let {newTree, proof} ← move (← getMainTarget)
     match newTree with
@@ -682,7 +762,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-def TreeRec : Recursor (MetaM TreeProof) where
+def TreeRec [Monad m] [MonadControlT MetaM m] [MonadLiftT MetaM m] : OptionRecursor m TreeProof where
   imp_right := introProp bindImpRight
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
@@ -690,28 +770,36 @@ def TreeRec : Recursor (MetaM TreeProof) where
 
   all  := introFree bindForall
   ex   := introFree bindExists
-  inst := introFree bindInstance `_inst
+  inst := introFree bindInstance
 where
-  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) : MetaM TreeProof → MetaM TreeProof :=
-    Functor.map <| bind p pol tree
+  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) : m TreeProof → OptionT m TreeProof :=
+    Functor.map <| some ∘ bind p pol tree
 
-  introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → TreeProof) (name : Name) (u : Level) (domain : Expr) (pol : Bool)
-      (tree : Expr) (k : Expr → MetaM TreeProof) : MetaM TreeProof :=
-    withLocalDeclD name domain fun fvar => bind name u domain fvar pol tree <$> k fvar
+  introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (name : Name) (u : Level) (domain : Expr) (pol : Bool)
+      (tree : Expr) (k : Expr → m TreeProof) : OptionT m TreeProof :=
+    withLocalDeclD name domain fun fvar => do
+      let treeProof ← k fvar
+      bind name u domain fvar pol tree treeProof
 
-def workOnTreeAt (pos : List Nat) (move : List Nat → Bool → Expr → MetaM TreeProof) : TacticM Unit :=
+def workOnTreeAt [Monad m] [MonadError m] [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadLiftT m TacticM] (pos : List Nat) (move : List Nat → Bool → Expr → m TreeProof) : TacticM Unit :=
   workOnTree fun tree => do 
-  let (path, pos) := positionToPath pos tree
-  TreeRec.recurseM true tree path (move pos)
+    let (path, pos) := positionToPath pos tree
+    TreeRec.recurse (m := m) true tree path (fun pol tree _ => move pos pol tree)
 
+    
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
 
-elab "lib_intro" h:ident : tactic =>
-  workOnTree fun tree => do
-  let h := h.getId
-  let h ← mkConstWithFreshMVarLevels h
-  let p ← makeTree (← inferType h)
+def getConstAndTypeFromIdent (id : TSyntax `ident) : MetaM (Expr × Expr) := do
+  let name ← Elab.resolveGlobalConstNoOverloadWithInfo id
+  let cinfo ← getConstInfo name
+  let us ← mkFreshLevelMVarsFor cinfo
+  return (.const name us, cinfo.instantiateTypeLevelParams us)
+
+elab "lib_intro" id:ident : tactic =>
+  workOnTree (m := MetaM) fun tree => do
+  let (proof, p) ← getConstAndTypeFromIdent id
+  let p ← makeTree p
   return {
     newTree := mkApp2 (.const ``Imp []) p tree
-    proof := mkApp3 (.const ``imp []) p tree h
+    proof := mkApp3 (.const ``imp []) p tree proof
   }

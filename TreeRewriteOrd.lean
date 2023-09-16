@@ -146,7 +146,7 @@ def getLEsides! : Pattern → Expr → Expr × Expr
   | _   , .app (.app _ lhs) rhs => (lhs, rhs)
   | _, _ => panic! ""
 
-def rewriteOrdUnify (fvars : Array Expr) (u : Level) (α preorder rel target : Expr) (hypContext : HypothesisContext) (hypPos : List Nat) (pol : Bool) : MetaM' (Expr × Expr) := do
+def rewriteOrdUnify (fvars : Array Expr) (u : Level) (α preorder rel target : Expr) (hypContext : HypothesisContext) (pol : Bool) : MetaM' (Expr × Expr) := do
   let {metaIntro, instMetaIntro, hypProofM} := hypContext
   let mvars ← metaIntro
   let instMVars ← instMetaIntro
@@ -185,12 +185,15 @@ def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → �
 
 
 
-partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat)
-  : MetaM' TreeProof := do
+partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
+
   unless hypPath == [] do
-    throwError m! "cannot rewrite using a hypothesis in a hypothesis"
+    throwError m! "cannot rewrite using a subexpression: subtree {hypPath} in {rel}"
+  unless hypPos == [] do
+    throwError m! "cannot rewrite using a subexpression: expression {hypPos} in {rel}"
   let (newTree, proof) ← visit (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
   return { newTree, proof }
+
 where
   visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' (Expr × Expr)
     -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
@@ -198,7 +201,7 @@ where
       let (rhs, h) ← visit u α preorder fvars pol xs lhs
       return (.mdata d rhs, h)
 
-    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext hypPos pol
+    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol
       
     | 0::xs, .app lhs a => do
       let α' ← inferType a
@@ -281,11 +284,15 @@ elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
   let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeRewriteOrd)
 
+def getRewriteOrdPos (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+  let hypTree ← makeTree hyp
+  let path := getPath hypTree
+  return (← makeTreePath path hyp, path, [])
 
 elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
-  let hypName := Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
   let goalPos := getPosition goalPos
-  workOnTree (applyUnbound hypName (fun hyp _ => (getPath hyp, [])) goalPos treeRewriteOrd)
+  workOnTree (applyUnbound hypName getRewriteOrdPos goalPos treeRewriteOrd)
 
 
 
@@ -318,7 +325,7 @@ lemma testLib : ∀ x, x - 1 ≤ x := sorry
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
   lib_rewrite_ord Tree.testLib [1,0,1,1,1,0,1]
-  lib_apply refl [1]
+  lib_apply _root_.refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1,1,1] [1,1,1,1]
@@ -327,7 +334,7 @@ example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1,1,1] [1,1,1]
   make_tree
-  lib_apply refl [1,1]
+  lib_apply _root_.refl [1,1]
 
 /-
 What should the isolate tactic do?
