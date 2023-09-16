@@ -1,12 +1,14 @@
 import Lean.Server.Rpc.Basic
 import ProofWidgets.Data.Html
 import ProofWidgets.Component.HtmlDisplay
+import ProofWidgets.Component.Panel.Basic
 import ProofWidgets.Component.OfRpcMethod
 import ProofWidgets.Demos.Macro
 import Std.Lean.Position
+import Std.Util.TermUnsafe
 
 namespace ProofWidgets
-open Lean Server Elab Command
+open Lean Server Elab Command Lsp
 
 structure EditParams where
   edit : Lsp.TextDocumentEdit
@@ -68,3 +70,35 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
 
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
   mk_rpc_widget% DynamicEditButton.rpc
+
+
+structure InfoviewActionProps extends PanelWidgetProps where
+  range : Lsp.Range
+deriving RpcEncodable
+
+abbrev InfoviewAction := InfoviewActionProps → MetaM (Option Html)
+
+def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
+  let { env, opts, .. } ← read
+  IO.ofExcept <| unsafe env.evalConstCheck InfoviewAction opts ``InfoviewAction n
+
+initialize infoviewActionExt : 
+    PersistentEnvExtension (Name × InfoviewAction) (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
+  registerPersistentEnvExtension {
+    mkInitial := pure .empty
+    addImportedFn := Array.concatMapM pure
+    addEntryFn := Array.push
+    exportEntriesFn := id
+  }
+
+initialize registerBuiltinAttribute {
+  name := `motivated_proof_move
+  descr := "Declare a new motivated proof move to appear in the point-and-click tactic panel."
+  applicationTime := .afterCompilation
+  add := fun decl stx kind => do
+    Attribute.Builtin.ensureNoArgs stx
+    unless kind == AttributeKind.global do
+      throwError "invalid attribute 'motivated_proof_move', must be global"
+    if (IR.getSorryDep (← getEnv) decl).isSome then return -- ignore in progress definitions
+    modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
+}
