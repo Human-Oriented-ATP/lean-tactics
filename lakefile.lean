@@ -3,25 +3,14 @@ open Lake DSL System
 
 package «leanTactics» {
   -- add any package configuration options here
-  precompileModules := true
-  preferReleaseBuild := true
 }
 
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
-require proofwidgets from git 
-  "https://github.com/EdAyers/ProofWidgets4" @ "v0.0.15"
-
 
 @[default_target]
 lean_lib «LeanTactics» {
   -- add any library configuration options here
-}
-
-@[default_target]
-lean_exe «leanTactics» {
-  root := `LeanTactics
-  supportInterpreter := true
 }
 
 lean_lib Tidying {
@@ -81,6 +70,10 @@ lean_lib InfoDisplayTactics {
 }
 
 lean_lib MotivatedProofInterface {
+  -- add any library configuration options here
+}
+
+lean_lib EditLinkInsertion {
   -- add any library configuration options here
 }
 
