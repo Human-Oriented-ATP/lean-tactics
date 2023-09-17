@@ -5,16 +5,9 @@ namespace Tree
 open Lean Elab Tactic Meta
 
 
-def normalize (fvars : Array Expr) (conv : Syntax) (lhs : Expr) : TermElabM RewriteInfo := do
-  let lhs := lhs.instantiateRev fvars
-
-  let (rhs, proof) ← Conv.mkConvGoalFor lhs
-  let MVarIds ← Elab.Tactic.run proof.mvarId! do evalTactic conv
-  for mvarId in MVarIds do
-    liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
+def normalize (norm : Expr → MetaM (Expr × Expr)) (fvars : Array Expr) (lhs : Expr) : MetaM RewriteInfo := do
+  let (rhs, proof) ← norm (lhs.instantiateRev fvars)
   
-  let rhs ← instantiateMVars rhs
-  let proof ← instantiateMVars proof
   let lctx ← getLCtx
 
   let n := fvars.size
@@ -27,12 +20,12 @@ def normalize (fvars : Array Expr) (conv : Syntax) (lhs : Expr) : TermElabM Rewr
   return (motive_core, rhs, proof, type)
 
 
-private def recurseToPosition (target : Expr) (conv : Syntax) (pos : List Nat) : TermElabM RewriteInfo :=
+private def recurseToPosition (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : List Nat) : MetaM RewriteInfo :=
   
-  let rec visit (fvars : Array Expr) : List Nat → Expr → TermElabM RewriteInfo
+  let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
-    | []   , e                 => normalize fvars conv e
+    | []   , e                 => normalize norm fvars e
     
     | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
     | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
@@ -64,13 +57,39 @@ private def recurseToPosition (target : Expr) (conv : Syntax) (pos : List Nat) :
 
 
 
-elab "tree_normalize " goalPos:treePos conv:conv : tactic =>
+
+def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (target : Expr) : MetaM (Expr × Expr) := do
+  let (r, _) ← simp target ctx discharge? {}
+  match r.proof? with
+  | some proof => return (r.expr, proof)
+  | none => throwError m! "could not simplify {target}"
+
+def getSimpContext : MetaM Simp.Context := do
+  let mut simpTheorems : SimpTheoremsArray := #[← getSimpTheorems]
+  for h in ← getPropHyps do
+    unless simpTheorems.isErased (.fvar h) do
+      simpTheorems ← simpTheorems.addTheorem (.fvar h) (.fvar h)
+  return { simpTheorems }
+
+def defaultSimpMove (target : Expr) : MetaM (Expr × Expr) :=
+  do simpMove (← getSimpContext) none target
+
+
+
+elab "tree_simp" goalPos:treePos : tactic =>
   let goalPos := getPosition goalPos
   workOnTreeAt goalPos fun pos pol tree => (do
-    let (motive_core, rhs, proof, type) ← recurseToPosition tree conv pos
+    let (motive_core, rhs, proof, type) ← recurseToPosition defaultSimpMove tree pos
     let motive := Expr.lam `_a type motive_core .default
     let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
-    return { newTree := rhs, proof : TreeProof})
-
-macro "tree_simp" goalPos:treePos : tactic => do `(tactic| tree_normalize $goalPos simp)
+    if pos == [] then
+      let isConstOf := (Expr.consumeMData rhs).isConstOf
+      if pol
+      then if isConstOf `True then
+        return { proof := mkApp proof (.const `True.intro [])}
+      /- need to add a few more lemmas in Tree.lean for the False case to work. -/
+      -- else if isConstOf `False then
+      --   return { proof }
+    
+    return { newTree := rhs, proof })
 

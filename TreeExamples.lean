@@ -1,6 +1,7 @@
-import Mathlib.Topology.MetricSpace.Lipschitz
-import Mathlib.Topology.Sequences
-import Mathlib.GroupTheory.Subgroup.Basic
+-- import Mathlib.Topology.MetricSpace.Lipschitz
+-- import Mathlib.Topology.Sequences
+-- import Mathlib.GroupTheory.Subgroup.Basic
+import Mathlib
 
 import TreeRewriteOrd
 import TreeRewrite
@@ -29,7 +30,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
   lib_rewrite Metric.continuous_iff [1]
   lib_rewrite lipschitzWith_iff_dist_le_mul [0,1]
   make_tree
-  simp
+  tree_simp [0,1,1,1,1,1,1]
   tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
@@ -112,9 +113,8 @@ open BigOperators
 lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : Fin n → ℕ), ∑ i : Fin n, (f i + g i) = (∑ i : Fin n, f i) + (∑ i : Fin n, g i) := by
   make_tree
   tree_induction []
-  simp
   make_tree
-  lib_apply trivial [0,1,1,1,1,1]
+  tree_simp [0,1,1,1,1,1]
   lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,1,0,1]
   lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,1,1]
   lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,0,1]
@@ -144,3 +144,25 @@ example : p ∨ q → q ∨ p := by
   lib_apply Or.inr [1]
   tree_search
 
+example : p ∧ q → q ∧ p := by
+  make_tree
+  tree_induction []
+  make_tree
+  tree_search
+
+example : ∀ r : ℚ, r^2 ≠ 2 := by
+  make_tree
+  tree_induction []
+  make_tree
+  lib_rewrite Rat.cast_mk' [1,1,1,1,1,1,1,1,0,1,0,1]
+  tree_search'
+  -- field_simp
+  simp
+  /-
+  ∀ num⋆ : ℤ⠀
+  ∀ den⋆ : ℕ⠀
+  ⬐ den⋆ ≠ 0⠀
+  ⬐ Nat.coprime (Int.natAbs (num⋆)) (den⋆)⠀
+  (↑(num⋆) * (↑(den⋆))⁻¹) ^ 2 ≠ 2
+  -/
+  sorry
