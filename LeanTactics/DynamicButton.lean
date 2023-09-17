@@ -72,6 +72,8 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
   mk_rpc_widget% DynamicEditButton.rpc
 
 
+section InfoviewAction
+
 structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
 deriving RpcEncodable
@@ -83,12 +85,12 @@ def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   IO.ofExcept <| unsafe env.evalConstCheck InfoviewAction opts ``InfoviewAction n
 
 initialize infoviewActionExt : 
-    PersistentEnvExtension (Name × InfoviewAction) (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
+    PersistentEnvExtension Name (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
   registerPersistentEnvExtension {
     mkInitial := pure .empty
-    addImportedFn := Array.concatMapM pure
+    addImportedFn := Array.concatMapM <| Array.mapM <| fun n ↦ do return (n, ← mkInfoviewAction n)
     addEntryFn := Array.push
-    exportEntriesFn := id
+    exportEntriesFn := .map Prod.fst
   }
 
 initialize registerBuiltinAttribute {
@@ -102,3 +104,5 @@ initialize registerBuiltinAttribute {
     if (IR.getSorryDep (← getEnv) decl).isSome then return -- ignore in progress definitions
     modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
 }
+
+end InfoviewAction
