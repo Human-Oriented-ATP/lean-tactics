@@ -14,10 +14,10 @@ def treeApplyButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | throwError "You need to select an expression"
     let ⟨_, .target subexprPos1⟩  := pos1 | throwError "Your selected expression should be in the target"
     let ⟨_, .target subexprPos2⟩ := pos2 | throwError "Your selected expression should be in the target"
-    return some (.text ("tree_apply " ++ 
+    return (.text ("tree_apply " ++ 
                   ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
                   ((SubExpr.Pos.toArray subexprPos2).toList).toString))
-  else return none
+  else OptionT.fail
 
 @[motivated_proof_move]
 def treeRewriteAtButton : InfoviewAction := 
@@ -29,14 +29,14 @@ def treeRewriteAtButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | throwError "You must select something."
     let ⟨_, .target subexprPos1⟩ := pos1 | throwError "You must select something in the goal."
     let ⟨_, .target subexprPos2⟩ := pos2 | throwError "You must select something in the goal."
-    return some (.text ("tree_rewrite " ++ 
+    return (.text ("tree_rewrite " ++ 
               ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString))
-  else return none
+  else OptionT.fail
 
 @[motivated_proof_move]
 def simpButton : InfoviewAction := 
-  fun _ => do return some (.text "try simp")
+  fun _ => do return (.text "try simp")
 
 
 
