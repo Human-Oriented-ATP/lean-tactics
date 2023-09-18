@@ -138,7 +138,7 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨pos, pos⟩
-    savePanelWidgetInfo stx ``InfoviewActionProps do
+    savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
     evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
