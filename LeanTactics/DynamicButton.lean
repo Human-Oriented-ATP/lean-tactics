@@ -6,6 +6,7 @@ import ProofWidgets.Component.OfRpcMethod
 import ProofWidgets.Demos.Macro
 import Std.Lean.Position
 import Std.Util.TermUnsafe
+import Std.CodeAction.Attr
 
 namespace ProofWidgets
 open Lean Server Elab Command Lsp
@@ -100,4 +101,46 @@ initialize registerBuiltinAttribute {
     modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
 }
 
+@[server_rpc_method]
+def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) :=
+  RequestM.withWaitFindSnapAtPos props.range.end fun snap ↦ do
+    RequestM.runTermElabM snap do
+      let infoviewActions := infoviewActionExt.getState (← getEnv)
+      let motivatedProofMoves ← infoviewActions.filterMapM 
+        fun (_, action) ↦ (action props).run
+      return motivatedProofMoves[0]! -- TODO Put the HTML into a grid
+
+@[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
+  mk_rpc_widget% MotivatedProofPanel.rpc
+
 end InfoviewAction
+
+section MotivatedProofMode
+
+open Elab Tactic
+open scoped Json
+
+syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
+
+@[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
+| stx@`(tactic| motivated_proof $seq) => do
+    let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
+    let defaultIndent := stxStart.character + 2
+    let indent : Nat :=
+      match seq with
+      | `(Parser.Tactic.tacticSeq| $[$tacs]*) =>
+        if tacs.size = 0 then
+          defaultIndent
+        else match stx.getHeadInfo with
+          | .original _ _ trailing _ =>
+            trailing.toString |>.dropWhile (· = '\n') |>.length
+          |  _  => panic! s!"Could not extract indentation from {stx}."
+      |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
+    let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
+    let range : Lsp.Range := ⟨pos, pos⟩
+    savePanelWidgetInfo stx ``InfoviewActionProps do
+      return json% { range : $(range) }
+    evalTacticSeq seq
+|                 _                    => throwUnsupportedSyntax
+
+end MotivatedProofMode
