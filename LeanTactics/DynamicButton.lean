@@ -84,7 +84,7 @@ def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
 
 initialize infoviewActionExt : 
     PersistentEnvExtension (Name × InfoviewAction) (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
-  registerPersistentEnvExtension {
+    registerPersistentEnvExtension {
     mkInitial := pure .empty
     addImportedFn := Array.concatMapM pure
     addEntryFn := Array.push
