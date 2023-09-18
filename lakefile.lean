@@ -53,6 +53,18 @@ lean_lib TreeRewriteOrd {
   -- add any library configuration options here
 }
 
+lean_lib TreeInduction {
+  -- add any library configuration options here
+}
+
+lean_lib TreeNormalize {
+  -- add any library configuration options here
+}
+
+lean_lib TreeSearch {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
@@ -65,6 +77,9 @@ lean_lib EditLinkInsertion {
   -- add any library configuration options here
 }
 
+lean_lib DynamicButton {
+  -- add any library configuration options here
+}
 section Scripts
 
 /-! A script to automatically generate top-level import files for each library. -/
