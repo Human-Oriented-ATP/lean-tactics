@@ -29,14 +29,8 @@ def EditParams.ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
 def EditParams.insertLine (meta : Server.DocumentMeta) (line : Nat) 
     (indent : Nat) (text : String) : EditParams :=
   let newText := "".pushn ' ' indent ++ text
-  let pos : Lsp.Position := { line := line, character := 0 }
-  let edit := { textDocument := { uri := meta.uri, version? := meta.version },
-                edits := #[⟨⟨pos, pos⟩, newText, none⟩] }
-  let newCursorPos? := some {
-    line := line,
-    character := newText.codepointPosToUtf16Pos newText.length
-  }
-  ⟨edit, newCursorPos?⟩ 
+  let pos := { line := line, character := 0 }
+  EditParams.ofReplaceRange meta ⟨pos, pos⟩ newText
 
 structure DynamicButtonProps where
   label : String
