@@ -109,7 +109,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
       let infoviewActions := infoviewActionExt.getState (← getEnv)
       let motivatedProofMoves ← infoviewActions.filterMapM 
         fun (_, action) ↦ (action props').run
-      return motivatedProofMoves[0]! -- TODO Put the HTML into a grid
+      return .element "div" #[] motivatedProofMoves
 
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
   mk_rpc_widget% MotivatedProofPanel.rpc
