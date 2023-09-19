@@ -79,7 +79,6 @@ interface DynamicButtonProps {
     edit : TextDocumentEdit
     newCursorPos? : DocumentPosition
     html? : Html
-    vanish : boolean
 }
 
 export default function DynamicButton(props:DynamicButtonProps) {
@@ -97,7 +96,7 @@ export default function DynamicButton(props:DynamicButtonProps) {
 
     return (
         <div>
-            { (isHTMLVisible && props.vanish) ? null : <button onClick={onClick}>{props.label}</button> }
+            <button onClick={onClick}>{props.label}</button>
             { (isHTMLVisible && props.html) ? 
                 <HtmlDisplay pos={props.pos} html={props.html}/> : null }
         </div>

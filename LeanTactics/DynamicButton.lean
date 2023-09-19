@@ -37,7 +37,6 @@ structure DynamicButtonProps where
   label : String
   edit? : Option EditParams := none
   html? : Option Html := none
-  vanish : Bool := false
 deriving RpcEncodable
 
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
@@ -49,7 +48,6 @@ structure DynamicEditButtonProps where
   range? : Option Lsp.Range := none
   insertion? : Option String := none
   html? : Option Html := none
-  vanish : Bool := false
 deriving RpcEncodable
 
 @[server_rpc_method]
@@ -63,8 +61,7 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
     return .ofComponent DynamicButton (children := #[])
       { label := props.label
         edit? := editParams?
-        html? := props.html?
-        vanish := props.vanish }
+        html? := props.html? }
 
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
   mk_rpc_widget% DynamicEditButton.rpc
@@ -76,7 +73,7 @@ structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
 deriving RpcEncodable
 
-abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
+abbrev InfoviewAction := InfoviewActionProps → MetaM (Option Html)
 
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   let { env, opts, .. } ← read
@@ -95,8 +92,10 @@ initialize registerBuiltinAttribute {
   name := `motivated_proof_move
   descr := "Declare a new motivated proof move to appear in the point-and-click tactic panel."
   applicationTime := .afterCompilation
-  add := fun decl stx _ => do
+  add := fun decl stx kind => do
     Attribute.Builtin.ensureNoArgs stx
+    unless kind == AttributeKind.global do
+      throwError "invalid attribute 'motivated_proof_move', must be global"
     if (IR.getSorryDep (← getEnv) decl).isSome then return -- ignore in progress definitions
     modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
 }
