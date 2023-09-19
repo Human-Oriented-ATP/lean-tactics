@@ -15,9 +15,15 @@ def treeApplyButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩  := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    return (.text ("tree_apply " ++ 
+    let text := "tree_apply " ++ 
                   ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
-                  ((SubExpr.Pos.toArray subexprPos2).toList).toString))
+                  ((SubExpr.Pos.toArray subexprPos2).toList).toString
+    pure <DynamicEditButton 
+            label={"Tree apply at"} 
+            range?={props.range} 
+            insertion?={text} 
+            html?={<p> Applying... </p>}
+            vanish={true} />
   else OptionT.fail
 
 @[motivated_proof_move]
@@ -30,9 +36,15 @@ def treeRewriteAtButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    return (.text ("tree_rewrite " ++ 
+    let text := ("tree_rewrite " ++ 
               ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
-              ((SubExpr.Pos.toArray subexprPos2).toList).toString))
+              ((SubExpr.Pos.toArray subexprPos2).toList).toString)
+    pure <DynamicEditButton 
+            label={"Tree rewrite at"} 
+            range?={props.range} 
+            insertion?={text} 
+            html?={<p> Rewriting... </p>}
+            vanish={true} />
   else OptionT.fail
 
 @[motivated_proof_move]
@@ -43,12 +55,11 @@ def simpButton : InfoviewAction :=
         label={"Try `simp`"} 
         range?={props.range} 
         insertion?={"simp"} 
-        html?={<p> Simplifying the target </p>}
+        html?={<p> Simplifying the target... </p>}
         vanish={true} />
   
 example : 1 = 1 := by
   motivated_proof
     skip
     simp
-    
     
