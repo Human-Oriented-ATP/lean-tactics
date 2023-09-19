@@ -73,12 +73,17 @@ function HtmlDisplay({pos, html} : {pos: DocumentPosition, html: Html}):
     return <></>
 }
 
+interface EditParams {
+    edit : TextDocumentEdit
+    newCursorPos? : DocumentPosition
+}
+
 interface DynamicButtonProps {
     pos : DocumentPosition
     label : string
-    edit : TextDocumentEdit
-    newCursorPos? : DocumentPosition
+    edit? : EditParams
     html? : Html
+    vanish : boolean
 }
 
 export default function DynamicButton(props:DynamicButtonProps) {
@@ -87,16 +92,18 @@ export default function DynamicButton(props:DynamicButtonProps) {
 
     async function onClick () {
         setHTMLVisible(true);
-    
-        await ec.api.applyEdit({ documentChanges: [props.edit] })
-        // TODO: https://github.com/leanprover/vscode-lean4/issues/225
-        if (props.newCursorPos)
-            await ec.revealPosition({ ...props.newCursorPos, uri: props.edit.textDocument.uri })
+        
+        if (props.edit) {
+            await ec.api.applyEdit({ documentChanges: [props.edit.edit] })
+            // TODO: https://github.com/leanprover/vscode-lean4/issues/225
+            if (props.edit.newCursorPos)
+                await ec.revealPosition({ ...props.edit.newCursorPos, uri: props.edit.edit.textDocument.uri }) 
+        }
     }
 
     return (
         <div>
-            <button onClick={onClick}>{props.label}</button>
+            { (isHTMLVisible && props.vanish) ? null : <button onClick={onClick}>{props.label}</button> }
             { (isHTMLVisible && props.html) ? 
                 <HtmlDisplay pos={props.pos} html={props.html}/> : null }
         </div>
