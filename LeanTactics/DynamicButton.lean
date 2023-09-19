@@ -103,11 +103,12 @@ initialize registerBuiltinAttribute {
 
 @[server_rpc_method]
 def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) :=
-  RequestM.withWaitFindSnapAtPos props.range.end fun snap ↦ do
+  RequestM.withWaitFindSnapAtPos props.range.start fun snap ↦ do
     RequestM.runTermElabM snap do
+      let props' := { props with range := ⟨props.range.end, props.range.end⟩ }
       let infoviewActions := infoviewActionExt.getState (← getEnv)
       let motivatedProofMoves ← infoviewActions.filterMapM 
-        fun (_, action) ↦ (action props).run
+        fun (_, action) ↦ (action props').run
       return motivatedProofMoves[0]! -- TODO Put the HTML into a grid
 
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
@@ -137,7 +138,7 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
           |  _  => panic! s!"Could not extract indentation from {stx}."
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
-    let range : Lsp.Range := ⟨pos, pos⟩
+    let range : Lsp.Range := ⟨stxEnd, pos⟩
     savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
     evalTacticSeq seq
