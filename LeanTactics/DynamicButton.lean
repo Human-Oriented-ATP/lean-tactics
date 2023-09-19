@@ -144,4 +144,26 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
     evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
 
+@[command_code_action Parser.Term.byTactic]
+def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
+  fun _ _ _ tree ↦ do
+    let some info := tree.findInfo? (match ·.stx with | `(by $_) => .true | _ => .false) | return #[]
+    let doc ← RequestM.readDoc
+    match info.stx with
+      | stx@`(by $_tacs:tacticSeq) => 
+        let eager : Lsp.CodeAction := {
+          title := "Start a motivated proof."
+          kind? := "quickfix",
+          isPreferred? := some .true
+        }
+        return #[{
+          eager
+          lazy? := some do
+            let some ⟨_, stxEnd⟩ := doc.meta.text.rangeOfStx? stx | return eager
+            return { eager with
+              edit? := some <| .ofTextEdit doc.meta.uri {
+                range := ⟨stxEnd, stxEnd⟩, newText := "\n  motivated_proof\n  "
+              } } }]
+      |         _          => return #[]
+
 end MotivatedProofMode
