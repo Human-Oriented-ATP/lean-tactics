@@ -299,25 +299,25 @@ elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
 
 example : (0 ≤ 1) → 0 ≤ 1 := by
   make_tree
-  tree_rewrite_ord [0,1] [1,0,1]
+  tree_rewrite_ord [0] [1,0,1]
   rfl
 
 example (p q : Prop) : (p → q) → True ∨ (p → q) := by
   make_tree
-  tree_rewrite_ord [0,1] [1,1,1]
+  tree_rewrite_ord [0] [1,1,1]
   sorry
 
 example (p q : Prop) : Imp (p → q) <| True ∨ (p → q) := by
-  tree_rewrite_ord [0,1] [1,1,1]
+  tree_rewrite_ord [0] [1,1,1]
   sorry
 
 example (p q : Prop) : Imp (p → q) <| True ∨ (p → q) := by
-  tree_rewrite_ord [0,1] [1,1,0]
+  tree_rewrite_ord [0] [1,1,0]
   sorry
 
 example (𝔸 : Set (Set α)) (B C : Set α) : (C ⊆ B) → {A ∈ 𝔸 | B ⊂ A} ⊆ {A ∈ 𝔸 | C ⊂ A} := by
   make_tree
-  tree_rewrite_ord [0,1] [1,0,1,1,1,1,0,1]
+  tree_rewrite_ord [0] [1,0,1,1,1,1,0,1]
   rfl
 
 lemma testLib : ∀ x, x - 1 ≤ x := sorry
@@ -328,13 +328,13 @@ example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤
   lib_apply _root_.refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
-  tree_rewrite_ord [0,1,1,1] [1,1,1,1]
+  tree_rewrite_ord [0,1] [1,1,1,1]
   use 0    
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
-  tree_rewrite_ord [0,1,1,1] [1,1,1]
+  tree_rewrite_ord [0,1] [1,1,1]
   make_tree
-  lib_apply _root_.refl [1,1]
+  lib_apply _root_.refl [1]
 
 /-
 What should the isolate tactic do?

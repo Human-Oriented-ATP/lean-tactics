@@ -11,6 +11,8 @@ import { EditorContext, DocumentPosition, RpcContext, RpcSessionAtPos,
     importWidgetModule, mapRpcError, useAsyncPersistent } from '@leanprover/infoview';
 import type { DynamicComponent } from '@leanprover/infoview';
 import { TextDocumentEdit } from 'vscode-languageserver-protocol';
+import { Button } from '@mui/material'
+import '@mui/private-theming'
 
 type HtmlAttribute = [string, any]
 
@@ -103,7 +105,7 @@ export default function DynamicButton(props:DynamicButtonProps) {
 
     return (
         <div>
-            { (isHTMLVisible && props.vanish) ? null : <button onClick={onClick}>{props.label}</button> }
+            { (isHTMLVisible && props.vanish) ? null : <Button color = {'primary'} size = {'medium'} sx={{textTransform: "none"}} variant = {'outlined'} onClick={onClick}>{props.label}</Button> }
             { (isHTMLVisible && props.html) ? 
                 <HtmlDisplay pos={props.pos} html={props.html}/> : null }
         </div>

@@ -1,101 +1,109 @@
 import Tree
 
 namespace Tree
+open Lean Parser
 
-open Lean TSyntax.Compat Parser
+def newLineTermParser := ppDedent ("⠀" >> ppLine >> categoryParser `tree 0)
 
-def newLineTermParser := ppDedent $ "⠀" >> ppLine >> termParser
+declare_syntax_cat symbol_binder
+declare_syntax_cat binder
+declare_syntax_cat tree
 
-syntax "∀ " ident "⋆ : " term newLineTermParser : term
-syntax "∃ " ident "• : " term newLineTermParser : term
-syntax "[" ident " : " term "]" newLineTermParser : term
-syntax "⬐" ppHardSpace term newLineTermParser : term
-syntax "⊢" ppHardSpace term newLineTermParser : term
+syntax ident "⋆ : " term : binder
+syntax ident "• : " term : binder
+syntax "[" (ident " : ")? term "]" : binder
+
+syntax ("∀ " <|> "∃ ")? binder : symbol_binder
+
+syntax (name := binders) symbol_binder,+ newLineTermParser : tree
+syntax (name := hypothesis) term newLineTermParser : tree
+syntax (name := dotHypothesis) "·" ppHardSpace term newLineTermParser : tree
+syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
 
 syntax ident "•" : term
 syntax ident "⋆" : term
 
-macro_rules
-| `(∀ $a⋆ : $b⠀$c) => `(Tree.Forall $b fun $a => $c)
-| `(∃ $a• : $b⠀$c) => `(Tree.Exists $b fun $a => $c)
-| `([$a : $b]⠀$c) => `(Tree.Instance $b fun $a => $c)
-| `(⬐ $a⠀$b) => `(Tree.Imp $a $b)
-| `(⊢ $a⠀$b) => `(Tree.And $a $b)
-| `($a:ident ⋆) => `($a)
-| `($a:ident •) => `($a)
 
--- @[app_unexpander Forall] def unexpandForall' : Lean.PrettyPrinter.Unexpander
---   | `($(_) $t fun $x:ident => $b)
---   | `($(_) $t fun ($x:ident : $_) => $b) => `(∀ $x:ident⋆ : $t⠀$b)
---   | _ => throw ()
-
--- @[app_unexpander Exists] def unexpandExists' : Lean.PrettyPrinter.Unexpander
---   | `($(_) $t fun $x:ident => $b)
---   | `($(_) $t fun ($x:ident : $_) => $b) => `(∃ $x:ident• : $t⠀$b)
---   | _ => throw ()
-
-@[app_unexpander Imp] def unexpandImp : Lean.PrettyPrinter.Unexpander
-  | `($(_) $P $Q) => `(⬐ $P⠀$Q)--`($P ⇨ $Q)
-  | _ => throw ()
-
-@[app_unexpander And] def unexpandAnd : Lean.PrettyPrinter.Unexpander
-  | `($(_) $P $Q) => `(⊢ $P⠀$Q)--`($P ∧ $Q)
-  | _ => throw ()
-
--- @[app_unexpander Imp'] def unexpandImp' : Lean.PrettyPrinter.Unexpander
---   | `($(_) $P fun $x:ident => $b)
---   | `($(_) $P fun ($x:ident : $_) => $b) => `(⬐ ($x : $P)⠀$b)--`(($x : $P) ⇨ $b)
---   | _ => throw ()
-
--- @[app_unexpander And'] def unexpandAnd' : Lean.PrettyPrinter.Unexpander
---   | `($(_) $P fun $x:ident => $b)
---   | `($(_) $P fun ($x:ident : $_) => $b) => `(⊢ ($x : $P)⠀$b)--`(($x : $P) ∧ $b)
---   | _ => throw ()
-  
-@[app_unexpander Instance] def unexpandInstance : Lean.PrettyPrinter.Unexpander
-  | `($(_) $P fun $x:ident => $b)
-  | `($(_) $P fun ($x:ident : $_) => $b) => `([$x : $P]⠀$b)
-  | _ => throw ()
-
-
-open PrettyPrinter.Delaborator SubExpr
-
-
+open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
 @[delab app.Tree.Forall]
 def delabForall : Delab := do
   let forall_pattern n _u d b ← getExpr | failure
+  let stxD ← withAppFn $ withAppArg delab
   let n ← getUnusedName n b
-  let stxD ← withAppFn $ withAppArg $ delab
-  let stxB ← Meta.withLocalDeclD n d fun fvar => do
-    let b := b.instantiate1 (mkAnnotation `star fvar)
-    withAppArg $ descend b 1 delab
   let stxN := mkIdent n
-  `(∀ $stxN⋆ : $stxD⠀$stxB)
-  
+  let stxND ← annotateTermInfo (← `(binder| $stxN:ident⋆ : $stxD))
+  Meta.withLocalDeclD n d fun fvar =>
+  descend (b.instantiate1 (mkAnnotation `star fvar)) 1 do
+  match ← delab with
+    | `(tree|∀ $a:binder,$[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∀ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|$stx)                                    => `(tree|∀ $stxND:binder⠀ $stx)
+
 @[delab app.Tree.Exists]
 def delabExists : Delab := do
   let exists_pattern n _u d b ← getExpr | failure
+  let stxD ← withAppFn $ withAppArg delab
   let n ← getUnusedName n b
-  let stxD ← withAppFn $ withAppArg $ delab
-  let stxB ← Meta.withLocalDeclD n d fun fvar => do
-    let b := b.instantiate1 (mkAnnotation `bullet fvar)
-    withAppArg $ descend b 1 delab
   let stxN := mkIdent n
-  `(∃ $stxN• : $stxD⠀$stxB)
-  
+  let stxND ← annotateTermInfo (← `(binder| $stxN:ident• : $stxD))
+  Meta.withLocalDeclD n d fun fvar =>
+  descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
+  match ← delab with
+    | `(tree|∃ $a:binder,$[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∃ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|$stx)                                    => `(tree|∃ $stxND:binder⠀ $stx)
+
+@[delab app.Tree.Instance]
+def delabInstance : Delab := do
+  let instance_pattern n _u d b ← getExpr | failure
+  let stxD ← withAppFn $ withAppArg delab
+  let stxND ← annotateTermInfo <| ← do 
+    if n.eraseMacroScopes == `inst then `(binder| [$stxD:term])
+    else do
+    let n ← getUnusedName n b
+    let stxN := mkIdent n
+    `(binder| [$stxN:ident : $stxD])
+  Meta.withLocalDeclD n d fun fvar =>
+  descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
+  match ← delab with
+    | `(tree|$[$b:symbol_binder],*⠀ $stx) => `(tree|$stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|$stx)                        => `(tree|$stxND:binder⠀ $stx)
+
+@[delab app.Tree.Imp]
+def delabImp : Delab := do
+  let imp_pattern p q ← getExpr | failure
+  let stxP ← descend p 0 delab
+  let stxQ ← descend q 1 delab
+  if isTree p then
+    `(dotHypothesis|· $stxP⠀$stxQ)
+  else
+    `(hypothesis|$stxP⠀$stxQ)
+
+@[delab app.Tree.And]
+def delabAnd : Delab := do
+  let and_pattern p q ← getExpr | failure
+  let stxP ← descend p 0 delab
+  let stxQ ← descend q 1 delab
+  `(sidegoal|⊢ $stxP⠀$stxQ)
 
 
+/- note that we do not call the main delab function, but delabFVar directly. This is to avoid a seccond term annotation
+on the free variable itself, without the bullet/star.-/
 @[delab mdata]
 def delabAnnotation : Delab := do
   if (annotation? `star (← getExpr)).isSome then
-    `($(← withMDataExpr delab):ident ⋆)
+    `($(← withMDataExpr delabFVar):ident ⋆)
   else
   if (annotation? `bullet (← getExpr)).isSome then
-    `($(← withMDataExpr delab):ident •)
+    `($(← withMDataExpr delabFVar):ident •)
   else failure
 
 
-example (p : Prop) (q : Nat → Prop) :( ∀ n : Nat, q n) →  p → (p → p) →  ∃ m : Nat, q m := by
+example (p : Prop) (q : Nat → Prop) : ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ∃ g n : Int, ∃ m:Nat, Nat → q a) →  p → (p → p) → ∃ m h : Nat, q m := by
   make_tree
   sorry
+example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
+  make_tree
+  sorry
+

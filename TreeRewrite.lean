@@ -134,16 +134,16 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
 
 example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := by
   make_tree
-  tree_rewrite [0,1,1,1,1] [1,0,1,0,1]
+  tree_rewrite [0,1,1,1] [1,0,0]
   sorry
 
 example : (∀ n : Nat, n = n+1) → (∃ m : Nat, m = m+1) → True := by
   make_tree
-  tree_rewrite [0,1,1,1] [1,0,1,1,1,0,1]
+  tree_rewrite [0,1] [1,0,1,0,1]
   sorry
 
 
 example : (∀ n l : Nat, n = l+n) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} := by
   make_tree
-  tree_rewrite [0,1,1,1,1,1] [1,1,1,0,1,1,1,0,1]
+  tree_rewrite [0,1,1] [1,1,0,1,1,1,0,1]
   sorry

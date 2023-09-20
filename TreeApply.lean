@@ -1,5 +1,5 @@
 import Tree
-import PrintTree
+-- import PrintTree
 open Tree Lean Meta
 
 
@@ -565,15 +565,15 @@ elab "lib_apply" hypName:ident goalPos:treePos : tactic => do
 
 example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by
   make_tree
-  tree_apply [0,1,0,1,1] [1,0,1,0,1]
-  tree_apply' [0,1] [1,0,1,0,1]
-  tree_apply [1,0,1] [1,1]
+  tree_apply [0,0,1] [1,0,0]
+  tree_apply' [0] [1,0,0]
+  tree_apply [1,0] [1,1]
 
 
 
 example : ({α : Type 0} → {r : α → α → Prop} → [IsRefl α r] → (a : α) → r a a) → 3 = 3 := by
   make_tree
-  tree_apply [0,1,1,1,1,1,1,1,1,1] [1]
+  tree_apply [0,1,1,1,1] [1]
   -- lib_apply refl [1]
 
 set_option checkBinderAnnotations false in
@@ -583,94 +583,93 @@ example :
   (∀ hh > 0, 0 < hh) → ∀ ε:Nat,
   0 < ε := by
   make_tree
-  tree_apply [0,1,1,1,1] [1,1,1]
+  tree_apply [0,1,1] [1,1]
   sorry
 
 example (p q : Prop) : (q → p) → ∃ n:Nat, p := by
   make_tree
-  tree_apply [0,1,1] [1,1,1]
+  tree_apply [0,1] [1,1]
   sorry
 
 example (p : Prop) : (∀ _n:Nat, p) → p := by
   make_tree
-  tree_apply [0,1,1,1] [1]
-  lib_apply Tree.infer []
+  tree_apply [0,1] [1]
 
 example (p : Nat → Prop): (∀ m, (1=1 → p m)) → ∀ m:Nat, p m := by
   make_tree
-  tree_apply [0,1,1,1,1] [1,1,1]
+  tree_apply [0,1,1] [1,1]
   rfl
 
 example (p q : Prop) : p → (p → q) → q := by
   make_tree
-  tree_apply [0,1] [1,0,1,0,1]
+  tree_apply [0] [1,0,0]
   -- q → q
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
 
 example (p q : Prop) : p → (p → q) → q := by
   make_tree
-  tree_apply [1,0,1,1] [1,1]
+  tree_apply [1,0,1] [1,1]
   -- p → p
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
   
 example (p q : Prop) : p → (p → q) → q := by
   make_tree
-  tree_apply [1,0,1,0,1] [0,1]
+  tree_apply [1,0,0] [0]
   -- p → p
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
 
 example (p q r : Prop) : (q → p) → (q ∧ r) → p := by
   make_tree
-  tree_apply [1,0,1,0,1] [0,1,0,1]
-  tree_apply [0,1] [1,1]
+  tree_apply [1,0,0] [0,0]
+  tree_apply [0] [1,1]
 
 example (p q : Prop) : p ∧ (p → q) → q := by
   make_tree
-  tree_apply [0,1,0,1] [0,1,1,0,1]
+  tree_apply [0,0] [0,1,0]
   -- q → q
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
   
 example (p q : Prop) : ((p → q) ∧ p) ∧ p → q := by
   make_tree
-  tree_apply [0,1,1] [0,1,0,1,0,1,0,1]
+  tree_apply [0,1] [0,0,0,0]
   -- q → q
-  tree_apply [0,1,0,1] [1]
+  tree_apply [0,0] [1]
 
 example (p q : Prop) : (p → q) → p → q := by
   make_tree
-  tree_apply [1,0,1] [0,1,0,1]
+  tree_apply [1,0] [0,0]
   -- q → q
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
   
 example (p q : Prop) : ((q → p) → p → q) → True := by
   make_tree
-  tree_apply [0,1,1,0,1] [0,1,0,1,1]
+  tree_apply [0,1,0] [0,0,1]
   lib_apply trivial [1]
 
 example (p q r s: Prop) : (p → q → r → s) → q → True := by
   make_tree
-  tree_apply [0,1,1,0,1] [1,0,1]
+  tree_apply [0,1,0] [1,0]
   -- q → q
   lib_apply trivial [1]
 
 example (p : Prop) : p → p := by
   make_tree
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
 
 example [Preorder α] (a b : α) : a < b → a ≤ b := by
   make_tree
-  lib_apply le_of_lt [0,1]
-  tree_apply [0,1] [1]
+  lib_apply le_of_lt [0]
+  tree_apply [0] [1]
   
 example [Preorder α] (a b : α) : a < b → a ≤ b := by
   make_tree
   lib_apply le_of_lt [1]
-  tree_apply [0,1] [1]
+  tree_apply [0] [1]
   
 example [Preorder α] (a b : α) : a < b → a ≤ b := by
   make_tree
   lib_intro le_of_lt
-  tree_apply [0,1,1,1,1,1,1,1,1,1] [1]
+  tree_apply [0,1,1,1,1] [1]
 
 /-
 I was wondering what the exact way should be in which quantifiers are handled by the tree apply/rewrite moves.
@@ -679,8 +678,8 @@ The simplest example where this is non-trivial is this:
 -- set_option pp.all true in
 example (p q r : Prop) : (p → q ∧ r) → q ∧ (p → r) := by
   make_tree
-  tree_apply [0,1,1,1] [1,1,1]
-  tree_apply [1,0,1] [1,1]
+  tree_apply [0,1,1] [1,1,1]
+  tree_apply [1,0] [1,1]
   exact (sorry : p)
 
 /-

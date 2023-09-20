@@ -9,36 +9,41 @@ import TreeInduction
 import TreeNormalize
 import TreeSearch
 
+import PrintTree
+
 
 example : True := by lib_apply trivial []
+
+#check Lean.Widget.ppExprTagged
 
 
 
 example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   → UniformContinuous f → Continuous f := by
   make_tree
-  lib_rewrite Metric.uniformContinuous_iff [1,1,1,1,1,1,0,1]
-  lib_rewrite Metric.continuous_iff [1,1,1,1,1,1,1]
+  lib_rewrite Metric.uniformContinuous_iff [1,1,1,0]
+  lib_rewrite Metric.continuous_iff [1,1,1,1]
   make_tree
-  tree_apply [1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  tree_apply [1,1,0,1] [1,1,1,0,1]
-  tree_apply [1,1,0,1] [1,1,1]
+  tree_apply [1,1,1,0,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,0] [1,1,1,1,0]
+  tree_apply [1,1,1,0] [1,1,1,1,1,0]
+  tree_search
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
-  : LipschitzWith 1 f → Continuous f := by
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) : 
+  LipschitzWith 1 f → Continuous f := by
   make_tree
   lib_rewrite Metric.continuous_iff [1]
-  lib_rewrite lipschitzWith_iff_dist_le_mul [0,1]
+  lib_rewrite lipschitzWith_iff_dist_le_mul [0]
   make_tree
-  tree_simp [0,1,1,1,1,1,1]
-  tree_rewrite_ord [0,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  tree_rewrite_ord [1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite_rev Set.mem_Ioo [1,1,1,1,1]
-  lib_rewrite_rev Set.nonempty_def [1,1,1]
-  lib_rewrite Set.nonempty_Ioo [1,1,1]
-  tree_apply [1,1,0,1] [1,1,1]
+  tree_simp [0,1,1,1]
+  tree_rewrite_ord [0,1,1] [1,1,1,1,1,1,1,1,0,1]
+  tree_rewrite_ord [1,1,1,1,1,1,0] [1,1,1,1,1,1,1,0,1]
+  lib_rewrite_rev Set.mem_Ioo [1,1,1]
+  lib_rewrite_rev Set.nonempty_def [1,1]
+  lib_rewrite Set.nonempty_Ioo [1,1]
+  tree_apply [1,0] [1,1]
 
-
+ 
 lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ε - η = ζ :=
   fun ε hε =>
     let hε2 : ε / 2 > 0 := div_pos hε (by simp)
@@ -48,34 +53,34 @@ lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
     ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
-  : (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
+  (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
   make_tree
-  lib_rewrite Metric.tendstoUniformly_iff [1,0,1]
+  lib_rewrite Metric.tendstoUniformly_iff [1,0]
   make_tree
-  lib_rewrite Filter.eventually_atTop [1,0,1,1,1,1]
+  lib_rewrite Filter.eventually_atTop [1,0,1,1]
   lib_rewrite Metric.continuous_iff [1,1]
   make_tree
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  tree_rewrite_ord' [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1]
-  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,0,1]
+  tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,0,1,0,1]
+  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
   tree_search
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
-  tree_rewrite_ord [1,0,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
-  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
+  tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1]
+  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
   tree_search
-  lib_rewrite Metric.continuous_iff [0,1,1,1]
+  lib_rewrite Metric.continuous_iff [0,1]
   make_tree
-  tree_rewrite_ord [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_rewrite_ord [0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
   tree_search
-  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1]
   tree_search
-  lib_rewrite_rev max_le_iff [1,1,1,1,1,1]
-  lib_apply refl [1,1,1,1,1,1]
+  lib_rewrite_rev max_le_iff [1,1,1]
+  lib_apply refl [1,1,1]
 
 
 variable [TopologicalSpace X]
@@ -114,11 +119,11 @@ lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : Fin n → ℕ), ∑ i : Fin n, (
   make_tree
   tree_induction []
   make_tree
-  tree_simp [0,1,1,1,1,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,1,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1,1,0,1]
-  tree_rewrite [1,1,0,1,1,1,1,1] [1,1,1,1,1,1,1,0,1,0,1]
+  tree_simp [0,1,1]
+  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,0,1]
+  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1]
+  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,0,1]
+  tree_rewrite [1,0,1,1] [1,1,1,1,0,1,0,1]
   ring_nf
   tree_search
 
@@ -126,11 +131,11 @@ lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : Fin n → ℕ), ∑ i : Fin n, (
 example : ∀ n : ℕ, ∑ i : Fin n, (i : Int) = (n * (n - 1) / 2) := by
   make_tree
   tree_induction []
-  tree_simp [0,1]
+  tree_simp [0]
   tree_search
   make_tree
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,0,1]
-  tree_rewrite [1,1,0,1] [1,1,1,0,1,0,1]
+  lib_rewrite Fin.sum_univ_castSucc [1,1,0,1]
+  tree_rewrite [1,0] [1,1,0,1,0,1]
   norm_cast
   simp
   sorry -- this is a bit tricky to evaluate
@@ -154,7 +159,7 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
   make_tree
   tree_induction []
   make_tree
-  lib_rewrite Rat.cast_mk' [1,1,1,1,1,1,1,1,0,1,0,1]
+  lib_rewrite Rat.cast_mk' [1,1,1,1,0,1,0,1]
   tree_search'
   -- field_simp
   simp
