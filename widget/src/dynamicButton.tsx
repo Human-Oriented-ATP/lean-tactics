@@ -99,8 +99,10 @@ export default function DynamicButton(props:DynamicButtonProps) {
             await ec.api.applyEdit({ documentChanges: [props.edit.edit] })
             // TODO: https://github.com/leanprover/vscode-lean4/issues/225
             if (props.edit.newCursorPos)
-                await ec.revealPosition({ ...props.edit.newCursorPos, uri: props.edit.edit.textDocument.uri }) 
+                await ec.revealPosition({ ...props.edit.newCursorPos, uri: props.edit.edit.textDocument.uri })
+            
         }
+        setHTMLVisible(false); // temporary while states are leaking
     }
 
     return (
