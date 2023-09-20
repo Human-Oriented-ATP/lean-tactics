@@ -29,8 +29,8 @@ example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   tree_apply [1,1,1,0] [1,1,1,1,1,0]
   tree_search
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β)
-  : LipschitzWith 1 f → Continuous f := by
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) : 
+  LipschitzWith 1 f → Continuous f := by
   make_tree
   lib_rewrite Metric.continuous_iff [1]
   lib_rewrite lipschitzWith_iff_dist_le_mul [0]
@@ -53,8 +53,8 @@ lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
     ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β)
-  : (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
+  (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
   make_tree
   lib_rewrite Metric.tendstoUniformly_iff [1,0]
   make_tree

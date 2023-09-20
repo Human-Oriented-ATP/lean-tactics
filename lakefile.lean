@@ -80,6 +80,10 @@ lean_lib EditLinkInsertion {
 lean_lib DynamicButton {
   -- add any library configuration options here
 }
+
+lean_lib TreeExamples {
+  -- add any library configuration options here
+}
 section Scripts
 
 /-! A script to automatically generate top-level import files for each library. -/
