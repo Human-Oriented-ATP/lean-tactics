@@ -7,6 +7,8 @@ import ProofWidgets.Demos.Macro
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
+import Mathlib
+import Tree
 
 namespace ProofWidgets
 open Lean Server Elab Command Lsp
@@ -41,7 +43,7 @@ structure DynamicButtonProps where
 deriving RpcEncodable
 
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
-  javascript := include_str "../build/js/dynamicButton.js"
+  javascript := include_str ".." / "build" / "js" / "dynamicButton.js"
 
 
 structure DynamicEditButtonProps where
@@ -139,9 +141,15 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
+    let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
+    | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
+      let mkTree ← `(tactic| make_tree)
+      let newTacs := (mkTree :: (List.intersperse mkTree) (tacs.toList)).toArray
+      `(Parser.Tactic.tacticSeq | $[$newTacs]*)
+    | _ => pure seq
     savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
-    evalTacticSeq seq
+    evalTacticSeq newseq
 |                 _                    => throwUnsupportedSyntax
 
 end MotivatedProofMode
