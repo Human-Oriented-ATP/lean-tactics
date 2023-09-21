@@ -1,4 +1,4 @@
-import Tree
+import TreeMoves.LibrarySearch
 open Tree Lean Meta
 
 
@@ -418,9 +418,9 @@ hypothesis, and the path and the position in that.
 hypContext
 goal, with position in that, and polarity.
 -/
-abbrev UnificationProof := HypothesisContext → Expr → Expr → Bool → List TreeBinderKind → List Nat → List Nat → MetaM' TreeProof 
+abbrev Unification := HypothesisContext → Expr → Expr → Bool → List TreeBinderKind → List Nat → List Nat → MetaM' TreeProof 
 
-partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypPath goalPath : List TreeBinderKind) (hypPos goalPos : List Nat) (unification : UnificationProof)
+partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypPath goalPath : List TreeBinderKind) (hypPos goalPos : List Nat) (unification : Unification)
   : MetaM' (MetaM' TreeProof) :=
   unfoldHypothesis hypProof hyp hypPath
     fun hyp hypPath hypContext =>
@@ -429,7 +429,7 @@ partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypPath g
           let treeProof ← unification hypContext hyp goal pol hypPath hypPos goalPos
           return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol goal) treeProof
 
-partial def applyBound (hypPos goalPos : List Nat) (delete? : Bool) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
+partial def applyBound (hypPos goalPos : List Nat) (delete? : Bool) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
   let (hypPath , hypPos ) := positionToPath hypPos tree
   let (goalPath, goalPos) := positionToPath goalPos tree
   let (path, hypPath, goalPath) := takeSharedPrefix hypPath goalPath
@@ -460,7 +460,7 @@ where
 
 
 partial def applyUnbound (hypName : Name) (getHyp : Expr → List TreeBinderKind → MetaM (Expr × List TreeBinderKind × List Nat))
-    (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := do
+    (goalPos : List Nat) (unification : Unification) (tree : Expr) : MetaM TreeProof := do
   let cinfo ← getConstInfo hypName
   let us ← mkFreshLevelMVarsFor cinfo
   let hypProof := .const hypName us
@@ -471,7 +471,7 @@ partial def applyUnbound (hypName : Name) (getHyp : Expr → List TreeBinderKind
 
   Monad.join (applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification) |>.run' {}
 
--- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : UnificationProof) (tree : Expr) : MetaM TreeProof := (do
+-- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
 --   let (goalPath, goalPos) := positionToPath goalPos tree
 --   let hypProof ← mkConstWithFreshMVarLevels hypName
 --   let hyp ← makeTree (← inferType hypProof)
@@ -539,10 +539,12 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
       throwError m!"couldn't unify condition {cond} with target {goal}"
   | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hyp}"
 
-def getApplyPos (hyp : Expr) (goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+def getApplyPos (pos? : Option (List Nat)) (hyp : Expr) (goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := if PathToPolarity goalPath then getPath hypTree else (getPathToHyp hypTree).getD []
-  return (← makeTreePath path hyp, path, [])
+  let (path, pos) ← match pos? with
+    | none => pure (if PathToPolarity goalPath then getPath hypTree else (getPathToHyp hypTree).getD [], [])
+    | some pos => pure $ positionToPath pos (← makeTree hyp)
+  return (← makeTreePath path hyp, path, pos)
 
 open Elab.Tactic
 
@@ -556,10 +558,11 @@ elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeApply)
 
-elab "lib_apply" hypName:ident goalPos:treePos : tactic => do
+elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
   let goalPos := getPosition goalPos
-  workOnTree (applyUnbound hypName getApplyPos goalPos treeApply)
+  let hypPos := getPosition <$> hypPos
+  workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
 
 
 example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by
