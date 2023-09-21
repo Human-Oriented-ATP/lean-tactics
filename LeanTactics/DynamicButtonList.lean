@@ -1,4 +1,5 @@
 import LeanTactics.DynamicButton
+import TreeExamples
 
 open ProofWidgets Lean Meta
 
@@ -65,7 +66,7 @@ def treeSimp : InfoviewAction :=
     if (panelProps.selectedLocations.size == 1) then
       let some pos := panelProps.selectedLocations[0]? | OptionT.fail
       let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
-      let text := "tree_simp" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      let text := "tree_simp " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
       pure 
         <DynamicEditButton 
           label={"Try to simplify the selected subexpression"} 
@@ -82,7 +83,7 @@ def make_tree : InfoviewAction :=
       <DynamicEditButton 
         label={"Turn the tactic state into a tree"} 
         range?={props.range} 
-        insertion?={"make_tree"} 
+        insertion?={"make_tree"}
         html?={<p> Making a tree... </p>}
         vanish={true} />
 
@@ -130,12 +131,33 @@ def tree_induction : InfoviewAction :=
           label={"Apply induction on the selected subexpression"} 
           range?={props.range} 
           insertion?={text} 
-          html?={<p> Simplifying the target... </p>}
+          html?={<p> Performing induction... </p>}
+          vanish={true} />
+    else OptionT.fail
+
+@[motivated_proof_move]
+def lib_rewrite : InfoviewAction :=
+  fun props => do 
+    let panelProps := props.toPanelWidgetProps
+    if (panelProps.selectedLocations.size == 1) then
+      let some pos := panelProps.selectedLocations[0]? | OptionT.fail
+      let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
+      let text := "lib_rewrite" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      pure 
+        <DynamicEditButton 
+          label={"Library rewrite at a selected position (to be implemented)"} 
+          range?={props.range} 
+          insertion?={text} 
+          html?={<p> Rewriting... </p>}
           vanish={true} />
     else OptionT.fail
   
-example : 1 = 1 := by
-  motivated_proof
-    skip
-    simp
-    
+example : 1 = 1 → 1 = 1 ∧ 1 = 2 := by
+motivated_proof
+sorry
+
+
+
+
+
+
