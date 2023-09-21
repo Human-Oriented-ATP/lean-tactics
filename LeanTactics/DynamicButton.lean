@@ -38,6 +38,7 @@ structure DynamicButtonProps where
   edit? : Option EditParams := none
   html? : Option Html := none
   vanish : Bool := false
+  key   :=   label
 deriving RpcEncodable
 
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
