@@ -2,11 +2,11 @@
 -- import Mathlib.Topology.Sequences
 -- import Mathlib.GroupTheory.Subgroup.Basic
 
-import TreeRewriteOrd
-import TreeRewrite
-import TreeInduction
-import TreeNormalize
-import TreeSearch
+import TreeMoves.TreeRewriteOrd
+import TreeMoves.TreeRewrite
+import TreeMoves.TreeInduction
+import TreeMoves.TreeNormalize
+import TreeMoves.TreeSearch
 
 import PrintTree
 import LeanTactics.DynamicButtonList

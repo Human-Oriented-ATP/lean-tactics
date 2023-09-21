@@ -69,6 +69,10 @@ lean_lib TreeMoves.LibrarySearch {
   -- add any library configuration options here
 }
 
+lean_lib TreeMoves.TreeExamples {
+  -- add any library configuration options here
+}
+
 lean_lib InfoDisplayTactics {
   -- add any library configuration options here
 }
@@ -89,9 +93,6 @@ lean_lib LeanTactics.DynamicButtonList {
   -- add any library configuration options here
 }
 
-lean_lib TreeExamples {
-  -- add any library configuration options here
-}
 section Scripts
 
 /-! A script to automatically generate top-level import files for each library. -/

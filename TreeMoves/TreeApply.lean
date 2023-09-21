@@ -430,8 +430,8 @@ partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypPath g
           return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol goal) treeProof
 
 partial def applyBound (hypPos goalPos : List Nat) (delete? : Bool) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
-  let (hypPath , hypPos ) := positionToPath hypPos tree
-  let (goalPath, goalPos) := positionToPath goalPos tree
+  let (hypPath , hypPos ) := posToPath hypPos tree
+  let (goalPath, goalPos) := posToPath goalPos tree
   let (path, hypPath, goalPath) := takeSharedPrefix hypPath goalPath
   let treeProofM ← (TreeRecMeta false).recurse true tree path
     fun pol tree _path => do
@@ -466,18 +466,18 @@ partial def applyUnbound (hypName : Name) (getHyp : Expr → List TreeBinderKind
   let hypProof := .const hypName us
   let hyp := cinfo.instantiateTypeLevelParams us
   
-  let (goalPath, goalPos) := positionToPath goalPos tree
+  let (goalPath, goalPos) := posToPath goalPos tree
   let (hyp, hypPath, hypPos) ← getHyp hyp goalPath
 
   Monad.join (applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification) |>.run' {}
 
 -- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
---   let (goalPath, goalPos) := positionToPath goalPos tree
+--   let (goalPath, goalPos) := posToPath goalPos tree
 --   let hypProof ← mkConstWithFreshMVarLevels hypName
 --   let hyp ← makeTree (← inferType hypProof)
 
---   let mut hypPath := getPath hyp
---   let polarity := PathToPolarity goalPath
+--   let mut hypPath := findPath hyp
+--   let polarity := pathToPol goalPath
 --   if !polarity then
 --     let rec go : List TreeBinderKind → Option (List TreeBinderKind)
 --       | x::xs => match x, go xs with
@@ -542,8 +542,8 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
 def getApplyPos (pos? : Option (List Nat)) (hyp : Expr) (goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
   let (path, pos) ← match pos? with
-    | none => pure (if PathToPolarity goalPath then getPath hypTree else (getPathToHyp hypTree).getD [], [])
-    | some pos => pure $ positionToPath pos (← makeTree hyp)
+    | none => pure (if pathToPol goalPath then findPath hypTree else (findNegativePath hypTree).getD [], [])
+    | some pos => pure $ posToPath pos (← makeTree hyp)
   return (← makeTreePath path hyp, path, pos)
 
 open Elab.Tactic
@@ -563,6 +563,9 @@ elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   let hypPos := getPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
+
+elab "try_lib_apply" goalPos:treePos : tactic => do
+  let goalPos := getPosition goalPos
 
 
 example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by

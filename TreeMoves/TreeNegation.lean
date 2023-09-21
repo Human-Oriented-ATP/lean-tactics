@@ -1,5 +1,5 @@
-import Tree
-import PrintTree
+import TreeMoves.Tree
+import TreeMoves.PrintTree
 
 
 open Lean

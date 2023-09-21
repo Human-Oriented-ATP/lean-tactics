@@ -1,4 +1,4 @@
-import TreeRewrite
+import TreeMoves.TreeRewrite
 
 namespace Tree
 

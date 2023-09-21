@@ -1,4 +1,4 @@
-import TreeApply
+import TreeMoves.TreeApply
 
 namespace Tree
 
@@ -6,7 +6,7 @@ open Lean Meta Elab.Tactic
 
 def getInductionPos (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := getPath hypTree
+  let path := findPath hypTree
   return (← makeTreePath path hyp, path.take (path.length - 1), [])
 
 elab "tree_induction" goalPos:treePos : tactic => do

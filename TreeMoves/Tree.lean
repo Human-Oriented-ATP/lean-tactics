@@ -700,7 +700,7 @@ partial def OptionRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m
   visit pol path tree
 
 -- this is more efficient, as it doesn't require instantiation of the loose bound variables.
-def positionToNodesAndPolarities : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat :=
+def posToPathAndPol : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat :=
   let rec visit (pol : Bool) : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat
     | 1::xs, forall_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.all      , pol)) <| visit   pol  xs tree
     | 1::xs, exists_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.ex       , pol)) <| visit   pol  xs tree
@@ -712,38 +712,38 @@ def positionToNodesAndPolarities : List Nat → Expr → List (TreeBinderKind ×
     | xs, _ => ([], xs)
   visit true
 
-def positionToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × List Nat :=
-  (Bifunctor.fst <| List.map Prod.fst) (positionToNodesAndPolarities pos tree)
+def posToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × List Nat :=
+  (Bifunctor.fst <| List.map Prod.fst) (posToPathAndPol pos tree)
 
-def positionToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
-  match positionToPath pos tree with
+def posToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
+  match posToPath pos tree with
   | (nodes, []) => return nodes
   | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
 
-def getPath : Expr → List TreeBinderKind
-  | imp_pattern _ tree                 => .imp_right :: getPath tree
-  | and_pattern _ tree                 => .and_right :: getPath tree
-  | forall_pattern (body := tree) ..   => .all       :: getPath tree
-  | exists_pattern (body := tree) ..   => .ex        :: getPath tree
-  | instance_pattern (body := tree) .. => .inst      :: getPath tree
+def findPath : Expr → List TreeBinderKind
+  | imp_pattern _ tree                 => .imp_right :: findPath tree
+  | and_pattern _ tree                 => .and_right :: findPath tree
+  | forall_pattern (body := tree) ..   => .all       :: findPath tree
+  | exists_pattern (body := tree) ..   => .ex        :: findPath tree
+  | instance_pattern (body := tree) .. => .inst      :: findPath tree
   | _ => []
 
-def getPathToHyp : Expr → Option (List TreeBinderKind)
-  | imp_pattern _ tree => match getPathToHyp tree with
+def findNegativePath : Expr → Option (List TreeBinderKind)
+  | imp_pattern _ tree => match findNegativePath tree with
       | some path => .imp_right :: path
       | none => some [.imp_left]
-  | and_pattern _ tree                 => (.and_right :: ·) <$> getPathToHyp tree
-  | forall_pattern (body := tree) ..   => (.all       :: ·) <$> getPathToHyp tree
-  | exists_pattern (body := tree) ..   => (.ex        :: ·) <$> getPathToHyp tree
-  | instance_pattern (body := tree) .. => (.inst      :: ·) <$> getPathToHyp tree
+  | and_pattern _ tree                 => (.and_right :: ·) <$> findNegativePath tree
+  | forall_pattern (body := tree) ..   => (.all       :: ·) <$> findNegativePath tree
+  | exists_pattern (body := tree) ..   => (.ex        :: ·) <$> findNegativePath tree
+  | instance_pattern (body := tree) .. => (.inst      :: ·) <$> findNegativePath tree
   | _ => none
 
-def PathToPosition (nodes : List TreeBinderKind) : List Nat :=
+def pathToPos (nodes : List TreeBinderKind) : List Nat :=
   (nodes.map fun | .imp_left | .and_left => [0] | _ => [1]).join
 
-def PathToPolarity : List TreeBinderKind → Bool
-| .imp_left::xs => !PathToPolarity xs
-| _::xs => PathToPolarity xs
+def pathToPol : List TreeBinderKind → Bool
+| .imp_left::xs => !pathToPol xs
+| _::xs => pathToPol xs
 | [] => true
 
 partial def makeTreeAux : Expr → MetaM Expr
@@ -856,7 +856,7 @@ where
 
 def workOnTreeAt (pos : List Nat) (move : List Nat → Bool → Expr → MetaM TreeProof) : TacticM Unit :=
   workOnTree fun tree => do 
-    let (path, pos) := positionToPath pos tree
+    let (path, pos) := posToPath pos tree
     TreeRec.recurse true tree path (fun pol tree _path => move pos pol tree)
 
     

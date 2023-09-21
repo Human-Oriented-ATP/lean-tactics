@@ -1,7 +1,7 @@
 import Mathlib.Algebra.CovariantAndContravariant
 import Mathlib.Data.SetLike.Basic
 import Mathlib.Algebra.Order.Group.Defs
-import TreeApply
+import TreeMoves.TreeApply
 
 
 open Function
@@ -286,7 +286,7 @@ elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
 
 def getRewriteOrdPos (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := getPath hypTree
+  let path := findPath hypTree
   return (← makeTreePath path hyp, path, [])
 
 elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do

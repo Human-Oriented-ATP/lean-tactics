@@ -1,4 +1,4 @@
-import TreeApply
+import TreeMoves.TreeApply
 
 namespace Tree
 
@@ -115,7 +115,7 @@ elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
 
 def getRewritePos (rev? : Bool) (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := getPath hypTree
+  let path := findPath hypTree
   return (← makeTreePath path hyp, path, (if rev? then [1] else [0,1]))
 
 

@@ -1,4 +1,4 @@
-import Tree
+import TreeMoves.Tree
 
 namespace Tree
 namespace Search

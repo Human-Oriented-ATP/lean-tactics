@@ -1,10 +1,9 @@
-import Tree
+import TreeMoves.Tree
 import Mathlib.Lean.Meta.DiscrTree
 
 namespace Tree
 
 open Lean Meta
-
 
 inductive LibraryLemmaKind where
 | apply
@@ -308,6 +307,21 @@ where
         | _      => visitNonStar k args (← visitStar result)
 
 
+
+def UnifyRec (d : DiscrTree α s) : OptionRecursor MetaM (Array (α × Nat)) where
+  imp_right _ _ _ := some
+  imp_left  _ _ _ := some
+  and_right _ _ _ := some
+  and_left  _ _ _ := some
+
+  all  _ _ _ pol _ k := do let var ← if  pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
+  ex   _ _ _ pol _ k := do let var ← if !pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
+  inst _ _ _ pol _ k := do let var ← if  pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
+
+
+
+
+
 structure LibraryMove where
   lemmaName : Name
   lemmaType : String
@@ -316,17 +330,17 @@ structure LibraryMove where
 
 -- def libraryApplySearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
 --   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := positionToPath pos e
---   let lems := if PathToPolarity goalPath then (lems.1.apply, lems.2.apply) else (lems.1.apply_rev, lems.2.apply_rev)
+--   let (goalPath, goalPos) := posToPath pos e
+--   let lems := if pathToPol goalPath then (lems.1.apply, lems.2.apply) else (lems.1.apply_rev, lems.2.apply_rev)
 --   let candidates := (← getUnifyWithSpecificity lems.1 ) ++ (← lems.getUnifyWithSpecificity)
 
 --   sorry
 -- def libraryRewriteSearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
 --   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := positionToPath pos e
+--   let (goalPath, goalPos) := posToPath pos e
 --   let lems := (lems.1.rewrite, lems.2.rewrite)
 --   sorry
 -- def libraryRewriteOrdSearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
 --   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := positionToPath pos e
+--   let (goalPath, goalPos) := posToPath pos e
 --   sorry
