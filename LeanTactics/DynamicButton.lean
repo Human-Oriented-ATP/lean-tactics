@@ -79,7 +79,7 @@ structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
 deriving RpcEncodable
 
-abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
+abbrev InfoviewAction := InfoviewActionProps → OptionT TermElabM Html
 
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   let { env, opts, .. } ← read
