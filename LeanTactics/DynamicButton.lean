@@ -40,6 +40,7 @@ structure DynamicButtonProps where
   edit? : Option EditParams := none
   html? : Option Html := none
   vanish : Bool := false
+  key   :=   label
 deriving RpcEncodable
 
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
@@ -78,7 +79,7 @@ structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
 deriving RpcEncodable
 
-abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
+abbrev InfoviewAction := InfoviewActionProps → OptionT TermElabM Html
 
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   let { env, opts, .. } ← read
@@ -151,5 +152,27 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       return json% { range : $(range) }
     evalTacticSeq newseq
 |                 _                    => throwUnsupportedSyntax
+
+@[command_code_action Parser.Term.byTactic]
+def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
+  fun _ _ _ tree ↦ do
+    let some info := tree.findInfo? (match ·.stx with | `(by $_) => .true | _ => .false) | return #[]
+    let doc ← RequestM.readDoc
+    match info.stx with
+      | stx@`(by $_tacs:tacticSeq) => 
+        let eager : Lsp.CodeAction := {
+          title := "Start a motivated proof."
+          kind? := "quickfix",
+          isPreferred? := some .true
+        }
+        return #[{
+          eager
+          lazy? := some do
+            let some ⟨_, stxEnd⟩ := doc.meta.text.rangeOfStx? stx | return eager
+            return { eager with
+              edit? := some <| .ofTextEdit doc.meta.uri {
+                range := ⟨stxEnd, stxEnd⟩, newText := "\n  motivated_proof\n  "
+              } } }]
+      |         _          => return #[]
 
 end MotivatedProofMode
