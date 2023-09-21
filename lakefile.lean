@@ -33,35 +33,39 @@ lean_lib RewriteOrd {
   -- add any library configuration options here
 }
 
-lean_lib Tree {
+lean_lib TreeMoves.Tree {
   -- add any library configuration options here
 }
 
-lean_lib PrintTree {
+lean_lib TreeMoves.PrintTree {
   -- add any library configuration options here
 }
 
-lean_lib TreeApply {
+lean_lib TreeMoves.TreeApply {
   -- add any library configuration options here
 }
 
-lean_lib TreeRewrite {
+lean_lib TreeMoves.TreeRewrite {
   -- add any library configuration options here
 }
 
-lean_lib TreeRewriteOrd {
+lean_lib TreeMoves.TreeRewriteOrd {
   -- add any library configuration options here
 }
 
-lean_lib TreeInduction {
+lean_lib TreeMoves.TreeInduction {
   -- add any library configuration options here
 }
 
-lean_lib TreeNormalize {
+lean_lib TreeMoves.TreeNormalize {
   -- add any library configuration options here
 }
 
-lean_lib TreeSearch {
+lean_lib TreeMoves.TreeSearch {
+  -- add any library configuration options here
+}
+
+lean_lib TreeMoves.LibrarySearch {
   -- add any library configuration options here
 }
 
@@ -78,6 +82,10 @@ lean_lib EditLinkInsertion {
 }
 
 lean_lib DynamicButton {
+  -- add any library configuration options here
+}
+
+lean_lib LeanTactics.DynamicButtonList {
   -- add any library configuration options here
 }
 

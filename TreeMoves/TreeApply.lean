@@ -1,5 +1,4 @@
 import Tree
--- import PrintTree
 open Tree Lean Meta
 
 

@@ -36,7 +36,7 @@ def delabForall : Delab := do
   Meta.withLocalDeclD n d fun fvar =>
   descend (b.instantiate1 (mkAnnotation `star fvar)) 1 do
   match ← delab with
-    | `(tree|∀ $a:binder,$[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|∀ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
     | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∀ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
     | `(tree|$stx)                                    => `(tree|∀ $stxND:binder⠀ $stx)
 
@@ -50,7 +50,7 @@ def delabExists : Delab := do
   Meta.withLocalDeclD n d fun fvar =>
   descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
   match ← delab with
-    | `(tree|∃ $a:binder,$[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+    | `(tree|∃ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
     | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∃ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
     | `(tree|$stx)                                    => `(tree|∃ $stxND:binder⠀ $stx)
 

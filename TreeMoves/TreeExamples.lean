@@ -1,7 +1,6 @@
 -- import Mathlib.Topology.MetricSpace.Lipschitz
 -- import Mathlib.Topology.Sequences
 -- import Mathlib.GroupTheory.Subgroup.Basic
-import Mathlib
 
 import TreeRewriteOrd
 import TreeRewrite
@@ -10,11 +9,10 @@ import TreeNormalize
 import TreeSearch
 
 import PrintTree
+import LeanTactics.DynamicButtonList
 
 
 example : True := by lib_apply trivial []
-
-#check Lean.Widget.ppExprTagged
 
 
 
