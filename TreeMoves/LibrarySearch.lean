@@ -1,9 +1,8 @@
-import TreeMoves.Tree
-import Mathlib.Lean.Meta.DiscrTree
+import TreeMoves.DiscrTree
 
 namespace Tree
 
-open Lean Meta
+open Lean Meta DiscrTree
 
 inductive LibraryLemmaKind where
 | apply
@@ -17,7 +16,9 @@ structure LibraryLemma where
   name : Name
   path : List TreeBinderKind
   pos : List Nat
-deriving BEq
+  diffs : AssocList SubExpr.Pos Widget.DiffTag
+instance : BEq LibraryLemma where
+  beq := fun {name, path, pos, ..} {name := name', path := path', pos := pos', ..} => name == name' && pos == pos' && path == path'
 
 def LibraryLemma.proofAndType (lem : LibraryLemma) : MetaM (Expr × Expr) := do
   let cinfo ← getConstInfo lem.name
@@ -35,82 +36,80 @@ structure DiscrTrees where
 
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 
+-- private abbrev Quintuple α := α × α × α × α × α
+-- private abbrev ProcessResult := Quintuple (Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)))
 
-private abbrev ProcessResult := Array (Array (DiscrTree.Key true) × LibraryLemma) × Array (Array (DiscrTree.Key true) × LibraryLemma) × Array (Array (DiscrTree.Key true) × LibraryLemma) × Array (Array (DiscrTree.Key true) × LibraryLemma) × Array (Array (DiscrTree.Key true) × LibraryLemma)
+private structure ProcessResult where
+  apply           : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+  apply_rev       : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+  rewrite         : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+  rewrite_ord     : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+  rewrite_ord_rev : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+instance : Append ProcessResult where
+  append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
--- might want to add some whnf applications with reducible transparency.
-partial def processTree (name : Name) : Expr → MetaM ProcessResult
+-- might want to add some whnf applications with reducible transparency?
+partial def processTree : Expr → MetaM ProcessResult
   | .forallE n domain body bi => do
     let mvar ← mkFreshExprMVar domain (userName := n)
-    let result ← processTree name (body.instantiate1 mvar)
+    let result ← processTree (body.instantiate1 mvar)
 
     let u ← getLevel domain
     if bi.isInstImplicit
     then
-      return addBinderKind .inst result
+      return addBinderKind [1] .inst result
     else
       if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
       then
-        let result := addBinderKind .imp_right result
-        let key ← DiscrTree.mkPath domain
-        return (fun (a,b,c) => (a,b.push (key, {name, path := [.imp_left], pos := []}),c)) result
+        let result := addBinderKind [1] .imp_right result
+        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .wasChanged |>.cons [1] .willChange, [.imp_left], [], ← mkPath domain) }
       else
-        return addBinderKind .all result
+        return addBinderKind [1] .all result
 
   | regular_exists_pattern n _u d body _ =>
     withLocalDeclD n d fun fvar =>
-    addBinderKind .ex <$> processTree name (body.instantiate1 fvar)
+    addBinderKind [1,1] .ex <$> processTree (body.instantiate1 fvar)
 
   | regular_and_pattern p q =>
-    pure (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩) <*> addBinderKind .and_left <$> processTree name p
-      <*> addBinderKind .and_right<$> processTree name q
+    return (← addBinderKind [0,1] .and_left <$> processTree p) ++ (← addBinderKind [1] .and_right <$> processTree q)
   
   | e => do
-    let mut result : ProcessResult := (#[],#[],#[],#[],#[])
+    let mut result : ProcessResult := {}
     match e with
     | .app (.app (.app (.const ``Eq _) _) lhs) rhs
     | .app (.app (.const ``Iff _) lhs) rhs => do
-      let lhsKey ← DiscrTree.mkPath lhs
-      let rhsKey ← DiscrTree.mkPath rhs
-      result := (fun (a,b,c,d) => (a,b,c.push (lhsKey, {name, path := [], pos := [0,1]}),d)) result
-      result := (fun (a,b,c,d) => (a,b,c.push (rhsKey, {name, path := [], pos := [1]}),d)) result
+      result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [0,1], ← mkPath lhs)
+                                                     |>.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [1]  , ← mkPath rhs) }
     | .app (.app _ lhs) rhs =>
       if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
-        let lhsKey ← DiscrTree.mkPath lhs
-        let rhsKey ← DiscrTree.mkPath rhs
-        result := (fun (a,b,c,d,f) => (a,b,c,d.push (lhsKey, {name, path := [], pos := []}),f)) result
-        result := (fun (a,b,c,d,f) => (a,b,c,d,f.push (rhsKey, {name, path := [], pos := []}))) result
+        result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkPath rhs)
+                                rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkPath lhs) }
     | _ => pure ()
 
-    let key ← DiscrTree.mkPath e
-    result := (fun (a,b) => (a.push (key, {name, path := [],  pos := []}),b)) result
+    result := { result with apply := result.apply.push (AssocList.nil.cons [] .wasChanged, [], [], ← mkPath e) }
     return result
     
 where
-  addBinderKind (kind : TreeBinderKind) : ProcessResult → ProcessResult :=
-    let f := Bifunctor.snd fun lem => {lem with path := kind :: lem.path}
-    fun (a, b, c, d, e) => (a.map f, b.map f, c.map f, d.map f, e.map f)
+  addBinderKind (pos : List Nat) (kind : TreeBinderKind) : ProcessResult → ProcessResult :=
+    let f := fun (diffs, path, x) => (diffs.mapKey (pos ++ ·), kind :: path, x)
+    fun ⟨a, b, c, d, e⟩ => ⟨a.map f, b.map f, c.map f, d.map f, e.map f⟩
 
 
-#check instantiateTypeLevelParams
-#check mkConstWithFreshMVarLevels
--- #check mkFreshLevel
 def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
   if cinfo.isUnsafe then return t
   if ← name.isBlackListed then return t
   unless ← (match cinfo with
     | .axiomInfo ..
     | .thmInfo .. => pure true
-    | .defnInfo { type := type, .. } => do
+    | .defnInfo .. => do
       let us ← mkFreshLevelMVarsFor cinfo
       isDefEq (← inferType (← instantiateTypeLevelParams cinfo us)) (.sort .zero)
     | _ => pure false)
     do return t
-  let (a, b, c, d, e) ← processTree name cinfo.type
+  let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
-  let f := Array.foldl (fun t (k, v) => t.insertIfSpecific k v)
+  let f := Array.foldl (fun t (diffs, path, pos, key) => t.insertCore key { name, path, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
--- #exit
 
 open Mathlib.Tactic
 
@@ -140,251 +139,3 @@ initialize cachedData : DiscrTreesCache ← unsafe do
   buildDiscrTrees
 
 def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.cache.get
-
-
---------------
-
-
--- def libApply (lem : LibraryLemma) (pol : Bool) (tree : Expr) (goalPath : List TreeBinderKind) (goalPos : List Nat) (unification : Unification) : MetaM TreeProof := do
---   let us ← mkFreshLevelMVars lem.lvlParams.length
---   let hyp := lem.tree.instantiateLevelParams lem.lvlParams us
---   let proof := .const lem.name us
---   Monad.join (applyAux proof hyp tree true lem.path goalPath hypPos goalPos unification) |>.run' {}
-
-
-
-
-
-
------
-
-open DiscrTree
-
-
-private partial def isNumeral (e : Expr) : Bool :=
-  if e.isNatLit then true
-  else
-    let f := e.getAppFn
-    if !f.isConst then false
-    else
-      let fName := f.constName!
-      if fName == ``Nat.succ && e.getAppNumArgs == 1 then isNumeral e.appArg!
-      else if fName == ``OfNat.ofNat && e.getAppNumArgs == 3 then isNumeral (e.getArg! 1)
-      else if fName == ``Nat.zero && e.getAppNumArgs == 0 then true
-      else false
-
-
-
-private partial def toNatLit? (e : Expr) : Option Literal :=
-  if isNumeral e then
-    if let some n := loop e then
-      some (.natVal n)
-    else
-      none
-  else
-    none
-where
-  loop (e : Expr) : OptionT Id Nat := do
-    let f := e.getAppFn
-    match f with
-    | .lit (.natVal n) => return n
-    | .const fName .. =>
-      if fName == ``Nat.succ && e.getAppNumArgs == 1 then
-        let r ← loop e.appArg!
-        return r+1
-      else if fName == ``OfNat.ofNat && e.getAppNumArgs == 3 then
-        loop (e.getArg! 1)
-      else if fName == ``Nat.zero && e.getAppNumArgs == 0 then
-        return 0
-      else
-        failure
-    | _ => failure
-
-private def elimLooseBVarsByBeta (e : Expr) : CoreM Expr :=
-  Core.transform e
-    (pre := fun e => do
-      if !e.hasLooseBVars then
-        return .done e
-      else if e.isHeadBetaTarget then
-        return .visit e.headBeta
-      else
-        return .continue)
-
-
-private def getKeyArgs (e : Expr) (isMatch root : Bool) : MetaM (Key s × Array Expr) := do
-  let e ← reduceDT e root (simpleReduce := s)
-  unless root do
-    if let some v := toNatLit? e then
-      return (.lit v, #[])
-  match e.getAppFn with
-  | .lit v         => return (.lit v, #[])
-  | .const c _     =>
-    if (← getConfig).isDefEqStuckEx && e.hasExprMVar then
-      if (← isReducible c) then
-        Meta.throwIsDefEqStuck
-      else if let some matcherInfo := isMatcherAppCore? (← getEnv) e then
-        let args := e.getAppArgs
-        for arg in args[matcherInfo.getFirstDiscrPos: matcherInfo.getFirstDiscrPos + matcherInfo.numDiscrs] do
-          if arg.hasExprMVar then
-            Meta.throwIsDefEqStuck
-      else if (← isRec c) then
-        Meta.throwIsDefEqStuck
-    let nargs := e.getAppNumArgs
-    return (.const c nargs, e.getAppRevArgs)
-  | .fvar fvarId   =>
-    let nargs := e.getAppNumArgs
-    return (.fvar fvarId nargs, e.getAppRevArgs)
-  | .mvar mvarId   =>
-    if isMatch then
-      return (.other, #[])
-    else do
-      let ctx ← read
-      if ctx.config.isDefEqStuckEx then
-        return (.star, #[])
-      else if (← mvarId.isReadOnlyOrSyntheticOpaque) then
-        return (.other, #[])
-      else
-        return (.star, #[])
-  | .proj s i a .. =>
-    let nargs := e.getAppNumArgs
-    return (.proj s i nargs, #[a] ++ e.getAppRevArgs)
-  | .forallE _ d b _ =>
-    let b ← if b.hasLooseBVars then elimLooseBVarsByBeta b else pure b
-    if b.hasLooseBVars then
-      return (.other, #[])
-    else
-      return (.arrow, #[d, b])
-  | _ =>
-    return (.other, #[])
-
-private abbrev getMatchKeyArgs (e : Expr) (root : Bool) : MetaM (Key s × Array Expr) :=
-  getKeyArgs e (isMatch := true) (root := root)
-
-private abbrev getUnifyKeyArgs (e : Expr) (root : Bool) : MetaM (Key s × Array Expr) :=
-  getKeyArgs e (isMatch := false) (root := root)
-
-private def getStarResult (d : DiscrTree α s) : Array (α × Nat) :=
-  let result : Array (α × Nat) := .mkEmpty 8
-  match d.root.find? .star with
-  | none                  => result
-  | some (.node vs _) => result ++ vs.map (·, 0)
-
-private abbrev findKey (cs : Array (Key s × Trie α s)) (k : Key s) : Option (Key s × Trie α s) :=
-  cs.binSearch (k, default) (fun a b => a.1 < b.1)
-
-
-partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Array (α × Nat)) :=
-  withReducible do
-    let (k, args) ← getUnifyKeyArgs e (root := true)
-    match k with
-    | .star => throwError "the unification pattern is a metavariable"--d.root.foldlM (init := #[]) fun result k c => process k.arity 0 #[] c result
-    | _ =>
-      let result := getStarResult d
-      match d.root.find? k with
-      | none   => return result
-      | some c => process 0 1 args c result
-where
-  process (skip : Nat) (specific : Nat) (todo : Array Expr) (c : Trie α s) (result : Array (α × Nat)) : MetaM (Array (α × Nat)) := do
-    match skip, c with
-    | skip+1, .node _  cs =>
-      if cs.isEmpty then
-        return result
-      else
-        cs.foldlM (init := result) fun result ⟨k, c⟩ => process (skip + k.arity) specific todo c result
-    | 0, .node vs cs => do
-      if todo.isEmpty then
-        return result ++ vs.map (·, specific)
-      else if cs.isEmpty then
-        return result
-      else
-        let e     := todo.back
-        let todo  := todo.pop
-        let (k, args) ← getUnifyKeyArgs e (root := false)
-        let visitStar (result : Array (α × Nat)) : MetaM (Array (α × Nat)) :=
-          let first := cs[0]!
-          if first.1 == .star then
-            process 0 specific todo first.2 result
-          else
-            return result
-        let visitNonStar (k : Key s) (args : Array Expr) (result : Array (α × Nat)) : MetaM (Array (α × Nat)) :=
-          match findKey cs k with
-          | none   => return result
-          | some c => process 0 (specific + 1) (todo ++ args) c.2 result
-        match k with
-        | .star  => cs.foldlM (init := result) fun result (k, c) => process specific k.arity todo c result
-        | .arrow => visitStar (← visitNonStar .other #[] (← visitNonStar k args result))
-        | _      => visitStar (← visitNonStar k args result)
-
-
-
-def VarRec : OptionRecursor MetaM α where
-  imp_right _ _ _ k := do k
-  imp_left  _ _ _ k := do k
-  and_right _ _ _ k := do k
-  and_left  _ _ _ k := do k
-
-  all  _ _ _ pol _ k := do
-    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
-  ex   _ _ _ pol _ k := do
-    let var ← if !pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
-  inst _ _ _ pol _ k := do
-    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
-
-
-def getSubexprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind) (pos : List Nat) : MetaM (Array (α × Nat)) := do
-  VarRec.recurse true e path fun _pol e _path =>
-    let rec getSubexpr (fvars : Array Expr): List Nat → Expr → MetaM (Array (α × Nat))
-      | xs   , .mdata _ b        => getSubexpr fvars xs b
-
-      | []   , e                 => getUnifyWithSpecificity d e
-      
-      | 0::xs, .app f _          => getSubexpr fvars xs f
-      | 1::xs, .app _ a          => getSubexpr fvars xs a
-
-      | 0::xs, .proj _ _ b       => getSubexpr fvars xs b
-
-      | 0::xs, .letE _ t _ _ _   => getSubexpr fvars xs t
-      | 1::xs, .letE _ _ v _ _   => getSubexpr fvars xs v
-      | 2::xs, .letE n t _ b _   =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
-                                                        
-      | 0::xs, .lam _ _ b _     => getSubexpr fvars xs b
-      | 1::xs, .lam n t b _     =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
-
-      | 0::xs, .forallE _ _ b _ => getSubexpr fvars xs b
-      | 1::xs, .forallE n t b _ =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
-      | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
-
-    getSubexpr #[] pos e
-
--- where
-
-
-structure LibraryMove where
-  lemmaName : Name
-  lemmaType : String
-  tactic : String
-
-
--- def libraryApplySearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
---   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := posToPath pos e
---   let lems := if pathToPol goalPath then (lems.1.apply, lems.2.apply) else (lems.1.apply_rev, lems.2.apply_rev)
---   let candidates := (← getUnifyWithSpecificity lems.1 ) ++ (← lems.getUnifyWithSpecificity)
-
---   sorry
--- def libraryRewriteSearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
---   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := posToPath pos e
---   let lems := (lems.1.rewrite, lems.2.rewrite)
---   sorry
--- def libraryRewriteOrdSearch (e : Expr) (pos : List Nat) : MetaM LibraryMove := do
---   let lems ← getLibraryLemmas
---   let (goalPath, goalPos) := posToPath pos e
---   sorry
-

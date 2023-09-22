@@ -114,6 +114,16 @@ where
 
 
 
+/-
+This funtion is not perfect and should be improved to improve the safety of the algorithm.
+
+When we bind a metavariable in front of a target, we want to bind all free variables and knowns from the hypothesis binders in front of that.
+When one such binder is bound, all binders before it must also be bound.
+In addition, we must bind all metavariables from the hypothesis that we have a dependency on. This we keep track of with a HashSet MVarId
+
+However, if the hypothesis is not in scope, we are not allowed to use free or known binders, so we only take the required meta binders.
+-/
+
 def takeHypBinders (nonHypMVar? : Bool) (startState : CollectMFVars.State) (binders : Array HypBinder) (pol : Bool) (tree : Expr) : (TreeProof → MetaM' TreeProof) × Array HypBinder :=
   (binders.foldl (init := fun _ (_ : TakeHypBinderState) => (pure, #[])) fun f binder s takeHypBinderState =>
     match binder, takeHypBinderState with
@@ -144,54 +154,6 @@ where
   bind (binder : HypBinder): ((TreeProof → MetaM' TreeProof) × Array HypBinder) → ((TreeProof → MetaM' TreeProof) × Array HypBinder)
     := Bifunctor.fst (· <=< revertHypBinder binder pol tree)
 
-
-
-/-
-When we bind a metavariable in front of a target, we want to bind all free variables and knowns from the hypothesis binders in front of that.
-When one such binder is bound, all binders before it must also be bound.
-In addition, we must bind all metavariables from the hypothesis that we have a dependency on. This we keep track of with a HashSet MVarId
-
-However, if the hypothesis is not in scope, we are not allowed to use free or known binders, so we only take the required meta binders.
--/
--- def takeHypBinders (mvarAssignment : Option Expr) (binders : Array HypBinder) (pol : Bool) (tree : Expr) : (TreeProof → MetaM' TreeProof) × Array HypBinder :=
---   let startContext := match mvarAssignment with | none => {} | some mvarAssignment => takeHypBinders.visit mvarAssignment {}
---   let (treeProofKleisli, s) := go.run startContext
---   (treeProofKleisli, s.unusedBinders)
--- where
---   go : takeHypBinders.Context → (TreeProof → MetaM' TreeProof) × Array HypBinder :=
---     binders.foldl (init := pure pure) fun f binder s =>
---       match binder with
---       | .meta mvar (type := type) .. =>
---         let isUsed := s.anyFVars || s.MVarIds.contains mvar
---         let s := if isUsed then { s with anyMVars := true } else s
---         push s.anyFVars binder type isUsed f
-
---       | .free fvar (type := type) .. =>
---         let isUsed := s.anyMVars
---         let s := if isUsed then { s with anyFVars := true} else s
---         push s.anyFVars binder type isUsed f
-
---       | .unknown (type := type) .. =>
---         let isUsed := s.anyFVars
---         push s.anyFVars binder type isUsed f
-
---       | .known (type := type) .. =>
---         let isUsed := s.anyMVars
---         let s := if isUsed then { s with anyFVars := true} else s
---         push s.anyFVars binder type isUsed f
-    
---   push (anyFVars : Bool) (binder : HypBinder) (type : Expr) (isUsed : Bool) (f : takeHypBinders.Context → (TreeProof → MetaM' TreeProof) × Array HypBinder)
---     : takeHypBinders.Context → (TreeProof → MetaM' TreeProof) × Array HypBinder := fun s =>
---     if isUsed
---     then
---       unless anyFVars do
---         modify (takeHypBinders.visit type)
---       let treeProofKleisli ← f
---       return treeProofKleisli <=< revertHypBinder binder pol tree
---     else
---       let treeProofKleisli ← f
---       modify (fun s => { s with unusedBinders := s.unusedBinders.push binder})
---       return treeProofKleisli
 
 
 
@@ -568,7 +530,7 @@ elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
 
 
-def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
   let results := if pathToPol goalPath then
@@ -576,18 +538,19 @@ def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name �
   else
     (← getSubexprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubexprUnify discrTrees.2.apply_rev tree goalPath [])
 
-  let results ← results.filterM fun ({name, path, pos}, _) => do
+  let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try
       _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeApply tree
       return true
     catch _ =>
       return false
 
-  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
-  return resultStrings
+  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
+  -- return resultStrings
 
-def logLibrarySearch (result : Array (Name × Nat × String)) : MetaM Unit := do
-  let result ← result.mapM fun (name, specific, _) => return m! "{specific}, ({name} : {(← getConstInfo name).type})"
+
+def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) : MetaM Unit := do
+  let result ← result.mapM fun (candidates, specific) => return (specific, ← candidates.mapM fun (name, _) => return m! "{name} : {(← getConstInfo name).type}")
   logInfo m! "{result}"
 
 

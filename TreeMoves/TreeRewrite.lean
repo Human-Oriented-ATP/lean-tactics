@@ -130,20 +130,19 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   workOnTree (applyUnbound hypName (getRewritePos true) goalPos treeRewrite)
 
   
-def librarySearchRewrite (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+def librarySearchRewrite (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalPath, goalPos) := posToPath goalPos tree
   let results := (← getSubexprUnify discrTrees.1.rewrite tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite tree goalPath goalPos)
 
-  let results ← results.filterM fun ({name, path, pos}, _) => do
+  let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try
       _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewrite tree
       return true
     catch _ =>
       return false
 
-  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
-  return resultStrings
+  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_rewrite {pathPosToPos path pos} {name} {goalPos}")
 
 elab "try_lib_rewrite" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos

@@ -275,7 +275,7 @@ def getPolarity (path : List TreeBinderKind) (pos : List Nat) (e : Expr) : MetaM
   return r
 
 open Elab.Tactic
-#check Widget.DiffTag
+
 elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
   let hypPos := getPosition hypPos
   let goalPos := getPosition goalPos
@@ -297,24 +297,23 @@ elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
   workOnTree (applyUnbound hypName getRewriteOrdPos goalPos treeRewriteOrd)
 
   
-def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalPath, goalPos) := posToPath goalPos tree
 
   let pol ← getPolarity goalPath goalPos tree
 
   let results := if pol
-    then (← getSubexprUnify discrTrees.1.rewrite_ord_rev tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord_rev tree goalPath goalPos)
-    else (← getSubexprUnify discrTrees.1.rewrite_ord     tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord     tree goalPath goalPos)
-  let results ← results.filterM fun ({name, path, pos}, _) => do
+    then (← getSubexprUnify discrTrees.1.rewrite_ord     tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord     tree goalPath goalPos)
+    else (← getSubexprUnify discrTrees.1.rewrite_ord_rev tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord_rev tree goalPath goalPos)
+  let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try
       _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewriteOrd tree
       return true
     catch _ =>
       return false
 
-  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
-  return resultStrings
+  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {pathPosToPos path pos} {name} {goalPos}")
 
 elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos

@@ -35,11 +35,23 @@ lean_lib RewriteOrd {
   -- add any library configuration options here
 }
 
+lean_lib TreeMoves.TreeLemmas {
+  -- add any library configuration options here
+}
+
 lean_lib TreeMoves.Tree {
   -- add any library configuration options here
 }
 
 lean_lib TreeMoves.PrintTree {
+  -- add any library configuration options here
+}
+
+lean_lib TreeMoves.DiscrTree {
+  -- add any library configuration options here
+}
+
+lean_lib TreeMoves.LibrarySearch {
   -- add any library configuration options here
 }
 
@@ -64,10 +76,6 @@ lean_lib TreeMoves.TreeNormalize {
 }
 
 lean_lib TreeMoves.TreeSearch {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.LibrarySearch {
   -- add any library configuration options here
 }
 
