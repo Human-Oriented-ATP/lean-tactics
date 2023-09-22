@@ -9,12 +9,15 @@ def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (
       | some diff => { info with diffStatus? := some diff }
       |    none   =>   info
 
+def Lean.Expr.renderWithDiffs (e : Expr) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do 
+  let e' := (← Widget.ppExprTagged e).addDiffs diffs
+  return <InteractiveCode fmt={e'} />
+
 def Lean.Name.renderWithDiffs (nm : Name) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do
   let env ← getEnv
   let some ci := env.find? nm | failure
-  let type := ci.type
-  let ttype := (← Widget.ppExprTagged type).addDiffs diffs
-  return <InteractiveCode fmt={ttype} />
+  ci.type.renderWithDiffs diffs
+
 
 def myDiffs : AssocList SubExpr.Pos DiffTag := 
   AssocList.empty 
