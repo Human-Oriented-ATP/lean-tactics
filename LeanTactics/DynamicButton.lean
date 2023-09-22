@@ -79,7 +79,7 @@ structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
 deriving RpcEncodable
 
-abbrev InfoviewAction := InfoviewActionProps → OptionT TermElabM Html
+abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
 
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   let { env, opts, .. } ← read
@@ -105,14 +105,14 @@ initialize registerBuiltinAttribute {
 }
 
 @[server_rpc_method]
-def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) :=
-  RequestM.withWaitFindSnapAtPos props.range.start fun snap ↦ do
-    RequestM.runTermElabM snap do
-      let props' := { props with range := ⟨props.range.end, props.range.end⟩ }
-      let infoviewActions := infoviewActionExt.getState (← getEnv)
-      let motivatedProofMoves ← infoviewActions.filterMapM 
-        fun (_, action) ↦ (action props').run
-      return .element "div" #[] motivatedProofMoves
+def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
+  let props' := { props with range := ⟨props.range.end, props.range.end⟩ }
+  let #[goal] := props.goals | throw <| .invalidParams s!"Expected a single goal."
+  goal.ctx.val.runMetaM {} do
+    let infoviewActions := infoviewActionExt.getState (← getEnv)
+    let motivatedProofMoves ← infoviewActions.filterMapM 
+      fun (_, action) ↦ (action props').run
+    return Task.pure <| .ok <| Html.element "div" #[] motivatedProofMoves
 
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
   mk_rpc_widget% MotivatedProofPanel.rpc
