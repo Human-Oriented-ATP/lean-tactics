@@ -52,13 +52,13 @@ private def recurseToPosition (side target : Expr) (hypContext : HypothesisConte
                                                       
     | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fvars xs t; return (.lam n e b bi, .lam n e' b bi, z)
     | 1::xs, .lam n t b bi     =>
-      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+      withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
         let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.lam n t e bi, .lam n t e' bi, z)
 
     | 0::xs, .forallE n t b bi => do let (e, e', z) ← visit fvars xs t; return (.forallE n e b bi, .forallE n e' b bi, z)
     | 1::xs, .forallE n t b bi =>
-      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+      withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
         let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.forallE n t e bi, .forallE n t e' bi, z)
 
@@ -130,6 +130,32 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   workOnTree (applyUnbound hypName (getRewritePos true) goalPos treeRewrite)
 
   
+def librarySearchRewrite (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+  let discrTrees ← getLibraryLemmas
+  let (goalPath, goalPos) := posToPath goalPos tree
+  let results := (← getSubexprUnify discrTrees.1.rewrite tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite tree goalPath goalPos)
+
+  let results ← results.filterM fun ({name, path, pos}, _) => do
+    try
+      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewrite tree
+      return true
+    catch _ =>
+      return false
+
+  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
+  return resultStrings
+
+elab "try_lib_rewrite" goalPos:treePos : tactic => do
+  let goalPos := getPosition goalPos
+  let tree := (← getMainDecl).type
+  logLibrarySearch (← librarySearchRewrite goalPos tree)
+
+
+
+-- -- #exit
+-- example (a b c : Nat) : a + b + c = a + (b + c) := by
+--   try_lib_rewrite [1]
+--   try_lib_rewrite [0,1]
 
 
 example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := by

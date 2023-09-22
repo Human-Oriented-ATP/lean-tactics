@@ -1,14 +1,10 @@
--- import Mathlib.Topology.MetricSpace.Lipschitz
--- import Mathlib.Topology.Sequences
--- import Mathlib.GroupTheory.Subgroup.Basic
-
 import TreeMoves.TreeRewriteOrd
 import TreeMoves.TreeRewrite
 import TreeMoves.TreeInduction
 import TreeMoves.TreeNormalize
 import TreeMoves.TreeSearch
 
-import PrintTree
+import TreeMoves.PrintTree
 import LeanTactics.DynamicButtonList
 
 
@@ -169,3 +165,9 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
   (↑(num⋆) * (↑(den⋆))⁻¹) ^ 2 ≠ 2
   -/
   sorry
+
+
+-- #exit
+
+-- example (a b c : Int) : a + b + c = a + (b + c) := by
+--   try_lib_rewrite [0,1]

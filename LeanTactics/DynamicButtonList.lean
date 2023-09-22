@@ -1,5 +1,4 @@
 import LeanTactics.DynamicButton
-import TreeExamples
 
 open ProofWidgets Lean Meta
 

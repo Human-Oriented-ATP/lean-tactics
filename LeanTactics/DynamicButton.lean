@@ -8,7 +8,7 @@ import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
 import Mathlib
-import Tree
+import TreeMoves.Tree
 
 namespace ProofWidgets
 open Lean Server Elab Command Lsp

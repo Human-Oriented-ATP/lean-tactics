@@ -92,16 +92,25 @@ where
     fun (a, b, c, d, e) => (a.map f, b.map f, c.map f, d.map f, e.map f)
 
 
-
-def processLemma (name : Name) (constInfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
-  if constInfo.isUnsafe then return {}
-  if ← name.isBlackListed then return {}
-
-  let (a, b, c, d, e) ← processTree name constInfo.type
+#check instantiateTypeLevelParams
+#check mkConstWithFreshMVarLevels
+-- #check mkFreshLevel
+def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
+  if cinfo.isUnsafe then return t
+  if ← name.isBlackListed then return t
+  unless ← (match cinfo with
+    | .axiomInfo ..
+    | .thmInfo .. => pure true
+    | .defnInfo { type := type, .. } => do
+      let us ← mkFreshLevelMVarsFor cinfo
+      isDefEq (← inferType (← instantiateTypeLevelParams cinfo us)) (.sort .zero)
+    | _ => pure false)
+    do return t
+  let (a, b, c, d, e) ← processTree name cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
   let f := Array.foldl (fun t (k, v) => t.insertIfSpecific k v)
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
-
+-- #exit
 
 open Mathlib.Tactic
 
@@ -117,7 +126,7 @@ def DiscrTreesCache.mk (profilingName : String)
     return (← updateTree name constInfo tree₁, tree₂)
   let addLibraryDecl := fun name constInfo (tree₁, tree₂) => do
     return (tree₁, ← updateTree name constInfo tree₂)
-  let s := fun A => A.map (fun lem => (lem.name.toString.length, lem)) |>.qsort (fun p q => p.1 > q.1) |>.map (·.2)
+  let s := fun A => A.map (fun lem => (lem.name.toString.length, lem)) |>.qsort (fun p q => p.1 < q.1) |>.map (·.2)
   let post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays s, b.mapArrays s,c.mapArrays s, d.mapArrays s, e.mapArrays s⟩)
   match init with
   | some t => return ⟨← Cache.mk (pure ({}, t)), addDecl, addLibraryDecl⟩
@@ -303,23 +312,57 @@ where
           | some c => process 0 (specific + 1) (todo ++ args) c.2 result
         match k with
         | .star  => cs.foldlM (init := result) fun result (k, c) => process specific k.arity todo c result
-        | .arrow => visitNonStar .other #[] (← visitNonStar k args (← visitStar result))
-        | _      => visitNonStar k args (← visitStar result)
+        | .arrow => visitStar (← visitNonStar .other #[] (← visitNonStar k args result))
+        | _      => visitStar (← visitNonStar k args result)
 
 
 
-def UnifyRec (d : DiscrTree α s) : OptionRecursor MetaM (Array (α × Nat)) where
-  imp_right _ _ _ := some
-  imp_left  _ _ _ := some
-  and_right _ _ _ := some
-  and_left  _ _ _ := some
+def VarRec : OptionRecursor MetaM α where
+  imp_right _ _ _ k := do k
+  imp_left  _ _ _ k := do k
+  and_right _ _ _ k := do k
+  and_left  _ _ _ k := do k
 
-  all  _ _ _ pol _ k := do let var ← if  pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
-  ex   _ _ _ pol _ k := do let var ← if !pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
-  inst _ _ _ pol _ k := do let var ← if  pol then .fvar <$> mkFreshFVarId else .mvar <$> mkFreshMVarId; k var
+  all  _ _ _ pol _ k := do
+    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
+    k var
+  ex   _ _ _ pol _ k := do
+    let var ← if !pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
+    k var
+  inst _ _ _ pol _ k := do
+    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
+    k var
 
 
+def getSubexprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind) (pos : List Nat) : MetaM (Array (α × Nat)) := do
+  VarRec.recurse true e path fun _pol e _path =>
+    let rec getSubexpr (fvars : Array Expr): List Nat → Expr → MetaM (Array (α × Nat))
+      | xs   , .mdata _ b        => getSubexpr fvars xs b
 
+      | []   , e                 => getUnifyWithSpecificity d e
+      
+      | 0::xs, .app f _          => getSubexpr fvars xs f
+      | 1::xs, .app _ a          => getSubexpr fvars xs a
+
+      | 0::xs, .proj _ _ b       => getSubexpr fvars xs b
+
+      | 0::xs, .letE _ t _ _ _   => getSubexpr fvars xs t
+      | 1::xs, .letE _ _ v _ _   => getSubexpr fvars xs v
+      | 2::xs, .letE n t _ b _   =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
+                                                        
+      | 0::xs, .lam _ _ b _     => getSubexpr fvars xs b
+      | 1::xs, .lam n t b _     =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
+
+      | 0::xs, .forallE _ _ b _ => getSubexpr fvars xs b
+      | 1::xs, .forallE n t b _ =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubexpr (fvars.push fvar) xs b
+      | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
+
+    getSubexpr #[] pos e
+
+-- where
 
 
 structure LibraryMove where
@@ -344,3 +387,4 @@ structure LibraryMove where
 --   let lems ← getLibraryLemmas
 --   let (goalPath, goalPos) := posToPath pos e
 --   sorry
+

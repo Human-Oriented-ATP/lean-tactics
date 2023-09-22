@@ -1,5 +1,8 @@
 import TreeMoves.LibrarySearch
-open Tree Lean Meta
+
+namespace Tree
+
+open Lean Meta
 
 
 /-
@@ -84,7 +87,7 @@ end
 
 end CollectMFVars
 
-def Lean.Expr.collectMFVars (s : CollectMFVars.State) (e : Expr) : CollectMFVars.State :=
+def _root_.Lean.Expr.collectMFVars (s : CollectMFVars.State) (e : Expr) : CollectMFVars.State :=
   CollectMFVars.visit e s
 
 
@@ -297,8 +300,8 @@ unfoldHypothesis adds free variables into the context for the Exists and Imp bin
 and the metavariables for Forall and Instance binders are stored in the HypothesisContext. They will be added to the
 MetaM context later, so that all available free variables will be in their context.
 -/
-def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : List TreeBinderKind) (k : Expr → List TreeBinderKind → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
-  HypothesisRec.recurse true tree pos (fun _pol tree path => k tree path) |>.run {hypProofM := pure (tree, hypProof)}
+def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (path : List TreeBinderKind) (k : Expr → List TreeBinderKind → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
+  HypothesisRec.recurse true tree path (fun _pol tree path => k tree path) |>.run {hypProofM := pure (tree, hypProof)}
 
 
 
@@ -564,8 +567,46 @@ elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypPos := getPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
 
+
+def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+  let discrTrees ← getLibraryLemmas
+  let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
+  let results := if pathToPol goalPath then
+    (← getSubexprUnify discrTrees.1.apply tree goalPath []) ++ (← getSubexprUnify discrTrees.2.apply tree goalPath [])
+  else
+    (← getSubexprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubexprUnify discrTrees.2.apply_rev tree goalPath [])
+
+  let results ← results.filterM fun ({name, path, pos}, _) => do
+    try
+      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeApply tree
+      return true
+    catch _ =>
+      return false
+
+  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
+  return resultStrings
+
+def logLibrarySearch (result : Array (Name × Nat × String)) : MetaM Unit := do
+  let result ← result.mapM fun (name, specific, _) => return m! "{specific}, ({name} : {(← getConstInfo name).type})"
+  logInfo m! "{result}"
+
+
 elab "try_lib_apply" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
+  let tree := (← getMainDecl).type
+  logLibrarySearch (← librarySearchApply goalPos tree)
+
+
+
+
+-- -- #exit
+-- example (a b c : Nat) : a + b + c = a + (b + c) := by
+--   try_lib_apply []
+
+-- example [Preorder α] (a b : α): a < b → a ≤ b := by
+--   make_tree
+--   try_lib_apply [1]
+
 
 
 example (p q : Prop) : ((p → q) ∧ p) → (q → False) → False := by
@@ -668,7 +709,7 @@ example [Preorder α] (a b : α) : a < b → a ≤ b := by
   
 example [Preorder α] (a b : α) : a < b → a ≤ b := by
   make_tree
-  lib_apply le_of_lt [1]
+  lib_apply [1,1,1,1,1] le_of_lt [1]
   tree_apply [0] [1]
   
 example [Preorder α] (a b : α) : a < b → a ≤ b := by

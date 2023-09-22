@@ -1,6 +1,6 @@
-import Tree
+import TreeMoves.Tree
 
-namespace TreeMoves.Tree
+namespace Tree
 open Lean Parser
 
 def newLineTermParser := ppDedent ("⠀" >> ppLine >> categoryParser `tree 0)

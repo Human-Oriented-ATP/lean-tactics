@@ -634,6 +634,16 @@ structure OptionRecursor (m : Type u → Type v) (α : Type u) where
 
   inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
+instance [Monad m] [MonadNameGenerator m] : EmptyCollection (OptionRecursor m α) where
+  emptyCollection := {
+    all := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
+    ex := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
+    inst := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
+    imp_left := fun _ _ _ k => k
+    imp_right := fun _ _ _ k => k
+    and_left := fun _ _ _ k => k
+    and_right := fun _ _ _ k => k
+  }
 
 inductive TreeBinderKind where
   | imp_right
@@ -667,7 +677,7 @@ instance : ToString TreeBinderKind where
 --     | xs, e => throwError m!"could not tree-recurse to position {xs} in term {e}"
 --   visit pol pos tree
 
-partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (pos : List TreeBinderKind)
+partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
   (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
   let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
@@ -681,7 +691,7 @@ partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : 
     | .inst     ::xs, instance_pattern n u α b => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
     | [], e => k pol e []
     | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
-  visit pol pos tree
+  visit pol path tree
 
 partial def OptionRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
   (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
@@ -738,8 +748,14 @@ def findNegativePath : Expr → Option (List TreeBinderKind)
   | instance_pattern (body := tree) .. => (.inst      :: ·) <$> findNegativePath tree
   | _ => none
 
-def pathToPos (nodes : List TreeBinderKind) : List Nat :=
-  (nodes.map fun | .imp_left | .and_left => [0] | _ => [1]).join
+def pathToPos (path : List TreeBinderKind) : List Nat :=
+  (path.map fun | .imp_left | .and_left => 0 | _ => 1)
+
+def pathPosToPos : List TreeBinderKind → List Nat →  List Nat
+ | .imp_left::xs
+ | .and_left::xs => (0 :: ·) ∘ pathPosToPos xs
+ | _::xs => (1 :: ·) ∘ pathPosToPos xs
+ | [] => id
 
 def pathToPol : List TreeBinderKind → Bool
 | .imp_left::xs => !pathToPol xs

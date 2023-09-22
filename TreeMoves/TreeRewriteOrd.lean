@@ -185,95 +185,97 @@ def Pi.ndPreorder {α : Type u} {β : Type v} [Preorder β] : Preorder (α → �
 
 
 
-partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
+partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadError m] [MonadMCtx m]
+  (k : Array Expr → Level → Expr → Expr → Expr → Bool → m (Expr × Expr)) (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → m (Expr × Expr)
+  -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
+  | xs, .mdata d lhs => do
+    let (rhs, h) ← visit k u α preorder fvars pol xs lhs
+    return (.mdata d rhs, h)
 
+  | [], lhs => k fvars u α preorder lhs pol
+    
+  | 0::xs, .app lhs a => do
+    let α' ← inferType a
+    let v ← getDecLevel α'
+    let uNew := (Level.imax v u).normalize
+    let (rhs, h) ← visit k uNew (.forallE `_a α' α .default) (mkApp3 (.const ``Pi.ndPreorder [v, u]) α' α preorder) fvars pol xs lhs
+    return (.app rhs a, .app h a)
+
+  | 1::xs, .app f lhs => do
+    let typeNew ← inferType lhs
+    let uNew ← getDecLevel typeNew
+    let monoClass := mkApp4 (.const ``MonotoneClass [uNew, u]) typeNew α preorder f
+    let mono ← synthInstance monoClass
+    let .app (.app (.app _ anti) preorder') monoProof ← whnfD mono | panic! "instance is not an application"
+    let anti ← match anti with
+      | .const ``true  [] => pure true
+      | .const ``false [] => pure false
+      | _ => throwError m! "Boolean value not known: {indentExpr anti}"
+    
+    let (rhs, h) ← visit k uNew typeNew preorder' fvars (pol != anti) xs lhs
+    return (.app f rhs, ← mkAppOptM' monoProof #[none, none, h])
+
+
+  | 2::xs, .letE n t v lhs d => do 
+    withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
+    let (rhs, h) ← visit k u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
+    
+    return (.letE n t v (rhs.abstract #[fvar]) d, .letE n t v (h.abstract #[fvar]) d)
+
+                                                    
+  | 1::xs, .lam n t lhs bi => do
+    withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+    let .forallE _ α' β _ := α | panic! "type of lambda is not a forall"
+    let u ← getDecLevel α'
+    let v ← getDecLevel β 
+    let newPreorder ← mkFreshExprMVar (mkApp (.const ``Preorder [v]) β)
+    let requiredPreorder := mkApp3 (.const ``Pi.ndPreorder [u, v]) α' β newPreorder
+    unless ← isDefEq preorder requiredPreorder do
+      throwError m! "Preorder on lambda is not a Pi.Preorder, {preorder}, {requiredPreorder}"
+
+    let (rhs, h) ← visit k v β (← instantiateMVars newPreorder) (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
+    return (.lam n t (rhs.abstract #[fvar]) bi, .lam n t (h.abstract #[fvar]) bi)
+
+
+  | 0::xs, .forallE n lhs b bi => do
+    unless ← isDefEq preorder PropPreorder do
+      throwError m!"Prop is the only type with an order{indentExpr b}"
+    let (rhs, h) ← visit k u α preorder fvars (!pol) xs lhs
+    let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then id else swap) (mkApp2 (mkLE u α preorder)) lhs rhs) h
+    return (.forallE n rhs b bi, mkApp ((if pol then id else swap) (mkApp3 (.const ``imp_left_anti' []) b) lhs rhs) h)
+
+  | 1::xs, .forallE n t lhs bi => do
+    unless ← isDefEq preorder PropPreorder do
+      throwError m!"Prop is the only type with an order{indentExpr lhs}"
+
+    withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
+    let (rhs, h) ← visit k u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
+    let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then swap else id) (mkApp2 (mkLE u α preorder)) lhs rhs) h
+    let h   := .lam n t (h.abstract #[fvar]) bi
+    
+    let lhs := .lam n t (lhs.abstract #[fvar]) bi
+    let rhs := rhs.abstract #[fvar]
+    let (rhs, rhs') := (.forallE n t rhs bi, .lam n t rhs bi)
+    
+    return (rhs, mkApp ((if pol then swap else id) (mkApp3 (.const  ``forall_mono [← getLevel t]) t) lhs rhs') h)
+
+  | list, lhs => throwError "could not find sub position {list} in '{repr lhs}'"
+
+partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
   unless hypPath == [] do
     throwError m! "cannot rewrite using a subexpression: subtree {hypPath} in {rel}"
   unless hypPos == [] do
     throwError m! "cannot rewrite using a subexpression: expression {hypPos} in {rel}"
-  let (newTree, proof) ← visit (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
-  return { newTree, proof }
+  let (newTree, proof) ← visit (fun fvars u α preorder lhs pol => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol) (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
+  return ({ newTree, proof })
 
-where
-  visit (u : Level) (α preorder : Expr) (fvars : Array Expr) (pol : Bool) : List Nat → Expr → MetaM' (Expr × Expr)
-    -- write lhs for the original subexpressiont, and rhs for the replaced subexpression
-    | xs, .mdata d lhs => do
-      let (rhs, h) ← visit u α preorder fvars pol xs lhs
-      return (.mdata d rhs, h)
-
-    | [], lhs => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol
-      
-    | 0::xs, .app lhs a => do
-      let α' ← inferType a
-      let v ← getDecLevel α'
-      let uNew := (Level.imax v u).normalize
-      let (rhs, h) ← visit uNew (.forallE `_a α' α .default) (mkApp3 (.const ``Pi.ndPreorder [v, u]) α' α preorder) fvars pol xs lhs
-      return (.app rhs a, .app h a)
-
-    | 1::xs, .app f lhs => do
-      let typeNew ← inferType lhs
-      let uNew ← getDecLevel typeNew
-      let monoClass := mkApp4 (.const ``MonotoneClass [uNew, u]) typeNew α preorder f
-      let mono ← synthInstance monoClass
-      let .app (.app (.app _ anti) preorder') monoProof ← whnfD mono | panic! "instance is not an application"
-      let anti ← match anti with
-        | .const ``true  [] => pure true
-        | .const ``false [] => pure false
-        | _ => throwError m! "Boolean value not known: {indentExpr anti}"
-      
-      let (rhs, h) ← visit uNew typeNew preorder' fvars (pol != anti) xs lhs
-      return (.app f rhs, ← mkAppOptM' monoProof #[none, none, h])
-
-
-    | 2::xs, .letE n t v lhs d => do 
-      withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
-      let (rhs, h) ← visit u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
-      
-      return (.letE n t v (rhs.abstract #[fvar]) d, .letE n t v (h.abstract #[fvar]) d)
-
-                                                      
-    | 1::xs, .lam n t lhs bi => do
-      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
-      let .forallE _ α' β _ := α | panic! "type of lambda is not a forall"
-      let u ← getDecLevel α'
-      let v ← getDecLevel β 
-      let newPreorder ← mkFreshExprMVar (mkApp (.const ``Preorder [v]) β)
-      let requiredPreorder := mkApp3 (.const ``Pi.ndPreorder [u, v]) α' β newPreorder
-      unless ← isDefEq preorder requiredPreorder do
-        throwError m! "Preorder on lambda is not a Pi.Preorder, {preorder}, {requiredPreorder}"
-
-      let (rhs, h) ← visit v β (← instantiateMVars newPreorder) (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
-      return (.lam n t (rhs.abstract #[fvar]) bi, .lam n t (h.abstract #[fvar]) bi)
-
-
-    | 0::xs, .forallE n lhs b bi => do
-      unless ← isDefEq preorder PropPreorder do
-        throwError m!"Prop is the only type with an order{indentExpr b}"
-      let (rhs, h) ← visit u α preorder fvars (!pol) xs lhs
-      let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then id else swap) (mkApp2 (mkLE u α preorder)) lhs rhs) h
-      return (.forallE n rhs b bi, mkApp ((if pol then id else swap) (mkApp3 (.const ``imp_left_anti' []) b) lhs rhs) h)
-
-    | 1::xs, .forallE n t lhs bi => do
-      unless ← isDefEq preorder PropPreorder do
-        throwError m!"Prop is the only type with an order{indentExpr lhs}"
-
-      withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
-      let (rhs, h) ← visit u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
-      let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then swap else id) (mkApp2 (mkLE u α preorder)) lhs rhs) h
-      let h   := .lam n t (h.abstract #[fvar]) bi
-      
-      let lhs := .lam n t (lhs.abstract #[fvar]) bi
-      let rhs := rhs.abstract #[fvar]
-      let (rhs, rhs') := (.forallE n t rhs bi, .lam n t rhs bi)
-      
-      return (rhs, mkApp ((if pol then swap else id) (mkApp3 (.const  ``forall_mono [← getLevel t]) t) lhs rhs') h)
-
-    | list, lhs => throwError "could not find sub position {list} in '{repr lhs}'"
-      
-
+def getPolarity (path : List TreeBinderKind) (pos : List Nat) (e : Expr) : MetaM Bool := 
+  OptionRecursor.recurse {} true e path fun pol e _path => do
+  let Except.error r ← show ExceptT Bool MetaM (Expr × Expr) from (visit (fun _ _ _ _ _ pol' => MonadExceptOf.throw pol') (.zero) (.sort .zero) PropPreorder #[] pol pos e) | unreachable!
+  return r
 
 open Elab.Tactic
-
+#check Widget.DiffTag
 elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
   let hypPos := getPosition hypPos
   let goalPos := getPosition goalPos
@@ -294,8 +296,33 @@ elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName getRewriteOrdPos goalPos treeRewriteOrd)
 
+  
+def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Name × Nat × String)) := do
+  let discrTrees ← getLibraryLemmas
+  let (goalPath, goalPos) := posToPath goalPos tree
 
+  let pol ← getPolarity goalPath goalPos tree
 
+  let results := if pol
+    then (← getSubexprUnify discrTrees.1.rewrite_ord_rev tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord_rev tree goalPath goalPos)
+    else (← getSubexprUnify discrTrees.1.rewrite_ord     tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord     tree goalPath goalPos)
+  let results ← results.filterM fun ({name, path, pos}, _) => do
+    try
+      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewriteOrd tree
+      return true
+    catch _ =>
+      return false
+
+  let resultStrings := results.map fun ({name, path, pos}, specific) => (name, specific, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
+  return resultStrings
+
+elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
+  let goalPos := getPosition goalPos
+  let tree := (← getMainDecl).type
+  logLibrarySearch (← librarySearchRewriteOrd goalPos tree)
+
+-- example (n : Nat) : n ≤ n - 3  := by
+--   try_lib_rewrite_ord [1]
 
 example : (0 ≤ 1) → 0 ≤ 1 := by
   make_tree
