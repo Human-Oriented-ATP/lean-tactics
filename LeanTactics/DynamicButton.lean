@@ -107,12 +107,13 @@ initialize registerBuiltinAttribute {
 @[server_rpc_method]
 def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
   let props' := { props with range := ⟨props.range.end, props.range.end⟩ }
-  if props.selectedLocations.isEmpty then
-    return Task.pure <| .ok <| .element "span" #[] #[.text "Select sub-expressions with `Shift + Click`."]
-  let some selectedLoc := props.selectedLocations[0]? | unreachable!
-  let some goal := props.goals.find? (·.mvarId == selectedLoc.mvarId)
-    | throw $ .invalidParams
-        s!"could not find goal for location {toJson selectedLoc}"
+  let goal? : Option Widget.InteractiveGoal := do
+    if props.selectedLocations.isEmpty then
+      props.goals[0]?
+    else
+      let selectedLoc ← props.selectedLocations[0]?
+      props.goals.find? (·.mvarId == selectedLoc.mvarId)
+  let some goal := goal? | throw <| .invalidParams "Could not find goal location."
   goal.ctx.val.runMetaM {} do
     let infoviewActions := infoviewActionExt.getState (← getEnv)
     let motivatedProofMoves ← infoviewActions.filterMapM 
