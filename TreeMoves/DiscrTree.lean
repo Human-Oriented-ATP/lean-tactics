@@ -481,25 +481,24 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
 
 
 
-def VarRec : OptionRecursor MetaM α where
+def MetaTreeRec : OptionRecursor MetaM α where
   imp_right _ _ _ k := do k
   imp_left  _ _ _ k := do k
   and_right _ _ _ k := do k
   and_left  _ _ _ k := do k
 
-  all  _ _ _ pol _ k := do
-    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
-  ex   _ _ _ pol _ k := do
-    let var ← if !pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
-  inst _ _ _ pol _ k := do
-    let var ← if  pol then Expr.fvar <$> mkFreshFVarId else Expr.mvar <$> mkFreshMVarId
-    k var
+  all  n _ d pol _ k := (if  pol then introFVar else introMVar) n d k
+  ex   n _ d pol _ k := (if !pol then introFVar else introMVar) n d k
+  inst n _ d _   _ k := (if true then introFVar else introMVar) n d k
+where
+  introFVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α :=
+    withLocalDeclD name domain fun fvar => k fvar
+  introMVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α := do
+    k (← mkFreshExprMVar domain (userName := name))
 
 
 def getSubExprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind) (pos : List Nat) : MetaM (Array (Array α × Nat)) := do
-  VarRec.recurse true e path fun _pol e _path =>
+  MetaTreeRec.recurse true e path fun _pol e _path =>
     let rec getSubExpr (fvars : Array Expr): List Nat → Expr → MetaM (Array (Array α × Nat))
       | xs   , .mdata _ b        => getSubExpr fvars xs b
 

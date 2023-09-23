@@ -87,28 +87,27 @@ lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
 
 open BigOperators
 
-lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : Fin n → ℕ), ∑ i : Fin n, (f i + g i) = (∑ i : Fin n, f i) + (∑ i : Fin n, g i) := by
+lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : ℕ → ℕ), ∑ i in Finset.range n, (f i + g i) = (∑ i in Finset.range n, f i) + (∑ i in Finset.range n, g i) := by
   make_tree
   tree_induction []
   make_tree
   tree_simp [0,1,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,0,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,1,1]
-  lib_rewrite Fin.sum_univ_castSucc [1,1,1,1,0,1]
+  lib_rewrite Finset.sum_range_succ [1,1,1,1,1,0,1]
+  lib_rewrite Finset.sum_range_succ [1,1,1,1,1,1]
+  lib_rewrite Finset.sum_range_succ [1,1,1,1,0,1]
   tree_rewrite [1,0,1,1] [1,1,1,1,0,1,0,1]
   ring_nf
   tree_search
 
 
-example : ∀ n : ℕ, ∑ i : Fin n, (i : Int) = (n * (n - 1) / 2) := by
+example : ∀ n : ℕ, ∑ i in Finset.range n, i = n * (n - 1) / 2 := by
   make_tree
   tree_induction []
   tree_simp [0]
   tree_search
   make_tree
-  lib_rewrite Fin.sum_univ_castSucc [1,1,0,1]
+  lib_rewrite Finset.sum_range_succ [1,1,0,1]
   tree_rewrite [1,0] [1,1,0,1,0,1]
-  norm_cast
   simp
   sorry -- this is a bit tricky to evaluate
 
@@ -148,10 +147,13 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
 --   try_lib_rewrite [0,1]
 
 
+#check Finset.sum_range_id
 
+example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
+  try_lib_rewrite [0,1]
 
--- example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
---   try_lib_rewrite [0,1]
+example (N : ℕ) : ∑ n in Finset.range N, (a + b)  = N * (N - 1) / 2 := by
+  try_lib_rewrite [0,1]
 
 #exit
 example : ∃ x, x = x := by

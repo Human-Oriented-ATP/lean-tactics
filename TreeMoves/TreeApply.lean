@@ -461,7 +461,7 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
     for mvar in mvars do
       let mvarId := mvar.mvarId!
       unless ← isDefEq mvar (← synthInstance (← mvarId.getType)) do
-        throwError m!"failed to assign synthesized instance {indentExpr (← mvarId.getType)}"
+        throwError m!"failed to assign synthesized instance of class {indentExpr (← mvarId.getType)} to {indentExpr mvar}"
   else do
     for mvar in mvars do
       let mvarId := mvar.mvarId!
