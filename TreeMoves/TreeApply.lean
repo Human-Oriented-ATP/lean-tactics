@@ -529,14 +529,14 @@ elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypPos := getPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
 
-
+open DiscrTree in
 def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
   let results := if pathToPol goalPath then
-    (← getSubexprUnify discrTrees.1.apply tree goalPath []) ++ (← getSubexprUnify discrTrees.2.apply tree goalPath [])
+    (← getSubExprUnify discrTrees.1.apply tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply tree goalPath [])
   else
-    (← getSubexprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubexprUnify discrTrees.2.apply_rev tree goalPath [])
+    (← getSubExprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply_rev tree goalPath [])
 
   let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try

@@ -296,7 +296,7 @@ elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   workOnTree (applyUnbound hypName getRewriteOrdPos goalPos treeRewriteOrd)
 
-  
+open DiscrTree in 
 def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalPath, goalPos) := posToPath goalPos tree
@@ -304,8 +304,8 @@ def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (A
   let pol ← getPolarity goalPath goalPos tree
 
   let results := if pol
-    then (← getSubexprUnify discrTrees.1.rewrite_ord     tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord     tree goalPath goalPos)
-    else (← getSubexprUnify discrTrees.1.rewrite_ord_rev tree goalPath goalPos) ++ (← getSubexprUnify discrTrees.2.rewrite_ord_rev tree goalPath goalPos)
+    then (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalPath goalPos) ++ (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalPath goalPos)
+    else (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalPath goalPos) ++ (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalPath goalPos)
   let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try
       _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewriteOrd tree

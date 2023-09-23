@@ -166,8 +166,58 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
   -/
   sorry
 
-
+#check finsum_sub_distrib
 -- #exit
 
 -- example (a b c : Int) : a + b + c = a + (b + c) := by
 --   try_lib_rewrite [0,1]
+
+open BigOperators
+
+variable {M α : Type*} [Field M] {f g : α → M} (a : α)
+-- set_option pp.all true in 
+
+
+#exit
+open Tree DiscrTree Lean Meta Elab Tactic
+def librarySearchApply' (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+  let discrTrees ← getLibraryLemmas
+  let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
+  let results := if pathToPol goalPath then
+    (← getSubExprUnify discrTrees.1.apply tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply tree goalPath [])
+  else
+    (← getSubExprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply_rev tree goalPath [])
+
+  -- let results ← filterLibraryResults results fun {name, path, pos, ..} => do
+  --   try
+  --     _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeApply tree
+  --     return true
+  --   catch _ =>
+  --     return false
+  let results := results[:10].toArray
+
+  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
+  -- return resultStrings
+
+
+
+elab "try_lib_apply" goalPos:treePos : tactic => do
+  let goalPos := getPosition goalPos
+  let tree := (← getMainDecl).type
+  logLibrarySearch (← librarySearchApply' goalPos tree)
+
+-- #exit
+example : ∃ x, x = 4 := by
+  make_tree
+  try_lib_apply [1]
+
+-- #print prefix Aesop.Check.script
+#check Aesop.Check.script.sizeOf_spec
+#check Aesop.Check.all.sizeOf_spec
+
+#check Nat.Coprime
+
+#exit
+example (hf : (mulSupport f).Finite) (hg : (mulSupport g).Finite) : 
+  ( ∏ᶠ i, f i * g i )= (∏ᶠ i, (f i + 1)) * (∏ᶠ i : α, g i) := by
+    try_lib_rewrite [0,1]

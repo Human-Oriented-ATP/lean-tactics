@@ -1,8 +1,7 @@
 import TreeMoves.DiscrTree
-
 namespace Tree
 
-open Lean Meta DiscrTree
+open DiscrTree Lean Meta
 
 inductive LibraryLemmaKind where
 | apply
@@ -40,11 +39,11 @@ instance : Inhabited DiscrTrees := ⟨{}⟩
 -- private abbrev ProcessResult := Quintuple (Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)))
 
 private structure ProcessResult where
-  apply           : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
-  apply_rev       : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
-  rewrite         : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
-  rewrite_ord     : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
-  rewrite_ord_rev : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)) := #[]
+  apply           : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
+  apply_rev       : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
+  rewrite         : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
+  rewrite_ord     : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
+  rewrite_ord_rev : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
 instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
@@ -98,12 +97,13 @@ where
 def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
   if cinfo.isUnsafe then return t
   if ← name.isBlackListed then return t
+  if name matches .str _ "sizeOf_spec" then return t
   unless ← (match cinfo with
     | .axiomInfo ..
     | .thmInfo .. => pure true
-    | .defnInfo .. => do
-      let us ← mkFreshLevelMVarsFor cinfo
-      isDefEq (← inferType (← instantiateTypeLevelParams cinfo us)) (.sort .zero)
+    -- | .defnInfo .. => do
+    --   let us ← mkFreshLevelMVarsFor cinfo
+    --   isDefEq (← inferType (← instantiateTypeLevelParams cinfo us)) (.sort .zero)
     | _ => pure false)
     do return t
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type

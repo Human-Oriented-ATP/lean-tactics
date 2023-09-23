@@ -47,6 +47,10 @@ lean_lib TreeMoves.PrintTree {
   -- add any library configuration options here
 }
 
+lean_lib TreeMoves.DiscrTreeTypes {
+  -- add any library configuration options here
+}
+
 lean_lib TreeMoves.DiscrTree {
   -- add any library configuration options here
 }
