@@ -172,8 +172,8 @@ def HypothesisRec : OptionRecursor (ReaderT HypothesisContext MetaM') α where
       instMetaIntro := return (← c.instMetaIntro).push (← mkFreshExprMVarWithId mvarId cls (kind := .synthetic))
       hypProofM := do
         let (instance_pattern _n _u _domain tree, hypProof) ← c.hypProofM | panic! ""
-
-        let assignment ← instantiateMVars mvar
+        -- sometimes the metavariable assignment is not eta-reduced, but it should be.
+        let assignment := Expr.eta (← instantiateMVars mvar)
         
         let newMVars := ((assignment.collectMVars {}).result).filter (!(← get).boundMVars.contains ·)
         let newBinders ← liftMetaM <| newMVars.mapM mkMetaHypBinder
@@ -192,7 +192,7 @@ def HypothesisRec : OptionRecursor (ReaderT HypothesisContext MetaM') α where
       metaIntro := return (← c.metaIntro).push (← mkFreshExprMVarWithId mvarId domain (kind := .natural) (userName := name))
       hypProofM := do
         let (forall_pattern name u _domain tree, hypProof) ← c.hypProofM | panic! ""
-        let assignment ← instantiateMVars mvar
+        let assignment := Expr.eta (← instantiateMVars mvar)
 
         if let .mvar mvarId' := assignment then
           modify fun s => let (mvarInfos, duplicate) := s.mvarInfos.insert' mvarId' {name, u}; if duplicate then s else { s with mvarInfos }
@@ -354,7 +354,7 @@ where
    (k : Expr → MetaM' (MetaM' TreeProof)) : OptionT MetaM' (MetaM' TreeProof) := do
     let mvar ← mkFreshExprMVar domain .synthetic (`mvar ++ name)
     let k ← k mvar
-    let assignment ← instantiateMVars mvar
+    let assignment := Expr.eta (← instantiateMVars mvar)
     if let .mvar mvarId' := assignment then
       modify fun s => { s with mvarInfos := s.mvarInfos.insert mvarId' {name, u} }
       

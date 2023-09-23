@@ -84,28 +84,6 @@ lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
   rfl
 
 
--- some weird behaviour going on here:
-
--- elab "lib_intro" h:ident : tactic =>
---   Tree.workOnTree (m := Lean.Meta.MetaM) fun tree => do
---   let (h, p) ← Tree.getConstAndTypeFromIdent h
---   -- let p ← Tree.makeTree p
---   return {
---     newTree := Lean.mkApp2 (.const ``Tree.Imp []) p tree
---     proof := Lean.mkApp3 (.const ``Tree.imp []) p tree h
---   }
--- open Tree in
--- def Nat.rec' : Forall _ fun motive : ℕ → Prop => Imp (motive 0) $ Imp ((n : ℕ) → motive n → motive (n+1)) $ Forall _ motive :=
---   @Nat.rec
--- open Tree in
--- def Nat.rec'' : Forall _ fun motive : ℕ → Prop => Imp (motive 0) $ Imp ((n : ℕ) → motive n → motive (n+1)) $ (t : ℕ) → motive t :=
---   @Nat.rec
-
--- example : ∀ n : ℕ, n = (n * (n - 1) / 2) := by
---   make_tree
---   lib_intro Nat.rec'
---   tree_apply [0,1,1,1,1,1] [1]
---   sorry
 
 open BigOperators
 
@@ -166,48 +144,17 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
   -/
   sorry
 
-#check finsum_sub_distrib
--- #exit
-
 -- example (a b c : Int) : a + b + c = a + (b + c) := by
 --   try_lib_rewrite [0,1]
 
-open BigOperators
 
-variable {M α : Type*} [Field M] {f g : α → M} (a : α)
--- set_option pp.all true in 
 
+
+-- example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
+--   try_lib_rewrite [0,1]
 
 #exit
-open Tree DiscrTree Lean Meta Elab Tactic
-def librarySearchApply' (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
-  let discrTrees ← getLibraryLemmas
-  let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
-  let results := if pathToPol goalPath then
-    (← getSubExprUnify discrTrees.1.apply tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply tree goalPath [])
-  else
-    (← getSubExprUnify discrTrees.1.apply_rev tree goalPath []) ++ (← getSubExprUnify discrTrees.2.apply_rev tree goalPath [])
-
-  -- let results ← filterLibraryResults results fun {name, path, pos, ..} => do
-  --   try
-  --     _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeApply tree
-  --     return true
-  --   catch _ =>
-  --     return false
-  let results := results[:10].toArray
-
-  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
-  -- return resultStrings
-
-
-
-elab "try_lib_apply" goalPos:treePos : tactic => do
-  let goalPos := getPosition goalPos
-  let tree := (← getMainDecl).type
-  logLibrarySearch (← librarySearchApply' goalPos tree)
-
--- #exit
-example : ∃ x, x = 4 := by
+example : ∃ x, x = x := by
   make_tree
   try_lib_apply [1]
 
@@ -216,6 +163,12 @@ example : ∃ x, x = 4 := by
 #check Aesop.Check.all.sizeOf_spec
 
 #check Nat.Coprime
+#check Exists.rec
+example : (∃ x:Nat, 1=1) → True := by
+  make_tree
+  tree_induction []
+
+
 
 #exit
 example (hf : (mulSupport f).Finite) (hg : (mulSupport g).Finite) : 
