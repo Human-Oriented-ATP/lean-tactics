@@ -11,6 +11,7 @@ declare_syntax_cat tree
 
 syntax ident "⋆ : " term : binder
 syntax ident "• : " term : binder
+syntax ident " : " term : binder
 syntax "[" (ident " : ")? term "]" : binder
 
 syntax ("∀ " <|> "∃ ")? binder : symbol_binder
@@ -20,73 +21,77 @@ syntax (name := hypothesis) term newLineTermParser : tree
 syntax (name := dotHypothesis) "·" ppHardSpace term newLineTermParser : tree
 syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
 
+def newLine := ppDedent (ppLine >> categoryParser `term 0)
+syntax (name := firstLine) newLine : tree
+
 syntax ident "•" : term
 syntax ident "⋆" : term
 
 
 open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
-@[delab app.Tree.Forall]
-def delabForall : Delab := do
-  let forall_pattern n _u d b ← getExpr | failure
-  let stxD ← withAppFn $ withAppArg delab
-  let n ← getUnusedName n b
-  let stxN := mkIdent n
-  let stxND ← annotateTermInfo (← `(binder| $stxN:ident⋆ : $stxD))
-  Meta.withLocalDeclD n d fun fvar =>
-  descend (b.instantiate1 (mkAnnotation `star fvar)) 1 do
-  match ← delab with
-    | `(tree|∀ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
-    | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∀ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
-    | `(tree|$stx)                                    => `(tree|∀ $stxND:binder⠀ $stx)
 
-@[delab app.Tree.Exists]
-def delabExists : Delab := do
-  let exists_pattern n _u d b ← getExpr | failure
-  let stxD ← withAppFn $ withAppArg delab
-  let n ← getUnusedName n b
-  let stxN := mkIdent n
-  let stxND ← annotateTermInfo (← `(binder| $stxN:ident• : $stxD))
-  Meta.withLocalDeclD n d fun fvar =>
-  descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
-  match ← delab with
-    | `(tree|∃ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
-    | `(tree|$[$b:symbol_binder],*⠀ $stx)             => `(tree|∃ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
-    | `(tree|$stx)                                    => `(tree|∃ $stxND:binder⠀ $stx)
-
-@[delab app.Tree.Instance]
-def delabInstance : Delab := do
-  let instance_pattern n _u d b ← getExpr | failure
-  let stxD ← withAppFn $ withAppArg delab
-  let stxND ← annotateTermInfo <| ← do 
-    if n.eraseMacroScopes == `inst then `(binder| [$stxD:term])
-    else do
+partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
+  match ← getExpr with
+  | forall_pattern n _u d b =>
+    let stxD ← withAppFn $ withAppArg delab
     let n ← getUnusedName n b
     let stxN := mkIdent n
-    `(binder| [$stxN:ident : $stxD])
-  Meta.withLocalDeclD n d fun fvar =>
-  descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
-  match ← delab with
-    | `(tree|$[$b:symbol_binder],*⠀ $stx) => `(tree|$stxND:binder, $[$b:symbol_binder],*⠀ $stx)
-    | `(tree|$stx)                        => `(tree|$stxND:binder⠀ $stx)
+    let stxND ← annotateTermInfo (← if pol then `(binder| $stxN:ident : $stxD) else `(binder| $stxN:ident⋆ : $stxD))
+    Meta.withLocalDeclD n d fun fvar =>
+    descend (b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)) 1 do
+    match ← (delabTreeAux pol) with
+      | `(tree|∀ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+      | `(tree|$[$b:symbol_binder],*⠀ $stx)              => `(tree|∀ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+      | `(tree|$stx)                                     => `(tree|∀ $stxND:binder⠀ $stx)
 
-@[delab app.Tree.Imp]
-def delabImp : Delab := do
-  let imp_pattern p q ← getExpr | failure
-  let stxP ← descend p 0 delab
-  let stxQ ← descend q 1 delab
-  if isTree p then
-    `(dotHypothesis|· $stxP⠀$stxQ)
-  else
-    `(hypothesis|$stxP⠀$stxQ)
+  | exists_pattern n _u d b =>
+    let stxD ← withAppFn $ withAppArg delab
+    let n ← getUnusedName n b
+    let stxN := mkIdent n
+    let stxND ← annotateTermInfo (← if pol then `(binder| $stxN:ident• : $stxD) else `(binder| $stxN:ident : $stxD))
+    Meta.withLocalDeclD n d fun fvar =>
+    descend (b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)) 1 do
+    match ← (delabTreeAux pol) with
+      | `(tree|∃ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
+      | `(tree|$[$b:symbol_binder],*⠀ $stx)              => `(tree|∃ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+      | `(tree|$stx)                                     => `(tree|∃ $stxND:binder⠀ $stx)
 
-@[delab app.Tree.And]
-def delabAnd : Delab := do
-  let and_pattern p q ← getExpr | failure
-  let stxP ← descend p 0 delab
-  let stxQ ← descend q 1 delab
-  `(sidegoal|⊢ $stxP⠀$stxQ)
+  | instance_pattern n _u d b =>
+    let stxD ← withAppFn $ withAppArg delab
+    let stxND ← annotateTermInfo <| ← do 
+      if n.eraseMacroScopes == `inst then `(binder| [$stxD:term])
+      else do
+      let n ← getUnusedName n b
+      let stxN := mkIdent n
+      `(binder| [$stxN:ident : $stxD])
+    Meta.withLocalDeclD n d fun fvar =>
+    descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
+    match ← (delabTreeAux pol) with
+      | `(tree|$[$b:symbol_binder],*⠀ $stx) => `(tree|$stxND:binder, $[$b:symbol_binder],*⠀ $stx)
+      | `(tree|$stx)                        => `(tree|$stxND:binder⠀ $stx)
 
+  | imp_pattern p q =>
+    let stxP ← descend p 0 (delabTreeAux !pol)
+    let stxQ ← descend q 1 (delabTreeAux  pol)
+    annotateTermInfo =<< if isTree p
+    then
+      `(dotHypothesis|· $stxP⠀$stxQ)
+    else
+      `(hypothesis|$stxP⠀$stxQ)
+
+  | and_pattern p q =>
+    let stxP ← descend p 0 (delabTreeAux pol)
+    let stxQ ← descend q 1 (delabTreeAux pol)
+    annotateTermInfo =<< `(sidegoal|⊢ $stxP⠀$stxQ)
+
+  | _ => if root then failure else delab
+
+
+@[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And]
+def delabTree : Delab := do
+  let stx ← delabTreeAux true true
+  `(firstLine| $stx)
 
 /- note that we do not call the main delab function, but delabFVar directly. This is to avoid a seccond term annotation
 on the free variable itself, without the bullet/star.-/
@@ -100,7 +105,7 @@ def delabAnnotation : Delab := do
   else failure
 
 
-example (p : Prop) (q : Nat → Prop) : ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ∃ g n : Int, ∃ m:Nat, Nat → q a) →  p → (p → p) → ∃ m h : Nat, q m := by
+example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ∃ g n : Int, ∃ m:Nat, Nat → q a) →  p → (p → p) → ∃ m h : Nat, q m := by
   make_tree
   sorry
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
