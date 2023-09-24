@@ -37,7 +37,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) :
   lib_rewrite Set.nonempty_Ioo [1,1]
   tree_apply [1,0] [1,1]
 
- 
+
 lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ε - η = ζ :=
   fun ε hε =>
     let hε2 : ε / 2 > 0 := div_pos hε (by simp)
@@ -55,6 +55,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   lib_rewrite Filter.eventually_atTop [1,0,1,1]
   lib_rewrite Metric.continuous_iff [1,1]
   make_tree
+  try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,0,1,0,1]
   lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
@@ -146,7 +147,7 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
 -- example (a b c : Int) : a + b + c = a + (b + c) := by
 --   try_lib_rewrite [0,1]
 
-
+#exit
 #check Finset.sum_range_id
 
 example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by

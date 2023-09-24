@@ -299,7 +299,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-def TreeRec : OptionRecursor MetaM TreeProof where
+def TreeRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : OptionRecursor m TreeProof where
   imp_right := introProp bindImpRight
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
@@ -309,11 +309,11 @@ def TreeRec : OptionRecursor MetaM TreeProof where
   ex   := introFree bindExists
   inst := introFree bindInstance
 where
-  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) : MetaM TreeProof → OptionT MetaM TreeProof :=
+  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) : m TreeProof → OptionT m TreeProof :=
     Functor.map <| some ∘ bind p pol tree
 
   introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (name : Name) (u : Level) (domain : Expr) (pol : Bool)
-      (tree : Expr) (k : Expr → MetaM TreeProof) : OptionT MetaM TreeProof :=
+      (tree : Expr) (k : Expr → m TreeProof) : OptionT m TreeProof :=
     withLocalDeclD name domain fun fvar => do
       let treeProof ← k fvar
       bind name u domain fvar pol tree treeProof
