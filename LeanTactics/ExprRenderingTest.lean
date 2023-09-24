@@ -24,25 +24,16 @@ def myDiffs : AssocList SubExpr.Pos DiffTag :=
   |>.insert (.ofArray #[1, 1, 0, 1]) .wasChanged 
   |>.insert (.ofArray #[1, 1, 1]) .willChange
 
-syntax (name := exprCmd) "#expr " term : command
+syntax (name := exprCmd) "#expr " name : command
 
 open Elab Command Json in
 @[command_elab exprCmd]
 def elabHtmlCmd : CommandElab := fun
-  | stx@`(#expr $t:term) =>
+  | stx@`(#expr $n:name) =>
     runTermElabM fun _ => do
-      let trm ← Term.elabTerm t none
-      let e ← ExprWithCtx.save trm
-      let ht := <ExprPresentation expr={{ val := e }} />
+      let ht ← n.getName.renderWithDiffs myDiffs
       savePanelWidgetInfo stx ``HtmlDisplay do
         return json% { html: $(← rpcEncode ht) }
   | stx => throwError "Unexpected syntax {stx}."
 
-@[expr_presenter]
-def myExprPresenter : ExprPresenter := {
-  userName := "MyPresenter",
-  layoutKind := .inline,
-  present := fun _ ↦ pure <b> Test </b>
-}
-
-#expr (1 + 1 = 2)
+#expr `Nat.add_comm
