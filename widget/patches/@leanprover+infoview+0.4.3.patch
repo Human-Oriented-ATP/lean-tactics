@@ -1,0 +1,122 @@
+diff --git a/node_modules/@leanprover/infoview/dist/index.d.ts b/node_modules/@leanprover/infoview/dist/index.d.ts
+index 27b2c72..ae5c5d0 100644
+--- a/node_modules/@leanprover/infoview/dist/index.d.ts
++++ b/node_modules/@leanprover/infoview/dist/index.d.ts
+@@ -1,15 +1,15 @@
+ /// <reference types="react" />
+ import { MessageData } from '@leanprover/infoview-api';
+ export * from '@leanprover/infoview-api';
+-export { useAsync, useAsyncWithTrigger, useAsyncPersistent, useEvent, useEventResult, useServerNotificationEffect, useServerNotificationState, useClientNotificationEffect, useClientNotificationState, mapRpcError, DocumentPosition } from './infoview/util';
+-export { EditorContext, VersionContext } from './infoview/contexts';
+-export { EditorConnection } from './infoview/editorConnection';
+-export { RpcContext } from './infoview/rpcSessions';
+-export { ServerVersion } from './infoview/serverVersion';
+-export { GoalLocation, GoalsLocation } from './infoview/goalLocation';
+-export { importWidgetModule, DynamicComponent, DynamicComponentProps, PanelWidgetProps } from './infoview/userWidget';
+-export { InteractiveCode, InteractiveCodeProps } from './infoview/interactiveCode';
+-export { renderInfoview } from './infoview/main';
++export { useAsync, useAsyncWithTrigger, useAsyncPersistent, useEvent, useEventResult, useServerNotificationEffect, useServerNotificationState, useClientNotificationEffect, useClientNotificationState, mapRpcError, DocumentPosition } from '@leanprover/infoview/dist/infoview/util';
++export { EditorContext, VersionContext } from '@leanprover/infoview/dist/infoview/contexts';
++export { EditorConnection } from '@leanprover/infoview/dist/infoview/editorConnection';
++export { RpcContext } from '@leanprover/infoview/dist/infoview/rpcSessions';
++export { ServerVersion } from '@leanprover/infoview/dist/infoview/serverVersion';
++export { GoalLocation, GoalsLocation, LocationsContext } from '@leanprover/infoview/dist/infoview/goalLocation';
++export { importWidgetModule, DynamicComponent, DynamicComponentProps, PanelWidgetProps } from '@leanprover/infoview/dist/infoview/userWidget';
++export { InteractiveCode, InteractiveCodeProps } from '@leanprover/infoview/dist/infoview/interactiveCode';
++export { renderInfoview } from '@leanprover/infoview/dist/infoview/main';
+ export { MessageData };
+ /** Display the given message data as interactive, pretty-printed text. */
+ export declare function InteractiveMessageData({ msg }: {
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/contexts.d.ts b/node_modules/@leanprover/infoview/dist/infoview/contexts.d.ts
+index d3180c5..29790fe 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/contexts.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/contexts.d.ts
+@@ -1,8 +1,8 @@
+ import * as React from 'react';
+ import type { Diagnostic } from 'vscode-languageserver-protocol';
+ import { LeanFileProgressProcessingInfo, InfoviewConfig } from '@leanprover/infoview-api';
+-import { EditorConnection } from './editorConnection';
+-import { ServerVersion } from './serverVersion';
++import { EditorConnection } from '@leanprover/infoview/dist/infoview/editorConnection';
++import { ServerVersion } from '@leanprover/infoview/dist/infoview/serverVersion';
+ export declare const EditorContext: React.Context<EditorConnection>;
+ export declare const VersionContext: React.Context<ServerVersion | undefined>;
+ export declare const ConfigContext: React.Context<InfoviewConfig>;
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/editorConnection.d.ts b/node_modules/@leanprover/infoview/dist/infoview/editorConnection.d.ts
+index 95c8d94..649e621 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/editorConnection.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/editorConnection.d.ts
+@@ -1,7 +1,7 @@
+ import type { Location } from 'vscode-languageserver-protocol';
+ import { EditorApi, InfoviewApi, PlainGoal, PlainTermGoal } from '@leanprover/infoview-api';
+-import { Eventify } from './event';
+-import { DocumentPosition } from './util';
++import { Eventify } from '@leanprover/infoview/dist/infoview/event';
++import { DocumentPosition } from '@leanprover/infoview/dist/infoview/util';
+ export type EditorEvents = Eventify<InfoviewApi>;
+ /** Provides higher-level wrappers around functionality provided by the editor,
+  * e.g. to insert a comment. See also {@link EditorApi}. */
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/goalLocation.d.ts b/node_modules/@leanprover/infoview/dist/infoview/goalLocation.d.ts
+index 173e02b..49cb540 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/goalLocation.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/goalLocation.d.ts
+@@ -1,6 +1,6 @@
+ import { FVarId, MVarId, SubexprPos } from '@leanprover/infoview-api';
+ import * as React from 'react';
+-import { HoverState } from './tooltips';
++import { HoverState } from '@leanprover/infoview/dist/infoview/tooltips';
+ /**
+  * A location within a goal. It is either:
+  * - one of the hypotheses; or
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/main.d.ts b/node_modules/@leanprover/infoview/dist/infoview/main.d.ts
+index 0488001..ed372b0 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/main.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/main.d.ts
+@@ -1,7 +1,7 @@
+ import 'tachyons/css/tachyons.css';
+ import '@vscode/codicons/dist/codicon.ttf';
+ import '@vscode/codicons/dist/codicon.css';
+-import './index.css';
++import '@leanprover/infoview/dist/infoview/index.css';
+ import { EditorApi, InfoviewApi } from '@leanprover/infoview-api';
+ /**
+   * Render the Lean infoview into the DOM element `uiElement`.
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/rpcSessions.d.ts b/node_modules/@leanprover/infoview/dist/infoview/rpcSessions.d.ts
+index 0070981..be21ce6 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/rpcSessions.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/rpcSessions.d.ts
+@@ -1,7 +1,7 @@
+ import { RpcSessionAtPos } from '@leanprover/infoview-api';
+ import * as React from 'react';
+ import type { TextDocumentPositionParams } from 'vscode-languageserver-protocol';
+-import { DocumentPosition } from './util';
++import { DocumentPosition } from '@leanprover/infoview/dist/infoview/util';
+ /** Manages a Lean RPC connection by providing an {@link RpcSessionsContext} to the children. */
+ export declare function WithRpcSessions({ children }: {
+     children: React.ReactNode;
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/userWidget.d.ts b/node_modules/@leanprover/infoview/dist/infoview/userWidget.d.ts
+index 87301e0..f6fd987 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/userWidget.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/userWidget.d.ts
+@@ -1,7 +1,7 @@
+ import * as React from 'react';
+ import { UserWidgetInstance, InteractiveGoal, InteractiveTermGoal, RpcSessionAtPos } from '@leanprover/infoview-api';
+-import { DocumentPosition } from './util';
+-import { GoalsLocation } from './goalLocation';
++import { DocumentPosition } from '@leanprover/infoview/dist/infoview/util';
++import { GoalsLocation } from '@leanprover/infoview/dist/infoview/goalLocation';
+ /**
+  * Fetch source code from Lean and dynamically import it as a JS module.
+  *
+diff --git a/node_modules/@leanprover/infoview/dist/infoview/util.d.ts b/node_modules/@leanprover/infoview/dist/infoview/util.d.ts
+index 3c60946..e7510e5 100644
+--- a/node_modules/@leanprover/infoview/dist/infoview/util.d.ts
++++ b/node_modules/@leanprover/infoview/dist/infoview/util.d.ts
+@@ -1,6 +1,6 @@
+ import * as React from 'react';
+ import type { DocumentUri, Position, Range, TextDocumentPositionParams } from 'vscode-languageserver-protocol';
+-import { EventEmitter } from './event';
++import { EventEmitter } from '@leanprover/infoview/dist/infoview/event';
+ /** A document URI and a position in that document. */
+ export interface DocumentPosition extends Position {
+     uri: DocumentUri;

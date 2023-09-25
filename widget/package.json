@@ -22,6 +22,7 @@
     "@types/react-dom": "^18.2.7",
     "@types/three": "^0.154.0",
     "glob": "^10.3.3",
+    "patch-package": "^8.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
@@ -36,7 +37,8 @@
     "watch": "rollup --environment NODE_ENV:production --config --watch",
     "watch-dev": "rollup --config --watch",
     "build": "rollup --environment NODE_ENV:production --config",
-    "build-dev": "rollup --config"
+    "build-dev": "rollup --config",
+    "postinstall": "patch-package"
   },
   "eslintConfig": {
     "extends": [
