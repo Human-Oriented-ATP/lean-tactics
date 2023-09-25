@@ -11,7 +11,8 @@ import { EditorContext, DocumentPosition, RpcContext, RpcSessionAtPos,
     importWidgetModule, mapRpcError, useAsyncPersistent } from '@leanprover/infoview';
 import type { DynamicComponent } from '@leanprover/infoview';
 import { TextDocumentEdit } from 'vscode-languageserver-protocol';
-import { Button } from '@mui/material'
+import { Button, ButtonPropsVariantOverrides, ButtonPropsColorOverrides, ButtonPropsSizeOverrides } from '@mui/material'
+import { OverridableStringUnion } from '@mui/types'
 import '@mui/private-theming'
 
 type HtmlAttribute = [string, any]
@@ -80,7 +81,13 @@ interface EditParams {
     newCursorPos? : DocumentPosition
 }
 
-interface DynamicButtonProps {
+interface DynamicButtonStylingProps {
+    variant : OverridableStringUnion<'text' | 'outlined' | 'contained', ButtonPropsVariantOverrides>
+    color : OverridableStringUnion<'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning', ButtonPropsColorOverrides >
+    size : OverridableStringUnion<'small' | 'medium' | 'large', ButtonPropsSizeOverrides>
+}
+
+interface DynamicButtonProps extends DynamicButtonStylingProps {
     pos : DocumentPosition
     label : string
     edit? : EditParams
@@ -107,7 +114,15 @@ export default function DynamicButton(props:DynamicButtonProps) {
 
     return (
         <div>
-            { (isHTMLVisible && props.vanish) ? null : <Button color = {'primary'} size = {'medium'} sx={{textTransform: "none"}} variant = {'outlined'} onClick={onClick}>{props.label}</Button> }
+            { (isHTMLVisible && props.vanish) ? null : 
+                <Button 
+                    variant = {props.variant}
+                    color = {props.color} 
+                    size = {props.size} 
+                    sx={{textTransform: "none"}} 
+                    onClick={onClick}>
+                        {props.label}
+                </Button> }
             { (isHTMLVisible && props.html) ? 
                 <HtmlDisplay pos={props.pos} html={props.html}/> : null }
         </div>

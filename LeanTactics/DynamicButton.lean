@@ -7,7 +7,7 @@ import ProofWidgets.Demos.Macro
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
-import Mathlib
+-- import Mathlib
 import TreeMoves.Tree
 
 namespace ProofWidgets
@@ -35,7 +35,13 @@ def EditParams.insertLine (meta : Server.DocumentMeta) (line : Nat)
   let pos := { line := line, character := 0 }
   EditParams.ofReplaceRange meta ⟨pos, pos⟩ newText
 
-structure DynamicButtonProps where
+-- TODO: Make these inductive types
+structure DynamicButtonStylingProps where
+  variant : String := "outlined" -- 'text' | 'outlined' | 'contained'
+  color : String := "primary" -- 'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning'
+  size : String := "medium" -- 'small' | 'medium' | 'large'
+
+structure DynamicButtonProps extends DynamicButtonStylingProps where
   label : String
   edit? : Option EditParams := none
   html? : Option Html := none
@@ -47,7 +53,7 @@ deriving RpcEncodable
   javascript := include_str ".." / "build" / "js" / "dynamicButton.js"
 
 
-structure DynamicEditButtonProps where
+structure DynamicEditButtonProps extends DynamicButtonStylingProps where
   label : String
   range? : Option Lsp.Range := none
   insertion? : Option String := none
@@ -67,7 +73,10 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
       { label := props.label
         edit? := editParams?
         html? := props.html?
-        vanish := props.vanish }
+        vanish := props.vanish
+        variant := props.variant
+        color := props.color
+        size := props.size }
 
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
   mk_rpc_widget% DynamicEditButton.rpc
