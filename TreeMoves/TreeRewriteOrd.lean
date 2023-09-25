@@ -287,15 +287,18 @@ elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
   let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeRewriteOrd)
 
-def getRewriteOrdPos (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+def getRewriteOrdPos (hypPos : Option (List Nat)) (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := findPath hypTree
-  return (← makeTreePath path hyp, path, [])
+  let (path, pos) := match hypPos with
+    | some pos => posToPath pos hypTree
+    | none => (findPath hypTree, [])
+  return (← makeTreePath path hyp, path, pos)
 
-elab "lib_rewrite_ord" hypName:ident goalPos:treePos : tactic => do
+elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
   let goalPos := getPosition goalPos
-  workOnTree (applyUnbound hypName getRewriteOrdPos goalPos treeRewriteOrd)
+  let hypPos := getPosition <$> hypPos
+  workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalPos treeRewriteOrd)
 
 open DiscrTree in 
 def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
@@ -357,7 +360,7 @@ lemma testLib : ∀ x, x - 1 ≤ x := sorry
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
-  lib_rewrite_ord Tree.testLib [1,0,1,1,1,0,1]
+  lib_rewrite_ord [1] Tree.testLib [1,0,1,1,1,0,1]
   lib_apply _root_.refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by

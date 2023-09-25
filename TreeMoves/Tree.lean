@@ -264,8 +264,8 @@ elab "make_tree" : tactic => do
 
 syntax treePos := "[" num,* "]"
 
-def getPosition (stx : Syntax) : List Nat :=
-  (stx[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
+def getPosition (stx : TSyntax `Tree.treePos) : List Nat :=
+  (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
 
 def makeTreePathRec : OptionRecursor MetaM Expr where
   all n _ α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Forall [← getLevel α]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)

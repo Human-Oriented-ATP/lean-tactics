@@ -55,7 +55,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   lib_rewrite Filter.eventually_atTop [1,0,1,1]
   lib_rewrite Metric.continuous_iff [1,1]
   make_tree
-  try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,0,1]
+  -- try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,0,1]
   tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,0,1,0,1]
   lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]

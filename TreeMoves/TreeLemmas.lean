@@ -4,13 +4,13 @@ import Mathlib.Control.Bifunctor
 
 namespace Tree
 
-def Imp (p q : Prop) := p → q
-def And (p q : Prop) := p ∧ q
+@[reducible] def Imp (p q : Prop) := p → q
+@[reducible] def And (p q : Prop) := p ∧ q
 
-def Forall (α : Sort u) (p : α → Prop) := ∀ a : α, p a
-def Exists (α : Sort u) (p : α → Prop) := ∃ a : α, p a
+@[reducible] def Forall (α : Sort u) (p : α → Prop) := ∀ a : α, p a
+@[reducible] def Exists (α : Sort u) (p : α → Prop) := _root_.Exists p
 
-def Instance (α : Sort u) (p : α → Prop) := (inst : α) → p inst
+@[reducible] def Instance (α : Sort u) (p : α → Prop) := (inst : α) → p inst
 
 open Lean Meta
 

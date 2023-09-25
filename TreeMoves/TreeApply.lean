@@ -506,9 +506,9 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
 
 def getApplyPos (pos? : Option (List Nat)) (hyp : Expr) (goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let (path, pos) ← match pos? with
-    | none => pure (if pathToPol goalPath then findPath hypTree else (findNegativePath hypTree).getD [], [])
-    | some pos => pure $ posToPath pos (← makeTree hyp)
+  let (path, pos) := match pos? with
+    | some pos => posToPath pos hypTree
+    | none => (if pathToPol goalPath then findPath hypTree else (findNegativePath hypTree).getD [], [])
   return (← makeTreePath path hyp, path, pos)
 
 open Elab.Tactic

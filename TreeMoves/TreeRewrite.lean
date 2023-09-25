@@ -113,21 +113,27 @@ elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   workOnTree (applyBound hypPos goalPos false treeRewrite)
 
-def getRewritePos (rev? : Bool) (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+def getRewritePos (pos : (List Nat) ⊕ Bool) (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
   let hypTree ← makeTree hyp
-  let path := findPath hypTree
-  return (← makeTreePath path hyp, path, (if rev? then [1] else [0,1]))
+  
+  let (path, pos) := match pos with
+    | .inl pos => posToPath pos hypTree
+    | .inr rev? => 
+      let path := findPath hypTree
+      (path, (if rev? then [1] else [0,1]))
+  return (← makeTreePath path hyp, path, pos)
 
 
-elab "lib_rewrite" hypName:ident goalPos:treePos : tactic => do
+elab "lib_rewrite" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
   let goalPos := getPosition goalPos
-  workOnTree (applyUnbound hypName (getRewritePos false) goalPos treeRewrite)
+  let hypPos := hypPos.elim (.inr false) (.inl ∘ getPosition)
+  workOnTree (applyUnbound hypName (getRewritePos hypPos) goalPos treeRewrite)
 
 elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
   let goalPos := getPosition goalPos
-  workOnTree (applyUnbound hypName (getRewritePos true) goalPos treeRewrite)
+  workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalPos treeRewrite)
 
 open DiscrTree in
 def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
@@ -155,6 +161,7 @@ elab "try_lib_rewrite" goalPos:treePos : tactic => do
 -- example (a b c : Nat) : a + b + c = a + (b + c) := by
 --   try_lib_rewrite [1]
 --   try_lib_rewrite [0,1]
+--   lib_rewrite [1,1,1] Nat.add_assoc [0,1]
 
 
 example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := by
