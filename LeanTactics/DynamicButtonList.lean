@@ -161,7 +161,7 @@ def mkDiv: Array Html → Html :=
   .element "div" #[]
 
 def mkFragment : Array Html → Html :=
-  .element "Fragment" #[]
+  .element "" #[]
 
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
   code.map fun info ↦
@@ -178,23 +178,33 @@ def Lean.Name.renderWithDiffs (nm : Name) (diffs : AssocList SubExpr.Pos DiffTag
   let some ci := env.find? nm | failure
   ci.type.renderWithDiffs diffs
 
+def renderLibrarySearchResults (range : Lsp.Range) (label : String) 
+    (results : Array (Array (Name × (AssocList SubExpr.Pos DiffTag) × String) × Nat)) : MetaM Html := do
+  let core ← mkDiv <$> results.mapM (renderBlock ·.fst)
+  pure 
+    <details «open»={true}>
+      <summary className="mv2 pointer">{.text label}</summary>
+      {core}
+    </details> 
+where
+  renderBlock (results : Array _) : MetaM Html := do
+    let block ← results.mapM fun (name, diffs, text) ↦ renderResult name diffs text
+    return mkDiv (block.push <hr />)
+  renderResult (name : Name) (diffs : AssocList SubExpr.Pos DiffTag) (text : String) : MetaM Html := do
+    return mkFragment 
+      #[ <DynamicEditButton label={name.toString} range?={range} insertion?={text} />, 
+          ← name.renderWithDiffs diffs ]
+
 open Jsx in
 @[motivated_proof_move]
 def libRewrite : InfoviewAction := fun props ↦ do
   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
   let libSuggestions ← Tree.librarySearchRewrite pos.toArray.toList (← goal.getType)
-  let resultsDisplay : Html ← mkDiv <$> (libSuggestions.mapM <| fun (suggestions, _score) ↦ do return mkDiv #[
-      ← mkDiv <$> suggestions.mapM fun (name, diffs, text) ↦ do return mkFragment #[
-      <DynamicEditButton label={name.toString} range?={props.range} insertion?={text} size={"small"} color={"info"} variant={"outlined"} />,
-      ← name.renderWithDiffs diffs 
-    ]])
   pure
-    (<DynamicEditButton label={"Rewrite with library result"} html?={
-      <details «open»={true}>
-      <summary className="mv2 pointer">Library rewrite results</summary>
-      {resultsDisplay}
-      </details>} />)
+    <DynamicEditButton 
+        label={"Rewrite with library result"} 
+        html?={← renderLibrarySearchResults props.range "Library rewrite results" libSuggestions} />
   
 example : 1 = 1 → 1 = 1 ∧ 1 = 2 := by
 motivated_proof
-  sorry
+  
