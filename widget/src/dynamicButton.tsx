@@ -111,7 +111,7 @@ export default function DynamicButton(props:DynamicButtonProps) {
         }
         setHTMLVisible(false); // temporary while states are leaking
     }
-
+    var render = document.getElementById("Grid")
     return (
         <div>
             { (isHTMLVisible && props.vanish) ? null : 
@@ -124,7 +124,7 @@ export default function DynamicButton(props:DynamicButtonProps) {
                         {props.label}
                 </Button> }
             { (isHTMLVisible && props.html) ? 
-                <HtmlDisplay pos={props.pos} html={props.html}/> : null }
+                (render as HTMLElement).style.display = 'none' : null }
         </div>
     );
 }

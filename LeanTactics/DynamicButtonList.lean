@@ -144,6 +144,7 @@ def lib_rewrite : InfoviewAction :=
       let some pos := panelProps.selectedLocations[0]? | OptionT.fail
       let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
       let text := "lib_rewrite" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      -- below
       pure 
         <DynamicEditButton 
           label={"Library rewrite at a selected position (to be implemented)"} 
@@ -205,6 +206,11 @@ def libRewrite : InfoviewAction := fun props ↦ do
         label={"Rewrite with library result"} 
         html?={← renderLibrarySearchResults props.range "Library rewrite results" libSuggestions} />
   
-example : 1 = 1 → 1 = 1 ∧ 1 = 2 := by
+lemma temp (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
 motivated_proof
   
+skip
+
+
+
+
