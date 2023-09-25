@@ -142,6 +142,7 @@ def lib_rewrite : InfoviewAction :=
       let some pos := panelProps.selectedLocations[0]? | OptionT.fail
       let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
       let text := "lib_rewrite" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      -- below
       pure 
         <DynamicEditButton 
           label={"Library rewrite at a selected position (to be implemented)"} 
@@ -150,12 +151,36 @@ def lib_rewrite : InfoviewAction :=
           html?={<p> Rewriting... </p>}
           vanish={true} />
     else OptionT.fail
+
+@[motivated_proof_move]
+def Try : InfoviewAction :=
+  fun props => do
+  if (props.selectedLocations.size == 1) then
+    let html : Html := (<details> 
+      <summary> Library Search Suggestions </summary> 
+        {.element "div" #[] #[<p> Paragraph </p>]}
+        </details>)
+    pure <DynamicEditButton
+          label={"Testing"} 
+          range?={props.range}
+          insertion?={"skip"}
+          html?={html}
+          vanish={false} />
+  else OptionT.fail
+
+-- basic code to generate the suggested library search results
+-- @[motivated_proof_move]
+-- def TryDetails : InfoviewAction :=
+--   fun props => do
+--   pure (<details> 
+--       <summary> Library Search Suggestions </summary> 
+--         {.element "div" #[] #[<p> Paragraph </p>]}
+--         </details>)
+
   
-example : 1 = 1 → 1 = 1 ∧ 1 = 2 := by
+lemma temp (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
 motivated_proof
-sorry
-
-
+skip
 
 
 
