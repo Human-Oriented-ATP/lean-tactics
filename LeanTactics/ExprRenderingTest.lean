@@ -1,6 +1,5 @@
 import ProofWidgets.Presentation.Expr
 import ProofWidgets.Component.HtmlDisplay
-import Std
 
 open Lean Server Widget ProofWidgets Jsx
 
@@ -46,28 +45,4 @@ def myExprPresenter : ExprPresenter := {
   present := fun _ ↦ pure <b> Test </b>
 }
 
-syntax (name := exprTemp) "!expr " term : command
-
-structure ExprPresentProps where
-  pos : Lsp.Position
-  expr : CodeWithInfos
-deriving RpcEncodable
-
-@[widget_module] def InteractiveExprPresent : Component ExprPresentProps where
-  javascript := include_str ".." / "build" / "js" / "InteractiveExpr.js"
-
-open Elab Command Json in
-@[command_elab exprTemp]
-def elabExpr : CommandElab := fun
-  | stx@`(!expr $t:term) =>
-    runTermElabM fun _ => do
-      let trm ← Term.elabTerm t none
-      let e ← ExprWithCtx.save trm
-      let some pos := (← getFileMap).rangeOfStx? stx | failure
-      let tgt ← ppExprTagged e.expr 
-      let ht := <InteractiveExprPresent pos = {pos.end} expr = {tgt} />
-      savePanelWidgetInfo stx ``HtmlDisplay do
-        return json% { html: $(← rpcEncode ht) }
-  | stx => throwError "Unexpected syntax {stx}."
-
-!expr (1 + 1 = 2)
+#expr (1 + 1 = 2)
