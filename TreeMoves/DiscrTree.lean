@@ -318,17 +318,17 @@ See issue #2155
 Recall that `BEq α` may not be Lawful.
 -/
 private def insertVal [BEq α] (vs : Array α) (v : α) : Array α :=
-  loop 0
-where
-  loop (i : Nat) : Array α :=
-    if h : i < vs.size then
-      if v == vs[i] then
-        vs.set ⟨i,h⟩ v
-      else
-        loop (i+1)
-    else
-      vs.push v
-termination_by loop i => vs.size - i
+  vs.push v--loop 0
+-- where
+--   loop (i : Nat) : Array α :=
+--     if h : i < vs.size then
+--       if v == vs[i] then
+--         vs.set ⟨i,h⟩ v
+--       else
+--         loop (i+1)
+--     else
+--       vs.push v
+-- termination_by loop i => vs.size - i
 
 private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Trie α s → Trie α s
   | i, .node vs cs =>
@@ -502,7 +502,7 @@ def getSubExprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind)
     let rec getSubExpr (fvars : Array Expr): List Nat → Expr → MetaM (Array (Array α × Nat))
       | xs   , .mdata _ b        => getSubExpr fvars xs b
 
-      | []   , e                 => getUnifyWithSpecificity d e
+      | []   , e                 => getUnifyWithSpecificity d (e.instantiateRev fvars)
       
       | 0::xs, .app f _          => getSubExpr fvars xs f
       | 1::xs, .app _ a          => getSubExpr fvars xs a
