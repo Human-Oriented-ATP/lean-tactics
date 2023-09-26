@@ -18,7 +18,8 @@ structure LibraryLemma where
   diffs : AssocList SubExpr.Pos Widget.DiffTag
 instance : BEq LibraryLemma where
   beq := fun {name, path, pos, ..} {name := name', path := path', pos := pos', ..} => name == name' && pos == pos' && path == path'
-
+instance : ToFormat LibraryLemma where
+  format := (toString ·.name)
 def LibraryLemma.proofAndType (lem : LibraryLemma) : MetaM (Expr × Expr) := do
   let cinfo ← getConstInfo lem.name
   let us ← mkFreshLevelMVarsFor cinfo

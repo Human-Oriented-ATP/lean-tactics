@@ -8,13 +8,15 @@ namespace Tree.DiscrTree
 
 /--
 Discrimination tree key. See `DiscrTree`
+
+The index of the star constructor gives a unique index for each star, giving each next star the next unused number.
 -/
 inductive Key where
   | const  : Name → Nat → Key
   | fvar   : FVarId → Nat → Key
   | bvar   : Nat → Nat → Key
+  | star   : Nat → Key
   | lit    : Literal → Key
-  | star   : Key
   | other  : Key
   | lam    : Key
   | forall : Key
@@ -22,15 +24,15 @@ inductive Key where
   deriving Inhabited, BEq, Repr
 
 protected def Key.hash : Key → UInt64
-  | Key.const n a   => mixHash 5237 $ mixHash (hash n) (hash a)
-  | Key.fvar n a    => mixHash 3541 $ mixHash (hash n) (hash a)
-  | Key.bvar i a    => mixHash 4323 $ mixHash (hash i) (hash a)
-  | Key.lit v       => mixHash 1879 $ hash v
-  | Key.star        => 7883
-  | Key.other       => 2411
-  | Key.lam         => 4742
-  | Key.forall      => 9752
-  | Key.proj s i a  => mixHash (hash a) $ mixHash (hash s) (hash i)
+  | const n a   => mixHash 5237 $ mixHash (hash n) (hash a)
+  | fvar n a    => mixHash 3541 $ mixHash (hash n) (hash a)
+  | bvar i a    => mixHash 4323 $ mixHash (hash i) (hash a)
+  | star i      => mixHash 7883 $ hash i
+  | lit v       => mixHash 1879 $ hash v
+  | other       => 2411
+  | lam         => 4742
+  | «forall»    => 9752
+  | proj s i a  => mixHash (hash a) $ mixHash (hash s) (hash i)
 
 instance : Hashable Key := ⟨Key.hash⟩
 
@@ -38,7 +40,7 @@ instance : Hashable Key := ⟨Key.hash⟩
 Discrimination tree trie. See `DiscrTree`.
 -/
 inductive Trie (α : Type) (simpleReduce : Bool) where
-  | node (vs : Array α) (children : Array (Key × Trie α simpleReduce)) : Trie α simpleReduce
+  | node (vs : Array α) (children : Array (Key × Trie α simpleReduce))
 
 end DiscrTree
 

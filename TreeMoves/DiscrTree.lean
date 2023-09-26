@@ -46,7 +46,7 @@ open Lean Meta DiscrTree
 -/
 
 def Key.ctorIdx : Key → Nat
-  | .star     => 0
+  | .star ..  => 0
   | .other    => 1
   | .lit ..   => 2
   | .fvar ..  => 3
@@ -57,6 +57,7 @@ def Key.ctorIdx : Key → Nat
   | .const .. => 8
 
 def Key.lt : Key → Key → Bool
+  | .star i₁,       .star i₂       => i₁ < i₂
   | .lit v₁,        .lit v₂        => v₁ < v₂
   | .fvar n₁ a₁,    .fvar n₂ a₂    => Name.quickLt n₁.name n₂.name || (n₁ == n₂ && a₁ < a₂)
   | .const n₁ a₁,   .const n₂ a₂   => Name.quickLt n₁ n₂ || (n₁ == n₂ && a₁ < a₂)
@@ -68,7 +69,7 @@ instance : LT Key := ⟨fun a b => Key.lt a b⟩
 instance (a b : Key) : Decidable (a < b) := inferInstanceAs (Decidable (Key.lt a b))
 
 def Key.format : Key → Format
-  | .star                   => "*"
+  | .star i                 => "*" ++ Std.format i
   | .other                  => "◾"
   | .lit (Literal.natVal v) => Std.format v
   | .lit (Literal.strVal v) => repr v
@@ -244,11 +245,23 @@ partial def reduceDT (e : Expr) (simpleReduce : Bool) : MetaM Expr := do
     | some e => reduceDT e simpleReduce
     | none   => return e
 
+private structure State where
+  mvarNums : HashMap MVarId Nat := {}
+  mvarCount : Nat := 0
+private structure Context where
+  boundVars : List FVarId := []
+
+private abbrev M := ReaderT Context StateRefT State MetaM
+
+def setNewStar (mvarId : Option MVarId) : M Key := do
+  let {mvarNums, mvarCount} ← get
+  set {mvarCount := mvarCount + 1, mvarNums := mvarId.elim mvarNums (mvarNums.insert · mvarCount) : State}
+  return .star mvarCount
 
 /- Remark: we use `shouldAddAsStar` only for nested terms, and `root == false` for nested terms -/
-private def getPathArgs (root : Bool) (e : Expr) (boundVars : List FVarId) : MetaM (Key × Array Expr) := do
+private def getPathArgs (root : Bool) (e : Expr) : M (Key × Array Expr) := do
     let fn := e.getAppFn
-    let push (k : Key) (nargs : Nat) (args : Array Expr) : MetaM (Key × Array Expr) := do
+    let push (k : Key) (nargs : Nat) (args : Array Expr) : M (Key × Array Expr) := do
       let info ← getFunInfoNArgs fn nargs
       let args ← pushArgsAux info.paramInfo (nargs-1) e args
       return (k, args)
@@ -272,36 +285,46 @@ private def getPathArgs (root : Bool) (e : Expr) (boundVars : List FVarId) : Met
       let nargs := e.getAppNumArgs
       push (.proj s i nargs) nargs #[a]
     | .fvar fvarId =>
-      let idx? := boundVars.findIdx? (· == fvarId)
+      let idx? := (← read).boundVars.findIdx? (· == fvarId)
       let nargs := e.getAppNumArgs
       push (idx?.elim (Key.fvar fvarId) Key.bvar nargs) nargs #[]
-    | .mvar ..   => return (.star,   #[])
+    | .mvar mvarId =>
+      if (e matches .app ..) || mvarId == tmpMVarId then
+        (·, #[]) <$> setNewStar none
+      else do
+      if let some i := (← get).mvarNums.find? mvarId then
+        pure (.star i, #[])
+      else (·, #[]) <$> setNewStar mvarId
+
     | .lit v     => return (.lit v,  #[])
     | .lam ..    => return (.lam,    #[])
     | .forallE ..=> return (.forall, #[])
     | _          => return (.other,  #[])
 
 mutual
-  partial def mkPathAux (root : Bool) (boundVars : List FVarId) (simpleReduce : Bool) (e : Expr) (keys : Array Key) : MetaM (Array Key) := do
+  partial def mkPathAux (root : Bool) (simpleReduce : Bool) (e : Expr) (keys : Array Key) : M (Array Key) := do
     if hasNoindexAnnotation e then
-      return keys.push .star
+      keys.push <$> setNewStar none
+    else
     let e ← reduceDT e simpleReduce
-    let (k, args) ← getPathArgs root e boundVars
+    let (k, args) ← getPathArgs root e     
     match k with
-    | .lam    => mkPathBinder e.bindingDomain! e.bindingBody! boundVars simpleReduce (keys.push k)
+    | .lam    => mkPathBinder e.bindingDomain! e.bindingBody! simpleReduce (keys.push k)
     | .forall => do
-      let keys ← mkPathAux false boundVars simpleReduce e.bindingDomain! (keys.push k)
-      mkPathBinder e.bindingDomain! e.bindingBody! boundVars simpleReduce keys
+      let keys ← mkPathAux false simpleReduce e.bindingDomain! (keys.push k)
+      mkPathBinder e.bindingDomain! e.bindingBody! simpleReduce keys
     | _ =>
-      args.foldrM (init := keys.push k) (mkPathAux false boundVars simpleReduce)
+      args.foldrM (init := keys.push k) (mkPathAux false simpleReduce)
 
-  partial def mkPathBinder (domain body : Expr) (boundVars : List FVarId) (simpleReduce : Bool) (keys : Array Key) : MetaM (Array Key) := do
-    withLocalDeclD `_a domain fun fvar => mkPathAux false (fvar.fvarId! :: boundVars) simpleReduce (body.instantiate1 fvar) keys
+  partial def mkPathBinder (domain body : Expr) (simpleReduce : Bool) (keys : Array Key) : M (Array Key) := do
+    withLocalDeclD `_a domain fun fvar =>
+      withReader (fun c => { boundVars := fvar.fvarId! :: c.boundVars }) do
+        mkPathAux false simpleReduce (body.instantiate1 fvar) keys
 end
 private def initCapacity := 8
 
-def mkPath (e : Expr) (simpleReduce : Bool := true) : MetaM (Array Key) := do
-  withReducible do mkPathAux (root := true) [] simpleReduce e (.mkEmpty initCapacity)
+def mkPath (e : Expr) (simpleReduce := true) : MetaM (Array Key) := do
+  withReducible do mkPathAux (root := true) simpleReduce e (.mkEmpty initCapacity) |>.run {} |>.run' {}
 
 private partial def createNodes (keys : Array Key) (v : α) (i : Nat) : Trie α s :=
   if h : i < keys.size then
@@ -375,7 +398,7 @@ private def getKeyArgs' (e : Expr) (boundVars : List FVarId) (root : Bool) : Met
     let nargs := e.getAppNumArgs
     return (.proj s i nargs, #[a] ++ e.getAppRevArgs)
   | .lit v         => return (.lit v,  #[])
-  | .mvar ..       => return (.star,   #[])
+  | .mvar ..       => return (.star 0, #[]) -- for now we ignore the index in stars in the target.
   | .lam ..        => return (.lam,    #[])
   | .forallE ..    => return (.forall, #[])
   | _              => return (.other,  #[])
@@ -406,28 +429,40 @@ private instance [Monad m] : Monad (ArrayT m) where
 --   monadLift := Functor.map (#[·])
 
 mutual
-  private partial def findExpr (e : Expr) (boundVars : List FVarId) : (Trie α s × Nat) → MetaM (Array (Trie α s × Nat))
-  | (.node _ cs, specific) => do
+  private partial def findExpr (e : Expr) (boundVars : List FVarId) : (Trie α s × HashMap Nat Expr × Nat) → MetaM (Array (Trie α s × HashMap Nat Expr × Nat))
+  | (.node _ cs, assignments, specific) => do
     let e ← reduceDT e (simpleReduce := s)
     let (k, args) ← getKeyArgs' e boundVars (root := false)
 
-    let visitStar : Array (Trie α s × Nat) :=
-      let first := cs[0]!
-      if first.1 == .star then #[(first.2, specific)] else #[]
+    let visitStars (start : Array (Trie α s × HashMap Nat Expr × Nat)) : MetaM (Array (Trie α s × HashMap Nat Expr × Nat)) := do
+      let mut result := start
+      for (k, v) in cs do
+        match k with
+        | .star i =>
+          match assignments.find? i with
+          | some assignment =>
+            let s ← (saveState : MetaM _)
+            if ← (try isDefEq e assignment catch _ => return false) then
+              s.restore
+              result := result.push (v, assignments, specific+1)
+          | none =>
+            result := result.push (v, assignments.insert i e, specific)
+        | _ => break
+      return result
 
     match k with
-    | .star  => return cs.concatMap fun (k, c) => (skipEntries k.arity c).map (·, specific)
-    | _      => (· ++ visitStar) <$> match findKey cs k with
+    | .star _ => return cs.concatMap fun (k, c) => (skipEntries k.arity c).map (·, assignments, specific)
+    | _       => visitStars =<< match findKey cs k with
       | none   => return #[]
       | some c => match k with
-        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! boundVars (c, specific)
-        | .forall => show ArrayT MetaM _ from findExpr e.bindingDomain! boundVars (c, specific+1) >>= findBoundExpr e.bindingDomain! e.bindingBody! boundVars
-        | _ => findExprs args boundVars (c, specific+1)
+        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! boundVars (c, assignments, specific)
+        | .forall => show ArrayT MetaM _ from findExpr e.bindingDomain! boundVars (c, assignments, specific+1) >>= findBoundExpr e.bindingDomain! e.bindingBody! boundVars
+        | _ => findExprs args boundVars (c, assignments, specific+1)
 
-  private partial def findExprs (args : Array Expr) (boundVars : List FVarId) : (Trie α s × Nat) → ArrayT MetaM (Trie α s × Nat) :=
+  private partial def findExprs (args : Array Expr) (boundVars : List FVarId) : (Trie α s × HashMap Nat Expr × Nat) → ArrayT MetaM (Trie α s × HashMap Nat Expr × Nat) :=
     args.foldrM (findExpr · boundVars)
 
-  private partial def findBoundExpr (domain body : Expr) (boundVars : List FVarId) : (Trie α s × Nat) → MetaM (Array (Trie α s × Nat)) :=
+  private partial def findBoundExpr (domain body : Expr) (boundVars : List FVarId) : (Trie α s × HashMap Nat Expr × Nat) → MetaM (Array (Trie α s × HashMap Nat Expr × Nat)) :=
     (withLocalDeclD `_a domain fun fvar =>
     findExpr (body.instantiate1 fvar) (fvar.fvarId! :: boundVars) ·)
 
@@ -437,14 +472,14 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
   withReducible do
     let (k, args) ← getKeyArgs e [] (root := true) (simpleReduce := s)
     match k with
-    | .star => throwError "the unification pattern is a metavariable"--d.root.foldlM (init := #[]) fun result k c => process k.arity 0 #[] c result
+    | .star _ => throwError "the unification pattern is a metavariable"--d.root.foldlM (init := #[]) fun result k c => process k.arity 0 #[] c result
     | _ =>
       let result ← match d.root.find? k with
         | none   => pure #[]
-        | some c => findExprs args [] (c, 1)
-      let result := result.map $ Bifunctor.fst (fun (.node vs _) => vs)
+        | some c => (findExprs args [] (c, {}, 1))
+      let result := result.map $ fun (.node vs _, _, n) => (vs, n)
       let result := result.qsort (·.2 > ·.2)
-      match d.root.find? .star with
+      match d.root.find? (.star 0) with
       | none => return result
       | some (.node vs _) => return result.push (vs, 0)
 -- where
