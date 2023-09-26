@@ -162,7 +162,7 @@ def mkDiv: Array Html → Html :=
   .element "div" #[]
 
 def mkFragment : Array Html → Html :=
-  .element "" #[]
+  .element "Fragment" #[]
 
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
   code.map fun info ↦
@@ -193,8 +193,15 @@ where
     return mkDiv (block.push <hr />)
   renderResult (name : Name) (diffs : AssocList SubExpr.Pos DiffTag) (text : String) : MetaM Html := do
     return mkFragment 
-      #[ <DynamicEditButton label={name.toString} range?={range} insertion?={text} />, 
-          ← name.renderWithDiffs diffs ]
+      #[ ← name.renderWithDiffs diffs, 
+         <DynamicEditButton 
+            label={name.toString} 
+            range?={range} 
+            insertion?={text}
+            variant={"text"}
+            color={"info"}
+            size={"small"} />, 
+         <br /> ]
 
 open Jsx in
 @[motivated_proof_move]
@@ -203,14 +210,26 @@ def libRewrite : InfoviewAction := fun props ↦ do
   let libSuggestions ← Tree.librarySearchRewrite pos.toArray.toList (← goal.getType)
   pure
     <DynamicEditButton 
-        label={"Rewrite with library result"} 
-        html?={← renderLibrarySearchResults props.range "Library rewrite results" libSuggestions} />
-  
-lemma temp (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
+        label={"Rewrite with a library result"}
+        html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
+        vanish={true} />
+
+-- open Jsx in
+-- @[motivated_proof_move]
+-- def libApply : InfoviewAction := fun props ↦ do
+--   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
+--   let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
+--   pure
+--     <DynamicEditButton 
+--         label={"Apply a library result"} 
+--         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+
+example (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
 motivated_proof
+  skip
+  sorry
+
+
   
-skip
-
-
 
 

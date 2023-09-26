@@ -109,11 +109,9 @@ export default function DynamicButton(props:DynamicButtonProps) {
                 await ec.revealPosition({ ...props.edit.newCursorPos, uri: props.edit.edit.textDocument.uri })
             
         }
-        setHTMLVisible(false); // temporary while states are leaking
     }
-    var render = document.getElementById("Grid")
     return (
-        <div>
+        <>
             { (isHTMLVisible && props.vanish) ? null : 
                 <Button 
                     variant = {props.variant}
@@ -124,7 +122,7 @@ export default function DynamicButton(props:DynamicButtonProps) {
                         {props.label}
                 </Button> }
             { (isHTMLVisible && props.html) ? 
-                (render as HTMLElement).style.display = 'none' : null }
-        </div>
+                <HtmlDisplay pos={props.pos} html={props.html}/> : null }
+        </>
     );
 }
