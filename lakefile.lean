@@ -67,6 +67,10 @@ lean_lib TreeMoves.TreeRewrite {
   -- add any library configuration options here
 }
 
+lean_lib TreeMoves.TreeRewriteDef {
+  -- add any library configuration options here
+}
+
 lean_lib TreeMoves.TreeRewriteOrd {
   -- add any library configuration options here
 }
@@ -80,6 +84,10 @@ lean_lib TreeMoves.TreeNormalize {
 }
 
 lean_lib TreeMoves.TreeSearch {
+  -- add any library configuration options here
+}
+
+lean_lib TreeMoves.TreeMoves {
   -- add any library configuration options here
 }
 

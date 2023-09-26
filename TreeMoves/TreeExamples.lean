@@ -1,11 +1,6 @@
-import TreeMoves.TreeRewriteOrd
-import TreeMoves.TreeRewrite
-import TreeMoves.TreeInduction
-import TreeMoves.TreeNormalize
-import TreeMoves.TreeSearch
-
-import TreeMoves.PrintTree
-import LeanTactics.DynamicButtonList
+import TreeMoves.TreeMoves
+import Mathlib
+-- import LeanTactics.DynamicButtonList
 
 
 example : True := by lib_apply trivial []
@@ -84,6 +79,10 @@ lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
  ∀ ⦃x : ℕ → X⦄, (∀ n, x n ∈ (@Set.univ X)) → ∃ a ∈ (@Set.univ X), ∃ φ : ℕ → ℕ, StrictMono φ ∧ Tendsto (x ∘ φ) atTop (𝓝 a) := by
   rfl
 
+
+lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
+  tree_rewrite_def [1]
+  sorry
 
 
 open BigOperators

@@ -516,7 +516,7 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
 
 
 
-def MetaTreeRec : OptionRecursor MetaM α where
+def MetaTreeRec : TreeRecursor MetaM α where
   imp_right _ _ _ k := do k
   imp_left  _ _ _ k := do k
   and_right _ _ _ k := do k
@@ -534,29 +534,29 @@ where
 
 def getSubExprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind) (pos : List Nat) : MetaM (Array (Array α × Nat)) := do
   MetaTreeRec.recurse true e path fun _pol e _path =>
-    let rec getSubExpr (fvars : Array Expr): List Nat → Expr → MetaM (Array (Array α × Nat))
-      | xs   , .mdata _ b        => getSubExpr fvars xs b
+    let rec getSubExpr (fvars : Array Expr) : List Nat → Expr → MetaM (Array (Array α × Nat))
+      | xs   , .mdata _ b       => getSubExpr fvars xs b
 
-      | []   , e                 => getUnifyWithSpecificity d (e.instantiateRev fvars)
+      | []   , e                => getUnifyWithSpecificity d (e.instantiateRev fvars)
       
-      | 0::xs, .app f _          => getSubExpr fvars xs f
-      | 1::xs, .app _ a          => getSubExpr fvars xs a
+      | 0::xs, .app f _         => getSubExpr fvars xs f
+      | 1::xs, .app _ a         => getSubExpr fvars xs a
 
-      | 0::xs, .proj _ _ b       => getSubExpr fvars xs b
+      | 0::xs, .proj _ _ b      => getSubExpr fvars xs b
 
-      | 0::xs, .letE _ t _ _ _   => getSubExpr fvars xs t
-      | 1::xs, .letE _ _ v _ _   => getSubExpr fvars xs v
-      | 2::xs, .letE n t _ b _   =>
+      | 0::xs, .letE _ t _ _ _  => getSubExpr fvars xs t
+      | 1::xs, .letE _ _ v _ _  => getSubExpr fvars xs v
+      | 2::xs, .letE n t _ b _  =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
                                                         
-      | 0::xs, .lam _ _ b _     => getSubExpr fvars xs b
+      | 0::xs, .lam _ t _ _     => getSubExpr fvars xs t
       | 1::xs, .lam n t b _     =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
 
-      | 0::xs, .forallE _ _ b _ => getSubExpr fvars xs b
+      | 0::xs, .forallE _ t _ _ => getSubExpr fvars xs t
       | 1::xs, .forallE n t b _ =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
-      | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
+      | list, e                 => throwError m!"could not find subexpression {list} in '{e}'"
 
     getSubExpr #[] pos e
 

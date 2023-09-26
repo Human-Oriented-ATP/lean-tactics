@@ -164,7 +164,7 @@ structure HypothesisContext where
   instMetaIntro : MetaM (Array Expr) := pure #[]
 
 
-def HypothesisRec : OptionRecursor (ReaderT HypothesisContext MetaM') α where
+def HypothesisRec : TreeRecursor (ReaderT HypothesisContext MetaM') α where
   inst _n _u cls _pol _tree k := do
     let mvarId ← mkFreshMVarId
     let mvar := .mvar mvarId
@@ -268,7 +268,7 @@ def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (path
 
 
 
-def getHypothesisRec (wantedPol : Bool) : OptionRecursor CoreM (TreeHyp × Expr × List TreeBinderKind) where
+def getHypothesisRec (wantedPol : Bool) : TreeRecursor CoreM (TreeHyp × Expr × List TreeBinderKind) where
   all _ _ _ _ _ _ := failure
   ex  _ _ _ _ _ _ := failure
   inst _ _ _ _ _ _  := failure
@@ -304,7 +304,7 @@ in front of this, we have to bind all variables that appear in this instantiatio
 In addition, we want all free variables and knowns from the hypothesis to be bound whenever a 
 side goal or existential is bound in positive polarity, because it may be useful for proving that goal or instantiating that variable.
 -/
-def TreeRecMeta (hypInScope : Bool) : OptionRecursor MetaM' (MetaM' TreeProof) where
+def TreeRecMeta (hypInScope : Bool) : TreeRecursor MetaM' (MetaM' TreeProof) where
   imp_right := introProp true  false bindImpRight
   imp_left  := introProp true  true  bindImpLeft
   and_right := introProp false false bindAndRight

@@ -4,6 +4,20 @@ namespace Tree
 
 open Lean
 
+def mkForall (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Forall [u]) domain (.lam name domain body .default)
+def mkExists (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Exists [u]) domain (.lam name domain body .default)
+
+def mkInstance (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Instance [u]) domain (.lam name domain body .default)
+
+def mkImp (p q : Expr) : Expr :=
+  mkApp2 (.const ``Imp []) p q
+def mkAnd (p q : Expr) : Expr :=
+  mkApp2 (.const ``And []) p q
+
+
 @[match_pattern]
 def imp_pattern (p q : Expr) : Expr :=
   mkApp2 (.const ``Imp []) p q
@@ -51,18 +65,7 @@ def isTree : Expr → Bool
 | _ => false
 
 
-structure Recursor (α : Type u) where
-  all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → α) → α
-  ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → α) → α
-
-  imp_right (p : Expr) : Bool → Expr → α → α
-  and_right (p : Expr) : Bool → Expr → α → α
-  imp_left  (p : Expr) : Bool → Expr → α → α
-  and_left  (p : Expr) : Bool → Expr → α → α
-
-  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → α) → α
-
-structure OptionRecursor (m : Type u → Type v) (α : Type u) where
+structure TreeRecursor (m : Type u → Type v) (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
   ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
@@ -73,7 +76,7 @@ structure OptionRecursor (m : Type u → Type v) (α : Type u) where
 
   inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
-instance [Monad m] [MonadNameGenerator m] : EmptyCollection (OptionRecursor m α) where
+instance [Monad m] [MonadNameGenerator m] : EmptyCollection (TreeRecursor m α) where
   emptyCollection := {
     all := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
     ex := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
@@ -103,20 +106,7 @@ instance : ToString TreeBinderKind where
     | .ex => "∃"
     | .inst => "[·]"
 
--- partial def Recursor.recurseM [Inhabited α] [Monad m] [MonadError m] (r : Recursor (m α)) (pol : Bool) (tree : Expr) (pos : List TreeBinderKind) (k : Bool → Expr → m α) : m α :=
---   let rec visit [Inhabited α] (pol : Bool) : List TreeBinderKind → Expr → m α  
---     | .all      ::xs, forall_pattern n u α b => r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
---     | .ex       ::xs, exists_pattern n u α b => r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
---     | .imp_right::xs, imp_pattern p tree     => r.imp_right p pol tree (visit   pol  xs tree)
---     | .and_right::xs, and_pattern p tree     => r.and_right p pol tree (visit   pol  xs tree)
---     | .imp_left ::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
---     | .and_left ::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
---     | .inst     ::xs, instance_pattern n u α b => r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
---     | [], e => k pol e
---     | xs, e => throwError m!"could not tree-recurse to position {xs} in term {e}"
---   visit pol pos tree
-
-partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
+partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
   (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
   let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
@@ -132,7 +122,7 @@ partial def OptionRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : 
     | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
   visit pol path tree
 
-partial def OptionRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m] (r : OptionRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
+partial def TreeRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
   (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
   let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
@@ -217,21 +207,21 @@ partial def makeTreeAux : Expr → MetaM Expr
       let u ← getLevel domain
       if bi.isInstImplicit
       then
-        return mkApp2 (.const ``Instance [u]) domain (.lam name domain body' .default)
+        return mkInstance name u domain body'
       else
         if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
         then
-          return mkApp2 (.const ``Imp []) (← makeTreeAux domain) body'
+          return mkImp (← makeTreeAux domain) body'
         else
-          return mkApp2 (.const ``Forall [u]) domain (.lam name domain body' .default)
+          return mkForall name u domain body'
             
 
   | regular_exists_pattern name u domain body _bi =>
       withLocalDeclD name domain fun fvar => do
       let body := body.instantiate1 fvar
-      return mkApp2 (.const ``Exists [u]) domain (.lam name domain ((← makeTreeAux body).abstract #[fvar]) .default)
+      return mkExists name u domain ((← makeTreeAux body).abstract #[fvar])
 
-  | regular_and_pattern p q => return mkApp2 (.const ``And []) (← makeTreeAux p) (← makeTreeAux q)
+  | regular_and_pattern p q => return mkAnd (← makeTreeAux p) (← makeTreeAux q)
   | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTreeAux p) (← makeTreeAux q)
   | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTreeAux p)
   | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTreeAux p) (← makeTreeAux q)
@@ -243,11 +233,11 @@ partial def makeTreeAux : Expr → MetaM Expr
   | imp_pattern  p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
 
   | instance_pattern n u d b => withLocalDeclD n d fun fvar =>
-    return mkApp2 (.const ``Instance [u]) d (.lam n d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar]) .default)
+    return mkInstance n u d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar])
   | forall_pattern n u d b => withLocalDeclD n d fun fvar =>
-    return mkApp2 (.const ``Forall [u]) d (.lam n d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar]) .default)
+    return mkForall n u d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar])
   | exists_pattern n u d b => withLocalDeclD n d fun fvar =>
-    return mkApp2 (.const ``Exists [u]) d (.lam n d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar]) .default)
+    return mkExists n u d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar])
 
   | e => pure e
 
@@ -267,14 +257,14 @@ syntax treePos := "[" num,* "]"
 def getPosition (stx : TSyntax `Tree.treePos) : List Nat :=
   (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
 
-def makeTreePathRec : OptionRecursor MetaM Expr where
-  all n _ α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Forall [← getLevel α]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
-  ex  n u α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Exists [u]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
-  imp_right p _ _ k := return mkApp2 (.const ``Imp []) p (← k)
-  and_right p _ _ k := return mkApp2 (.const ``And []) p (← k)
-  imp_left  p _ _ k := return mkApp2 (.const ``Imp []) (← k) p
-  and_left  p _ _ k := return mkApp2 (.const ``And []) (← k) p
-  inst n _ α _ _ k := withLocalDeclD n α fun fvar => return mkApp2 (.const ``Instance [← getLevel α]) α (.lam n α ((← k fvar).abstract #[fvar]) .default)
+def makeTreePathRec : TreeRecursor MetaM Expr where
+  all n _ α _ _ k := withLocalDeclD n α fun fvar => return mkForall n (← getLevel α) α ((← k fvar).abstract #[fvar])
+  ex  n u α _ _ k := withLocalDeclD n α fun fvar => return mkExists n u α ((← k fvar).abstract #[fvar])
+  imp_right p _ _ k := return mkImp p (← k)
+  and_right p _ _ k := return mkAnd p (← k)
+  imp_left  p _ _ k := return mkImp (← k) p
+  and_left  p _ _ k := return mkAnd (← k) p
+  inst n _ α _ _ k := withLocalDeclD n α fun fvar => return mkInstance n (← getLevel α) α ((← k fvar).abstract #[fvar])
 
 def makeTreePath (path : List TreeBinderKind) (tree : Expr) : MetaM Expr :=
   makeTreePathRec.recurseNonTree true tree path (fun _ leaf _ => pure leaf)
@@ -299,7 +289,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-def TreeRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : OptionRecursor m TreeProof where
+def TreeRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRecursor m TreeProof where
   imp_right := introProp bindImpRight
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
