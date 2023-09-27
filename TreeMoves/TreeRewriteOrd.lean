@@ -303,7 +303,7 @@ elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic 
 open DiscrTree in 
 def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
-  let pol ← getPolarity goalPos tree
+  let pol ← try getPolarity goalPos tree catch _ => return #[]
 
   let results := if pol
     then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalPos)
