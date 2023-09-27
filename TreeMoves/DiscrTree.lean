@@ -425,12 +425,10 @@ private def ArrayT (m : Type u → Type v) a := m (Array a)
 private instance [Monad m] : Monad (ArrayT m) where
   pure a := pure (f := m) #[a]
   bind a f := bind (m := m) a (Array.concatMapM f)
--- private instance [Monad m] : MonadLift m (ArrayT m) where
---   monadLift := Functor.map (#[·])
 
 mutual
   private partial def findExpr (e : Expr) (boundVars : List FVarId) : (Trie α s × HashMap Nat Expr × Nat) → MetaM (Array (Trie α s × HashMap Nat Expr × Nat))
-  | (.node _ cs, assignments, specific) => do
+  | (.node _ cs, assignments, score) => do
     let e ← reduceDT e (simpleReduce := s)
     let (k, args) ← getKeyArgs' e boundVars (root := false)
 
@@ -444,20 +442,20 @@ mutual
             let s ← (saveState : MetaM _)
             if ← (try isDefEq e assignment catch _ => return false) then
               s.restore
-              result := result.push (v, assignments, specific+1)
+              result := result.push (v, assignments, score+1)
           | none =>
-            result := result.push (v, assignments.insert i e, specific)
+            result := result.push (v, assignments.insert i e, score)
         | _ => break
       return result
 
     match k with
-    | .star _ => return cs.concatMap fun (k, c) => (skipEntries k.arity c).map (·, assignments, specific)
+    | .star _ => return cs.concatMap fun (k, c) => (skipEntries k.arity c).map (·, assignments, score)
     | _       => visitStars =<< match findKey cs k with
       | none   => return #[]
       | some c => match k with
-        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! boundVars (c, assignments, specific)
-        | .forall => show ArrayT MetaM _ from findExpr e.bindingDomain! boundVars (c, assignments, specific+1) >>= findBoundExpr e.bindingDomain! e.bindingBody! boundVars
-        | _ => findExprs args boundVars (c, assignments, specific+1)
+        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! boundVars (c, assignments, score)
+        | .forall => show ArrayT MetaM _ from findExpr e.bindingDomain! boundVars (c, assignments, score+1) >>= findBoundExpr e.bindingDomain! e.bindingBody! boundVars
+        | _ => findExprs args boundVars (c, assignments, score+1)
 
   private partial def findExprs (args : Array Expr) (boundVars : List FVarId) : (Trie α s × HashMap Nat Expr × Nat) → ArrayT MetaM (Trie α s × HashMap Nat Expr × Nat) :=
     args.foldrM (findExpr · boundVars)
@@ -472,7 +470,7 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
   withReducible do
     let (k, args) ← getKeyArgs e [] (root := true) (simpleReduce := s)
     match k with
-    | .star _ => throwError "the unification pattern is a metavariable"--d.root.foldlM (init := #[]) fun result k c => process k.arity 0 #[] c result
+    | .star _ => throwError "the unification pattern is a metavariable, so it cannot be used for a search"
     | _ =>
       let result ← match d.root.find? k with
         | none   => pure #[]
@@ -482,88 +480,16 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
       match d.root.find? (.star 0) with
       | none => return result
       | some (.node vs _) => return result.push (vs, 0)
--- where
---   process (skip : Nat) (specific : Nat) (todo : Array Expr) (c : Trie α s) (result : Array (Array α × Nat)) : MetaM (Array (Array α × Nat)) := do
---     match skip, c with
---     | skip+1, .node _  cs =>
---       if cs.isEmpty then
---         return result
---       else
---         cs.foldlM (init := result) fun result ⟨k, c⟩ => process (skip + k.arity) specific todo c result
---     | 0, .node vs cs => do
---       if todo.isEmpty then
---         return result.push (vs, specific)
---       else if cs.isEmpty then
---         return result
---       else
---         let e     := todo.back
---         let todo  := todo.pop
---         let (k, args) ← getKeyArgs e (root := false) (simpleReduce := s)
---         let visitStar (result : Array (Array α × Nat)) : MetaM (Array (Array α × Nat)) :=
---           let first := cs[0]!
---           if first.1 == .star then
---             process 0 specific todo first.2 result
---           else
---             return result
---         let visitNonStar (k : Key) (args : Array Expr) (result : Array (Array α × Nat)) : MetaM (Array (Array α × Nat)) :=
---           match findKey cs k with
---           | none   => return result
---           | some c => process 0 (specific + 1) (todo ++ args) c result
---         match k with
---         | .star  => cs.foldlM (init := result) fun result (k, c) => process specific k.arity todo c result
---         | .arrow => visitStar (← visitNonStar .other #[] (← visitNonStar k args result))
---         | _      => visitStar (← visitNonStar k args result)
 
 
+def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (pos : List Nat) : MetaM (Array (Array α × Nat)) := do
+  withTreeSubexpr tree pos fun _pol e => getUnifyWithSpecificity d e
 
-def MetaTreeRec : TreeRecursor MetaM α where
-  imp_right _ _ _ k := do k
-  imp_left  _ _ _ k := do k
-  and_right _ _ _ k := do k
-  and_left  _ _ _ k := do k
-
-  all  n _ d pol _ k := (if  pol then introFVar else introMVar) n d k
-  ex   n _ d pol _ k := (if !pol then introFVar else introMVar) n d k
-  inst n _ d _   _ k := (if true then introFVar else introMVar) n d k
-where
-  introFVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α :=
-    withLocalDeclD name domain fun fvar => k fvar
-  introMVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α := do
-    k (← mkFreshExprMVar domain (userName := name))
-
-
-def getSubExprUnify (d : DiscrTree α s) (e : Expr) (path : List TreeBinderKind) (pos : List Nat) : MetaM (Array (Array α × Nat)) := do
-  MetaTreeRec.recurse true e path fun _pol e _path =>
-    let rec getSubExpr (fvars : Array Expr) : List Nat → Expr → MetaM (Array (Array α × Nat))
-      | xs   , .mdata _ b       => getSubExpr fvars xs b
-
-      | []   , e                => getUnifyWithSpecificity d (e.instantiateRev fvars)
-      
-      | 0::xs, .app f _         => getSubExpr fvars xs f
-      | 1::xs, .app _ a         => getSubExpr fvars xs a
-
-      | 0::xs, .proj _ _ b      => getSubExpr fvars xs b
-
-      | 0::xs, .letE _ t _ _ _  => getSubExpr fvars xs t
-      | 1::xs, .letE _ _ v _ _  => getSubExpr fvars xs v
-      | 2::xs, .letE n t _ b _  =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
-                                                        
-      | 0::xs, .lam _ t _ _     => getSubExpr fvars xs t
-      | 1::xs, .lam n t b _     =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
-
-      | 0::xs, .forallE _ t _ _ => getSubExpr fvars xs t
-      | 1::xs, .forallE n t b _ =>
-        withLocalDeclD n (t.instantiateRev fvars) fun fvar => getSubExpr (fvars.push fvar) xs b
-      | list, e                 => throwError m!"could not find subexpression {list} in '{e}'"
-
-    getSubExpr #[] pos e
 
 def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Bool) (maximum : Option Nat := some 20) : MetaM (Array (Array α × Nat)) := do
   let mut result := #[]
   let mut total : Nat := 0
-  for (candidates, specific) in «matches» do
+  for (candidates, score) in «matches» do
     if maximum.elim false (total ≥ ·) then
       break
 
@@ -577,7 +503,7 @@ def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α �
         continue
 
     unless filtered.isEmpty do
-      result := result.push (filtered, specific)
+      result := result.push (filtered, score)
   return result
 
 variable {m : Type → Type} [Monad m]

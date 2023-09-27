@@ -16,14 +16,11 @@ structure LibraryLemma where
   path : List TreeBinderKind
   pos : List Nat
   diffs : AssocList SubExpr.Pos Widget.DiffTag
+
 instance : BEq LibraryLemma where
   beq := fun {name, path, pos, ..} {name := name', path := path', pos := pos', ..} => name == name' && pos == pos' && path == path'
 instance : ToFormat LibraryLemma where
   format := (toString ·.name)
-def LibraryLemma.proofAndType (lem : LibraryLemma) : MetaM (Expr × Expr) := do
-  let cinfo ← getConstInfo lem.name
-  let us ← mkFreshLevelMVarsFor cinfo
-  return (.const lem.name us, ← instantiateTypeLevelParams cinfo us)
 
 
 
@@ -62,7 +59,7 @@ partial def processTree : Expr → MetaM ProcessResult
       if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
       then
         let result := addBinderKind [1] .imp_right result
-        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .wasChanged |>.cons [1] .willChange, [.imp_left], [], ← mkPath domain) }
+        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [.imp_left], [], ← mkPath domain) }
       else
         return addBinderKind [1] .all result
 
@@ -78,15 +75,15 @@ partial def processTree : Expr → MetaM ProcessResult
     match e with
     | .app (.app (.app (.const ``Eq _) _) lhs) rhs
     | .app (.app (.const ``Iff _) lhs) rhs => do
-      result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [0,1], ← mkPath lhs)
-                                                     |>.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [1]  , ← mkPath rhs) }
+      result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [0,1], ← mkPath lhs)
+                                                     |>.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [1]  , ← mkPath rhs) }
     | .app (.app _ lhs) rhs =>
       if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
         result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkPath rhs)
                                 rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkPath lhs) }
     | _ => pure ()
 
-    result := { result with apply := result.apply.push (AssocList.nil.cons [] .wasChanged, [], [], ← mkPath e) }
+    result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkPath e) }
     return result
     
 where

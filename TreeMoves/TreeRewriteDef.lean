@@ -4,14 +4,18 @@ namespace Tree
 
 open Lean Meta
 
-def rewriteDef (pos : List Nat) (e : Expr) : MetaM (Option (Expr × String)) := do
-  let some name := e.getAppFn.constName? | return none
-  let .defnInfo info ← getConstInfo name | return none
-  lambdaTelescope info.value fun xs body => do
-    let lhs := mkAppN (.const info.name <| info.levelParams.map mkLevelParam) xs
-    let type ← mkForallFVars xs (← mkEq lhs body)
-    let move := s! "tree_rewrite_def {pos}"
-    return some (type, move)
+def rewriteDef (goalPos : List Nat) (tree : Expr) : MetaM (Option (Expr × AssocList SubExpr.Pos Widget.DiffTag × String)) := 
+  withTreeSubexpr tree goalPos fun _pol e => do
+    let some name := e.getAppFn.constName? | return none
+    let .defnInfo info ← getConstInfo name | return none
+    lambdaTelescope info.value fun xs body => do
+      let lhs := mkAppN (.const info.name <| info.levelParams.map mkLevelParam) xs
+      let type ← mkForallFVars xs (← mkEq lhs body)
+      let lhsPos := SubExpr.Pos.ofArray $ (Array.mkArray (xs.size * 2) 1).push 0 |>.push 1
+      let rhsPos := SubExpr.Pos.ofArray $ (Array.mkArray (xs.size * 2) 1).push 1
+      let diffs := AssocList.nil.cons lhsPos .willChange |>.cons rhsPos .wasChanged
+      let move := s! "tree_rewrite_def {goalPos}"
+      return some (type, diffs, move)
 
 def replaceByDef (e : Expr) : MetaM Expr :=
   Expr.withAppRev e fun f revArgs => do

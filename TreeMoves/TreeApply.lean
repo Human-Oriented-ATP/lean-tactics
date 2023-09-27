@@ -534,9 +534,9 @@ def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array 
   let discrTrees ← getLibraryLemmas
   let (goalPath, []) := posToPath goalPos tree | throwError "cannot apply in a subposition"
   let results := if pathToPol goalPath then
-    (← getSubExprUnify discrTrees.2.apply tree goalPath []) ++ (← getSubExprUnify discrTrees.1.apply tree goalPath [])
+    (← getSubExprUnify discrTrees.2.apply tree goalPos) ++ (← getSubExprUnify discrTrees.1.apply tree goalPos)
   else
-    (← getSubExprUnify discrTrees.2.apply_rev tree goalPath []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalPath [])
+    (← getSubExprUnify discrTrees.2.apply_rev tree goalPos) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalPos)
 
   let results ← filterLibraryResults results fun {name, path, pos, ..} => do
     try

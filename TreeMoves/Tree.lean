@@ -270,6 +270,56 @@ def makeTreePath (path : List TreeBinderKind) (tree : Expr) : MetaM Expr :=
   makeTreePathRec.recurseNonTree true tree path (fun _ leaf _ => pure leaf)
 
 
+def MetaTreeRec : TreeRecursor MetaM α where
+  imp_right _ _ _ k := do k
+  imp_left  _ _ _ k := do k
+  and_right _ _ _ k := do k
+  and_left  _ _ _ k := do k
+
+  all  n _ d pol _ k := (if  pol then introFVar else introMVar) n d k
+  ex   n _ d pol _ k := (if !pol then introFVar else introMVar) n d k
+  inst n _ d _   _ k := (if true then introFVar else introMVar) n d k
+where
+  introFVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α :=
+    withLocalDeclD name domain fun fvar => k fvar
+  introMVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α := do
+    k (← mkFreshExprMVar domain (userName := name))
+
+def withTreeSubexpr [Inhabited α] (tree : Expr) (pos : List Nat) (k : Bool → Expr → MetaM α) (path : Option (List TreeBinderKind) := none) : MetaM α :=
+  let (path, pos) := match path with
+    | some path => (path, pos)
+    | none => posToPath pos tree
+  MetaTreeRec.recurse true tree path fun pol e _path =>
+    let rec visit : List Nat → Expr → ReaderT (Array Expr) MetaM α
+      | xs   , .mdata _ b       => visit xs b
+
+      | []   , e                => fun fvars => k pol (e.instantiateRev fvars)
+      
+      | 0::xs, .app f _         => visit xs f
+      | 1::xs, .app _ a         => visit xs a
+
+      | 0::xs, .proj _ _ b      => visit xs b
+
+      | 0::xs, .letE _ t _ _ _  => visit xs t
+      | 1::xs, .letE _ _ v _ _  => visit xs v
+      | 2::xs, .letE n t _ b _  => fun fvars =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
+                                                        
+      | 0::xs, .lam _ t _ _     => visit xs t
+      | 1::xs, .lam n t b _     => fun fvars =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
+
+      | 0::xs, .forallE _ t _ _ => visit xs t
+      | 1::xs, .forallE n t b _ => fun fvars =>
+        withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
+      | xs, e                 => throwError m!"could not find subexpression {xs} in '{e}'"
+
+    visit pos e #[]
+
+
+
+
+
 def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
   withMainContext do
     let {newTree, proof} ← move (← getMainTarget)
@@ -289,7 +339,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-def TreeRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRecursor m TreeProof where
+def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRecursor m TreeProof where
   imp_right := introProp bindImpRight
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
@@ -311,7 +361,7 @@ where
 def workOnTreeAt (pos : List Nat) (move : List Nat → Bool → Expr → MetaM TreeProof) : TacticM Unit :=
   workOnTree fun tree => do 
     let (path, pos) := posToPath pos tree
-    TreeRec.recurse true tree path (fun pol tree _path => move pos pol tree)
+    TreeProofRec.recurse true tree path (fun pol tree _path => move pos pol tree)
 
     
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
