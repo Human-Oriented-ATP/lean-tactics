@@ -7,6 +7,7 @@ import ProofWidgets.Demos.Macro
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
+-- import Mathlib
 import TreeMoves.Tree
 
 namespace ProofWidgets
@@ -36,20 +37,14 @@ def EditParams.insertLine (meta : Server.DocumentMeta) (line : Nat)
 
 -- TODO: Make these inductive types
 structure DynamicButtonStylingProps where
-  variant := "outlined" -- 'text' | 'outlined' | 'contained'
-  color   := "primary" -- 'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning'
-  size    := "medium" -- 'small' | 'medium' | 'large'
-
-instance [RpcEncodable α] : RpcEncodable (Thunk α) where
-  rpcEncode t := t.map rpcEncode |>.get
-  rpcDecode jsn := do
-    let d ← rpcDecode (α := α) jsn 
-    return .mk fun _ ↦ d
+  variant : String := "outlined" -- 'text' | 'outlined' | 'contained'
+  color : String := "primary" -- 'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning'
+  size : String := "medium" -- 'small' | 'medium' | 'large'
 
 structure DynamicButtonProps extends DynamicButtonStylingProps where
   label : String
   edit? : Option EditParams := none
-  html? : Option (Thunk Html) := none
+  html? : Option Html := none
   vanish : Bool := false
   key   :=   label
 deriving RpcEncodable
@@ -194,5 +189,14 @@ def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
                 range := ⟨stxEnd, stxEnd⟩, newText := "\n  motivated_proof\n  "
               } } }]
       |         _          => return #[]
+
+structure LibrarySearchProps where
+  suggestion : String
+  range : Lsp.Range
+  pos : Lsp.Position
+deriving RpcEncodable
+
+@[widget_module] def LibrarySearchPanel : Component LibrarySearchProps where
+  javascript := include_str ".." / "build" / "js" / "LibrarySearchButton.js"
 
 end MotivatedProofMode
