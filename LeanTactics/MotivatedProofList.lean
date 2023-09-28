@@ -1,11 +1,22 @@
-import LeanTactics.DynamicButton
+import LeanTactics.MotivatedProofPanel
 import TreeMoves.TreeRewrite
-import TreeMoves.TreeRewriteOrd
+import TreeMoves.TreeMoves
+
+
+/-!
+
+# Motivated proof list
+
+This file implements several motivated proof moves,
+most of which are based on the tree representation
+of the goal state developed in `TreeMoves`.
+
+-/
+
 
 open ProofWidgets Lean Meta
 
-open scoped Jsx
-open OptionT
+open Jsx OptionT
 
 @[motivated_proof_move]
 def treeApplyButton : InfoviewAction := 
@@ -49,17 +60,6 @@ def treeRewriteAtButton : InfoviewAction :=
             vanish={true} />
   else OptionT.fail
 
--- @[motivated_proof_move]
--- def simpButton : InfoviewAction := 
---   fun props => do
---     pure 
---       <DynamicEditButton 
---         label={"Try `simp`"} 
---         range?={props.range} 
---         insertion?={"simp"} 
---         html?={<p> Simplifying the target... </p>}
---         vanish={true} />
-
 @[motivated_proof_move]
 def treeSimp : InfoviewAction := 
   fun props => do
@@ -76,17 +76,6 @@ def treeSimp : InfoviewAction :=
           html?={<p> Simplifying the target... </p>}
           vanish={true} />
     else OptionT.fail
-
-@[motivated_proof_move]
-def make_tree : InfoviewAction :=
-  fun props => do
-    pure 
-      <DynamicEditButton 
-        label={"Turn the tactic state into a tree"} 
-        range?={props.range} 
-        insertion?={"make_tree"}
-        html?={<p> Making a tree... </p>}
-        vanish={true} />
 
 @[motivated_proof_move]
 def tree_rewrite_ord : InfoviewAction := 
@@ -158,11 +147,8 @@ def lib_rewrite : InfoviewAction :=
 
 open Widget
 
-def mkDiv: Array Html → Html := 
-  .element "div" #[]
-
-def mkFragment : Array Html → Html :=
-  .element "Fragment" #[]
+def mkDiv (elems : Array Html) (cfg : Array (String × Json) := #[]) : Html := 
+  .element "div" cfg elems
 
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
   code.map fun info ↦
@@ -192,16 +178,16 @@ where
     let block ← results.mapM fun (name, diffs, text) ↦ renderResult name diffs text
     return mkDiv (block.push <hr />)
   renderResult (name : Name) (diffs : AssocList SubExpr.Pos DiffTag) (text : String) : MetaM Html := do
-    return mkFragment 
-      #[ ← name.renderWithDiffs diffs, 
+    return mkDiv 
+      #[← name.renderWithDiffs diffs,
          <DynamicEditButton 
             label={name.toString} 
             range?={range} 
             insertion?={text}
             variant={"text"}
             color={"info"}
-            size={"small"} />, 
-         <br /> ]
+            size={"small"} />]
+      #[("dislay", "flex"), ("justifyContent", "space-between")]
 
 open Jsx in
 @[motivated_proof_move]
@@ -214,22 +200,15 @@ def libRewrite : InfoviewAction := fun props ↦ do
         html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
         vanish={true} />
 
--- open Jsx in
--- @[motivated_proof_move]
--- def libApply : InfoviewAction := fun props ↦ do
---   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
---   let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
---   pure
---     <DynamicEditButton 
---         label={"Apply a library result"} 
---         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+@[motivated_proof_move]
+def libApply : InfoviewAction := fun props ↦ do
+  let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
+  let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
+  pure
+    <DynamicEditButton 
+        label={"Apply a library result"} 
+        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
 
 example (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
-motivated_proof
-  skip
-  sorry
-
-
-  
-
-
+  motivated_proof
+    lib_rewrite [1, 1] Nat.dvd_one [0]
