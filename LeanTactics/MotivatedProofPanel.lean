@@ -3,23 +3,40 @@ import ProofWidgets.Data.Html
 import ProofWidgets.Component.HtmlDisplay
 import ProofWidgets.Component.Panel.Basic
 import ProofWidgets.Component.OfRpcMethod
-import ProofWidgets.Demos.Macro
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
 -- import Mathlib
 import TreeMoves.Tree
 
+/-!
+
+# The motivated proof panel
+
+This file contains code for
+- Buttons for inserting text into the editor
+- The `motivated_proof_move` attribute for
+  tagging and registering new motivated proof moves
+- The `motivated_proof` tactic which
+  displays the motivated proof panel alongside the
+  problem state.
+
+-/
+
 namespace ProofWidgets
 open Lean Server Elab Command Lsp
 
+/-- Parameters for editing the text document through the Language Server Protocol.
+    These are used by the button to make edits on click and change the cursor position. -/
 structure EditParams where
   edit : Lsp.TextDocumentEdit
   newCursorPos? : Option Lsp.Position := none
 deriving RpcEncodable
 
+namespace EditParams
+
 /-- Replace `range` with `newText` and then place the cursor at the end of the new text. -/
-def EditParams.ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
+def ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
     (newText : String) : EditParams :=
   let edit := { textDocument := { uri := meta.uri, version? := meta.version }
                 edits        := #[{ range, newText }] }
@@ -29,30 +46,51 @@ def EditParams.ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
   }
   { edit, newCursorPos? }
 
-def EditParams.insertLine (meta : Server.DocumentMeta) (line : Nat) 
+/-- Insert a line with the given text, a useful special case of replacing a range. -/
+def insertLine (meta : Server.DocumentMeta) (line : Nat) 
     (indent : Nat) (text : String) : EditParams :=
   let newText := "".pushn ' ' indent ++ text
   let pos := { line := line, character := 0 }
   EditParams.ofReplaceRange meta ⟨pos, pos⟩ newText
 
+end EditParams
+
+
+section DynamicButton
+
+/-!
+
+## Buttons
+
+Most of the interaction in the point-and-click interface happens through buttons.
+These are implemented as a React JS Component using `ProofWidgets`.
+-/
+
 -- TODO: Make these inductive types
+/-- Styling parameters for buttons. -/
 structure DynamicButtonStylingProps where
   variant : String := "outlined" -- 'text' | 'outlined' | 'contained'
   color : String := "primary" -- 'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning'
   size : String := "medium" -- 'small' | 'medium' | 'large'
 
+/-- The parameters that can be supplied to a button.
+    Buttons can optionally insert text in the editor and render HTML on click.
+    They can also be made to vanish on click. -/
 structure DynamicButtonProps extends DynamicButtonStylingProps where
   label : String
   edit? : Option EditParams := none
   html? : Option Html := none
   vanish : Bool := false
-  key   :=   label
+  key   :=   label  -- this is needed for technical reasons to do with rendering React components
 deriving RpcEncodable
 
+/-- The implementation of the button as a component with the logic specified in the JavaScript code.
+    Run `lake build customWidgetJs` to build this JavaScript file. -/
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
   javascript := include_str ".." / "build" / "js" / "dynamicButton.js"
 
-
+/-- A wrapper around `DynamicButton` that requires an `Lsp.Range` instead of `EditParams`.
+    This is usually much more convenient in practice. -/
 structure DynamicEditButtonProps extends DynamicButtonStylingProps where
   label : String
   range? : Option Lsp.Range := none
@@ -61,6 +99,7 @@ structure DynamicEditButtonProps extends DynamicButtonStylingProps where
   vanish : Bool := false
 deriving RpcEncodable
 
+/-- The logic for generating a `DynamicButton` from the `DynamicEditButtonParams`. -/
 @[server_rpc_method]
 def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTask Html) := do
   RequestM.asTask do
@@ -78,11 +117,42 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
         color := props.color
         size := props.size }
 
+/-- The implementation of `DynamicEditButtons` using `DynamicEditButtons.rpc`. -/
 @[widget_module] def DynamicEditButton : Component DynamicEditButtonProps :=
   mk_rpc_widget% DynamicEditButton.rpc
 
+end DynamicButton
+
 
 section InfoviewAction
+
+/-!
+
+## Infoview actions
+
+The motivated proof panel is customised according to the 
+pattern of selections made by the user in the goal state.
+
+The `InfoviewActionProps` structure contains most of the information
+about these selections, along with other relevant details.
+
+`InfoviewAction`s are the main abstraction used to decide 
+the contents of the motivated proof panel.
+An `InfoviewAction` is defined as a function that takes in
+`InfoviewActionProps` and optionally returns a piece of HTML code
+(which is usually just a button).
+The `InfoviewAction`s are registered and stored through the
+`motivated_proof_move` attribute. 
+
+The panel is rendered by reading in the current `InfoviewActionProps`,
+applying it to all the `InfoviewAction`s registered in the environment
+and then rendering the resulting snippets of HTML together in a single `div` block.
+
+The HTML output of an `InfoviewAction` is computed in the `MetaM` monad,
+which makes it possible to encode sophisticated logic on when to display
+a piece of HTML and what to display in it.
+
+-/
 
 structure InfoviewActionProps extends PanelWidgetProps where
   range : Lsp.Range
@@ -134,7 +204,18 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
 
 end InfoviewAction
 
+
 section MotivatedProofMode
+
+/-!
+
+## The `motivated_proof` tactic
+
+The user finally interacts with the motivated proof panel
+using the `motivated_proof` tactic, which renders the
+panel of motivated proof moves alongside the goal state in the infoview.
+
+-/
 
 open Elab Tactic
 open scoped Json
@@ -189,14 +270,5 @@ def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
                 range := ⟨stxEnd, stxEnd⟩, newText := "\n  motivated_proof\n  "
               } } }]
       |         _          => return #[]
-
-structure LibrarySearchProps where
-  suggestion : String
-  range : Lsp.Range
-  pos : Lsp.Position
-deriving RpcEncodable
-
-@[widget_module] def LibrarySearchPanel : Component LibrarySearchProps where
-  javascript := include_str ".." / "build" / "js" / "LibrarySearchButton.js"
 
 end MotivatedProofMode
