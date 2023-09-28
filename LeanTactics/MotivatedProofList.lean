@@ -211,4 +211,4 @@ def libApply : InfoviewAction := fun props ↦ do
 
 example (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
   motivated_proof
-    lib_rewrite [1, 1] Nat.dvd_one [0]
+    sorry
