@@ -1,4 +1,5 @@
 import TreeMoves.TreeRewrite
+import Mathlib.Logic.Basic
 
 namespace Tree
 
@@ -58,11 +59,26 @@ private def recurseToPosition (norm : Expr → MetaM (Expr × Expr)) (target : E
 
 
 
-def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (target : Expr) : MetaM (Expr × Expr) := do
+def simpMoveAux (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (target : Expr) : MetaM (Expr × Expr) := do
   let (r, _) ← simp target ctx discharge? {}
   match r.proof? with
   | some proof => return (r.expr, proof)
   | none => throwError m! "could not simplify {target}"
+
+def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge) (pos : List Nat) : TacticM Unit :=
+  workOnTreeAt pos fun pos pol tree => do
+    let (motive_core, rhs, proof, type) ← recurseToPosition (simpMoveAux ctx discharge?) tree pos
+    let motive := Expr.lam `_a type motive_core .default
+    let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
+    if pos == [] then
+      let rhsIsConstOf := (Expr.consumeMData rhs).isConstOf
+      if pol
+      then if rhsIsConstOf ``True then
+        return { proof := mkApp proof (.const ``True.intro [])}
+      else if rhsIsConstOf `False then
+        return { proof }
+    
+    return { newTree := rhs, proof }
 
 def getSimpContext : MetaM Simp.Context := do
   let mut simpTheorems : SimpTheoremsArray := #[← getSimpTheorems]
@@ -71,25 +87,33 @@ def getSimpContext : MetaM Simp.Context := do
       simpTheorems ← simpTheorems.addTheorem (.fvar h) (.fvar h)
   return { simpTheorems }
 
-def defaultSimpMove (target : Expr) : MetaM (Expr × Expr) :=
-  do simpMove (← getSimpContext) none target
+def defaultSimpMove (pos : List Nat) : TacticM Unit :=
+  do simpMove (← getSimpContext) none pos
 
 
 
 elab "tree_simp" goalPos:treePos : tactic =>
   let goalPos := getPosition goalPos
-  workOnTreeAt goalPos fun pos pol tree => (do
-    let (motive_core, rhs, proof, type) ← recurseToPosition defaultSimpMove tree pos
-    let motive := Expr.lam `_a type motive_core .default
-    let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
-    if pos == [] then
-      let isConstOf := (Expr.consumeMData rhs).isConstOf
-      if pol
-      then if isConstOf `True then
-        return { proof := mkApp proof (.const `True.intro [])}
-      /- need to add a few more lemmas in Tree.lean for the False case to work. -/
-      -- else if isConstOf `False then
-      --   return { proof }
-    
-    return { newTree := rhs, proof })
+  defaultSimpMove goalPos
 
+
+example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
+  make_tree
+  tree_simp [1,1,0]
+
+variable {p q : Prop}
+lemma not_imp : ¬ Imp p q ↔ And p ¬ q := _root_.not_imp
+lemma not_and : ¬ And p q ↔ Imp p ¬ q := _root_.not_and
+variable {α : Sort u} {p : α → Prop}
+lemma not_forall : ¬ Forall α (fun a => p a) ↔ Exists α (fun a => ¬ p a) := _root_.not_forall
+lemma not_exists : ¬ Exists α (fun a => p a) ↔ Forall α (fun a => ¬ p a) := _root_.not_exists
+
+
+@[inline] def pushNegLemmas : List Name := [``not_imp, ``not_and, ``not_forall, ``not_exists]
+
+def pushNegContext : MetaM Simp.Context :=
+  return { simpTheorems := #[← pushNegLemmas.foldlM (·.addConst ·) ({} : SimpTheorems)] }
+
+elab "tree_push_neg" goalPos:treePos : tactic => do
+  let goalPos := getPosition goalPos
+  simpMove (← pushNegContext) none goalPos

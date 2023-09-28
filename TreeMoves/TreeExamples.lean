@@ -82,7 +82,25 @@ lemma seqCompactSpace_iff'' : IsSeqCompact (@Set.univ X) =
 
 lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
   tree_rewrite_def [1]
+  make_tree
+  tree_push_neg []
+  lib_rewrite Set.ext_iff [1,1,1]
+  tree_push_neg [1,1]
+
+  lib_rewrite not_iff [1,1,1]
+  -- try_lib_rewrite [1,1,1]
+  tree_rewrite_def [1,1,1,1]
+  tree_rewrite_def [1,1,1,1]
+  tree_rewrite_def [1,1,1,1]
+  tree_rewrite_def [1,1,1,0,1,1]
+  tree_rewrite_def [1,1,1,0,1,1]
+  tree_rewrite_def [1,1,1,0,1,1]
+  tree_rewrite_def [1,1,1,0,1]
+  -- lib_apply refl [1,1,1]
+
   sorry
+
+
 
 
 open BigOperators
