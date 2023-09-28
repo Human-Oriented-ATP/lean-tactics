@@ -6,6 +6,11 @@ namespace Tree.DiscrTree
 open Lean Meta DiscrTree
 
 /-!
+things to add:
+give a score for a match from isDefEq, instead of always being 1?
+When replacing instances with a star, make sure that multiple of the same instance become the same star.
+
+
   (Imperfect) discrimination trees.
   We use a hybrid representation.
   - A `PersistentHashMap` for the root node which usually contains many children.
