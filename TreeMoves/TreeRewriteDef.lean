@@ -15,6 +15,7 @@ def rewriteDef (goalPos : List Nat) (tree : Expr) : MetaM (Option (ExprWithCtx �
         | .proj _ i b => do
           let some value ← project? b i | return none
           pure value
+        | .lam .. => pure f
         | _ => return none
         -- lambdaTelescope value fun xs body => do
         --   let lhs := mkAppN (.const info.name <| info.levelParams.map mkLevelParam) xs
@@ -40,6 +41,7 @@ def replaceByDef (e : Expr) : MetaM Expr :=
       | .proj _ i b => do
         let some value ← project? b i | throwError "could not project expression {b}"
         pure value
+      | .lam .. => pure f
       | _ => throwError "head of expression is not a constant {indentExpr f}"
     return value.betaRev revArgs
 
@@ -101,3 +103,7 @@ example : ∀ n:Nat, Prod.fst (n,n) = n := by
   make_tree
   tree_rewrite_def [1,0,1]
   sorry
+
+example : (fun x => x) 1 = 1 := by
+  tree_rewrite_def [0,1]
+  rfl
