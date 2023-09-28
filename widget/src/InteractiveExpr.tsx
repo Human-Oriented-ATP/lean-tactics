@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import { EditorContext, RpcPtr, DocumentPosition, RpcContext, RpcSessionAtPos, TaggedText,
-    importWidgetModule, mapRpcError, useAsyncPersistent, EditorConnection, GoalsLocation, LocationsContext, PanelWidgetProps, InteractiveCode, SubexprInfo } from '@leanprover/infoview';
-import { Range, TextDocumentEdit } from 'vscode-languageserver-protocol';
-
-
-type ExprWithCtx = RpcPtr<'ProofWidgets.ExprWithCtx'>
+import {LocationsContext, InteractiveCode, DocumentPosition, TaggedText, GoalsLocation, SubexprInfo } from '@leanprover/infoview';
 
 export interface ExprPresentProps {
     pos : DocumentPosition
@@ -27,10 +22,14 @@ const InfoDisplayContent = React.memo((props : ExprPresentProps) => {
                 newLocs.push(l);
             return wasSelected === isSelected ? ls : newLocs;
         }),
-        subexprTemplate: undefined
+        subexprTemplate: { mvarId: '', loc: { target: '' }}
     }), [selectedLocs]);
-    /* Adding {' '} to manage string literals properly: https://reactjs.org/docs/jsx-in-depth.html#string-literals-1 */
-    return (<LocationsContext.Provider value = {locs}>
-        {   InteractiveCode({fmt : props.expr}) }
-    </LocationsContext.Provider>);
+    return <div> 
+        (<LocationsContext.Provider value = {locs}>
+            {InteractiveCode({fmt : props.expr}) }
+        </LocationsContext.Provider>)
+    </div>
+
 })
+
+export default InfoDisplayContent
