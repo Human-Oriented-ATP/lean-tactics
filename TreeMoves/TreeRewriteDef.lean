@@ -5,45 +5,6 @@ namespace Tree
 
 open Lean Meta ProofWidgets
 
-def rewriteDef (goalPos : List Nat) (tree : Expr) : MetaM (Option (ExprWithCtx × AssocList SubExpr.Pos Widget.DiffTag × String)) :=
-  withTreeSubexpr tree goalPos fun _pol e =>
-    Expr.withAppRev e fun f revArgs => do
-      let value ← match f with
-        | .const name us => do
-          let .defnInfo info ← getConstInfo name | return none
-          pure $ info.value.instantiateLevelParams info.levelParams us
-        | .proj _ i b => do
-          let some value ← project? b i | return none
-          pure value
-        | .lam .. => pure f
-        | _ => return none
-        -- lambdaTelescope value fun xs body => do
-        --   let lhs := mkAppN (.const info.name <| info.levelParams.map mkLevelParam) xs
-        --   let type ← mkForallFVars xs (← mkEq lhs body)
-        --   let lhsPos := SubExpr.Pos.ofArray $ (Array.mkArray (xs.size * 2) 1).push 0 |>.push 1
-        --   let rhsPos := SubExpr.Pos.ofArray $ (Array.mkArray (xs.size * 2) 1).push 1
-        --   let diffs := AssocList.nil.cons lhsPos .willChange |>.cons rhsPos .wasChanged
-        --   let move := s! "tree_rewrite_def {goalPos}"
-        --   return some (type, diffs, move)
-      let result ← ExprWithCtx.save (value.betaRev revArgs)
-      return some (result, AssocList.nil.cons SubExpr.Pos.root .wasChanged, s! "tree_rewrite_def {goalPos}")
-
-def replaceByDef (e : Expr) : MetaM Expr :=
-  Expr.withAppRev e fun f revArgs => do
-    let value ← match f with
-      | .const name us => do
-        let info ← getConstInfoDefn name
-        let value := info.value.instantiateLevelParams info.levelParams us
-        if ← isDefEq value f then
-          pure value
-        else
-          throwError m! "could not replace {f} by its definition"
-      | .proj _ i b => do
-        let some value ← project? b i | throwError "could not project expression {b}"
-        pure value
-      | .lam .. => pure f
-      | _ => throwError "head of expression is not a constant {indentExpr f}"
-    return value.betaRev revArgs
 
 def editTree (edit : Expr → MetaM Expr) : List TreeBinderKind → Expr → MetaM Expr
   | .all ::xs, forall_pattern   n u d tree => withLocalDeclD n d fun fvar => return mkForall   n u d ((← editTree edit xs (tree.instantiate1 fvar)).abstract #[fvar])
@@ -80,8 +41,46 @@ partial def editExpr (edit : Expr → MetaM Expr) : List Nat → Expr → MetaM 
   | []   , e                 => edit e
   | list , e                  => throwError m!"could not find subexpression {list} in '{e}'"
 
+open MonadExceptOf
 
-open Lean Elab.Tactic in
+partial def reduceProjection (e : Expr) : ExceptT MessageData MetaM Expr :=
+  e.withAppRev fun f revArgs => match f with
+    | .proj _ i b => do
+      let some value ← project? b i | throw m! "could not project expression {b}"
+      reduceProjection (value.betaRev revArgs)
+    | .lam .. => reduceProjection (f.betaRev revArgs)
+    | _ => return e
+
+def replaceByDefAux (e : Expr) : ExceptT MessageData MetaM Expr := do
+  if let .letE _ _ v b _ := e then return b.instantiate1 v
+  e.withAppRev fun f revArgs => match f with
+    | .const name us => do
+      let info ← getConstInfoDefn name
+      let result := info.value.instantiateLevelParams info.levelParams us
+      if ← isDefEq result f then
+        reduceProjection (result.betaRev revArgs)
+      else
+        throw m! "could not replace {f} by its definition"
+    | _ => do
+      let result ← reduceProjection e
+      if result == e then throw m! "could not find a definition for {e}"
+      else return result
+
+def rewriteDef (goalPos : List Nat) (tree : Expr) : MetaM (Option (ExprWithCtx × AssocList SubExpr.Pos Widget.DiffTag × String)) :=
+  withTreeSubexpr tree goalPos fun _pol e => do
+    match ← replaceByDefAux e with
+    | .error _ => return none
+    | .ok result => do
+      let result ← ExprWithCtx.save result
+      return some (result, AssocList.nil.cons SubExpr.Pos.root .wasChanged, s! "tree_rewrite_def {goalPos}")
+
+def replaceByDef (e : Expr) : MetaM Expr := do
+  match ← replaceByDefAux e with
+  | .error e => throwError e
+  | .ok result => return result
+
+
+open Elab.Tactic in
 
 elab "tree_rewrite_def" pos:treePos : tactic => do
   let pos := getPosition pos
@@ -93,8 +92,6 @@ elab "tree_rewrite_def" pos:treePos : tactic => do
 example : ∀ n:Nat, n + n = 2*n := by
   make_tree
   -- tree_rewrite_def [1,1]
-  tree_rewrite_def [1,0,1]
-  tree_rewrite_def [1,0,1]
   tree_rewrite_def [1,0,1]
   tree_rewrite_def [1,0,1]
   sorry
