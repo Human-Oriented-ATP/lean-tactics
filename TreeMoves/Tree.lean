@@ -247,10 +247,31 @@ def makeTree (e : Expr) : MetaM Expr := do
   else
     throwError m! "can't turn {e} : {(← inferType e)} into a tree since it is not a Prop"
 
-open Elab Tactic
+open Elab.Tactic
 
-elab "make_tree" : tactic => do
-  replaceMainGoal [← (← getMainGoal).change (← makeTree (← getMainTarget))]
+def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
+  replaceMainGoal [← (← getMainGoal).change (← move (← getMainTarget))]
+  
+def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
+  withMainContext do
+    let {newTree, proof} ← move (← getMainTarget)
+    match newTree with
+    | none =>
+      unless ← isTypeCorrect proof do
+        throwError m!"closing the goal does not type check{indentExpr proof}"
+      (← getMainGoal).assign proof
+      replaceMainGoal []
+
+    | some newTree =>
+      let mvarNew  ← mkFreshExprSyntheticOpaqueMVar newTree
+      let proof  := .app proof mvarNew
+      unless ← isTypeCorrect proof do 
+        throwError m!"changing the goal does not type check:{indentExpr proof} \nnewTree: {indentExpr newTree}"
+      (← getMainGoal).assign proof
+      replaceMainGoal [mvarNew.mvarId!]
+
+
+elab "make_tree" : tactic => workOnTreeDefEq makeTree
 
 syntax treePos := "[" num,* "]"
 
@@ -315,28 +336,6 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (pos : List Nat) (k : Bool → 
       | xs, e                 => throwError m!"could not find subexpression {xs} in '{e}'"
 
     visit pos e #[]
-
-
-
-
-
-def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
-  withMainContext do
-    let {newTree, proof} ← move (← getMainTarget)
-    match newTree with
-    | none =>
-      unless ← isTypeCorrect proof do
-        throwError m!"closing the goal does not type check{indentExpr proof}"
-      (← getMainGoal).assign proof
-      replaceMainGoal []
-
-    | some newTree =>
-      let mvarNew  ← mkFreshExprSyntheticOpaqueMVar newTree
-      let proof  := .app proof mvarNew
-      unless ← isTypeCorrect proof do 
-        throwError m!"changing the goal does not type check:{indentExpr proof} \nnewTree: {indentExpr newTree}"
-      (← getMainGoal).assign proof
-      replaceMainGoal [mvarNew.mvarId!]
 
 
 def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRecursor m TreeProof where

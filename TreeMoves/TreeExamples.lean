@@ -88,18 +88,18 @@ lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
   tree_push_neg [1,1]
 
   lib_rewrite not_iff [1,1,1]
-  -- try_lib_rewrite [1,1,1]
-  tree_rewrite_def [1,1,1,1]
-  tree_rewrite_def [1,1,1,1]
-  tree_rewrite_def [1,1,1,1]
-  tree_rewrite_def [1,1,1,0,1,1]
-  tree_rewrite_def [1,1,1,0,1,1]
-  tree_rewrite_def [1,1,1,0,1,1]
-  tree_rewrite_def [1,1,1,0,1]
+  beta_abstract [1,1,1,0,1] [1,0,1]
+  -- lib_rewrite_rev Set.ext_iff [1,1,1]
   -- lib_apply refl [1,1,1]
 
   sorry
 
+set_option tree.rememberNonempty true in
+example (X : Type u) (g : Set X) (f : X → Set X) : ∃ a : Set X, ∀ a_1 : X, ∃ a_2 : X,
+g (a_2) ↔ (a) (a_2) := by
+  make_tree
+  lib_apply refl [1,1,1]
+  exact id
 
 
 
