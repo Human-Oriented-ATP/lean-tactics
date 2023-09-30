@@ -6,7 +6,7 @@ import ProofWidgets.Component.OfRpcMethod
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
--- import Mathlib
+import Mathlib
 import TreeMoves.Tree
 
 /-!

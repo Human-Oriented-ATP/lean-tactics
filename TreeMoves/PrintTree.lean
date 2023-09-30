@@ -30,7 +30,10 @@ syntax ident "⋆" : term
 
 open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
-
+/--
+For each node in the tree, specify hoe the syntax should be and which part of the syntax gets annotated with term info,
+so that it can be clicked on. The SubExpr.Pos encoding is using 0 or 1 within the tree, and uses a 2 to denote the transition to 
+a regular expression. -/
 partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   match ← getExpr with
   | forall_pattern n _u d b =>
@@ -85,7 +88,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     let stxQ ← descend q 1 (delabTreeAux pol)
     annotateTermInfo =<< `(sidegoal|⊢ $stxP⠀$stxQ)
 
-  | _ => if root then failure else delab
+  | e => if root then failure else descend e 2 delab
 
 
 @[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And]

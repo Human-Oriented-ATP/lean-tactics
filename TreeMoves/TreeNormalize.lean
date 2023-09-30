@@ -21,9 +21,9 @@ def normalize (norm : Expr → MetaM (Expr × Expr)) (fvars : Array Expr) (lhs :
   return (motive_core, rhs, proof, type)
 
 
-private def recurseToPosition (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : List Nat) : MetaM RewriteInfo :=
+private def NormalizeRecursion (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : Pos) : MetaM RewriteInfo :=
   
-  let rec visit (fvars : Array Expr) : List Nat → Expr → MetaM RewriteInfo
+  let rec visit (fvars : Array Expr) : Pos → Expr → MetaM RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
     | []   , e                 => normalize norm fvars e
@@ -65,9 +65,9 @@ def simpMoveAux (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none
   | some proof => return (r.expr, proof)
   | none => throwError m! "could not simplify {target}"
 
-def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge) (pos : List Nat) : TacticM Unit :=
-  workOnTreeAt pos fun pos pol tree => do
-    let (motive_core, rhs, proof, type) ← recurseToPosition (simpMoveAux ctx discharge?) tree pos
+def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge) (treePos : TreePos) (pos : Pos) : TacticM Unit :=
+  workOnTreeAt treePos fun pol tree => do
+    let (motive_core, rhs, proof, type) ← NormalizeRecursion (simpMoveAux ctx discharge?) tree pos
     let motive := Expr.lam `_a type motive_core .default
     let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
     if pos == [] then
@@ -87,14 +87,14 @@ def getSimpContext : MetaM Simp.Context := do
       simpTheorems ← simpTheorems.addTheorem (.fvar h) (.fvar h)
   return { simpTheorems }
 
-def defaultSimpMove (pos : List Nat) : TacticM Unit :=
-  do simpMove (← getSimpContext) none pos
+def defaultSimpMove (treePos : TreePos) (pos : Pos) : TacticM Unit :=
+  do simpMove (← getSimpContext) none treePos pos
 
 
 
 elab "tree_simp" goalPos:treePos : tactic =>
-  let goalPos := getPosition goalPos
-  defaultSimpMove goalPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  defaultSimpMove goalTreePos goalPos
 
 
 example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
@@ -115,5 +115,5 @@ def pushNegContext : MetaM Simp.Context :=
   return { simpTheorems := #[← pushNegLemmas.foldlM (·.addConst ·) ({} : SimpTheorems)] }
 
 elab "tree_push_neg" goalPos:treePos : tactic => do
-  let goalPos := getPosition goalPos
-  simpMove (← pushNegContext) none goalPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  simpMove (← pushNegContext) none goalTreePos goalPos

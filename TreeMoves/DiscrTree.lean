@@ -481,30 +481,34 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
         | none   => pure #[]
         | some c => (findExprs args [] (c, {}, 1))
       let result := result.map $ fun (.node vs _, _, n) => (vs, n)
-      let result := result.qsort (·.2 > ·.2)
       match d.root.find? (.star 0) with
       | none => return result
       | some (.node vs _) => return result.push (vs, 0)
 
 
-def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (pos : List Nat) : MetaM (Array (Array α × Nat)) := do
-  withTreeSubexpr tree pos fun _pol e => getUnifyWithSpecificity d e
+def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (treePos : TreePos) (pos : Pos) : MetaM (Array (Array α × Nat)) := do
+  withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e
 
 
-def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Bool) (maximum : Option Nat := some 20) : MetaM (Array (Array α × Nat)) := do
+def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Bool)
+    (max_results : Option Nat := some 18) (max_tries : Option Nat := some 40) : MetaM (Array (Array α × Nat)) := do
+  let «matches» := «matches».qsort (·.2 > ·.2)
   let mut result := #[]
-  let mut total : Nat := 0
+  let mut num_results : Nat := 0
+  let mut num_tries : Nat := 0
+  
   for (candidates, score) in «matches» do
-    if maximum.elim false (total ≥ ·) then
+    if max_results.elim false (num_results ≥ ·) || max_tries.elim false (num_tries ≥ ·) then
       break
 
     let mut filtered := #[]
     for candidate in candidates do
-      if maximum.elim false (total ≥ ·) then
+      if max_results.elim false (num_results ≥ ·) || max_tries.elim false (num_tries ≥ ·) then
         break
+      num_tries := num_tries + 1
       if ← filter candidate then
         filtered := filtered.push candidate
-        total := total + 1
+        num_results := num_results + 1
         continue
 
     unless filtered.isEmpty do

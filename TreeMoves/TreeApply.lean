@@ -262,13 +262,13 @@ unfoldHypothesis adds free variables into the context for the Exists and Imp bin
 and the metavariables for Forall and Instance binders are stored in the HypothesisContext. They will be added to the
 MetaM context later, so that all available free variables will be in their context.
 -/
-def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (path : List TreeBinderKind) (k : Expr → List TreeBinderKind → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
-  HypothesisRec.recurse true tree path (fun _pol tree path => k tree path) |>.run {hypProofM := pure (tree, hypProof)}
+def _root_.unfoldHypothesis [Inhabited α] (hypProof : Expr) (tree : Expr) (pos : TreePos) (k : Expr → TreePos → ReaderT HypothesisContext MetaM' α) : MetaM' α :=
+  HypothesisRec.recurse true tree pos (fun _pol tree pos => k tree pos) |>.run {hypProofM := pure (tree, hypProof)}
 
 
 
 
-def getHypothesisRec (wantedPol : Bool) : TreeRecursor CoreM (TreeHyp × Expr × List TreeBinderKind) where
+def getHypothesisRec (wantedPol : Bool) : TreeRecursor CoreM (TreeHyp × Expr × TreePos) where
   all _ _ _ _ _ _ := failure
   ex  _ _ _ _ _ _ := failure
   inst _ _ _ _ _ _  := failure
@@ -280,11 +280,11 @@ def getHypothesisRec (wantedPol : Bool) : TreeRecursor CoreM (TreeHyp × Expr ×
 /-
 getHypothesis returns TreeHyp, which contains a proof and the type of the hypothesis,
 and the replacement tree (since we may delete the hypothesis from the tree), and the remaining tree position in the hypothesis.
-For example, if the state is `p ⇨ q ⇨ r` and we want to use `q` in `p`, then the replacement tree will be `r`,
-and the remaining tree position is the original one with the head `[.imp_left]` removed.
+For example, if the state is `p ⇨ q ⇨ r` and we want to use `q` in `p`, then the replacement tree replacing `q ⇨ r` will be `r`.
+We also return the subexpression position within `q` that the original position pointed to withing `q ⇨ r`
 -/
-def getHypothesis (delete? wantedPol pol : Bool) (tree : Expr) (path : List TreeBinderKind) : CoreM $ TreeHyp × Expr × List TreeBinderKind :=
-  (getHypothesisRec wantedPol).recurse pol tree path fun pol tree path => pure (MakeHyp delete? pol tree, tree, path)
+def getHypothesis (delete? wantedPol pol : Bool) (tree : Expr) (pos : TreePos) : CoreM $ TreeHyp × Expr × TreePos :=
+  (getHypothesisRec wantedPol).recurse pol tree pos fun pol tree pos => pure (MakeHyp delete? pol tree, tree, pos)
 
 
 
@@ -379,38 +379,36 @@ where
 
 /-
 the arguments for a unification are:
-hypothesis, and the path and the position in that.
+hypothesis, and the position in that.
 hypContext
 goal, with position in that, and polarity.
 -/
-abbrev Unification := HypothesisContext → Expr → Expr → Bool → List TreeBinderKind → List Nat → List Nat → MetaM' TreeProof 
+abbrev Unification := HypothesisContext → Expr → Expr → Bool → TreePos → Pos → Pos → MetaM' TreeProof 
 
-partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypPath goalPath : List TreeBinderKind) (hypPos goalPos : List Nat) (unification : Unification)
+partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (unification : Unification)
   : MetaM' (MetaM' TreeProof) :=
-  unfoldHypothesis hypProof hyp hypPath
-    fun hyp hypPath hypContext =>
-      (TreeRecMeta true).recurse pol goal goalPath
-        fun pol goal _path => do
-          let treeProof ← unification hypContext hyp goal pol hypPath hypPos goalPos
+  unfoldHypothesis hypProof hyp hypTreePos
+    fun hyp hypTreePos hypContext =>
+      (TreeRecMeta true).recurse pol goal goalTreePos
+        fun pol goal _ => do
+          let treeProof ← unification hypContext hyp goal pol hypTreePos hypPos goalPos
           return do (← get).binders.foldrM (fun binder => revertHypBinder binder pol goal) treeProof
 
-partial def applyBound (hypPos goalPos : List Nat) (delete? : Bool) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
-  let (hypPath , hypPos ) := posToPath hypPos tree
-  let (goalPath, goalPos) := posToPath goalPos tree
-  let (path, hypPath, goalPath) := takeSharedPrefix hypPath goalPath
-  let treeProofM ← (TreeRecMeta false).recurse true tree path
-    fun pol tree _path => do
+partial def applyBound (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (delete? : Bool) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
+  let (treePos, hypTreePos, goalTreePos) := takeSharedPrefix hypTreePos goalTreePos
+  let treeProofM ← (TreeRecMeta false).recurse true tree treePos
+    fun pol tree _ => do
 
-      let (p, goal, goalPath, goalPol, useHypProof, hypProof, hyp, hypPath) ← match tree, hypPath, goalPath with
-      | imp_pattern p goal, .imp_left ::hypPath, .imp_right::goalPath => do pure (p, goal, goalPath,  pol, UseHypImpRight, ← getHypothesis delete? (!pol) (!pol) p hypPath)
-      | imp_pattern goal p, .imp_right::hypPath, .imp_left ::goalPath => do pure (p, goal, goalPath, !pol, UseHypImpLeft,  ← getHypothesis delete? (!pol)  pol   p hypPath)
-      | and_pattern p goal, .and_left ::hypPath, .and_right::goalPath => do pure (p, goal, goalPath,  pol, UseHypAndRight, ← getHypothesis delete?   pol   pol   p hypPath)
-      | and_pattern goal p, .and_right::hypPath, .and_left ::goalPath => do pure (p, goal, goalPath,  pol, UseHypAndLeft,  ← getHypothesis delete?   pol   pol   p hypPath)
-      | _, _, _ => throwError m!"cannot have hypothesis at {hypPath} and goal at {goalPath} in {tree}"
+      let (p, goal, goalTreePos, goalPol, useHypProof, hypProof, hyp, hypTreePos) ← match tree, hypTreePos, goalTreePos with
+      | imp_pattern p goal, 0::hypTreePos, 1::goalTreePos => do pure (p, goal, goalTreePos,  pol, UseHypImpRight, ← getHypothesis delete? (!pol) (!pol) p hypTreePos)
+      | imp_pattern goal p, 1::hypTreePos, 0::goalTreePos => do pure (p, goal, goalTreePos, !pol, UseHypImpLeft , ← getHypothesis delete? (!pol)  pol   p hypTreePos)
+      | and_pattern p goal, 0::hypTreePos, 1::goalTreePos => do pure (p, goal, goalTreePos,  pol, UseHypAndRight, ← getHypothesis delete?   pol   pol   p hypTreePos)
+      | and_pattern goal p, 1::hypTreePos, 0::goalTreePos => do pure (p, goal, goalTreePos,  pol, UseHypAndLeft , ← getHypothesis delete?   pol   pol   p hypTreePos)
+      | _, _, _ => throwError m!"cannot have hypothesis at {hypTreePos} and goal at {goalTreePos} in {tree}"
 
       withLocalDeclD `hyp hyp fun fvar => do
       let fvarId := fvar.fvarId!
-      let treeProofM ← applyAux (.fvar fvarId) hyp goal goalPol hypPath goalPath hypPos goalPos unification
+      let treeProofM ← applyAux (.fvar fvarId) hyp goal goalPol hypTreePos goalTreePos hypPos goalPos unification
       return useHypProof p hypProof pol goal fvarId <$> treeProofM
   
   treeProofM : MetaM' _).run' {}
@@ -424,36 +422,17 @@ where
     else ([], xs', ys')
 
 
-partial def applyUnbound (hypName : Name) (getHyp : Expr → List TreeBinderKind → MetaM (Expr × List TreeBinderKind × List Nat))
-    (goalPos : List Nat) (unification : Unification) (tree : Expr) : MetaM TreeProof := do
+partial def applyUnbound (hypName : Name) (getHyp : Expr → MetaM Bool → MetaM (Expr × TreePos × Pos))
+    (goalTreePos : TreePos) (goalPos : Pos) (unification : Unification) (tree : Expr) : MetaM TreeProof := do
   let cinfo ← getConstInfo hypName
   let us ← mkFreshLevelMVarsFor cinfo
   let hypProof := .const hypName us
   let hyp := cinfo.instantiateTypeLevelParams us
   
-  let (goalPath, goalPos) := posToPath goalPos tree
-  let (hyp, hypPath, hypPos) ← getHyp hyp goalPath
+  let (hyp, hypTreePos, hypPos) ← getHyp hyp $ getPolarity tree goalTreePos
 
-  Monad.join (applyAux hypProof hyp tree true hypPath goalPath hypPos goalPos unification) |>.run' {}
+  Monad.join (applyAux hypProof hyp tree true hypTreePos goalTreePos hypPos goalPos unification) |>.run' {}
 
--- partial def applyUnbound' (hypName : Name) (goalPos : List Nat) (unification : Unification) (tree : Expr) : MetaM TreeProof := (do
---   let (goalPath, goalPos) := posToPath goalPos tree
---   let hypProof ← mkConstWithFreshMVarLevels hypName
---   let hyp ← makeTree (← inferType hypProof)
-
---   let mut hypPath := findPath hyp
---   let polarity := pathToPol goalPath
---   if !polarity then
---     let rec go : List TreeBinderKind → Option (List TreeBinderKind)
---       | x::xs => match x, go xs with
---         | x         , some ys => some (x::ys)
---         | .imp_right, none    => some [.imp_left]
---         | _         , none    => none
---       | [] => none
---     hypPath ← (go hypPath).getDM do throwError m! "when applying in negative position, the library result has to have a hypothesis"
-
---   let treeProofM ← applyAux hypProof hyp tree true hypPath goalPath goalPos unification
---   treeProofM : MetaM' _).run' {}
 
 def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit := 
   if force
@@ -468,12 +447,12 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
       unless ← mvarId.isAssigned do
         mvarId.assign (← synthInstance (← mvarId.getType))
 
-def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
+def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypTreePos : TreePos) (hypPos goalPos : Pos) : MetaM' TreeProof := do
   unless hypPos == [] do    
     throwError m!"cannot apply a subexpression: position {hypPos} in {hyp}"
   unless goalPos == [] do
     throwError m!"cannot apply in a subexpression: position {goalPos} in {goal}"
-  match hypPath with
+  match hypTreePos with
   | [] =>
     unless pol do
       throwError m!"cannot apply in negative position"
@@ -488,13 +467,13 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
     else 
       throwError m!"couldn't unify hypothesis {hyp} with target {goal}"
 
-  | [.imp_left] =>
+  | [0] =>
+    let imp_pattern cond _ := hyp | throwError "cannot apply a subexpression: subtree {hypTreePos} in {hyp}"
     if pol then
       throwError m!"cannot apply a hypothesis of a hypothesis in positive position"
     let {metaIntro, instMetaIntro, hypProofM} := hypContext
     _ ← metaIntro
     let instMVars ← instMetaIntro
-    let imp_pattern cond _ := hyp | panic! "imp_left didn't give imp_pattern"
     if ← isDefEq goal cond then
       synthMetaInstances instMVars
       let (hyp, proof) ← hypProofM
@@ -502,51 +481,48 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
       return {proof, newTree}
     else
       throwError m!"couldn't unify condition {cond} with target {goal}"
-  | _ => throwError "cannot apply a subexpression: subtree {hypPath} in {hyp}"
+  | _ => throwError "cannot apply a subexpression: subtree {hypTreePos} in {hyp}"
 
-def getApplyPos (pos? : Option (List Nat)) (hyp : Expr) (goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+def getApplyPos (pos? : Option (TreePos × Pos)) (hyp : Expr) (goalPol : MetaM Bool) : MetaM (Expr × TreePos × Pos) := do
   let hypTree ← makeTree hyp
-  let (path, pos) := match pos? with
-    | some pos => posToPath pos hypTree
-    | none => (if pathToPol goalPath then findPath hypTree else (findNegativePath hypTree).getD [], [])
-  return (← makeTreePath path hyp, path, pos)
+  let (treePos, pos) ← pos?.getDM do return (if ← goalPol then findTreePos hypTree else (findNegativeTreePos hypTree).getD [], [])
+  return (← makeTreePath treePos hyp, treePos, pos)
 
 open Elab.Tactic
 
 elab "tree_apply" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := getPosition hypPos
-  let goalPos := getPosition goalPos
-  workOnTree (applyBound hypPos goalPos true treeApply)
+  let (hypTreePos, hypPos) := getSplitPosition hypPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeApply)
 
 elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
-  let hypPos := getPosition hypPos
-  let goalPos := getPosition goalPos
-  workOnTree (applyBound hypPos goalPos false treeApply)
+  let (hypTreePos, hypPos) := getSplitPosition hypPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeApply)
 
 elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
-  let goalPos := getPosition goalPos
-  let hypPos := getPosition <$> hypPos
-  workOnTree (applyUnbound hypName (getApplyPos hypPos) goalPos treeApply)
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  let hypPos := getSplitPosition <$> hypPos
+  workOnTree (applyUnbound hypName (getApplyPos hypPos) goalTreePos goalPos treeApply)
 
 open DiscrTree in
-def librarySearchApply (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+def librarySearchApply (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+  let (goalTreePos, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas
-  let (goalPath, []) := posToPath goalPos tree | return #[]
-  let results := if pathToPol goalPath then
-    (← getSubExprUnify discrTrees.2.apply tree goalPos) ++ (← getSubExprUnify discrTrees.1.apply tree goalPos)
+  let results := if ← getPolarity tree goalTreePos then
+    (← getSubExprUnify discrTrees.2.apply tree goalTreePos []) ++ (← getSubExprUnify discrTrees.1.apply tree goalTreePos [])
   else
-    (← getSubExprUnify discrTrees.2.apply_rev tree goalPos) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalPos)
+    (← getSubExprUnify discrTrees.2.apply_rev tree goalTreePos []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalTreePos [])
 
-  let results ← filterLibraryResults results fun {name, path, pos, ..} => do
+  let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     try
-      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeApply tree
+      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos goalPos treeApply tree
       return true
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_apply {pathPosToPos path pos} {name} {goalPos}")
-  -- return resultStrings
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_apply {printPosition treePos pos} {name} {goalPos}")
 
 
 def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) : MetaM Unit := do

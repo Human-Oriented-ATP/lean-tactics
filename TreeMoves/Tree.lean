@@ -3,7 +3,7 @@ import TreeMoves.TreeLemmas
 namespace Tree
 
 open Lean
-
+/- These are the constructors for the Tree nodes. -/
 def mkForall (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
   mkApp2 (.const ``Forall [u]) domain (.lam name domain body .default)
 def mkExists (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
@@ -17,7 +17,7 @@ def mkImp (p q : Expr) : Expr :=
 def mkAnd (p q : Expr) : Expr :=
   mkApp2 (.const ``And []) p q
 
-
+/- These are the match patterns for the Tree nodes -/
 @[match_pattern]
 def imp_pattern (p q : Expr) : Expr :=
   mkApp2 (.const ``Imp []) p q
@@ -36,7 +36,7 @@ def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
 def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Instance [u]) cls' (.lam name cls body bi)
 
-
+/- These are match patterns for some regular Lean combinators -/
 @[match_pattern]
 def regular_and_pattern (p q : Expr) : Expr :=
   mkApp2 (.const `And []) p q
@@ -56,6 +56,7 @@ def regular_or_pattern (p q : Expr) : Expr :=
 def regular_not_pattern (p : Expr) : Expr :=
   .app (.const `Not []) p
 
+/-- Return True if the expression starts with a Tree node. -/
 def isTree : Expr → Bool
 | imp_pattern ..
 | and_pattern ..
@@ -64,162 +65,138 @@ def isTree : Expr → Bool
 | instance_pattern .. => true
 | _ => false
 
+abbrev Pos := List ℕ
+abbrev TreePos := List ℕ
+
+def badPosMessage (e : Expr) (pos : Pos) : MessageData := m! "could not find position {pos} in target {e}"
+def badTreePosMessage (e : Expr) (pos : TreePos) : MessageData := m! "could not find tree position {pos} in target {e}"
+
+/-- The general structure for recursing through a Tree expression. -/
+structure DirectTreeRecursor (α : Type u) where
+  all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
+  ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
+
+  imp_right (p : Expr) : Bool → Expr → α → α
+  and_right (p : Expr) : Bool → Expr → α → α
+  imp_left  (p : Expr) : Bool → Expr → α → α
+  and_left  (p : Expr) : Bool → Expr → α → α
+
+  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → α → α
+
+def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor (m α)) (pol : Bool) (tree : Expr) (pos : TreePos)
+  (k : Bool → Expr → m α) : m α :=
+  let rec visit (pol : Bool) (ys : TreePos) (e : Expr) : m α :=
+    match ys, e with
+    | 1::xs, forall_pattern   n u α b => r.all  n u α pol (.lam n α b .default) (visit pol xs b)
+    | 1::xs, exists_pattern   n u α b => r.ex   n u α pol (.lam n α b .default) (visit pol xs b)
+    | 1::xs, instance_pattern n u α b => r.inst n u α pol (.lam n α b .default) (visit pol xs b)
+    | 1::xs, imp_pattern p tree     => r.imp_right p pol tree (visit   pol  xs tree)
+    | 1::xs, and_pattern p tree     => r.and_right p pol tree (visit   pol  xs tree)
+    | 0::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
+    | 0::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
+    | [], e => k pol e
+    | xs, e => throwError badTreePosMessage e xs
+  visit pol pos tree
+
+
+/-- The default/empty TreeRecursor. This is usefull for extracting a subexpression or the polarity of a subexpression. -/
+def emptyRecursor : DirectTreeRecursor α where
+    all  _ _ _ _ _ k := k
+    ex   _ _ _ _ _ k := k
+    inst _ _ _ _ _ k := k
+    imp_left  _ _ _ k := k
+    imp_right _ _ _ k := k
+    and_left  _ _ _ k := k
+    and_right _ _ _ k := k
+
+def getPolarity [Monad m] [MonadError m] (tree : Expr) (pos : TreePos) : m Bool :=
+  emptyRecursor.recurse true tree pos (fun pol _ => return pol)
+
+def getExpression [Monad m] [MonadError m] (tree : Expr) (pos : TreePos) : m Expr :=
+  emptyRecursor.recurse true tree pos (fun _ e => return e )
+
+
 
 structure TreeRecursor (m : Type u → Type v) (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
   ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
+  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
   imp_right (p : Expr) : Bool → Expr → m α → OptionT m α
   and_right (p : Expr) : Bool → Expr → m α → OptionT m α
   imp_left  (p : Expr) : Bool → Expr → m α → OptionT m α
   and_left  (p : Expr) : Bool → Expr → m α → OptionT m α
 
-  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
 
-instance [Monad m] [MonadNameGenerator m] : EmptyCollection (TreeRecursor m α) where
-  emptyCollection := {
-    all := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
-    ex := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
-    inst := fun _ _ _ _ _ k => do k (.fvar (← mkFreshFVarId))
-    imp_left := fun _ _ _ k => k
-    imp_right := fun _ _ _ k => k
-    and_left := fun _ _ _ k => k
-    and_right := fun _ _ _ k => k
-  }
 
-inductive TreeBinderKind where
-  | imp_right
-  | and_right
-  | imp_left
-  | and_left
-  | all
-  | ex
-  | inst
-deriving BEq
-instance : ToString TreeBinderKind where
-  toString := fun 
-    | .imp_right => "· ⇨"
-    | .and_right => "· ∧"
-    | .imp_left => "⇨ ·"
-    | .and_left => "∧ ·"
-    | .all => "∀"
-    | .ex => "∃"
-    | .inst => "[·]"
-
-partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
-  (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
+partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool) (tree : Expr) (pos : TreePos)
+  (k : Bool → Expr → TreePos → m α) : m α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : TreePos) (e : Expr) : m α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
     match ys, e with
-    | .all      ::xs, forall_pattern n u α b => k? do r.all n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .ex       ::xs, exists_pattern n u α b => k? do r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .imp_right::xs, imp_pattern p tree     => k? do r.imp_right p pol tree (visit   pol  xs tree)
-    | .and_right::xs, and_pattern p tree     => k? do r.and_right p pol tree (visit   pol  xs tree)
-    | .imp_left ::xs, imp_pattern tree p     => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
-    | .and_left ::xs, and_pattern tree p     => k? do r.and_left  p pol tree (visit   pol  xs tree)
-    | .inst     ::xs, instance_pattern n u α b => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, forall_pattern   n u α b => k? do r.all  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, exists_pattern   n u α b => k? do r.ex   n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, instance_pattern n u α b => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, imp_pattern p tree     => k? do r.imp_right p pol tree (visit   pol  xs tree)
+    | 1::xs, and_pattern p tree     => k? do r.and_right p pol tree (visit   pol  xs tree)
+    | 0::xs, imp_pattern tree p     => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
+    | 0::xs, and_pattern tree p     => k? do r.and_left  p pol tree (visit   pol  xs tree)
     | [], e => k pol e []
-    | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
-  visit pol path tree
-
-partial def TreeRecursor.recurseNonTree [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool := true) (tree : Expr) (path : List TreeBinderKind)
-  (k : Bool → Expr → List TreeBinderKind → m α) : m α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : List TreeBinderKind) (e : Expr) : m α :=
-    let k? l := do (Option.getDM (← l) (k pol e ys))
-    match ys, e with
-    | .all      ::xs, .forallE n α b _bi               => k? do r.all n default α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .ex       ::xs, regular_exists_pattern n u α b _ => k? do r.ex  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | .imp_right::xs, .forallE _ p tree _bi            => k? do r.imp_right p pol tree (visit   pol  xs tree)
-    | .and_right::xs, regular_and_pattern p tree       => k? do r.and_right p pol tree (visit   pol  xs tree)
-    | .imp_left ::xs, .forallE _ tree p _bi            => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
-    | .and_left ::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
-    | .inst     ::xs, .forallE n α b _bi               => k? do r.inst n default α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | [], e => k pol e []
-    | xs, e => throwError m! "could not find a subexpression at {xs} in {e}"
-  visit pol path tree
-
--- this is more efficient, as it doesn't require instantiation of the loose bound variables.
-def posToPathAndPol : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat :=
-  let rec visit (pol : Bool) : List Nat → Expr → List (TreeBinderKind × Bool) × List Nat
-    | 1::xs, forall_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.all      , pol)) <| visit   pol  xs tree
-    | 1::xs, exists_pattern (body := tree) ..   => Bifunctor.fst (List.cons (.ex       , pol)) <| visit   pol  xs tree
-    | 1::xs, imp_pattern _ tree                 => Bifunctor.fst (List.cons (.imp_right, pol)) <| visit   pol  xs tree
-    | 1::xs, and_pattern _ tree                 => Bifunctor.fst (List.cons (.and_right, pol)) <| visit   pol  xs tree
-    | 0::xs, imp_pattern tree _                 => Bifunctor.fst (List.cons (.imp_left , pol)) <| visit (!pol) xs tree
-    | 0::xs, and_pattern tree _                 => Bifunctor.fst (List.cons (.and_left , pol)) <| visit   pol  xs tree
-    | 1::xs, instance_pattern (body := tree) .. => Bifunctor.fst (List.cons (.inst     , pol)) <| visit   pol  xs tree
-    | xs, _ => ([], xs)
-  visit true
-
-def posToPath (pos : List Nat) (tree : Expr) : List (TreeBinderKind) × List Nat :=
-  (Bifunctor.fst <| List.map Prod.fst) (posToPathAndPol pos tree)
-
-def posToPath! [Monad m] [MonadError m] (pos : List Nat) (tree : Expr) : m (List (TreeBinderKind)) :=
-  match posToPath pos tree with
-  | (nodes, []) => return nodes
-  | (_, rest) => throwError m!"could not tree-recurse to position {rest} of {pos} in term {tree}"
-
-def findPath : Expr → List TreeBinderKind
-  | imp_pattern _ tree                 => .imp_right :: findPath tree
-  | and_pattern _ tree                 => .and_right :: findPath tree
-  | forall_pattern (body := tree) ..   => .all       :: findPath tree
-  | exists_pattern (body := tree) ..   => .ex        :: findPath tree
-  | instance_pattern (body := tree) .. => .inst      :: findPath tree
-  | _ => []
-
-def findNegativePath : Expr → Option (List TreeBinderKind)
-  | imp_pattern _ tree => match findNegativePath tree with
-      | some path => .imp_right :: path
-      | none => some [.imp_left]
-  | and_pattern _ tree                 => (.and_right :: ·) <$> findNegativePath tree
-  | forall_pattern (body := tree) ..   => (.all       :: ·) <$> findNegativePath tree
-  | exists_pattern (body := tree) ..   => (.ex        :: ·) <$> findNegativePath tree
-  | instance_pattern (body := tree) .. => (.inst      :: ·) <$> findNegativePath tree
-  | _ => none
-
-def pathToPos (path : List TreeBinderKind) : List Nat :=
-  (path.map fun | .imp_left | .and_left => 0 | _ => 1)
-
-def pathPosToPos : List TreeBinderKind → List Nat → List Nat
- | .imp_left::xs
- | .and_left::xs => (0 :: ·) ∘ pathPosToPos xs
- | _::xs => (1 :: ·) ∘ pathPosToPos xs
- | [] => id
-
-def pathPosToTruePos : List TreeBinderKind → List Nat → List Nat
- | .imp_left::xs => (0 :: ·) ∘ pathPosToTruePos xs
- | .and_left::xs => (0 :: 1 :: ·) ∘ pathPosToTruePos xs
- | .ex::xs => (1 :: 1 :: ·) ∘ pathPosToTruePos xs
- | _::xs => (1 :: ·) ∘ pathPosToTruePos xs
- | [] => id
-
-def pathToPol : List TreeBinderKind → Bool
-| .imp_left::xs => !pathToPol xs
-| _::xs => pathToPol xs
-| [] => true
+    | xs, e => throwError badTreePosMessage e xs
+  visit pol pos tree
 
 open Meta
+/-- If the expression is an `Expr.forallE`, replace it by a `Tree.Forall`, `Tree.Instance` or `Tree.Imp` node as appropriate.-/
+def replaceForallE : Expr → MetaM Expr
+  | .forallE name domain body bi => do
+    let u ← getLevel domain
+    return if bi.isInstImplicit
+      then mkInstance name u domain body
+      else if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
+        then mkImp domain body
+        else mkForall name u domain body
+  | e => return e
 
-partial def makeTreeAux : Expr → MetaM Expr
-  | .forallE name domain body bi =>
-      withLocalDeclD name domain fun fvar => do
-      let body' := (← makeTreeAux (body.instantiate1 fvar)).abstract #[fvar]
-      let u ← getLevel domain
-      if bi.isInstImplicit
-      then
-        return mkInstance name u domain body'
-      else
-        if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
-        then
-          return mkImp (← makeTreeAux domain) body'
-        else
-          return mkForall name u domain body'
-            
+partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM α)
+  (pol : Bool) (tree : Expr) (path : TreePos) (k : Bool → Expr → TreePos → MetaM α) : MetaM α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : TreePos) (e : Expr) : MetaM α :=
+    let k? l := do (Option.getDM (← l) (k pol e ys))
+    do match ys, (← replaceForallE e) with
+    | 1::xs, forall_pattern n u α b           => k? do r.all  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, regular_exists_pattern n u α b _ => k? do r.ex   n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, instance_pattern n u α b         => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
+    | 1::xs, imp_pattern p tree               => k? do r.imp_right p pol tree (visit   pol  xs tree)
+    | 1::xs, regular_and_pattern p tree       => k? do r.and_right p pol tree (visit   pol  xs tree)
+    | 0::xs, imp_pattern tree p               => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
+    | 0::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | [], e => k pol e []    
+    | xs, e => throwError badTreePosMessage e xs
+  visit pol path tree
 
+
+def findTreePos : Expr → TreePos
+  | imp_pattern _ tree                 => 1 :: findTreePos tree
+  | and_pattern _ tree                 => 1 :: findTreePos tree
+  | forall_pattern (body := tree) ..   => 1 :: findTreePos tree
+  | exists_pattern (body := tree) ..   => 1 :: findTreePos tree
+  | instance_pattern (body := tree) .. => 1 :: findTreePos tree
+  | _ => []
+
+def findNegativeTreePos : Expr → Option TreePos
+  | imp_pattern _ tree => match findNegativeTreePos tree with
+      | some path => 1 :: path
+      | none => some [0]
+  | and_pattern _ tree                 => (1 :: ·) <$> findNegativeTreePos tree
+  | forall_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeTreePos tree
+  | exists_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeTreePos tree
+  | instance_pattern (body := tree) .. => (1 :: ·) <$> findNegativeTreePos tree
+  | _ => none
+
+partial def makeTreeAux (e : Expr) : MetaM Expr := do match ← replaceForallE e with
   | regular_exists_pattern name u domain body _bi =>
       withLocalDeclD name domain fun fvar => do
-      let body := body.instantiate1 fvar
-      return mkExists name u domain ((← makeTreeAux body).abstract #[fvar])
+      let body ← makeTreeAux (body.instantiate1 fvar)
+      return mkExists name u domain ((body).abstract #[fvar])
 
   | regular_and_pattern p q => return mkAnd (← makeTreeAux p) (← makeTreeAux q)
   | regular_or_pattern  p q => return mkApp2 (.const ``Or  []) (← makeTreeAux p) (← makeTreeAux q)
@@ -242,6 +219,7 @@ partial def makeTreeAux : Expr → MetaM Expr
   | e => pure e
 
 def makeTree (e : Expr) : MetaM Expr := do
+  /- by doing this isDefEq check, the expression is forced to be a proposition, as it might have been universe polymorphic -/
   if ← isDefEq (← inferType e) (.sort .zero) then
     makeTreeAux e
   else
@@ -275,20 +253,34 @@ elab "make_tree" : tactic => workOnTreeDefEq makeTree
 
 syntax treePos := "[" num,* "]"
 
-def getPosition (stx : TSyntax `Tree.treePos) : List Nat :=
+def splitPosition (pos : List ℕ) : TreePos × Pos :=
+  splitAt2 pos
+where
+  splitAt2 : List ℕ → TreePos × Pos
+  | x::xs => if x == 2 then ([], xs) else Bifunctor.fst (x::·) $ splitAt2 xs
+  | [] => ([],[])
+
+def printPosition (treePos : TreePos) (pos : Pos) : String :=
+  if pos == [] then s! "{treePos}"
+  else s! "{treePos ++ 2 :: pos}" 
+    
+
+def getPosition (stx : TSyntax `Tree.treePos) : List ℕ :=
   (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
 
+def getSplitPosition (stx : TSyntax `Tree.treePos) : TreePos × Pos := splitPosition (getPosition stx)
+
 def makeTreePathRec : TreeRecursor MetaM Expr where
-  all n _ α _ _ k := withLocalDeclD n α fun fvar => return mkForall n (← getLevel α) α ((← k fvar).abstract #[fvar])
+  all n u α _ _ k := withLocalDeclD n α fun fvar => return mkForall n u α ((← k fvar).abstract #[fvar])
   ex  n u α _ _ k := withLocalDeclD n α fun fvar => return mkExists n u α ((← k fvar).abstract #[fvar])
+  inst n u α _ _ k := withLocalDeclD n α fun fvar => return mkInstance n u α ((← k fvar).abstract #[fvar])
   imp_right p _ _ k := return mkImp p (← k)
   and_right p _ _ k := return mkAnd p (← k)
   imp_left  p _ _ k := return mkImp (← k) p
   and_left  p _ _ k := return mkAnd (← k) p
-  inst n _ α _ _ k := withLocalDeclD n α fun fvar => return mkInstance n (← getLevel α) α ((← k fvar).abstract #[fvar])
 
-def makeTreePath (path : List TreeBinderKind) (tree : Expr) : MetaM Expr :=
-  makeTreePathRec.recurseNonTree true tree path (fun _ leaf _ => pure leaf)
+def makeTreePath (pos : TreePos) (tree : Expr) : MetaM Expr :=
+  makeTreePathRec.recurseNonTree true tree pos (fun _ leaf _ => pure leaf)
 
 
 def MetaTreeRec : TreeRecursor MetaM α where
@@ -306,12 +298,9 @@ where
   introMVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α := do
     k (← mkFreshExprMVar domain (userName := name))
 
-def withTreeSubexpr [Inhabited α] (tree : Expr) (pos : List Nat) (k : Bool → Expr → MetaM α) (path : Option (List TreeBinderKind) := none) : MetaM α :=
-  let (path, pos) := match path with
-    | some path => (path, pos)
-    | none => posToPath pos tree
-  MetaTreeRec.recurse true tree path fun pol e _path =>
-    let rec visit : List Nat → Expr → ReaderT (Array Expr) MetaM α
+def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : TreePos) (pos : Pos) (k : Bool → Expr → MetaM α) : MetaM α :=
+  MetaTreeRec.recurse true tree treePos fun pol e _ =>
+    let rec visit : Pos → Expr → ReaderT (Array Expr) MetaM α
       | xs   , .mdata _ b       => visit xs b
 
       | []   , e                => fun fvars => k pol (e.instantiateRev fvars)
@@ -333,7 +322,7 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (pos : List Nat) (k : Bool → 
       | 0::xs, .forallE _ t _ _ => visit xs t
       | 1::xs, .forallE n t b _ => fun fvars =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
-      | xs, e                 => throwError m!"could not find subexpression {xs} in '{e}'"
+      | xs, e                 => throwError badPosMessage e xs
 
     visit pos e #[]
 
@@ -357,10 +346,9 @@ where
       let treeProof ← k fvar
       bind name u domain fvar pol tree treeProof
 
-def workOnTreeAt (pos : List Nat) (move : List Nat → Bool → Expr → MetaM TreeProof) : TacticM Unit :=
+def workOnTreeAt (pos : TreePos) (move : Bool → Expr → MetaM TreeProof) : TacticM Unit :=
   workOnTree fun tree => do 
-    let (path, pos) := posToPath pos tree
-    TreeProofRec.recurse true tree path (fun pol tree _path => move pos pol tree)
+    TreeProofRec.recurse true tree pos (fun pol tree _ => move pol tree)
 
     
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp

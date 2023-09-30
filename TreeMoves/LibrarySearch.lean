@@ -13,12 +13,12 @@ deriving BEq
 
 structure LibraryLemma where
   name : Name
-  path : List TreeBinderKind
-  pos : List Nat
+  treePos : TreePos
+  pos : Pos
   diffs : AssocList SubExpr.Pos Widget.DiffTag
 
 instance : BEq LibraryLemma where
-  beq := fun {name, path, pos, ..} {name := name', path := path', pos := pos', ..} => name == name' && pos == pos' && path == path'
+  beq := fun {name, pos, ..} {name := name', pos := pos', ..} => name == name' && pos == pos'
 instance : ToFormat LibraryLemma where
   format := (toString ·.name)
 
@@ -33,15 +33,12 @@ structure DiscrTrees where
 
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 
--- private abbrev Quintuple α := α × α × α × α × α
--- private abbrev ProcessResult := Quintuple (Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array (DiscrTree.Key true)))
-
-private structure ProcessResult where
-  apply           : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
-  apply_rev       : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
-  rewrite         : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
-  rewrite_ord     : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
-  rewrite_ord_rev : Array (AssocList (List Nat) Widget.DiffTag × List TreeBinderKind × List Nat × Array DiscrTree.Key) := #[]
+structure ProcessResult where
+  apply           : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
+  apply_rev       : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
+  rewrite         : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
+  rewrite_ord     : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
+  rewrite_ord_rev : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
 instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
@@ -54,21 +51,21 @@ partial def processTree : Expr → MetaM ProcessResult
     let u ← getLevel domain
     if bi.isInstImplicit
     then
-      return addBinderKind [1] .inst result
+      return addBinderKind [1] 1 result
     else
       if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
       then
-        let result := addBinderKind [1] .imp_right result
-        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [.imp_left], [], ← mkPath domain) }
+        let result := addBinderKind [1] 1 result
+        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkPath domain) }
       else
-        return addBinderKind [1] .all result
+        return addBinderKind [1] 1 result
 
   | regular_exists_pattern n _u d body _ =>
     withLocalDeclD n d fun fvar =>
-    addBinderKind [1,1] .ex <$> processTree (body.instantiate1 fvar)
+    addBinderKind [1,1] 1 <$> processTree (body.instantiate1 fvar)
 
   | regular_and_pattern p q =>
-    return (← addBinderKind [0,1] .and_left <$> processTree p) ++ (← addBinderKind [1] .and_right <$> processTree q)
+    return (← addBinderKind [0,1] 0 <$> processTree p) ++ (← addBinderKind [1] 1 <$> processTree q)
   
   | e => do
     let mut result : ProcessResult := {}
@@ -87,8 +84,8 @@ partial def processTree : Expr → MetaM ProcessResult
     return result
     
 where
-  addBinderKind (pos : List Nat) (kind : TreeBinderKind) : ProcessResult → ProcessResult :=
-    let f := fun (diffs, path, x) => (diffs.mapKey (pos ++ ·), kind :: path, x)
+  addBinderKind (diffPos : List Nat) (kind : ℕ) : ProcessResult → ProcessResult :=
+    let f := fun (diffs, pos, x) => (diffs.mapKey (diffPos ++ ·), kind :: pos, x)
     fun ⟨a, b, c, d, e⟩ => ⟨a.map f, b.map f, c.map f, d.map f, e.map f⟩
 
 
@@ -106,7 +103,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM D
     do return t
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
-  let f := Array.foldl (fun t (diffs, path, pos, key) => t.insertCore key { name, path, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
+  let f := Array.foldl (fun t (diffs, treePos, pos, key) => t.insertCore key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
 open Mathlib.Tactic

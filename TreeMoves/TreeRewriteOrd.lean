@@ -261,7 +261,7 @@ partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadE
 
   | list, lhs => throwError "could not find sub position {list} in '{lhs}'"
 
-partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : List TreeBinderKind) (hypPos goalPos : List Nat) : MetaM' TreeProof := do
+partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : TreePos) (hypPos goalPos : Pos) : MetaM' TreeProof := do
   unless hypPath == [] do
     throwError m! "cannot rewrite using a subexpression: subtree {hypPath} in {rel}"
   unless hypPos == [] do
@@ -269,53 +269,51 @@ partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) 
   let (newTree, proof) ← visit (fun fvars u α preorder lhs pol => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol) (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
   return ({ newTree, proof })
 
-def getPolarity (pos : List Nat) (tree : Expr) : MetaM Bool :=
-  let (path, pos) := posToPath pos tree
-  withTreeSubexpr tree [] (fun pol e => do
+def getOrdPolarity (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM Bool :=
+  withTreeSubexpr tree treePos pos (fun pol e => do
     let Except.error pol ← show ExceptT Bool MetaM _ from visit (fun _ _ _ _ _ pol => MonadExceptOf.throw pol) (.zero) (.sort .zero) PropPreorder #[] pol pos e | unreachable!
-    return pol) (some path)
+    return pol)
 
 open Elab.Tactic
 
 elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
-  let hypPos := getPosition hypPos
-  let goalPos := getPosition goalPos
-  workOnTree (applyBound hypPos goalPos true treeRewriteOrd)
+  let (hypTreePos, hypPos) := getSplitPosition hypPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeRewriteOrd)
 
 elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
-  let hypPos := getPosition hypPos
-  let goalPos := getPosition goalPos
-  workOnTree (applyBound hypPos goalPos false treeRewriteOrd)
+  let (hypTreePos, hypPos) := getSplitPosition hypPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeRewriteOrd)
 
-def getRewriteOrdPos (hypPos : Option (List Nat)) (hyp : Expr) (_goalPath : List TreeBinderKind) : MetaM (Expr × List TreeBinderKind × List Nat) := do
+def getRewriteOrdPos (hypPos : Option (TreePos × Pos)) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × TreePos × List Nat) := do
   let hypTree ← makeTree hyp
-  let (path, pos) := match hypPos with
-    | some pos => posToPath pos hypTree
-    | none => (findPath hypTree, [])
-  return (← makeTreePath path hyp, path, pos)
+  let (treePos, pos) := hypPos.getD (findTreePos hypTree, [])
+  return (← makeTreePath treePos hyp, treePos, pos)
 
 elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
-  let goalPos := getPosition goalPos
-  let hypPos := getPosition <$> hypPos
-  workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalPos treeRewriteOrd)
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  let hypPos := getSplitPosition <$> hypPos
+  workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalTreePos goalPos treeRewriteOrd)
 
 open DiscrTree in 
 def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
-  let discrTrees ← getLibraryLemmas
-  let pol ← try getPolarity goalPos tree catch _ => return #[]
+  let (goalTreePos, goalPos) := splitPosition goalPos
+  let pol ← try getOrdPolarity goalTreePos goalPos tree catch _ => return #[]
 
+  let discrTrees ← getLibraryLemmas
   let results := if pol
-    then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalPos)
-    else (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalPos)
-  let results ← filterLibraryResults results fun {name, path, pos, ..} => do
+    then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalTreePos goalPos)
+    else (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalTreePos goalPos)
+  let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     try
-      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath path hyp, path, pos)) goalPos treeRewriteOrd tree
+      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos goalPos treeRewriteOrd tree
       return true
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, path, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {pathPosToPos path pos} {name} {goalPos}")
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {printPosition treePos pos} {name} {goalPos}")
 
 elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
@@ -334,40 +332,40 @@ elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
 
 example : (0 ≤ 1) → 0 ≤ 1 := by
   make_tree
-  tree_rewrite_ord [0] [1,0,1]
+  tree_rewrite_ord [0] [1,2,0,1]
   rfl
 
 example (p q : Prop) : (p → q) → True ∨ (p → q) := by
   make_tree
-  tree_rewrite_ord [0] [1,1,1]
+  tree_rewrite_ord [0] [1,2,1,1]
   sorry
 
 example (p q : Prop) : Imp (p → q) <| True ∨ (p → q) := by
-  tree_rewrite_ord [0] [1,1,1]
+  tree_rewrite_ord [0] [1,2,1,1]
   sorry
 
 example (p q : Prop) : Imp (p → q) <| True ∨ (p → q) := by
-  tree_rewrite_ord [0] [1,1,0]
+  tree_rewrite_ord [0] [1,2,1,0]
   sorry
 
 example (𝔸 : Set (Set α)) (B C : Set α) : (C ⊆ B) → {A ∈ 𝔸 | B ⊂ A} ⊆ {A ∈ 𝔸 | C ⊂ A} := by
   make_tree
-  tree_rewrite_ord [0] [1,0,1,1,1,1,0,1]
+  tree_rewrite_ord [0] [1,2,0,1,1,1,1,0,1]
   rfl
 
 lemma testLib : ∀ x, x - 1 ≤ x := sorry
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
-  lib_rewrite_ord [1] Tree.testLib [1,0,1,1,1,0,1]
+  lib_rewrite_ord [1] Tree.testLib [1,2,0,1,1,1,0,1]
   lib_apply _root_.refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
-  tree_rewrite_ord [0,1] [1,1,1,1]
+  tree_rewrite_ord [0,1] [1,2,1,1,1]
   use 0    
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
-  tree_rewrite_ord [0,1] [1,1,1]
+  tree_rewrite_ord [0,1] [1,2,1,1]
   make_tree
   lib_apply _root_.refl [1]
 
