@@ -5,3 +5,4 @@ import TreeMoves.TreeSearch
 import TreeMoves.TreeInduction
 import TreeMoves.TreeNormalize
 import TreeMoves.PrintTree
+import TreeMoves.TreeNaming

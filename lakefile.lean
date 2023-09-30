@@ -87,6 +87,10 @@ lean_lib TreeMoves.TreeSearch {
   -- add any library configuration options here
 }
 
+lean_lib TreeMoves.TreeNaming {
+  -- add any library configuration options here
+}
+
 lean_lib TreeMoves.TreeMoves {
   -- add any library configuration options here
 }

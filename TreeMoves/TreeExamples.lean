@@ -105,6 +105,17 @@ a_2 = c a_2 ∧ f a_1 = b a_2 := by
 -- set_option tree.rememberNonempty true in
 
 
+
+lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
+  make_tree
+  tree_name m [1,1,2,0,1,1]
+  -- try_lib_rewrite [1,1,1,0]
+  lib_rewrite_rev eq_sub_iff_add_eq [1,1,1,0]
+  tree_rewrite [1,1,1,0] [1,1,1,1,2,1]
+  lib_apply refl [1,1]
+
+
+  
 open BigOperators
 
 lemma sum_add_distrib : ∀ n : ℕ, ∀ (f g : ℕ → ℕ), ∑ i in Finset.range n, (f i + g i) = (∑ i in Finset.range n, f i) + (∑ i in Finset.range n, g i) := by

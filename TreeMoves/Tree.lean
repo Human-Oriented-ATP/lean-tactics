@@ -337,8 +337,8 @@ def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRe
   ex   := introFree bindExists
   inst := introFree bindInstance
 where
-  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) : m TreeProof → OptionT m TreeProof :=
-    Functor.map <| some ∘ bind p pol tree
+  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) (k : m TreeProof) : OptionT m TreeProof :=
+    bind p pol tree <$> k
 
   introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (name : Name) (u : Level) (domain : Expr) (pol : Bool)
       (tree : Expr) (k : Expr → m TreeProof) : OptionT m TreeProof :=
