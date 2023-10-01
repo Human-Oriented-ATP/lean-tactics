@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import {LocationsContext, InteractiveCode, DocumentPosition, TaggedText, GoalsLocation, SubexprInfo } from '@leanprover/infoview';
+import {LocationsContext, InteractiveCode, PanelWidgetProps, TaggedText, GoalsLocation, SubexprInfo } from '@leanprover/infoview';
 
-export interface ExprPresentProps {
-    pos : DocumentPosition
+export interface ExprPresentProps extends PanelWidgetProps {
     expr : TaggedText<SubexprInfo>
 }
 
@@ -24,11 +23,15 @@ const InfoDisplayContent = React.memo((props : ExprPresentProps) => {
         }),
         subexprTemplate: { mvarId: '', loc: { target: '' }}
     }), [selectedLocs]);
-    return <div> 
+    props.selectedLocations = selectedLocs;
+    return (<div> 
         (<LocationsContext.Provider value = {locs}>
-            {InteractiveCode({fmt : props.expr}) }
+            {InteractiveCode({fmt : props.expr})}
         </LocationsContext.Provider>)
+        <p> {props.selectedLocations.length}</p>
     </div>
+    )
+
 
 })
 

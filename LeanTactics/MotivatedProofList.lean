@@ -2,7 +2,6 @@ import LeanTactics.MotivatedProofPanel
 import TreeMoves.TreeRewrite
 import TreeMoves.TreeMoves
 
-
 /-!
 
 # Motivated proof list
@@ -14,7 +13,7 @@ of the goal state developed in `TreeMoves`.
 -/
 
 
-open ProofWidgets Lean Meta
+open ProofWidgets Lean Meta Server
 
 open Jsx OptionT
 
@@ -70,7 +69,7 @@ def treeSimp : InfoviewAction :=
       let text := "tree_simp " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
       pure 
         <DynamicEditButton 
-          label={"Try to simplify the selected subexpression"} 
+          label={"Simplify the selected subexpression"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Simplifying the target... </p>}
@@ -91,7 +90,7 @@ def tree_rewrite_ord : InfoviewAction :=
               ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString)
       pure <DynamicEditButton 
-            label={"Ordered tree rewrite at"} 
+            label={"Ordered rewrite"} 
             range?={props.range} 
             insertion?={text} 
             html?={<p> Rewriting... </p>}
@@ -102,7 +101,7 @@ def tree_rewrite_ord : InfoviewAction :=
 def tree_search : InfoviewAction := 
   fun props => do 
     pure <DynamicEditButton 
-            label={"Search the tree for redundant hypotheses & goals"} 
+            label={"Search for redundancy"} 
             range?={props.range} 
             insertion?={"tree_search"} 
             html?={<p> Searching the tree... </p>}
@@ -118,28 +117,10 @@ def tree_induction : InfoviewAction :=
       let text := "tree_induction" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
       pure 
         <DynamicEditButton 
-          label={"Apply induction on the selected subexpression"} 
+          label={"Induct on the selected subexpression"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Performing induction... </p>}
-          vanish={true} />
-    else OptionT.fail
-
-@[motivated_proof_move]
-def lib_rewrite : InfoviewAction :=
-  fun props => do 
-    let panelProps := props.toPanelWidgetProps
-    if (panelProps.selectedLocations.size == 1) then
-      let some pos := panelProps.selectedLocations[0]? | OptionT.fail
-      let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
-      let text := "lib_rewrite" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
-      -- below
-      pure 
-        <DynamicEditButton 
-          label={"Library rewrite at a selected position (to be implemented)"} 
-          range?={props.range} 
-          insertion?={text} 
-          html?={<p> Rewriting... </p>}
           vanish={true} />
     else OptionT.fail
 
@@ -187,28 +168,68 @@ where
             variant={"text"}
             color={"info"}
             size={"small"} />]
-      #[("dislay", "flex"), ("justifyContent", "space-between")]
+      #[("display", "flex"), ("justifyContent", "space-between")]
 
-open Jsx in
+-- open Jsx in
+-- @[motivated_proof_move]
+-- def libRewrite : InfoviewAction := fun props ↦ do
+--   if (props.selectedLocations.size == 1) then
+--     let some subexpr := props.selectedLocations[0]? | OptionT.fail
+--     let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
+--     let libSuggestions ← Tree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
+--     pure
+--       <DynamicEditButton 
+--           label={"Rewrite with a library result"}
+--           html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
+--           vanish={true} />
+--   else OptionT.fail
+
+-- @[motivated_proof_move]
+-- def libApply : InfoviewAction := fun props ↦ do
+--   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
+--   let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
+--   pure
+--     <DynamicEditButton 
+--         label={"Apply a library result"} 
+--         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+
+--TODO check if selected expression starts with `¬`
 @[motivated_proof_move]
-def libRewrite : InfoviewAction := fun props ↦ do
-  let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
-  let libSuggestions ← Tree.librarySearchRewrite pos.toArray.toList (← goal.getType)
-  pure
-    <DynamicEditButton 
-        label={"Rewrite with a library result"}
-        html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
-        vanish={true} />
+def push_neg : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
+    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    pure
+      <DynamicEditButton 
+          label={"Push the negation through"}
+          range?={props.range} 
+          insertion?={"tree_push_neg " ++ ((SubExpr.Pos.toArray pos).toList).toString}
+          vanish = {false} />
+  else OptionT.fail
+
+structure NamingButtonProps where 
+  selectedPos : String
+deriving RpcEncodable
+
+@[widget_module] def NamingButton : Component NamingButtonProps where
+  javascript := include_str ".." / "build" / "js" / "namingButton.js"
+
 
 @[motivated_proof_move]
-def libApply : InfoviewAction := fun props ↦ do
-  let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
-  let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
-  pure
-    <DynamicEditButton 
-        label={"Apply a library result"} 
-        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+def name : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
+    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    pure
+      <DynamicEditButton 
+          label={"Name the selected subexpression"}
+          range?={props.range} 
+          html? = {<NamingButton selectedPos = {pos.toArray.toList.toString}/>}
+          vanish = {true} />
+  else OptionT.fail
 
-example (h : 1 = 1) : 1 = 1 ∧ 1 = 2 := by
-  motivated_proof
-    sorry
+
+
+
+
+

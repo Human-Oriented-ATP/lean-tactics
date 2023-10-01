@@ -268,5 +268,3 @@ example {m n : Nat} (h : m ≤ n) : m ≤ 2 * n := by
 
 /- `TODO`: Fix placing of inserted tactic blocks as on repeated clicks the 
     insertion appears too high up the block. Currently have to click on and off. -/
-
-#check Lean.Widget.getInteractiveDiagnostics
