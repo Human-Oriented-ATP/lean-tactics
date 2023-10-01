@@ -170,28 +170,28 @@ where
             size={"small"} />]
       #[("display", "flex"), ("justifyContent", "space-between")]
 
--- open Jsx in
--- @[motivated_proof_move]
--- def libRewrite : InfoviewAction := fun props ↦ do
---   if (props.selectedLocations.size == 1) then
---     let some subexpr := props.selectedLocations[0]? | OptionT.fail
---     let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
---     let libSuggestions ← Tree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
---     pure
---       <DynamicEditButton 
---           label={"Rewrite with a library result"}
---           html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
---           vanish={true} />
---   else OptionT.fail
+open Jsx in
+@[motivated_proof_move]
+def libRewrite : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexpr := props.selectedLocations[0]? | OptionT.fail
+    let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
+    let libSuggestions ← Tree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
+    pure
+      <DynamicEditButton 
+          label={"Rewrite with a library result"}
+          html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
+          vanish={true} />
+  else OptionT.fail
 
--- @[motivated_proof_move]
--- def libApply : InfoviewAction := fun props ↦ do
---   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
---   let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
---   pure
---     <DynamicEditButton 
---         label={"Apply a library result"} 
---         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+@[motivated_proof_move]
+def libApply : InfoviewAction := fun props ↦ do
+  let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
+  let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
+  pure
+    <DynamicEditButton 
+        label={"Apply a library result"} 
+        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
 
 --TODO check if selected expression starts with `¬`
 @[motivated_proof_move]
