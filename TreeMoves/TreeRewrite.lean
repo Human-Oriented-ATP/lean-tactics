@@ -148,7 +148,7 @@ def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Arr
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, (if (pos == [0, 1]) then s! "lib_rewrite {name} {goalPos'}" else s! "lib_rewrite_rev {name} {goalPos'}"))
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite {printPosition treePos pos} {name} {goalPos'}")
 
 elab "try_lib_rewrite" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos

@@ -280,7 +280,7 @@ motivated_proof
 tree_name m [1, 1, 2, 0, 1, 1]
 lib_rewrite_rev eq_sub_iff_add_eq [1, 1, 1, 0, 2]
 
-lemma Cantor : (X : Type) → (f : X → Set X) → ¬ f.Surjective := by
+lemma Cantor : (X : Type u) → (f : X → Set X) → ¬ f.Surjective := by
 motivated_proof
 tree_rewrite_def [1, 1, 2, 1]
 tree_push_neg [1, 1, 2]
