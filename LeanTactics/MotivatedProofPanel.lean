@@ -191,7 +191,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     else
       let selectedLoc ← props.selectedLocations[0]?
       props.goals.find? (·.mvarId == selectedLoc.mvarId)
-  let some goal := goal? | throw <| .invalidParams "Could not find goal location."
+  let some goal := goal? | return Task.pure <| .ok <| .element "span" #[] #[.text "No goals found"]
   goal.ctx.val.runMetaM {} do
     let infoviewActions := infoviewActionExt.getState (← getEnv)
     let motivatedProofMoves ← infoviewActions.filterMapM 
