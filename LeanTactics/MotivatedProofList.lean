@@ -293,3 +293,8 @@ example : (m : Nat) → (n : Nat) → ¬ Nat.Coprime m n := by
 motivated_proof
 tree_rewrite_def [1, 1, 2, 1]
 sorry
+
+lemma cantor.rabbit : {P : X → Prop} → (∀ x, P x) → (∀ x : X, ∃ y, P y) := by
+  intro _ h x
+  use x
+  apply h
