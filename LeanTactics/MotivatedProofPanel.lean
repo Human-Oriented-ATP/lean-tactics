@@ -237,10 +237,10 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
+    let mkTree ← `(tactic| make_tree)
     let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
     | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
-      let mkTree ← `(tactic| make_tree)
-      let newTacs := (mkTree :: (List.intersperse mkTree) (tacs.toList)).toArray
+      let newTacs := ((mkTree :: (List.intersperse mkTree) (tacs.toList))).toArray
       `(Parser.Tactic.tacticSeq | $[$newTacs]*)
     | _ => pure seq
     savePanelWidgetInfo stx ``MotivatedProofPanel do

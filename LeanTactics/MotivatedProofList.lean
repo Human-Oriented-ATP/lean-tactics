@@ -1,6 +1,7 @@
 import LeanTactics.MotivatedProofPanel
 import TreeMoves.TreeRewrite
 import TreeMoves.TreeMoves
+import Skolem
 
 /-!
 
@@ -13,7 +14,7 @@ of the goal state developed in `TreeMoves`.
 -/
 
 
-open ProofWidgets Lean Meta Server
+open ProofWidgets Lean Meta Server Widget
 
 open Jsx OptionT
 
@@ -98,14 +99,15 @@ def tree_rewrite_ord : InfoviewAction :=
     else OptionT.fail
 
 @[motivated_proof_move]
-def tree_search : InfoviewAction := 
-  fun props => do 
-    pure <DynamicEditButton 
-            label={"Search for redundancy"} 
-            range?={props.range} 
-            insertion?={"tree_search"} 
-            html?={<p> Searching the tree... </p>}
-            vanish={true} />  
+def tree_search : InfoviewAction := fun props => do
+  if (props.selectedLocations.size == 0) then
+      pure <DynamicEditButton 
+              label={"Search for redundancy"} 
+              range?={props.range} 
+              insertion?={"tree_search"} 
+              html?={<p> Searching the tree... </p>}
+              vanish={true} />  
+  else OptionT.fail
 
 @[motivated_proof_move]
 def tree_induction : InfoviewAction := 
@@ -198,7 +200,11 @@ def libApply : InfoviewAction := fun props ↦ do
 def push_neg : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | OptionT.fail
-    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    let ⟨goal, .target pos⟩ := subexprPos | OptionT.fail
+    -- let (goalTreePos, goalPos) := Tree.splitPosition pos.toArray.toList
+    -- not sure the next two lines are doing exactly what I want them to
+    -- let expr : Expr ← Tree.withTreeSubexpr (← goal.getType) goalTreePos goalPos (fun _ x => pure x)
+    -- let (.app (.const `Not _) _) := expr | OptionT.fail
     pure
       <DynamicEditButton 
           label={"Push the negation through"}
@@ -228,8 +234,62 @@ def name : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else OptionT.fail
 
+@[motivated_proof_move]
+def unify : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
+    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    pure
+      <DynamicEditButton 
+          label={"Unify the selected subexpression"}
+          range?={props.range} 
+          insertion?={"lib_apply rfl " ++ pos.toArray.toList.toString}
+          vanish = {true} />
+  else OptionT.fail
 
+@[motivated_proof_move]
+def unfold_definition : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
+    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    pure
+      <DynamicEditButton 
+          label={"Unfold definition"}
+          range?={props.range} 
+          insertion?={"tree_rewrite_def " ++ (pos.toArray.toList).toString}
+          vanish = {true} />
+  else OptionT.fail
 
+-- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by
+-- motivated_proof
+-- tree_push_neg [1, 2]
+-- tree_simp [1, 1, 2]
+-- lib_apply rfl [1, 1, 2] -- `Rpc error: InvalidParams: Could not find goal location.`
 
+-- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by sorry
 
+-- lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
+--   tree_rewrite_def [2,1]
+--   make_tree
+--   tree_push_neg []
+--   lib_rewrite Set.ext_iff [1,1,2,1]
+--   tree_push_neg [1,1] 
 
+lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
+motivated_proof
+tree_name m [1, 1, 2, 0, 1, 1]
+lib_rewrite_rev eq_sub_iff_add_eq [1, 1, 1, 0, 2]
+
+lemma Cantor : (X : Type) → (f : X → Set X) → ¬ f.Surjective := by
+motivated_proof
+tree_rewrite_def [1, 1, 2, 1]
+tree_push_neg [1, 1, 2]
+lib_rewrite Set.ext_iff [1, 1, 1, 1, 2, 1]
+tree_push_neg [1, 1, 1, 1, 2]
+lib_rewrite not_iff [1, 1, 1, 1, 1, 2]
+sorry
+
+example : (m : Nat) → (n : Nat) → ¬ Nat.Coprime m n := by
+motivated_proof
+tree_rewrite_def [1, 1, 2, 1]
+sorry
