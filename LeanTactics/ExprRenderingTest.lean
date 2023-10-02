@@ -1,5 +1,6 @@
-import ProofWidgets.Presentation.Expr
-import ProofWidgets.Component.HtmlDisplay
+import ProofWidgets
+import Paperproof
+import Mathlib.Tactic
 import Std
 
 open Lean Server Widget ProofWidgets Jsx
@@ -48,8 +49,7 @@ def myExprPresenter : ExprPresenter := {
 
 syntax (name := exprTemp) "!expr " term : command
 
-structure ExprPresentProps where
-  pos : Lsp.Position
+structure ExprPresentProps extends PanelWidgetProps where
   expr : CodeWithInfos
 deriving RpcEncodable
 
@@ -65,11 +65,25 @@ def elabExpr : CommandElab := fun
       let e ← ExprWithCtx.save trm
       let some pos := (← getFileMap).rangeOfStx? stx | failure
       let tgt ← ppExprTagged e.expr 
-      let ht := <InteractiveExprPresent pos = {pos.end} expr = {tgt} />
+      let ht := <InteractiveExprPresent pos = {pos.end} goals = {#[]} termGoal? = {none} selectedLocations = {#[]} expr = {tgt} />
       savePanelWidgetInfo stx ``HtmlDisplay do
         return json% { html: $(← rpcEncode ht) }
   | stx => throwError "Unexpected syntax {stx}."
 
+theorem Temp (h : 1 = 2): ∀ n : Nat, 1 = 1 ∨ 1 = 1 := by 
+  intro n
+  left
+  sorry
+
+example (α : Type) (s t : Set α) : s ∩ t = t ∩ s := by
+  ext x
+  constructor
+  intro h
+  rw [Set.mem_inter_iff] at h ⊢
+  constructor
+  exact h.2
+  -- exact h.1
+  sorry
 
 -- Expressions can now be `shift-clicked`!!!
 !expr ((1 : Nat) + 1 = 2)

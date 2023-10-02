@@ -6,7 +6,6 @@ import ProofWidgets.Component.OfRpcMethod
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
-import Mathlib
 import TreeMoves.Tree
 
 /-!
@@ -192,7 +191,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     else
       let selectedLoc ← props.selectedLocations[0]?
       props.goals.find? (·.mvarId == selectedLoc.mvarId)
-  let some goal := goal? | throw <| .invalidParams "Could not find goal location."
+  let some goal := goal? | return Task.pure <| .ok <| .element "span" #[] #[.text "No goals found"]
   goal.ctx.val.runMetaM {} do
     let infoviewActions := infoviewActionExt.getState (← getEnv)
     let motivatedProofMoves ← infoviewActions.filterMapM 
@@ -238,10 +237,10 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
+    let mkTree ← `(tactic| make_tree)
     let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
     | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
-      let mkTree ← `(tactic| make_tree)
-      let newTacs := (mkTree :: (List.intersperse mkTree) (tacs.toList)).toArray
+      let newTacs := ((mkTree :: (List.intersperse mkTree) (tacs.toList))).toArray
       `(Parser.Tactic.tacticSeq | $[$newTacs]*)
     | _ => pure seq
     savePanelWidgetInfo stx ``MotivatedProofPanel do

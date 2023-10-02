@@ -87,6 +87,8 @@ open Elab.Tactic in
 elab "tree_rewrite_def" pos:treePos : tactic => do
   let (treePos, pos) := getSplitPosition pos
   workOnTreeDefEq (edit treePos pos replaceByDef)
+  let mkTree ← `(tactic | make_tree)
+  evalTactic mkTree
 
 example : ∀ n:Nat, n + n = 2*n := by
   make_tree
