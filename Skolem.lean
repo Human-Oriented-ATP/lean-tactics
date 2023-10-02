@@ -143,7 +143,3 @@ where
     if let some stx := ref then
       withMainContext do
         Term.addLocalVarInfo stx (mkFVar fvarId)
-
-example (x : Nat): ∀ x : Nat, x = x := by
-  introduce x
-  sorry

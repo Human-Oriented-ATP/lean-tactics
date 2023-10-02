@@ -136,9 +136,9 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalTreePos goalPos treeRewrite)
 
 open DiscrTree in
-def librarySearchRewrite (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
-  let (goalTreePos, goalPos) := splitPosition goalPos
+  let (goalTreePos, goalPos) := splitPosition goalPos'
   let results := (← getSubExprUnify discrTrees.2.rewrite tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite tree goalTreePos goalPos)
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
@@ -148,14 +148,12 @@ def librarySearchRewrite (goalPos : List Nat) (tree : Expr) : MetaM (Array (Arra
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite {printPosition treePos pos} {name} {goalPos}")
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, (if (pos == [0, 1]) then s! "lib_rewrite {name} {goalPos'}" else s! "lib_rewrite_rev {name} {goalPos'}"))
 
 elab "try_lib_rewrite" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   let tree := (← getMainDecl).type
   logLibrarySearch (← librarySearchRewrite goalPos tree)
-
-
 
 -- -- #exit
 -- example (a b c : Nat) : a + b + c = a + (b + c) := by
