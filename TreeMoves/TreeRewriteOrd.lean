@@ -292,7 +292,7 @@ def getRewriteOrdPos (hypPos : Option (TreePos × Pos)) (hyp : Expr) (_ : MetaM 
   return (← makeTreePath treePos hyp, treePos, pos)
 
 elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
-  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let hypName ← getIdWithInfo hypName
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   let hypPos := getSplitPosition <$> hypPos
   workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalTreePos goalPos treeRewriteOrd)
@@ -358,7 +358,7 @@ lemma testLib : ∀ x, x - 1 ≤ x := sorry
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
   lib_rewrite_ord [1] Tree.testLib [1,2,0,1,1,1,0,1]
-  lib_apply _root_.refl [1]
+  lib_apply refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1,1]
@@ -367,7 +367,7 @@ example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1]
   make_tree
-  lib_apply _root_.refl [1]
+  lib_apply refl [1]
 
 /-
 What should the isolate tactic do?

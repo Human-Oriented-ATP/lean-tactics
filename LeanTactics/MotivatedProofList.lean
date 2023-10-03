@@ -243,7 +243,7 @@ def unify : InfoviewAction := fun props ↦ do
       <DynamicEditButton 
           label={"Unify the selected subexpression"}
           range?={props.range} 
-          insertion?={"lib_apply rfl " ++ pos.toArray.toList.toString}
+          insertion?={"lib_apply refl " ++ pos.toArray.toList.toString}
           vanish = {true} />
   else OptionT.fail
 
@@ -288,6 +288,10 @@ lib_rewrite Set.ext_iff [1, 1, 1, 1, 2, 1]
 tree_push_neg [1, 1, 1, 1, 2]
 lib_rewrite not_iff [1, 1, 1, 1, 1, 2]
 sorry
+
+lemma CantorEnd : ∀ X : Type u, ∀ f : X → Set X, ∃ a : Set X, ∀ a_1 : X, ¬a_1 ∈ f a_1 ↔ a_1 ∈ a := by
+motivated_proof
+lib_apply refl [1, 1, 1, 1, 2]
 
 example : (m : Nat) → (n : Nat) → ¬ Nat.Coprime m n := by
 motivated_proof

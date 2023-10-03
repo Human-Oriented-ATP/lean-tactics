@@ -125,13 +125,13 @@ def getRewritePos (pos : TreePos × Pos ⊕ Bool) (hyp : Expr) (_ : MetaM Bool) 
 
 
 elab "lib_rewrite" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
-  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let hypName ← getIdWithInfo hypName
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   let hypPos := hypPos.elim (.inr false) (.inl ∘ getSplitPosition)
   workOnTree (applyUnbound hypName (getRewritePos hypPos) goalTreePos goalPos treeRewrite)
 
 elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
-  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let hypName ← getIdWithInfo hypName
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalTreePos goalPos treeRewrite)
 

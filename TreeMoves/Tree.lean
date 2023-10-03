@@ -353,8 +353,18 @@ def workOnTreeAt (pos : TreePos) (move : Bool → Expr → MetaM TreeProof) : Ta
     
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
 
+open Elab in
+/-- if this is an ident, return the name, and add the info to the infotree.
+This means that if you hover over the name, you will see the type information of the constant. -/
+def getIdWithInfo [Monad m] [MonadInfoTree m] [MonadResolveName m] [MonadEnv m] [MonadError m]
+    (id : Syntax) (expectedType? : Option Expr := none) : m Name := do
+  let n := id.getId
+  if (← getInfoState).enabled then
+    addConstInfo id n expectedType?
+  return n
+
 def getConstAndTypeFromIdent (id : TSyntax `ident) : MetaM (Expr × Expr) := do
-  let name ← Elab.resolveGlobalConstNoOverloadWithInfo id
+  let name ← getIdWithInfo id
   let cinfo ← getConstInfo name
   let us ← mkFreshLevelMVarsFor cinfo
   return (.const name us, cinfo.instantiateTypeLevelParams us)

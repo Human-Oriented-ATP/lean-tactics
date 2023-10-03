@@ -506,7 +506,7 @@ elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
   workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeApply)
 
 elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
-  let hypName ← Elab.resolveGlobalConstNoOverloadWithInfo hypName
+  let hypName ← getIdWithInfo hypName
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   let hypPos := getSplitPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalTreePos goalPos treeApply)
@@ -569,7 +569,7 @@ example : ({α : Type 0} → {r : α → α → Prop} → [IsRefl α r] → (a :
 lemma cantor_end : ∀ (X : Type u) (f : X → Set X), ∃ a : Set X, ∀ a_1 : X,
 ¬a_1 ∈ f a_1 ↔ a_1 ∈ a := by
   make_tree
-  lib_apply [1,1,1,1] _root_.refl [1, 1, 1, 1, 2]
+  lib_apply [1,1,1,1] refl [1, 1, 1, 1, 2]
 
 
 
