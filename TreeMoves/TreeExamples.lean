@@ -33,10 +33,10 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) :
   tree_apply [1,0] [1,1]
 
 
-lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ε - η = ζ :=
+lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ζ ≤ ε - η :=
   fun ε hε =>
     let hε2 : ε / 2 > 0 := div_pos hε (by simp)
-    ⟨ε/2, hε2, ε/2, hε2, by ring⟩
+    ⟨ε/2, hε2, ε/2, hε2, by ring_nf;rfl⟩
 
 lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
@@ -56,7 +56,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,2,0,1]
   tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
   lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
   tree_search
   try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
@@ -64,7 +64,7 @@ example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ �
   tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
   try_lib_rewrite [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
   lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
   tree_search
   lib_rewrite Metric.continuous_iff [0,1]
   make_tree
