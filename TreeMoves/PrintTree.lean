@@ -107,6 +107,24 @@ def delabAnnotation : Delab := do
     `($(← withMDataExpr delabFVar):ident •)
   else failure
 
+open Widget in
+def ppTreeTagged (e : Expr) : MetaM CodeWithInfos := do
+  if pp.raw.get (← getOptions) then
+    return .text (toString e)
+  let ⟨fmt, infos⟩ ← PrettyPrinter.ppExprWithInfos e (delab := delabTreeAux true)
+  let tt := TaggedText.prettyTagged fmt
+  let ctx := {
+    env           := (← getEnv)
+    mctx          := (← getMCtx)
+    options       := (← getOptions)
+    currNamespace := (← getCurrNamespace)
+    openDecls     := (← getOpenDecls)
+    fileMap       := default
+    ngen          := (← getNGen)
+  }
+  return tagCodeInfos ctx infos tt
+
+
 
 example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ∃ g n : Int, ∃ m:Nat, Nat → q a) →  p → (p → p) → ∃ m h : Nat, q m := by
   make_tree
