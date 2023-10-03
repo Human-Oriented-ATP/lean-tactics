@@ -5,6 +5,25 @@ import Std
 
 open Lean Server Widget ProofWidgets Jsx
 
+syntax (name := showExpr) "#show_expr" term : command
+
+open Elab Command Json in
+@[command_elab showExpr]
+def showExprImpl : CommandElab := fun
+  | stx@`(command| #show_expr $t) => do
+    runTermElabM fun _ => do
+      let trm ← Term.elabTerm t none
+      let e ← Widget.ppExprTagged trm -- replace with custom function 
+      let code : Html := <InteractiveCode fmt={e} />
+      savePanelWidgetInfo stx ``HtmlDisplay do
+        return json% { html: $(← rpcEncode code) }
+  | stx => throwError "Unexpected syntax {stx}."
+
+#show_expr 1 = 1
+
+
+#exit
+
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
   code.map fun info ↦
     match diffs.find? info.subexprPos with
