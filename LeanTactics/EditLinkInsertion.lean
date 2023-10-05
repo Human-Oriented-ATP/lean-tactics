@@ -46,27 +46,21 @@ syntax (name := testProofSeq) "test_proof_seq" str tacticSeq : tactic
 @[tactic testProofSeq]
 def testProofSeqImpl : Tactic
   | stx@`(tactic| test_proof_seq $s:str $tacs:tacticSeq) => do
-    let some tacsRange := (← getFileMap).rangeOfStx? tacs.raw | return
-    let text : String := ("\n".pushn ' ' tacsRange.start.character) ++ s.getString
-    let range : Lsp.Range := ⟨tacsRange.end, tacsRange.end⟩
-    savePanelWidgetInfo tacs.raw ``InsertionComponent do
-      return json% { text : $(text), range : $(range) }
+    let fileMap ← getFileMap
+    let some stxRange := fileMap.rangeOfStx? stx | return
+    let indent : Nat := 
+      if let some tacsRange := fileMap.rangeOfStx? tacs.raw then
+        tacsRange.start.character
+      else
+        stxRange.start.character + 2
+    let text : String := ("\n".pushn ' ' indent) ++ s.getString
+    let range : Lsp.Range := ⟨stxRange.end, stxRange.end⟩
+    savePanelWidgetInfo stx ``InsertionComponent do
+        return json% { text : $(text), range : $(range) }
     evalTacticSeq tacs.raw
   |             _               => throwUnsupportedSyntax
 
 example : ∀ n : ℕ, 1 = 1 := by
   test_proof_seq "dummy"
       dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
-      dummy
+      sorry
