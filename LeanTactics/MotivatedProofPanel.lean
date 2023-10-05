@@ -238,6 +238,7 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
     let mkTree ← `(tactic| make_tree)
+    evalTactic mkTree
     let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
     | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
       let newTacs := ((mkTree :: (List.intersperse mkTree) (tacs.toList))).toArray
