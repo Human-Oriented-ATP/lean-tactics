@@ -1,29 +1,29 @@
 import ProofWidgets.Component.MakeEditLink
 import ProofWidgets.Component.HtmlDisplay
 import ProofWidgets.Component.OfRpcMethod
+import Lean
 import Std.Lean.Position
 
-open Lean Server ProofWidgets Elab Tactic Parser Tactic
-
-syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
-
-macro "dummy" : tactic => `(tactic| skip)
+open Lean Elab Tactic Server ProofWidgets
 
 open scoped ProofWidgets.Jsx ProofWidgets.Json
 
+macro "dummy" : tactic => `(tactic| skip)
+
 structure InsertionProps where
-  text : String
-  indent : String
   range : Lsp.Range
+  text : String
 deriving RpcEncodable
 
 def ProofWidgets.MakeEditLinkProps.ofReplaceRange' (meta : Server.DocumentMeta) (range : Lsp.Range)
-    (indent : String) (newText : String) : MakeEditLinkProps :=
+    (newText : String) : MakeEditLinkProps :=
   let edit := { textDocument := { uri := meta.uri, version? := meta.version }
                 edits        := #[{ range, newText }] }
+  let splitText := newText.splitOn
+  let lastText := splitText.getLast!
   let newCursorPos? := some {
-    line := range.end.line + 1
-    character := indent.codepointPosToUtf16Pos indent.length
+    line := range.start.line + splitText.length - 1
+    character := lastText.codepointPosToUtf16Pos lastText.length
   }
   { edit, newCursorPos? }
 
@@ -35,32 +35,38 @@ def Insertion.rpc (props : InsertionProps) : RequestM (RequestTask Html) := do
     return .ofComponent MakeEditLink (children := #[ .text "Add tactic" ]) <| .ofReplaceRange'
       doc.meta
       props.range
-      props.indent
       props.text
 
 @[widget_module]
 def InsertionComponent : Component InsertionProps :=
   mk_rpc_widget% Insertion.rpc
 
-@[tactic motivatedProofMode]
-def motivatedProofImpl : Tactic
-  | stx@`(tactic| motivated_proof $tacs) => do
-    let fileMap ← getFileMap
-    let some stxRange := fileMap.rangeOfStx? stx | return
-    let indent : String :=
-      match stx.getHeadInfo with
-        | .original _ _ trailing _ => trailing.toString
-        |           _              => panic! "Bad SourceInfo"
-    let txt := stx.reprint.get!.trimRight ++ indent ++ "dummy"
-    savePanelWidgetInfo stx ``InsertionComponent do
-      return json% { text: $(txt), indent: $(indent), range: $(stxRange) }
-    evalTactic tacs
-  | _ => throwUnsupportedSyntax
+syntax (name := testProofSeq) "test_proof_seq" str tacticSeq : tactic
+
+@[tactic testProofSeq]
+def testProofSeqImpl : Tactic
+  | stx@`(tactic| test_proof_seq $s:str $tacs:tacticSeq) => do
+    let some tacsRange := (← getFileMap).rangeOfStx? tacs.raw | return
+    let text : String := ("\n".pushn ' ' tacsRange.start.character) ++ s.getString
+    let range : Lsp.Range := ⟨tacsRange.end, tacsRange.end⟩
+    savePanelWidgetInfo tacs.raw ``InsertionComponent do
+      return json% { text : $(text), range : $(range) }
+    evalTacticSeq tacs.raw
+  |             _               => throwUnsupportedSyntax
 
 example : ∀ n : ℕ, 1 = 1 := by
-  motivated_proof
-    intro _
-    sorry
-    dummy
-    dummy
-    dummy
+  test_proof_seq "dummy"
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
+      dummy
