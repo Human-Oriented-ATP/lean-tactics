@@ -222,7 +222,8 @@ open scoped Json
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
 def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
-  | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
+  | `(Parser.Tactic.tacticSeq| $[$tacs]*)
+  | `(Parser.Tactic.tacticSeq| { $[$tacs]* }) => do
     evalTactic τ
     for tac in tacs do
       evalTactic tac
