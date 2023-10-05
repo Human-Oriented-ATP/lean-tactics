@@ -335,14 +335,3 @@ lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p :
 motivated_proof
 try_lib_rewrite_ord []
 sorry
-
-/- add `try(make_tree)` after each tactic call -/
-
-/- change behaviour of `make_tree` calls. Probably integerate with the existing calls -/
-
-/- Demo Ideas : Fully-fledged Cantor would be nice, this requires an extra 
-unification move. Need another example to show-off 
-the ordered rewriting (possibly analysis). 
-For the presentation, 1st part : Introduce theorem proving in general, 
-2nd part : Lead into motivated proofs.
-Last part : Combine the two and show the demo (video) -/
