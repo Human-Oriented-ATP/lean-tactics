@@ -19,7 +19,7 @@ def ProofWidgets.MakeEditLinkProps.ofReplaceRange' (meta : Server.DocumentMeta) 
     (newText : String) : MakeEditLinkProps :=
   let edit := { textDocument := { uri := meta.uri, version? := meta.version }
                 edits        := #[{ range, newText }] }
-  let splitText := newText.splitOn
+  let splitText := newText.split (· = '\n')
   let lastText := splitText.getLast!
   let newCursorPos? := some {
     line := range.start.line + splitText.length - 1
@@ -59,8 +59,3 @@ def testProofSeqImpl : Tactic
         return json% { text : $(text), range : $(range) }
     evalTacticSeq tacs.raw
   |             _               => throwUnsupportedSyntax
-
-example : ∀ n : ℕ, 1 = 1 := by
-  test_proof_seq "dummy"
-      dummy
-      sorry
