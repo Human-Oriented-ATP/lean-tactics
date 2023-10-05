@@ -221,6 +221,14 @@ open scoped Json
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
+def evalTacticInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
+  | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
+    evalTactic τ
+    for tac in tacs do
+      evalTactic tac
+      evalTactic τ
+  |           _             => pure ()
+
 @[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
 | stx@`(tactic| motivated_proof $seq) => do
     let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
