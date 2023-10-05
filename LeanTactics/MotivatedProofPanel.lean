@@ -4,6 +4,7 @@ import ProofWidgets.Component.HtmlDisplay
 import ProofWidgets.Component.Panel.Basic
 import ProofWidgets.Component.OfRpcMethod
 import Std.Lean.Position
+import Mathlib
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
 import TreeMoves.Tree
@@ -226,6 +227,7 @@ def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tact
   | `(Parser.Tactic.tacticSeq| { $[$tacs]* }) => do
     evalTactic τ
     for tac in tacs do
+      evalTactic τ
       evalTactic tac
       evalTactic τ
   |           _             => pure ()
@@ -246,7 +248,7 @@ def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tact
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
-    let mkTree ← `(tactic| make_tree)
+    let mkTree ← `(tactic| try (make_tree))
     savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
     evalTacticSeqInterspersedWith mkTree seq

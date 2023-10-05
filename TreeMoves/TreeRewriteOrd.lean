@@ -270,7 +270,7 @@ partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) 
   return ({ newTree, proof })
 
 def getOrdPolarity (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM Bool :=
-  withTreeSubexpr tree treePos pos (fun pol e => do
+  withTreeSubexpr tree treePos [] (fun pol e => do
     let Except.error pol ← show ExceptT Bool MetaM _ from visit (fun _ _ _ _ _ pol => MonadExceptOf.throw pol) (.zero) (.sort .zero) PropPreorder #[] pol pos e | unreachable!
     return pol)
 
@@ -298,10 +298,9 @@ elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic 
   workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalTreePos goalPos treeRewriteOrd)
 
 open DiscrTree in 
-def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
-  let (goalTreePos, goalPos) := splitPosition goalPos
+def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+  let (goalTreePos, goalPos) := splitPosition goalPos'
   let pol ← try getOrdPolarity goalTreePos goalPos tree catch _ => return #[]
-
   let discrTrees ← getLibraryLemmas
   let results := if pol
     then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalTreePos goalPos)
@@ -313,7 +312,7 @@ def librarySearchRewriteOrd (goalPos : List Nat) (tree : Expr) : MetaM (Array (A
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {printPosition treePos pos} {name} {goalPos}")
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {printPosition treePos pos} {name} {goalPos'}")
 
 elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos

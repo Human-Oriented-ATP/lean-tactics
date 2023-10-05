@@ -116,7 +116,7 @@ def tree_induction : InfoviewAction :=
     if (panelProps.selectedLocations.size == 1) then
       let some pos := panelProps.selectedLocations[0]? | OptionT.fail
       let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
-      let text := "tree_induction" ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      let text := "tree_induction " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
       pure 
         <DynamicEditButton 
           label={"Induct on the selected subexpression"} 
@@ -186,6 +186,20 @@ def libRewrite : InfoviewAction := fun props ↦ do
           vanish={true} />
   else OptionT.fail
 
+  open Jsx in
+@[motivated_proof_move]
+def libRewriteOrd : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexpr := props.selectedLocations[0]? | OptionT.fail
+    let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
+    let libSuggestions ← Tree.librarySearchRewriteOrd (pos.toArray.toList) (← goal.getType)
+    pure
+      <DynamicEditButton 
+          label={"Ordered rewrite with a library result"}
+          html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
+          vanish={true} />
+  else OptionT.fail
+
 @[motivated_proof_move]
 def libApply : InfoviewAction := fun props ↦ do
   let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
@@ -201,10 +215,10 @@ def push_neg : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | OptionT.fail
     let ⟨goal, .target pos⟩ := subexprPos | OptionT.fail
-    -- let (goalTreePos, goalPos) := Tree.splitPosition pos.toArray.toList
+    let (goalTreePos, goalPos) := Tree.splitPosition pos.toArray.toList
     -- not sure the next two lines are doing exactly what I want them to
-    -- let expr : Expr ← Tree.withTreeSubexpr (← goal.getType) goalTreePos goalPos (fun _ x => pure x)
-    -- let (.app (.const `Not _) _) := expr | OptionT.fail
+    let expr : Expr ← Tree.withTreeSubexpr (← goal.getType) goalTreePos goalPos (fun _ x => pure x)
+    let (.app (.const `Not _) _) := expr | OptionT.fail
     pure
       <DynamicEditButton 
           label={"Push the negation through"}
@@ -260,12 +274,6 @@ def unfold_definition : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else OptionT.fail
 
--- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by
--- motivated_proof
--- tree_push_neg [1, 2]
--- tree_simp [1, 1, 2]
--- lib_apply rfl [1, 1, 2] -- `Rpc error: InvalidParams: Could not find goal location.`
-
 -- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by sorry
 
 -- lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
@@ -279,6 +287,8 @@ lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
 motivated_proof
 tree_name m [1, 1, 2, 0, 1, 1]
 lib_rewrite_rev eq_sub_iff_add_eq [1, 1, 1, 0, 2]
+tree_rewrite [1, 1, 1, 0, 2, 0, 1] [1, 1, 1, 1, 2, 1]
+lib_apply refl [1, 1, 2]
 
 lemma Cantor : (X : Type u) → (f : X → Set X) → ¬ f.Surjective := by
 motivated_proof
@@ -287,18 +297,46 @@ tree_push_neg [1, 1, 2]
 lib_rewrite Set.ext_iff [1, 1, 1, 1, 2, 1]
 tree_push_neg [1, 1, 1, 1, 2]
 lib_rewrite not_iff [1, 1, 1, 1, 1, 2]
+lib_rewrite_rev Set.mem_compl_iff [1, 1, 1, 1, 1, 2, 0, 1]
 sorry
 
-lemma CantorEnd : ∀ X : Type u, ∀ f : X → Set X, ∃ a : Set X, ∀ a_1 : X, ¬a_1 ∈ f a_1 ↔ a_1 ∈ a := by
+lemma CantorEnd : ∀ X : Type u, ∀ f : X → Set X, ∃ a : Set X, ∀ a_1 : X, a_1 ∈ (f a_1)ᶜ ↔ a_1 ∈ a := by
 motivated_proof
 lib_apply refl [1, 1, 1, 1, 2]
 
-example : (m : Nat) → (n : Nat) → ¬ Nat.Coprime m n := by
+lemma Cantor' : ∀ (X : Type), ∀ (f : X → Set X), ∃ a : Set X, ∀ a_1 : X,
+a_1 ∈ (f a_1)ᶜ ↔ a_1 ∈ a := by
 motivated_proof
-tree_rewrite_def [1, 1, 2, 1]
+lib_rewrite_rev Set.ext_iff [1, 1, 1]
 sorry
 
-lemma cantor.rabbit : {P : X → Prop} → (∀ x, P x) → (∀ x : X, ∃ y, P y) := by
-  intro _ h x
-  use x
-  apply h
+example (x y : ℝ) : ∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x + n = y + ε → 
+  (∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x - ε = y - n) := by
+motivated_proof
+sorry
+
+-- need named hypotheses to not throw errors
+example : (α β : Type) → [PseudoMetricSpace α] →  [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
+  (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
+motivated_proof
+lib_rewrite [1, 1, 1, 1, 1, 2, 0, 1] Metric.continuous_iff [1, 1, 1, 1, 1, 1, 0, 1, 2]
+lib_rewrite [1, 1, 1, 1, 1, 1, 1, 2, 0, 1] Metric.tendstoUniformly_iff [1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 1, 2, 0, 1] Metric.continuous_iff [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 1, 1, 1, 2, 0, 1] Filter.eventually_atTop [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 2]
+
+
+lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
+motivated_proof
+tree_induction []
+sorry
+
+/- add `try(make_tree)` after each tactic call -/
+
+/- change behaviour of `make_tree` calls. Probably integerate with the existing calls -/
+
+/- Demo Ideas : Fully-fledged Cantor would be nice, this requires an extra 
+unification move. Need another example to show-off 
+the ordered rewriting (possibly analysis). 
+For the presentation, 1st part : Introduce theorem proving in general, 
+2nd part : Lead into motivated proofs.
+Last part : Combine the two and show the demo (video) -/
