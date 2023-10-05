@@ -222,6 +222,16 @@ open scoped Json
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
+def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
+  | `(Parser.Tactic.tacticSeq| $[$tacs]*)
+  | `(Parser.Tactic.tacticSeq| { $[$tacs]* }) => do
+    evalTactic τ
+    for tac in tacs do
+      evalTactic τ
+      evalTactic tac
+      evalTactic τ
+  |           _             => pure ()
+
 @[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
 | stx@`(tactic| motivated_proof $seq) => do
     let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
@@ -238,15 +248,10 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
       |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
-    let mkTree ← `(tactic| try(make_tree))
-    let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
-    | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
-      let newTacs := ((mkTree :: (List.intersperse mkTree) (tacs.toList)) ++ [mkTree]).toArray
-      `(Parser.Tactic.tacticSeq | $[$newTacs]*)
-    | _ => pure seq
+    let mkTree ← `(tactic| try (make_tree))
     savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
-    evalTacticSeq newseq
+    evalTacticSeqInterspersedWith mkTree seq
 |                 _                    => throwUnsupportedSyntax
 
 @[command_code_action Parser.Term.byTactic]
