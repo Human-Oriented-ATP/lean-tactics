@@ -221,7 +221,7 @@ open scoped Json
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
-def evalTacticInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
+def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
   | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
     evalTactic τ
     for tac in tacs do
@@ -246,15 +246,9 @@ def evalTacticInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.
     let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
     let range : Lsp.Range := ⟨stxEnd, pos⟩
     let mkTree ← `(tactic| make_tree)
-    evalTactic mkTree
-    let newseq : TSyntax `Lean.Parser.Tactic.tacticSeq ← match seq with 
-    | `(Parser.Tactic.tacticSeq| $[$tacs]*) => do
-      let newTacs := ((mkTree :: (List.intersperse mkTree) (tacs.toList))).toArray
-      `(Parser.Tactic.tacticSeq | $[$newTacs]*)
-    | _ => pure seq
     savePanelWidgetInfo stx ``MotivatedProofPanel do
       return json% { range : $(range) }
-    evalTacticSeq newseq
+    evalTacticSeqInterspersedWith mkTree seq
 |                 _                    => throwUnsupportedSyntax
 
 @[command_code_action Parser.Term.byTactic]
