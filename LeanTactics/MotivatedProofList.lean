@@ -28,14 +28,24 @@ def treeApplyButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩  := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := "tree_apply " ++ 
-                  ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+    let text := ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
                   ((SubExpr.Pos.toArray subexprPos2).toList).toString
     pure <DynamicEditButton 
-            label={"Tree apply at"} 
+            label={"Apply at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Applying... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Apply options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_apply " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_apply' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />
   else OptionT.fail
 
@@ -49,14 +59,24 @@ def treeRewriteAtButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := ("tree_rewrite " ++ 
-              ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+    let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString)
     pure <DynamicEditButton 
-            label={"Tree rewrite at"} 
+            label={"Rewrite at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Rewriting... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Rewrite options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />
   else OptionT.fail
 
@@ -87,14 +107,24 @@ def tree_rewrite_ord : InfoviewAction :=
       let some pos2 := subexprPos[1]? | OptionT.fail
       let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
       let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-      let text := ("tree_rewrite_ord " ++ 
-              ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+      let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString)
       pure <DynamicEditButton 
-            label={"Ordered rewrite"} 
+            label={"Ordered rewrite at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Rewriting... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Ordered rewrite options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite_ord " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite_ord' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />        
     else OptionT.fail
 
@@ -331,8 +361,6 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 0, 1]
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
-
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
-make_tree
-try_lib_rewrite_ord []
+motivated_proof
 sorry
