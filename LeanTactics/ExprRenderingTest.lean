@@ -22,7 +22,7 @@ def showExprImpl : CommandElab := fun
 #show_expr 1 = 1
 
 
-#exit
+-- #exit
 
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
   code.map fun info ↦
@@ -102,6 +102,7 @@ example (α : Type) (s t : Set α) : s ∩ t = t ∩ s := by
   constructor
   exact h.2
   -- exact h.1
+  sorry
   sorry
 
 -- Expressions can now be `shift-clicked`!!!
