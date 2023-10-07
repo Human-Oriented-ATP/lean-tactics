@@ -522,7 +522,7 @@ def librarySearchApply (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array 
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     try
-      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos goalPos treeApply tree
+      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos [] treeApply tree
       return true
     catch _ =>
       return false
