@@ -397,7 +397,7 @@ lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 
 lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
 lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
 tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
-lib_apply symm [1, 1, 1, 1, 1, 1, 2]
+lib_apply symm [1, 1, 1, 1, 1, 1, 2] -- illegal
 lib_rewrite [1, 1, 1, 1, 2, 1] dvd_def [1, 1, 1, 1, 1]
 tree_induction []
 tree_simp [0, 1, 1, 1, 0, 2]
