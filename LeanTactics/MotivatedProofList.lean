@@ -315,6 +315,8 @@ example (x y : ℝ) : ∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x + n = y + ε →
 motivated_proof
 sorry
 
+#check Classical.em
+lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
 example : (α β : Type) → [PseudoMetricSpace α] →  [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
 motivated_proof
@@ -332,7 +334,58 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
 
-lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
-make_tree
-try_lib_rewrite_ord []
-sorry
+
+
+
+
+
+
+lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
+motivated_proof
+lib_apply [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
+lib_rewrite_rev contrapose [1, 1, 1, 1] -- illegal
+lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 0, 2]
+lib_apply [1, 1, 1, 1, 1] Nat.not_dvd_of_between_consec_multiples [1, 1, 1, 1, 1, 2]
+tree_name pk [1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+lib_rewrite [1, 1, 2, 1] Nat.succ_le [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+
+-- in the new version I re-add the fact that p is prime, and I instantiate n-1 as a successor.
+lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
+∀ p : ℕ,
+Nat.Prime p → 
+p < n → 
+∃ k : ℕ, ∀ pk : ℕ,
+p * k = pk → pk = n_1 ∧ 
+n_1.succ < p * (k + 1) := by
+motivated_proof
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.mul_add [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
+tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply symm [1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 1, 1, 1, 2, 1] dvd_def [1, 1, 1, 1, 1]
+tree_induction []
+tree_simp [0, 1, 1, 1, 0, 2]
+lib_apply [] Nat.zero_ne_one [0, 1, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite le_iff_lt_or_eq [1, 1, 1, 1, 1, 0, 2] -- illegal
+tree_induction [1, 1, 1, 1, 1]
+tree_apply [1, 0, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 0, 0, 2]
+lib_apply dvd_mul_of_dvd_left [1, 1, 1, 1, 1, 1, 0, 1, 2] -- illegal
+tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 1, 2]
+tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_apply [1, 1] Nat.dvd_mul_left [1, 1, 1, 1, 1, 2]
+tree_rewrite_def [1, 1, 1, 2]
+tree_rewrite_def [1, 1, 0, 2]
+tree_rewrite_def [1, 1, 1, 2]
+tree_rewrite_def [1, 1, 0, 2]
+tree_apply [1, 1, 0, 1, 2] [1, 1, 1, 1, 2]
+lib_apply [1, 1, 0] Nat.eq_one_of_mul_eq_one_right [1, 1, 0, 2]
+tree_apply [1, 0, 2] [1, 1, 2]
+
+

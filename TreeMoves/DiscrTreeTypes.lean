@@ -13,7 +13,7 @@ The index of the star constructor gives a unique index for each star, giving eac
 -/
 inductive Key where
   | const  : Name → Nat → Key
-  | fvar   : FVarId → Nat → Key
+  | fvar   : Nat → Nat → Key
   | bvar   : Nat → Nat → Key
   | star   : Nat → Key
   | lit    : Literal → Key
