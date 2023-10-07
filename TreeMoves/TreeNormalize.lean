@@ -109,7 +109,7 @@ lemma not_forall : ¬ Forall α (fun a => p a) ↔ Exists α (fun a => ¬ p a) :
 lemma not_exists : ¬ Exists α (fun a => p a) ↔ Forall α (fun a => ¬ p a) := _root_.not_exists
 
 
-@[inline] def pushNegLemmas : List Name := [``not_imp, ``not_and, ``not_forall, ``not_exists]
+@[inline] def pushNegLemmas : List Name := [``not_imp, ``not_and, ``not_forall, ``not_exists, ``not_not]
 
 def pushNegContext : MetaM Simp.Context :=
   return { simpTheorems := #[← pushNegLemmas.foldlM (·.addConst ·) ({} : SimpTheorems)] }
