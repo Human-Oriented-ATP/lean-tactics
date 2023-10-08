@@ -19,7 +19,7 @@ open ProofWidgets Lean Meta Server Widget
 open Jsx OptionT
 
 @[motivated_proof_move]
-def treeApplyButton : InfoviewAction := 
+def tree_apply : InfoviewAction := 
   fun props => do
   let panelProps := props.toPanelWidgetProps
   if (panelProps.selectedLocations.size == 2) then
@@ -50,7 +50,7 @@ def treeApplyButton : InfoviewAction :=
   else failure
 
 @[motivated_proof_move]
-def treeRewriteAtButton : InfoviewAction := 
+def tree_rewrite : InfoviewAction := 
   fun props => do
   let panelProps := props.toPanelWidgetProps
   if (panelProps.selectedLocations.size == 2) then
@@ -79,23 +79,6 @@ def treeRewriteAtButton : InfoviewAction :=
                     </details>}
             vanish={true} />
   else failure
-
-@[motivated_proof_move]
-def treeSimp : InfoviewAction := 
-  fun props => do
-    let panelProps := props.toPanelWidgetProps
-    if (panelProps.selectedLocations.size == 1) then
-      let some pos := panelProps.selectedLocations[0]? | failure
-      let ⟨_, .target subexprPos⟩ := pos | failure
-      let text := "tree_simp " ++ subexprPos.toArray.toList.toString
-      pure 
-        <DynamicEditButton 
-          label={"Simplify"} 
-          range?={props.range} 
-          insertion?={text} 
-          html?={<p> Simplifying the target... </p>}
-          vanish={true} />
-    else failure
 
 @[motivated_proof_move]
 def tree_rewrite_ord : InfoviewAction := 
@@ -129,6 +112,23 @@ def tree_rewrite_ord : InfoviewAction :=
     else failure
 
 @[motivated_proof_move]
+def tree_simp : InfoviewAction := 
+  fun props => do
+    let panelProps := props.toPanelWidgetProps
+    if (panelProps.selectedLocations.size == 1) then
+      let some pos := panelProps.selectedLocations[0]? | failure
+      let ⟨_, .target subexprPos⟩ := pos | failure
+      let text := "tree_simp " ++ subexprPos.toArray.toList.toString
+      pure 
+        <DynamicEditButton 
+          label={"Simplify the expression"} 
+          range?={props.range} 
+          insertion?={text} 
+          html?={<p> Simplifying the target... </p>}
+          vanish={true} />
+    else failure
+
+@[motivated_proof_move]
 def tree_search : InfoviewAction := fun props => do
   if (props.selectedLocations.size == 0) then
       pure <DynamicEditButton 
@@ -149,7 +149,7 @@ def tree_induction : InfoviewAction :=
       let text := "tree_induction " ++ subexprPos.toArray.toList.toString
       pure 
         <DynamicEditButton 
-          label={"Induction/Elimination"} 
+          label={"perform Induction"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Performing induction... </p>}
@@ -272,7 +272,7 @@ def name : InfoviewAction := fun props ↦ do
     let ⟨_, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton 
-          label={"Name the selected subexpression"}
+          label={"Name the expression"}
           range?={props.range} 
           html? = {<NamingButton selectedPos = {pos.toArray.toList.toString}/>}
           vanish = {true} />
@@ -285,7 +285,7 @@ def unify : InfoviewAction := fun props ↦ do
     let ⟨_, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton 
-          label={"Unify the selected subexpression"}
+          label={"Unify the relation"}
           range?={props.range} 
           insertion?={"lib_apply refl " ++ pos.toArray.toList.toString}
           vanish = {true} />
@@ -345,8 +345,9 @@ example (x y : ℝ) : ∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x + n = y + ε →
 motivated_proof
 sorry
 
-#check Classical.em
+
 lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
+
 example : (α β : Type) → [PseudoMetricSpace α] →  [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
 motivated_proof
@@ -372,7 +373,6 @@ sorry
 
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
-try_lib_apply []
 lib_apply [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
 lib_rewrite_rev contrapose [1, 1, 1, 1] -- illegal
 lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 0, 2]
@@ -380,6 +380,7 @@ lib_apply [1, 1, 1, 1, 1] Nat.not_dvd_of_between_consec_multiples [1, 1, 1, 1, 1
 tree_name pk [1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
 lib_rewrite [1, 1, 2, 1] Nat.succ_le [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 lib_apply [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+sorry
 
 -- in the new version I re-add the fact that p is prime, and I instantiate n-1 as a successor.
 lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
@@ -411,11 +412,8 @@ lib_apply dvd_mul_of_dvd_left [1, 1, 1, 1, 1, 1, 0, 1, 2] -- illegal
 tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 1, 2]
 tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
 lib_apply [1, 1] Nat.dvd_mul_left [1, 1, 1, 1, 1, 2]
-tree_rewrite_def [1, 1, 1, 2]
-tree_rewrite_def [1, 1, 0, 2]
-tree_rewrite_def [1, 1, 1, 2]
-tree_rewrite_def [1, 1, 0, 2]
-tree_apply [1, 1, 0, 1, 2] [1, 1, 1, 1, 2]
+lib_rewrite_rev contrapose [1,1] -- illegal
+tree_push_neg [1,1]
 lib_apply [1, 1, 0] Nat.eq_one_of_mul_eq_one_right [1, 1, 0, 2]
 tree_apply [1, 0, 2] [1, 1, 2]
 
