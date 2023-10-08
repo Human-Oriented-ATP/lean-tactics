@@ -149,7 +149,7 @@ def tree_induction : InfoviewAction :=
       let text := "tree_induction " ++ subexprPos.toArray.toList.toString
       pure 
         <DynamicEditButton 
-          label={"perform Induction"} 
+          label={"Perform Induction"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Performing induction... </p>}
@@ -313,14 +313,31 @@ def unfold_definition : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else failure
 
--- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by sorry
+@[motivated_proof_move]
+def unify_forall_exists : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
+    pure
+      <DynamicEditButton 
+          label={"Unify an existential with a preceding forall"}
+          range?={props.range} 
+          insertion?={"unify_forall_exists " ++ (pos.toArray.toList).toString}
+          vanish = {true} />
+  else failure
 
--- lemma cantor (X : Type u) (f : X → Set X) : ¬ Function.Surjective f := by
---   tree_rewrite_def [2,1]
---   make_tree
---   tree_push_neg []
---   lib_rewrite Set.ext_iff [1,1,2,1]
---   tree_push_neg [1,1] 
+@[motivated_proof_move]
+def contrapose_button : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
+    pure
+      <DynamicEditButton 
+          label={"Contrapose the implication"}
+          range?={props.range} 
+          insertion?={"lib_rewrite_rev contrapose " ++ (pos.toArray.toList).toString}
+          vanish = {true} />
+  else failure
 
 lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
 motivated_proof
@@ -329,6 +346,7 @@ lib_rewrite_rev eq_sub_iff_add_eq [1, 1, 1, 0, 2]
 tree_rewrite [1, 1, 1, 0, 2, 0, 1] [1, 1, 1, 1, 2, 1]
 lib_apply refl [1, 1, 2]
 
+-- Complete Example of Cantor
 lemma Cantor : (X : Type u) → (f : X → Set X) → ¬ f.Surjective := by
 motivated_proof
 tree_rewrite_def [1, 1, 2, 1]
@@ -337,23 +355,8 @@ lib_rewrite Set.ext_iff [1, 1, 1, 1, 2, 1]
 tree_push_neg [1, 1, 1, 1, 2]
 lib_rewrite not_iff [1, 1, 1, 1, 1, 2]
 lib_rewrite_rev Set.mem_compl_iff [1, 1, 1, 1, 1, 2, 0, 1]
-sorry
-
-lemma CantorEnd : ∀ X : Type u, ∀ f : X → Set X, ∃ a : Set X, ∀ a_1 : X, a_1 ∈ (f a_1)ᶜ ↔ a_1 ∈ a := by
-motivated_proof
-lib_apply refl [1, 1, 1, 1, 2]
-
-lemma Cantor' : ∀ (X : Type), ∀ (f : X → Set X), ∃ a : Set X, ∀ a_1 : X,
-a_1 ∈ (f a_1)ᶜ ↔ a_1 ∈ a := by
-motivated_proof
-lib_rewrite_rev Set.ext_iff [1, 1, 1]
-sorry
-
-example (x y : ℝ) : ∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x + n = y + ε → 
-  (∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x - ε = y - n) := by
-motivated_proof
-sorry
-
+unify_forall_exists [1, 1, 1]
+lib_apply refl [1, 1, 1, 1, 2] -- seems like magic, want to explain why the unfication works here
 
 lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
 
@@ -365,7 +368,6 @@ lib_rewrite [1, 1, 1, 1, 1, 1, 1, 2, 0, 1] Metric.tendstoUniformly_iff [1, 1, 1,
 lib_rewrite [1, 1, 1, 1, 1, 2, 0, 1] Metric.continuous_iff [1, 1, 1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] Filter.eventually_atTop [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 2]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
--- for next line can make two new pop-ups appear to choose if we want the hypothesis deleted
 tree_rewrite_ord' [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 0, 1]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] dist_comm [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 1]
@@ -373,11 +375,6 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 0, 1]
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
-
-
-
-
-
 
 
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
@@ -390,8 +387,7 @@ tree_name pk [1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
 lib_rewrite [1, 1, 2, 1] Nat.succ_le [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 lib_apply [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
-
--- in the new version I re-add the fact that p is prime, and I instantiate n-1 as a successor.
+-- in the new version I re-add the fact that p is prime, and I instantiate `n_1` as a successor.
 lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
 ∀ p : ℕ,
 Nat.Prime p → 
@@ -408,22 +404,20 @@ lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 
 lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
 lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
 tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
-lib_apply symm [1, 1, 1, 1, 1, 1, 2] -- illegal
-lib_rewrite [1, 1, 1, 1, 2, 1] dvd_def [1, 1, 1, 1, 1]
+lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 2]
 tree_induction []
 tree_simp [0, 1, 1, 1, 0, 2]
 lib_apply [] Nat.zero_ne_one [0, 1, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
+-- lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
+-- lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
 lib_rewrite le_iff_lt_or_eq [1, 1, 1, 1, 1, 0, 2] -- illegal
 tree_induction [1, 1, 1, 1, 1]
-tree_apply [1, 0, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 0, 0, 2]
-lib_apply dvd_mul_of_dvd_left [1, 1, 1, 1, 1, 1, 0, 1, 2] -- illegal
-tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 1, 2]
 tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-lib_apply [1, 1] Nat.dvd_mul_left [1, 1, 1, 1, 1, 2]
-lib_rewrite_rev contrapose [1,1] -- illegal
-tree_push_neg [1,1]
-lib_apply [1, 1, 0] Nat.eq_one_of_mul_eq_one_right [1, 1, 0, 2]
-tree_apply [1, 0, 2] [1, 1, 2]
-
-
+tree_rewrite_ord [1, 0, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
+tree_apply [1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 0, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 1, 1, 2, 1] lcm_dvd_iff [1, 1, 1, 1, 1]
+lib_apply refl [1, 1, 1, 1, 1, 2]
+tree_simp []
+-- contrapose
+sorry
