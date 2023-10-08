@@ -317,6 +317,19 @@ def unify_forall_exists : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else failure
 
+@[motivated_proof_move]
+def contrapose_button : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
+    pure
+      <DynamicEditButton 
+          label={"Contrapose the implication"}
+          range?={props.range} 
+          insertion?={"lib_rewrite_rev contrapose " ++ (pos.toArray.toList).toString}
+          vanish = {true} />
+  else failure
+
 lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
 motivated_proof
 tree_name m [1, 1, 2, 0, 1, 1]
@@ -346,7 +359,6 @@ lib_rewrite [1, 1, 1, 1, 1, 1, 1, 2, 0, 1] Metric.tendstoUniformly_iff [1, 1, 1,
 lib_rewrite [1, 1, 1, 1, 1, 2, 0, 1] Metric.continuous_iff [1, 1, 1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] Filter.eventually_atTop [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 2]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
--- for next line can make two new pop-ups appear to choose if we want the hypothesis deleted
 tree_rewrite_ord' [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 0, 1]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] dist_comm [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 1]
@@ -383,22 +395,20 @@ lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 
 lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
 lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
 tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
-lib_apply symm [1, 1, 1, 1, 1, 1, 2] -- illegal
-lib_rewrite [1, 1, 1, 1, 2, 1] dvd_def [1, 1, 1, 1, 1]
+lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 2]
 tree_induction []
 tree_simp [0, 1, 1, 1, 0, 2]
 lib_apply [] Nat.zero_ne_one [0, 1, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
+-- lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
+-- lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
 lib_rewrite le_iff_lt_or_eq [1, 1, 1, 1, 1, 0, 2] -- illegal
 tree_induction [1, 1, 1, 1, 1]
-tree_apply [1, 0, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 0, 0, 2]
-lib_apply dvd_mul_of_dvd_left [1, 1, 1, 1, 1, 1, 0, 1, 2] -- illegal
-tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 1, 2]
 tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-lib_apply [1, 1] Nat.dvd_mul_left [1, 1, 1, 1, 1, 2]
-lib_rewrite_rev contrapose [1,1] -- illegal
-tree_push_neg [1,1]
-lib_apply [1, 1, 0] Nat.eq_one_of_mul_eq_one_right [1, 1, 0, 2]
-tree_apply [1, 0, 2] [1, 1, 2]
-
-
+tree_rewrite_ord [1, 0, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
+tree_apply [1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 0, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 1, 1, 2, 1] lcm_dvd_iff [1, 1, 1, 1, 1]
+lib_apply refl [1, 1, 1, 1, 1, 2]
+tree_simp []
+-- contrapose
+sorry
