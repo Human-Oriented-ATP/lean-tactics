@@ -42,9 +42,9 @@ where
     | .abstract outer inner => .abstract (wrap outer) inner
     | .closed e => .closed (wrap e)
 
-  withVar (name : Name) (domain body : Expr) (pos : Pos) : MetaM ExprAbstraction := do
-    withLocalDeclD name domain fun fvar => do
-    match ← AbstractExpr name pos (body.instantiate1 fvar) with
+  withVar (n : Name) (domain body : Expr) (pos : Pos) : MetaM ExprAbstraction := do
+    withLocalDeclD n domain fun fvar => do
+    match ← AbstractExpr n pos (body.instantiate1 fvar) with
       | .abstract outer inner => do
         if (inner.abstract #[fvar]).hasLooseBVars then
           let result ← mkLetAbstraction name outer inner
@@ -57,29 +57,6 @@ where
         return .closed (e.abstract #[fvar])
 
 
-/-- Similar to ExprAbstraction, but for trees -/
-inductive Abstraction where
-  | abstract (outer : Expr) (inner : Expr) : Abstraction
-  | closed : TreeProof → Abstraction
-deriving Inhabited
-
--- def Abstraction.wrap (wrap : Expr → Expr) : Abstraction → Abstraction
---   | .abstract outer inner => .abstract (wrap outer) inner
---   | .closed e => .closed (wrap e)
-
--- def Abstraction.withVar (name : Name) (domain body : Expr) (step : Expr → MetaM Abstraction) (close : Expr → Expr → MetaM Expr) : MetaM Abstraction := do
---   withLocalDeclD name domain fun fvar => do
---   match ← step (body.instantiate1 fvar) with
---     | .abstract outer inner => do
---       if (inner.abstract #[fvar]).hasLooseBVars then
---         let result ← close outer inner
---         return .closed (result.abstract #[fvar])
---       else
---         let outer := outer.abstract #[fvar]
---         return .abstract outer inner
-
---     | .closed e =>
---       return .closed (e.abstract #[fvar])
 
 lemma give_name (p : α → Prop) (a : α) : Forall α (fun b => Imp (a = b) (p b)) → p a :=
   fun h => h a rfl
@@ -87,20 +64,41 @@ lemma give_name (p : α → Prop) (a : α) : Forall α (fun b => Imp (a = b) (p 
 lemma give_name' (p : α → Prop) (a : α) : p a → Exists α (fun b => And (a = b) (p b)) :=
   fun h => ⟨a, rfl, h⟩
 
-def mkNameAbstraction (name : Name) (outer : Expr) (inner : Expr) (pol : Bool) : MetaM TreeProof := do
+lemma give_meta_name (p : α → Prop) (a : α) : Exists α (fun b => And (a = b) (p b)) → p a :=
+  fun ⟨_, heq, h⟩ => heq ▸ h
+
+lemma give_meta_name' (p : α → Prop) (a : α) : p a → Forall α (fun b => Imp (a = b) (p b)) :=
+  fun h _ heq => heq ▸ h
+
+/-- Similar to ExprAbstraction, but for trees -/
+inductive Abstraction where
+  | abstract (outer : Expr) (inner : Expr) : Abstraction
+  | closed : TreeProof → Abstraction
+deriving Inhabited
+
+def mkNameAbstraction (meta : Bool) (name : Name) (outer : Expr) (inner : Expr) (pol : Bool) : MetaM TreeProof := do
   let outer := outer.abstract #[abstractedExpression]
   let type ← inferType inner
   let u ← getLevel type
-  return if pol
-  then { 
-    newTree := mkForall name u type (mkImp (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
-    proof := mkApp3 (.const ``give_name  [u]) type (.lam name type outer .default) inner }
-  else {
-    newTree := mkExists name u type (mkAnd (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
-    proof := mkApp3 (.const ``give_name' [u]) type (.lam name type outer .default) inner }
+  return if meta
+  then if pol
+    then { 
+      newTree := mkExists name u type (mkAnd (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
+      proof := mkApp3 (.const ``give_meta_name  [u]) type (.lam name type outer .default) inner }
+    else {
+      newTree := mkForall name u type (mkImp (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
+      proof := mkApp3 (.const ``give_meta_name' [u]) type (.lam name type outer .default) inner }
+  
+  else if pol
+    then { 
+      newTree := mkForall name u type (mkImp (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
+      proof := mkApp3 (.const ``give_name  [u]) type (.lam name type outer .default) inner }
+    else {
+      newTree := mkExists name u type (mkAnd (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
+      proof := mkApp3 (.const ``give_name' [u]) type (.lam name type outer .default) inner }
 
 
-def NamingRecursor (name : Name) : TreeRecursor MetaM Abstraction where
+def NamingRecursor (meta : Bool) (name : Name) : TreeRecursor MetaM Abstraction where
   imp_right := introProp bindImpRight mkImp
   imp_left  := introProp bindImpLeft (Function.swap mkImp)
   and_right := introProp bindAndRight mkAnd
@@ -121,7 +119,7 @@ where
     match ← k fvar with
     | .abstract outer inner => do
       if (inner.abstract #[fvar]).hasLooseBVars then
-        let treeProof ← mkNameAbstraction name outer inner pol
+        let treeProof ← mkNameAbstraction meta name outer inner pol
         let treeProof ← bind n u domain fvar pol tree treeProof
         return .closed treeProof
       else
@@ -133,15 +131,15 @@ where
       return .closed treeProof
 
 
-def NameSubExpr (name : Name) (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM TreeProof := do
-  let result ← (NamingRecursor name).recurse true tree treePos fun _pol e _ => do
+def NameSubExpr (meta : Bool) (name : Name) (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM TreeProof := do
+  let result ← (NamingRecursor meta name).recurse true tree treePos fun _pol e _ => do
     match ← AbstractExpr name pos e with
     | .abstract outer inner => return .abstract outer inner
     | .closed eNew => return .closed { newTree := eNew, proof := .lam `_h e (.bvar 0) .default }
 
   match result with
     | .abstract outer inner => do
-        let treeProof ← mkNameAbstraction name outer inner true
+        let treeProof ← mkNameAbstraction meta name outer inner true
         return treeProof
     | .closed treeProof => do
       return treeProof
@@ -150,12 +148,22 @@ def NameSubExpr (name : Name) (treePos : TreePos) (pos : Pos) (tree : Expr) : Me
 elab "tree_name" name:ident pos:treePos : tactic => do
   let (treePos, pos) := getSplitPosition pos
   let name := name.getId
-  workOnTree $ NameSubExpr name treePos pos
+  workOnTree $ NameSubExpr false name treePos pos
+
+elab "tree_name_meta" name:ident pos:treePos : tactic => do
+  let (treePos, pos) := getSplitPosition pos
+  let name := name.getId
+  workOnTree $ NameSubExpr true name treePos pos
 
 -- example : ∃ f : ℕ → ℕ, ∀ w, f (w + 1) = w := by
 --   make_tree
---   tree_name xx [1,1,2,0,1,1]
+--   tree_name_meta xx [1,1,2,0,1,1]
 
+/- As you can see, if the names expression contains a locally bound variable,
+we get a let expression from the naming move. -/
+-- example : {1} = {n | n = 1} := by
+--   make_tree
+--   tree_name h [2,1,1,1]
 
 def AbstractAux (depth : ℕ) : Pos → Expr → MetaM (Expr × Expr)
   | xs   , .mdata d b        => return Bifunctor.fst (.mdata d ·) (← AbstractAux depth xs b)

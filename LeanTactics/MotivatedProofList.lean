@@ -24,14 +24,14 @@ def treeApplyButton : InfoviewAction :=
   let panelProps := props.toPanelWidgetProps
   if (panelProps.selectedLocations.size == 2) then
     let subexprPos := panelProps.selectedLocations
-    let some pos1 := subexprPos[0]? | OptionT.fail
-    let some pos2 := subexprPos[1]? | OptionT.fail
-    let ⟨_, .target subexprPos1⟩  := pos1 | OptionT.fail
-    let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
-                  ((SubExpr.Pos.toArray subexprPos2).toList).toString
+    let some pos1 := subexprPos[0]? | failure
+    let some pos2 := subexprPos[1]? | failure
+    let ⟨_, .target subexprPos1⟩  := pos1 | failure
+    let ⟨_, .target subexprPos2⟩ := pos2 | failure
+    let text := subexprPos1.toArray.toList.toString ++ " " ++ 
+                  subexprPos2.toArray.toList.toString
     pure <DynamicEditButton 
-            label={"Apply at"} 
+            label={"Apply"} 
             range?={props.range} 
             html?={<details «open»={true}>
         <summary className="mv2 pointer">{.text "Apply options"}</summary>
@@ -47,7 +47,7 @@ def treeApplyButton : InfoviewAction :=
                     color = {"secondary"} />
                     </details>}
             vanish={true} />
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def treeRewriteAtButton : InfoviewAction := 
@@ -55,14 +55,14 @@ def treeRewriteAtButton : InfoviewAction :=
   let panelProps := props.toPanelWidgetProps
   if (panelProps.selectedLocations.size == 2) then
     let subexprPos := panelProps.selectedLocations
-    let some pos1 := subexprPos[0]? | OptionT.fail
-    let some pos2 := subexprPos[1]? | OptionT.fail
-    let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
-    let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
-              ((SubExpr.Pos.toArray subexprPos2).toList).toString)
+    let some pos1 := subexprPos[0]? | failure
+    let some pos2 := subexprPos[1]? | failure
+    let ⟨_, .target subexprPos1⟩ := pos1 | failure
+    let ⟨_, .target subexprPos2⟩ := pos2 | failure
+    let text := (subexprPos1.toArray.toList.toString ++ " " ++ 
+              subexprPos2.toArray.toList.toString)
     pure <DynamicEditButton 
-            label={"Rewrite at"} 
+            label={"Rewrite"} 
             range?={props.range} 
             html?={<details «open»={true}>
         <summary className="mv2 pointer">{.text "Rewrite options"}</summary>
@@ -78,24 +78,24 @@ def treeRewriteAtButton : InfoviewAction :=
                     color = {"secondary"} />
                     </details>}
             vanish={true} />
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def treeSimp : InfoviewAction := 
   fun props => do
     let panelProps := props.toPanelWidgetProps
     if (panelProps.selectedLocations.size == 1) then
-      let some pos := panelProps.selectedLocations[0]? | OptionT.fail
-      let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
-      let text := "tree_simp " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      let some pos := panelProps.selectedLocations[0]? | failure
+      let ⟨_, .target subexprPos⟩ := pos | failure
+      let text := "tree_simp " ++ subexprPos.toArray.toList.toString
       pure 
         <DynamicEditButton 
-          label={"Simplify the selected subexpression"} 
+          label={"Simplify"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Simplifying the target... </p>}
           vanish={true} />
-    else OptionT.fail
+    else failure
 
 @[motivated_proof_move]
 def tree_rewrite_ord : InfoviewAction := 
@@ -103,14 +103,14 @@ def tree_rewrite_ord : InfoviewAction :=
     let panelProps := props.toPanelWidgetProps
     if (panelProps.selectedLocations.size == 2) then 
       let subexprPos := panelProps.selectedLocations
-      let some pos1 := subexprPos[0]? | OptionT.fail
-      let some pos2 := subexprPos[1]? | OptionT.fail
-      let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
-      let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-      let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
-              ((SubExpr.Pos.toArray subexprPos2).toList).toString)
+      let some pos1 := subexprPos[0]? | failure
+      let some pos2 := subexprPos[1]? | failure
+      let ⟨_, .target subexprPos1⟩ := pos1 | failure
+      let ⟨_, .target subexprPos2⟩ := pos2 | failure
+      let text := (subexprPos1.toArray.toList.toString ++ " " ++ 
+              subexprPos2.toArray.toList.toString)
       pure <DynamicEditButton 
-            label={"Ordered rewrite at"} 
+            label={"Ordered rewrite"} 
             range?={props.range} 
             html?={<details «open»={true}>
         <summary className="mv2 pointer">{.text "Ordered rewrite options"}</summary>
@@ -126,7 +126,7 @@ def tree_rewrite_ord : InfoviewAction :=
                     color = {"secondary"} />
                     </details>}
             vanish={true} />        
-    else OptionT.fail
+    else failure
 
 @[motivated_proof_move]
 def tree_search : InfoviewAction := fun props => do
@@ -137,24 +137,24 @@ def tree_search : InfoviewAction := fun props => do
               insertion?={"tree_search"} 
               html?={<p> Searching the tree... </p>}
               vanish={true} />  
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def tree_induction : InfoviewAction := 
   fun props => do 
     let panelProps := props.toPanelWidgetProps
     if (panelProps.selectedLocations.size == 1) then
-      let some pos := panelProps.selectedLocations[0]? | OptionT.fail
-      let ⟨_, .target subexprPos⟩ := pos | OptionT.fail
-      let text := "tree_induction " ++ ((SubExpr.Pos.toArray subexprPos).toList).toString
+      let some pos := panelProps.selectedLocations[0]? | failure
+      let ⟨_, .target subexprPos⟩ := pos | failure
+      let text := "tree_induction " ++ subexprPos.toArray.toList.toString
       pure 
         <DynamicEditButton 
-          label={"Induct on the selected subexpression"} 
+          label={"Induction/Elimination"} 
           range?={props.range} 
           insertion?={text} 
           html?={<p> Performing induction... </p>}
           vanish={true} />
-    else OptionT.fail
+    else failure
 
 -- TODO: Move
 
@@ -206,33 +206,33 @@ open Jsx in
 @[motivated_proof_move]
 def libRewrite : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexpr := props.selectedLocations[0]? | OptionT.fail
-    let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
+    let some subexpr := props.selectedLocations[0]? | failure
+    let ⟨goal, .target pos⟩ := subexpr | failure
     let libSuggestions ← Tree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
     pure
       <DynamicEditButton 
           label={"Rewrite with a library result"}
           html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
           vanish={true} />
-  else OptionT.fail
+  else failure
 
   open Jsx in
 @[motivated_proof_move]
 def libRewriteOrd : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexpr := props.selectedLocations[0]? | OptionT.fail
-    let ⟨goal, .target pos⟩ := subexpr | OptionT.fail
+    let some subexpr := props.selectedLocations[0]? | failure
+    let ⟨goal, .target pos⟩ := subexpr | failure
     let libSuggestions ← Tree.librarySearchRewriteOrd (pos.toArray.toList) (← goal.getType)
     pure
       <DynamicEditButton 
           label={"Ordered rewrite with a library result"}
           html?={← renderLibrarySearchResults props.range "Library search results" libSuggestions}
           vanish={true} />
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def libApply : InfoviewAction := fun props ↦ do
-  let #[⟨goal, .target pos⟩] := props.selectedLocations | OptionT.fail
+  let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
   let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
   pure
     <DynamicEditButton 
@@ -243,19 +243,19 @@ def libApply : InfoviewAction := fun props ↦ do
 @[motivated_proof_move]
 def push_neg : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
-    let ⟨goal, .target pos⟩ := subexprPos | OptionT.fail
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨goal, .target pos⟩ := subexprPos | failure
     let (goalTreePos, goalPos) := Tree.splitPosition pos.toArray.toList
     -- not sure the next two lines are doing exactly what I want them to
     let expr : Expr ← Tree.withTreeSubexpr (← goal.getType) goalTreePos goalPos (fun _ x => pure x)
-    let (.app (.const `Not _) _) := expr | OptionT.fail
+    let (.app (.const `Not _) _) := expr | failure
     pure
       <DynamicEditButton 
           label={"Push the negation through"}
           range?={props.range} 
           insertion?={"tree_push_neg " ++ ((SubExpr.Pos.toArray pos).toList).toString}
           vanish = {false} />
-  else OptionT.fail
+  else failure
 
 structure NamingButtonProps where 
   selectedPos : String
@@ -268,41 +268,41 @@ deriving RpcEncodable
 @[motivated_proof_move]
 def name : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
-    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton 
           label={"Name the selected subexpression"}
           range?={props.range} 
           html? = {<NamingButton selectedPos = {pos.toArray.toList.toString}/>}
           vanish = {true} />
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def unify : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
-    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton 
           label={"Unify the selected subexpression"}
           range?={props.range} 
           insertion?={"lib_apply refl " ++ pos.toArray.toList.toString}
           vanish = {true} />
-  else OptionT.fail
+  else failure
 
 @[motivated_proof_move]
 def unfold_definition : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
-    let some subexprPos := props.selectedLocations[0]? | OptionT.fail
-    let ⟨_, .target pos⟩ := subexprPos | OptionT.fail
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton 
           label={"Unfold definition"}
           range?={props.range} 
           insertion?={"tree_rewrite_def " ++ (pos.toArray.toList).toString}
           vanish = {true} />
-  else OptionT.fail
+  else failure
 
 -- example {p : Prop} : p → ¬ ∀ x, ¬ x = 1 := by sorry
 
@@ -372,6 +372,7 @@ sorry
 
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
+try_lib_apply []
 lib_apply [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
 lib_rewrite_rev contrapose [1, 1, 1, 1] -- illegal
 lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 0, 2]
