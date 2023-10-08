@@ -233,10 +233,19 @@ def libRewriteOrd : InfoviewAction := fun props ↦ do
 @[motivated_proof_move]
 def libApply : InfoviewAction := fun props ↦ do
   let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
-  let libSuggestions ← Tree.librarySearchApply pos.toArray.toList (← goal.getType)
+  let libSuggestions ← Tree.librarySearchApply false pos.toArray.toList (← goal.getType)
   pure
     <DynamicEditButton 
         label={"Apply a library result"} 
+        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+
+@[motivated_proof_move]
+def libApplyKeepingTarget : InfoviewAction := fun props ↦ do
+  let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
+  let libSuggestions ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
+  pure
+    <DynamicEditButton 
+        label={"Apply a library result keeping the conclusion in the context"} 
         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
 
 --TODO check if selected expression starts with `¬`

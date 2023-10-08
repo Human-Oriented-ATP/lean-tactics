@@ -308,7 +308,7 @@ side goal or existential is bound in positive polarity, because it may be useful
 -/
 @[reducible] def M := ReaderT (MetaM' (TreeProof → MetaM' TreeProof)) MetaM'
 
-def TreeRecMeta (hypInScope : Bool) : TreeRecursor M TreeProof where
+def TreeRecMeta (hypInScope saveClosed : Bool) : TreeRecursor M TreeProof where
   imp_right := introProp true  false bindImpRight
   imp_left  := introProp true  true  bindImpLeft
   and_right := introProp false false bindAndRight
@@ -332,7 +332,7 @@ def TreeRecMeta (hypInScope : Bool) : TreeRecursor M TreeProof where
     introFree n u cls pol bindInstance
 
 where
-  introProp (isImp isRev : Bool) (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) (k : M TreeProof) : OptionT M TreeProof :=
+  introProp (isImp isRev : Bool) (bind : Bool → Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) (k : M TreeProof) : OptionT M TreeProof :=
     Functor.map (f := M) some <|
     Function.swap withReader k (if hypInScope && (pol != (isImp && !isRev))
       then
@@ -342,9 +342,9 @@ where
         let {binders ..} ← get
         let (bindHyp, binders) := takeHypBinders true {} binders pol tree'
         modify fun s => { s with binders }
-        return kleiski <=< bindHyp ∘ bind p pol tree
+        return kleiski <=< bindHyp ∘ bind saveClosed p pol tree
       else
-        Functor.map (· ∘ bind p pol tree))
+        Functor.map (· ∘ bind saveClosed p pol tree))
 
   introFree (name : Name) (u : Level) (domain : Expr) (pol : Bool)
       (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (tree : Expr) (k : Expr → M TreeProof) : OptionT M TreeProof :=
@@ -388,11 +388,11 @@ goal, with position in that, and polarity.
 -/
 abbrev Unification := HypothesisContext → Expr → Expr → Bool → TreePos → Pos → Pos → MetaM' TreeProof 
 
-partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (unification : Unification)
+partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (unification : Unification) (saveClosed : Bool)
   : M TreeProof :=
   unfoldHypothesis hypProof hyp hypTreePos
     fun hyp hypTreePos hypContext =>
-      (TreeRecMeta true).recurse pol goal goalTreePos
+      (TreeRecMeta true saveClosed).recurse pol goal goalTreePos
         fun pol goal _ k => do
           let treeProof ← unification hypContext hyp goal pol hypTreePos hypPos goalPos
           let makeTreeProof ← k
@@ -400,9 +400,9 @@ partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypTreePo
           makeTreeProof treeProof
           -- return do (← get).binders.foldrM (fun binder => revertHypBinder pol goal binder) treeProof
 
-partial def applyBound (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (delete? : Bool) (unification : Unification) (tree : Expr) : MetaM TreeProof := 
+partial def applyBound (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos) (delete? : Bool) (unification : Unification) (saveClosed : Bool := false) (tree : Expr) : MetaM TreeProof := 
   let (treePos, hypTreePos, goalTreePos) := takeSharedPrefix hypTreePos goalTreePos
-  ((TreeRecMeta false).recurse true tree treePos
+  ((TreeRecMeta false saveClosed).recurse true tree treePos
     fun pol tree _ => do
 
       let (p, goal, goalTreePos, goalPol, useHypProof, hypProof, hyp, hypTreePos) ← match tree, hypTreePos, goalTreePos with
@@ -415,7 +415,7 @@ partial def applyBound (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos)
       withLocalDeclD `hyp hyp fun fvar => do
       let fvarId := fvar.fvarId!
       withReader (Functor.map (· ∘ useHypProof p hypProof pol goal fvarId)) do
-        applyAux fvar hyp goal goalPol hypTreePos goalTreePos hypPos goalPos unification
+        applyAux fvar hyp goal goalPol hypTreePos goalTreePos hypPos goalPos unification saveClosed
   ).run (pure pure) |>.run' {}
 where
   takeSharedPrefix {α : Type} [BEq α] : List α → List α → List α × List α × List α
@@ -428,7 +428,7 @@ where
 
 
 partial def applyUnbound (hypName : Name) (getHyp : Expr → MetaM Bool → MetaM (Expr × TreePos × Pos))
-    (goalTreePos : TreePos) (goalPos : Pos) (unification : Unification) (tree : Expr) : MetaM TreeProof := do
+    (goalTreePos : TreePos) (goalPos : Pos) (unification : Unification) (tree : Expr) (saveClosed : Bool := false) : MetaM TreeProof := do
   let cinfo ← getConstInfo hypName
   let us ← mkFreshLevelMVarsFor cinfo
   let hypProof := .const hypName us
@@ -436,7 +436,7 @@ partial def applyUnbound (hypName : Name) (getHyp : Expr → MetaM Bool → Meta
   
   let (hyp, hypTreePos, hypPos) ← getHyp hyp $ getPolarity tree goalTreePos
 
-  (applyAux hypProof hyp tree true hypTreePos goalTreePos hypPos goalPos unification).run (pure pure) |>.run' {}
+  (applyAux hypProof hyp tree true hypTreePos goalTreePos hypPos goalPos unification saveClosed).run (pure pure) |>.run' {}
 
 
 def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit := 
@@ -495,24 +495,25 @@ def getApplyPos (pos? : Option (TreePos × Pos)) (hyp : Expr) (goalPol : MetaM B
 
 open Elab.Tactic
 
-elab "tree_apply" hypPos:treePos goalPos:treePos : tactic => do
+/- the optional star indicates that the solved target should stay in the context as a hypothesis. -/
+elab "tree_apply" s:("*")? hypPos:treePos goalPos:treePos : tactic => do
   let (hypTreePos, hypPos) := getSplitPosition hypPos
   let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeApply)
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeApply s.isSome)
 
-elab "tree_apply'" hypPos:treePos goalPos:treePos : tactic => do
+elab "tree_apply'" s:("*")? hypPos:treePos goalPos:treePos : tactic => do
   let (hypTreePos, hypPos) := getSplitPosition hypPos
   let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeApply)
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeApply s.isSome)
 
-elab "lib_apply" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
+elab "lib_apply" s:("*")? hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← getIdWithInfo hypName
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   let hypPos := getSplitPosition <$> hypPos
-  workOnTree (applyUnbound hypName (getApplyPos hypPos) goalTreePos goalPos treeApply)
+  workOnTree (applyUnbound hypName (getApplyPos hypPos) goalTreePos goalPos treeApply · s.isSome)
 
 open DiscrTree in
-def librarySearchApply (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
+def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalTreePos, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas
   let results := if ← getPolarity tree goalTreePos then
@@ -522,12 +523,13 @@ def librarySearchApply (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array 
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     try
-      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos [] treeApply tree
+      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos [] treeApply tree saveClosed
       return true
     catch _ =>
       return false
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_apply {printPosition treePos pos} {name} {goalPos}")
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, 
+    s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
 
 
 def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) : MetaM Unit := do
@@ -538,7 +540,7 @@ def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widge
 elab "try_lib_apply" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   let tree := (← getMainDecl).type
-  logLibrarySearch (← librarySearchApply goalPos tree)
+  logLibrarySearch (← librarySearchApply false goalPos tree)
 
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i

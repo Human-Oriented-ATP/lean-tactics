@@ -22,21 +22,25 @@ deriving Inhabited
 
 section nonDependent
 
-def bindPropBinderAux (p : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma : Name) (tree : Expr) : TreeProof → TreeProof :=
+def bindPropBinderAux (saveClosed : Bool) (p : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma save_lemma : Name) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
   match newTree with
-  | none =>
-    { newTree := if keepsClosed then none else p,
+  | none => if !keepsClosed && saveClosed
+    then {
+      newTree := if isImp then (if isRev then mkApp2 (.const ``And []) tree p else mkApp2 (.const ``And []) (mkNot tree) (mkNot p)) else mkApp2 (.const ``Imp []) tree p
+      proof := mkApp3 (.const save_lemma  []) p tree proof }
+    else { 
+      newTree := if keepsClosed then none else (if isImp && !isRev then mkNot p else p)
       proof := mkApp3 (.const close_lemma []) p tree proof }
 
   | some newTree => {
     newTree := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``And) [])) p newTree
     proof := mkApp4 (.const imp_lemma []) p tree newTree proof }
 
-def bindPropBinder (p : Expr) (isImp isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
-  bindPropBinderAux p isImp isRev (isImp == pol) (ite pol imp_lemma imp_lemma') (ite pol close_lemma close_lemma') tree
+def bindPropBinder (saveClosed : Bool) (p : Expr) (isImp isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' save_lemma : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
+  bindPropBinderAux saveClosed p isImp isRev (isImp == pol) (ite pol imp_lemma imp_lemma') (ite pol close_lemma close_lemma') save_lemma tree
 
-def bindDepPropBinderAux (p fvar : Expr) (isImp isRev delete? keepsClosed : Bool) (imp_lemma close_lemma forget_lemma : Name) (nonDep : Unit → TreeProof) (tree : Expr) : TreeProof → TreeProof :=
+def bindDepPropBinderAux (delete? : Bool) (p fvar : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma forget_lemma : Name) (nonDep : Unit → TreeProof) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
   let proof := proof.abstract #[fvar]
   if !proof.hasLooseBVars
@@ -45,7 +49,7 @@ def bindDepPropBinderAux (p fvar : Expr) (isImp isRev delete? keepsClosed : Bool
     let proof := .lam `h p proof .default
     match newTree with
     | none => {
-      newTree := if keepsClosed then none else p,
+      newTree := if keepsClosed then none else (if isImp && !isRev then mkNot p else p),
       proof := mkApp3 (.const close_lemma []) p tree proof }
 
     | some newTree => if keepsClosed && delete?
@@ -56,16 +60,18 @@ def bindDepPropBinderAux (p fvar : Expr) (isImp isRev delete? keepsClosed : Bool
       newTree := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``And) [])) p newTree
       proof := mkApp4 (.const imp_lemma []) p tree newTree proof }
 
-def bindDepPropBinder (p fvar : Expr) (isImp isRev delete? : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' forget_lemma : Name)
-  (nonDep : Expr → Bool → Expr → TreeProof → TreeProof) (pol : Bool) (tree : Expr) (treeProof : TreeProof) : TreeProof :=
-  bindDepPropBinderAux p fvar isImp isRev delete? (isImp == pol) (ite pol imp_lemma imp_lemma') (ite pol close_lemma close_lemma') forget_lemma (fun _ => nonDep p pol tree treeProof) tree treeProof
+def bindDepPropBinder (delete? : Bool) (p fvar : Expr) (isImp isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' forget_lemma : Name)
+  (nonDep : Bool → Expr → Bool → Expr → TreeProof → TreeProof) (pol : Bool) (tree : Expr) (treeProof : TreeProof) : TreeProof :=
+  bindDepPropBinderAux delete? p fvar isImp isRev (isImp == pol) (ite pol imp_lemma imp_lemma') (ite pol close_lemma close_lemma') forget_lemma
+    (fun _ => nonDep false p pol tree treeProof) tree treeProof
 
 variable {p : Prop} {old new : Prop}
 
 lemma imp_right  (h : new → old) : Imp p new → Imp p old := (h ∘ ·)
 lemma imp_right' (h : old → new) : Imp p old → Imp p new := (h ∘ ·)
-lemma closed_imp_right  (h :   old) : Imp p old       := imp_right (fun _ => h) (fun _ => trivial)
-lemma closed_imp_right' (h : ¬ old) : Imp p old → ¬ p := (h ∘ ·)
+lemma closed_imp_right       (h :   old) : Imp p old               := imp_right (fun _ => h) (fun _ => trivial)
+lemma closed_imp_right'      (h : ¬ old) : Imp p old →         ¬ p := (h ∘ ·)
+lemma closed_imp_right_save' (h : ¬ old) : Imp p old → ¬ old ∧ ¬ p := fun g => ⟨h, h ∘ g⟩
 
 lemma imp_dep  (h : p → new → old) : Imp p new → Imp p old := fun g hp => h hp (g hp)
 lemma imp_dep' (h : p → old → new) : Imp p old → Imp p new := fun g hp => h hp (g hp)
@@ -73,52 +79,55 @@ lemma closed_imp_dep  (h : p →   old) : Imp p old     := h
 lemma closed_imp_dep' (h : p → ¬ old) : Imp p old → ¬ p := fun g hp => h hp (g hp)
 lemma forget_imp_right (h : p → new → old) : new → Imp p old := Function.swap h
 
-def bindImpRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p true false ``imp_right ``imp_right' ``closed_imp_right ``closed_imp_right'
+def bindImpRight (saveClosed : Bool) (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder saveClosed p true false ``imp_right ``imp_right' ``closed_imp_right ``closed_imp_right' ``closed_imp_right_save'
 def bindImpRightDep (delete? : Bool) (p fvar : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindDepPropBinder p fvar true false delete? ``imp_dep ``imp_dep' ``closed_imp_dep ``closed_imp_dep' ``forget_imp_right bindImpRight
+  bindDepPropBinder delete? p fvar true false ``imp_dep ``imp_dep' ``closed_imp_dep ``closed_imp_dep' ``forget_imp_right bindImpRight
 
 lemma and_right  (h : new → old) : And p new → And p old := And.imp_right h
 lemma and_right' (h : old → new) : And p old → And p new := And.imp_right h
-lemma closed_and_right  (h :   old) : p → And p old := fun hp => ⟨hp, h⟩
-lemma closed_and_right' (h : ¬ old) : ¬ And p old   :=  fun ⟨_, g⟩ => h g
+lemma closed_and_right       (h :   old) :         p → And p old := fun hp => ⟨hp, h⟩
+lemma closed_and_right_save  (h :   old) : Imp old p → And p old := fun hp => ⟨hp h, h⟩
+lemma closed_and_right'      (h : ¬ old) :           ¬ And p old :=  fun ⟨_, g⟩ => h g
 
 lemma and_dep  (h : p → new → old) : And p new → And p old := fun ⟨hp, g⟩ => ⟨hp, h hp g⟩
 lemma and_dep' (h : p → old → new) : And p old → And p new := fun ⟨hp, g⟩ => ⟨hp, h hp g⟩
-lemma closed_and_dep  (h : p →   old) : p → And p old := fun hp => ⟨hp, h hp⟩
-lemma closed_and_dep' (h : p → ¬ old) : ¬ And p old   := fun ⟨hp, g⟩ => h hp g
+lemma closed_and_dep       (h : p →   old) : p → And p old   := fun hp => ⟨hp, h hp⟩
+lemma closed_and_dep'      (h : p → ¬ old) :   ¬ And p old   := fun ⟨hp, g⟩ => h hp g
 lemma forget_and_right (h : p → old → new) : And p old → new := fun ⟨hp, g⟩ => h hp g
 
-def bindAndRight (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p false false ``and_right ``and_right' ``closed_and_right `closed_and_right'
+def bindAndRight (saveClosed : Bool) (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder saveClosed p false false ``and_right ``and_right' ``closed_and_right `closed_and_right' ``closed_and_right_save
 def bindAndRightDep (delete? : Bool) (p fvar : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindDepPropBinder p fvar false false delete? ``and_dep ``and_dep' ``closed_and_dep `closed_and_dep' ``forget_and_right bindAndRight
+  bindDepPropBinder delete? p fvar false false ``and_dep ``and_dep' ``closed_and_dep `closed_and_dep' ``forget_and_right bindAndRight
 
 lemma imp_left   (h : old → new) : Imp new p → Imp old p := (· ∘ h)
 lemma imp_left'  (h : new → old) : Imp old p → Imp new p := (· ∘ h)
-lemma closed_imp_left   (h : ¬ old) : Imp old p     := (absurd · h)
-lemma closed_imp_left'  (h :   old) : Imp old p → p := fun g => g h
+lemma closed_imp_left        (h : ¬ old) : Imp old p             := (absurd · h)
+lemma closed_imp_left'       (h :   old) : Imp old p → p         := fun g => g h
+lemma closed_imp_left_save'  (h :   old) : Imp old p → And old p := fun g => ⟨h, g h⟩
 
-def bindImpLeft (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p true true ``imp_left ``imp_left' ``closed_imp_left ``closed_imp_left'
+def bindImpLeft (saveClosed : Bool) (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder saveClosed p true true ``imp_left ``imp_left' ``closed_imp_left ``closed_imp_left' ``closed_imp_left'
 
 lemma and_left   (h : new → old) : And new p → And old p := And.imp_left h
 lemma and_left'  (h : old → new) : And old p → And new p := And.imp_left h
-lemma closed_and_left  (h :   old) : p → And old p := fun hp => ⟨h, hp⟩
-lemma closed_and_left' (h : ¬ old) : ¬ And old p   := fun ⟨g, _⟩ => absurd g h
+lemma closed_and_left       (h :   old) :         p → And old p := fun hp => ⟨h, hp⟩
+lemma closed_and_left_save  (h :   old) : Imp old p → And old p := fun hp => ⟨h, hp h⟩
+lemma closed_and_left'      (h : ¬ old) :           ¬ And old p := fun ⟨g, _⟩ => absurd g h
 
-def bindAndLeft (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
-  bindPropBinder p false true ``and_left ``and_left' ``closed_and_left ``closed_and_left'
+def bindAndLeft (saveClosed : Bool) (p : Expr) : Bool → Expr → TreeProof → TreeProof :=
+  bindPropBinder saveClosed p false true ``and_left ``and_left' ``closed_and_left ``closed_and_left' ``closed_and_left_save
 
 lemma nonempty_make (h : new → old) : new → old := h
 
 lemma and_make  (h : p → new → old) : And p new → old := fun ⟨g, f⟩ => h g f
 lemma imp_make' (h : p → old → new) : old → Imp p new := fun g f => h f g
-lemma closed_and_make  (h : p →   old) : p →   old := h
-lemma closed_and_make' (h : p → ¬ old) : p → ¬ old := h
+lemma closed_make  (h : p →   old) : p →   old := h
+lemma closed_make' (h : p → ¬ old) : p → ¬ old := h
 
 def bindUnknown (p fvar : Expr) (pol : Bool) : Expr → TreeProof → TreeProof :=
-  bindDepPropBinder p fvar (!pol) false false ``and_make ``imp_make' ``closed_and_make ``closed_and_make' .anonymous (fun _ _ _ => id) pol
+  bindDepPropBinder false p fvar (!pol) false ``and_make ``imp_make' ``closed_make ``closed_make' .anonymous (fun _ _ _ _ => id) pol
 
 
 lemma imp_make  (hp : p) (h : new → old) : Imp p new → old := fun g => h (g hp)

@@ -108,10 +108,10 @@ def NamingRecursor (meta : Bool) (name : Name) : TreeRecursor MetaM Abstraction 
   ex   := introFree bindExists mkExists
   inst := introFree bindInstance mkInstance
 where
-  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (wrap : Expr → Expr → Expr) (p : Expr) (pol : Bool) (tree : Expr) (k : MetaM Abstraction) : OptionT MetaM Abstraction := do
+  introProp (bind : Bool → Expr → Bool → Expr → TreeProof → TreeProof) (wrap : Expr → Expr → Expr) (p : Expr) (pol : Bool) (tree : Expr) (k : MetaM Abstraction) : OptionT MetaM Abstraction := do
     match ← k with
     | .abstract outer inner => return .abstract (wrap p outer) inner
-    | .closed treeProof => return .closed $ bind p pol tree treeProof
+    | .closed treeProof => return .closed $ bind false p pol tree treeProof
 
   introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (wrap : Name → Level → Expr → Expr → Expr) (n : Name) (u : Level) (domain : Expr) (pol : Bool)
       (tree : Expr) (k : Expr → MetaM Abstraction) : OptionT MetaM Abstraction :=

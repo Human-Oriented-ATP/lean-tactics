@@ -327,7 +327,7 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : TreePos) (pos : Pos)
     visit pos e #[]
 
 
-def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRecursor m TreeProof where
+def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] (saveClosed : Bool) : TreeRecursor m TreeProof where
   imp_right := introProp bindImpRight
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
@@ -337,8 +337,8 @@ def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] : TreeRe
   ex   := introFree bindExists
   inst := introFree bindInstance
 where
-  introProp (bind : Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) (k : m TreeProof) : OptionT m TreeProof :=
-    bind p pol tree <$> k
+  introProp (bind : Bool → Expr → Bool → Expr → TreeProof → TreeProof) (p : Expr) (pol : Bool) (tree : Expr) (k : m TreeProof) : OptionT m TreeProof :=
+    bind saveClosed p pol tree <$> k
 
   introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (name : Name) (u : Level) (domain : Expr) (pol : Bool)
       (tree : Expr) (k : Expr → m TreeProof) : OptionT m TreeProof :=
@@ -346,9 +346,9 @@ where
       let treeProof ← k fvar
       bind name u domain fvar pol tree treeProof
 
-def workOnTreeAt (pos : TreePos) (move : Bool → Expr → MetaM TreeProof) : TacticM Unit :=
+def workOnTreeAt (pos : TreePos) (move : Bool → Expr → MetaM TreeProof) (saveClosed : Bool := false) : TacticM Unit :=
   workOnTree fun tree => do 
-    TreeProofRec.recurse true tree pos (fun pol tree _ => move pol tree)
+    (TreeProofRec saveClosed).recurse true tree pos (fun pol tree _ => move pol tree)
 
     
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
