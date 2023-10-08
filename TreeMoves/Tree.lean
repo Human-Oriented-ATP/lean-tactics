@@ -228,7 +228,7 @@ def makeTree (e : Expr) : MetaM Expr := do
 open Elab.Tactic
 
 def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
-  replaceMainGoal [← (← getMainGoal).change (← move (← getMainTarget))] 
+  replaceMainGoal [← (← getMainGoal).change (← makeTree (← move (← getMainTarget)))] 
   
 def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
   withMainContext do
@@ -241,7 +241,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal []
 
     | some newTree =>
-      let mvarNew  ← mkFreshExprSyntheticOpaqueMVar newTree
+      let mvarNew  ← mkFreshExprSyntheticOpaqueMVar (← makeTree newTree)
       let proof  := .app proof mvarNew
       unless ← isTypeCorrect proof do 
         throwError m!"changing the goal does not type check:{indentExpr proof} \nnewTree: {indentExpr newTree}"
@@ -249,7 +249,7 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       replaceMainGoal [mvarNew.mvarId!]
 
 
-elab "make_tree" : tactic => workOnTreeDefEq makeTree
+elab "make_tree" : tactic => workOnTreeDefEq pure
 
 syntax treePos := "[" num,* "]"
 

@@ -154,7 +154,7 @@ private def bindPropBinderWithHyp (p : Expr) (isImp : Bool) (isRev : Bool) (lemm
 
 
 -- we need to manage the hypothesis that we want to use.
--- this is done by putting the hypothesis in the proof as either a hypothesis in the hypothesis or a conjuction in the conclustion.
+-- this is done by putting the hypothesis in the proof as either a hypothesis in the hypothesis or a conjuction in the conclusion.
 
 variable {hyp old new : Prop}
 

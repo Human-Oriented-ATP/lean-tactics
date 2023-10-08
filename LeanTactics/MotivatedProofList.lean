@@ -28,14 +28,24 @@ def treeApplyButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩  := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := "tree_apply " ++ 
-                  ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+    let text := ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
                   ((SubExpr.Pos.toArray subexprPos2).toList).toString
     pure <DynamicEditButton 
-            label={"Tree apply at"} 
+            label={"Apply at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Applying... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Apply options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_apply " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_apply' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />
   else OptionT.fail
 
@@ -49,14 +59,24 @@ def treeRewriteAtButton : InfoviewAction :=
     let some pos2 := subexprPos[1]? | OptionT.fail
     let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
     let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-    let text := ("tree_rewrite " ++ 
-              ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+    let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString)
     pure <DynamicEditButton 
-            label={"Tree rewrite at"} 
+            label={"Rewrite at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Rewriting... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Rewrite options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />
   else OptionT.fail
 
@@ -87,14 +107,24 @@ def tree_rewrite_ord : InfoviewAction :=
       let some pos2 := subexprPos[1]? | OptionT.fail
       let ⟨_, .target subexprPos1⟩ := pos1 | OptionT.fail
       let ⟨_, .target subexprPos2⟩ := pos2 | OptionT.fail
-      let text := ("tree_rewrite_ord " ++ 
-              ((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
+      let text := (((SubExpr.Pos.toArray subexprPos1).toList).toString ++ " " ++ 
               ((SubExpr.Pos.toArray subexprPos2).toList).toString)
       pure <DynamicEditButton 
-            label={"Ordered rewrite"} 
+            label={"Ordered rewrite at"} 
             range?={props.range} 
-            insertion?={text} 
-            html?={<p> Rewriting... </p>}
+            html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Ordered rewrite options"}</summary>
+              <DynamicEditButton
+                    label = "Delete the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite_ord " ++ text}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve the hypothesis"
+                    range? = {props.range}
+                    insertion? = {"tree_rewrite_ord' " ++ text}
+                    color = {"secondary"} />
+                    </details>}
             vanish={true} />        
     else OptionT.fail
 
@@ -315,6 +345,8 @@ example (x y : ℝ) : ∀ ε > 0, ∃ N : ℕ, ∀ n ≥ N, x + n = y + ε →
 motivated_proof
 sorry
 
+#check Classical.em
+lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
 example : (α β : Type) → [PseudoMetricSpace α] →  [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
 motivated_proof
@@ -323,6 +355,7 @@ lib_rewrite [1, 1, 1, 1, 1, 1, 1, 2, 0, 1] Metric.tendstoUniformly_iff [1, 1, 1,
 lib_rewrite [1, 1, 1, 1, 1, 2, 0, 1] Metric.continuous_iff [1, 1, 1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] Filter.eventually_atTop [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 2]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+-- for next line can make two new pop-ups appear to choose if we want the hypothesis deleted
 tree_rewrite_ord' [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 0, 1]
 lib_rewrite_ord [1, 1, 1, 1, 1] dist_triangle [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] dist_comm [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 1]
@@ -331,7 +364,58 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
 
-lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
+
+
+
+
+
+
+lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
-try_lib_rewrite_ord []
-sorry
+lib_apply [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
+lib_rewrite_rev contrapose [1, 1, 1, 1] -- illegal
+lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 0, 2]
+lib_apply [1, 1, 1, 1, 1] Nat.not_dvd_of_between_consec_multiples [1, 1, 1, 1, 1, 2]
+tree_name pk [1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+lib_rewrite [1, 1, 2, 1] Nat.succ_le [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+
+-- in the new version I re-add the fact that p is prime, and I instantiate n-1 as a successor.
+lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
+∀ p : ℕ,
+Nat.Prime p → 
+p < n → 
+∃ k : ℕ, ∀ pk : ℕ,
+p * k = pk → pk = n_1 ∧ 
+n_1.succ < p * (k + 1) := by
+motivated_proof
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.mul_add [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
+tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply symm [1, 1, 1, 1, 1, 1, 2] -- illegal
+lib_rewrite [1, 1, 1, 1, 2, 1] dvd_def [1, 1, 1, 1, 1]
+tree_induction []
+tree_simp [0, 1, 1, 1, 0, 2]
+lib_apply [] Nat.zero_ne_one [0, 1, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite le_iff_lt_or_eq [1, 1, 1, 1, 1, 0, 2] -- illegal
+tree_induction [1, 1, 1, 1, 1]
+tree_apply [1, 0, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 0, 0, 2]
+lib_apply dvd_mul_of_dvd_left [1, 1, 1, 1, 1, 1, 0, 1, 2] -- illegal
+tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 1, 2]
+tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_apply [1, 1] Nat.dvd_mul_left [1, 1, 1, 1, 1, 2]
+tree_rewrite_def [1, 1, 1, 2]
+tree_rewrite_def [1, 1, 0, 2]
+tree_rewrite_def [1, 1, 1, 2]
+tree_rewrite_def [1, 1, 0, 2]
+tree_apply [1, 1, 0, 1, 2] [1, 1, 1, 1, 2]
+lib_apply [1, 1, 0] Nat.eq_one_of_mul_eq_one_right [1, 1, 0, 2]
+tree_apply [1, 0, 2] [1, 1, 2]
+
+
