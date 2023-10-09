@@ -233,11 +233,26 @@ def libRewriteOrd : InfoviewAction := fun props ↦ do
 @[motivated_proof_move]
 def libApply : InfoviewAction := fun props ↦ do
   let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
-  let libSuggestions ← Tree.librarySearchApply false pos.toArray.toList (← goal.getType)
+  let libSuggestions_delete ← Tree.librarySearchApply false pos.toArray.toList (← goal.getType)
+  let libSuggestions_keep ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
+  let html_delete := ← renderLibrarySearchResults props.range "Library apply results" libSuggestions_delete
+  let html_keep := ← renderLibrarySearchResults props.range "Library apply results" libSuggestions_keep
   pure
     <DynamicEditButton 
         label={"Apply a library result"} 
-        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+        html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Ordered rewrite options"}</summary>
+              <DynamicEditButton
+                    label = "Delete closed subgoals"
+                    range? = {props.range}
+                    html? = {html_delete}
+                    color = {"secondary"} />
+                    <DynamicEditButton
+                    label = "Preserve closed subgoals as hypotheses"
+                    range? = {props.range}
+                    html? = {html_keep}
+                    color = {"secondary"} />
+                    </details>} />
 
 @[motivated_proof_move]
 def libApplyKeepingTarget : InfoviewAction := fun props ↦ do
@@ -326,6 +341,10 @@ def unify_forall_exists : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else failure
 
+/- temporary lemma for the `contraposition` step -/
+lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
+
+/-- would be nice to have the contraposition step working for two selected expressions -/
 @[motivated_proof_move]
 def contrapose_button : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
@@ -339,26 +358,26 @@ def contrapose_button : InfoviewAction := fun props ↦ do
           vanish = {true} />
   else failure
 
+/-- would be nice to have the contraposition step working for two selected expressions -/
+@[motivated_proof_move]
+def swap_hyps : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexprPos := props.selectedLocations[0]? | failure
+    let ⟨_, .target pos⟩ := subexprPos | failure
+    pure
+      <DynamicEditButton 
+          label={"Rotate the hypotheses"}
+          range?={props.range} 
+          insertion?={"lib_rewrite Imp.swap " ++ (pos.toArray.toList).toString}
+          vanish = {true} />
+  else failure
+
 lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
 motivated_proof
 tree_name m [1, 1, 2, 0, 1, 1]
 lib_rewrite_rev eq_sub_iff_add_eq [1, 1, 1, 0, 2]
 tree_rewrite [1, 1, 1, 0, 2, 0, 1] [1, 1, 1, 1, 2, 1]
 lib_apply refl [1, 1, 2]
-
--- Complete Example of Cantor
-lemma Cantor : (X : Type u) → (f : X → Set X) → ¬ f.Surjective := by
-motivated_proof
-tree_rewrite_def [1, 1, 2, 1]
-tree_push_neg [1, 1, 2]
-lib_rewrite Set.ext_iff [1, 1, 1, 1, 2, 1]
-tree_push_neg [1, 1, 1, 1, 2]
-lib_rewrite not_iff [1, 1, 1, 1, 1, 2]
-lib_rewrite_rev Set.mem_compl_iff [1, 1, 1, 1, 1, 2, 0, 1]
-unify_forall_exists [1, 1, 1]
-lib_apply refl [1, 1, 1, 1, 2] -- seems like magic, want to explain why the unfication works here
-
-lemma contrapose : (¬p → ¬q) ↔ (q → p) := ⟨fun h hq => Classical.byContradiction fun hp => h hp hq, mt⟩
 
 example : (α β : Type) → [PseudoMetricSpace α] →  [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
@@ -379,15 +398,22 @@ sorry
 
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
-lib_apply [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
-lib_rewrite_rev contrapose [1, 1, 1, 1] -- illegal
-lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 0, 2]
-lib_apply [1, 1, 1, 1, 1] Nat.not_dvd_of_between_consec_multiples [1, 1, 1, 1, 1, 2]
-tree_name pk [1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
-lib_rewrite [1, 1, 2, 1] Nat.succ_le [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
-lib_apply [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
+lib_rewrite Imp.swap [1, 1, 1, 1]
+lib_rewrite_rev contrapose [1, 1, 1, 1, 1]
+lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 2, 1] Nat.not_dvd_iff_between_consec_multiples [1, 1, 1, 1, 1, 1, 2]
+tree_name pk [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+lib_rewrite [1, 1, 2, 1] Nat.succ_le_iff [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply  [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] 
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
+lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+-- some glue needed to make the two the same 
 sorry
--- in the new version I re-add the fact that p is prime, and I instantiate `n_1` as a successor.
+
+
+--in the new version I re-add the fact that p is prime, and I instantiate `n_1` as a successor.
 lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
 ∀ p : ℕ,
 Nat.Prime p → 
@@ -409,15 +435,14 @@ tree_induction []
 tree_simp [0, 1, 1, 1, 0, 2]
 lib_apply [] Nat.zero_ne_one [0, 1, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
--- lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
--- lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
-lib_rewrite le_iff_lt_or_eq [1, 1, 1, 1, 1, 0, 2] -- illegal
+lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
 tree_induction [1, 1, 1, 1, 1]
-tree_rewrite [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-tree_rewrite_ord [1, 0, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
-tree_apply [1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 0, 1, 0, 2]
+tree_rewrite_ord [1, 0, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply [1, 1, 1, 0] Eq.symm [1, 1, 1, 1, 1, 1, 0, 0, 2]
+tree_rewrite [1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
 lib_rewrite [1, 1, 1, 1, 1, 1, 2, 1] lcm_dvd_iff [1, 1, 1, 1, 1]
 lib_apply refl [1, 1, 1, 1, 1, 2]
 tree_simp []
--- contrapose
-sorry
+tree_apply [1, 1, 0, 2] [1, 1, 1, 1, 2]
