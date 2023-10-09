@@ -6,43 +6,13 @@ import Mathlib.Topology.MetricSpace.Basic
 
 open Function
 
-class MonotoneClass {α : Type u} {β : Type v} [Preorder β] (f : α → β) where
+namespace Tree
+
+class MonotoneClass {α : Type u} {β : Type v} [order : Preorder β] (f : α → β) where
   anti : Bool
   order : Preorder α
   elim : if anti then @Antitone _ _ order _ f else @Monotone _ _ order _ f
 
-@[to_additive]
-instance div_left_mono [OrderedCommGroup α] : MonotoneClass (· / · : α → α → α) where
-  anti := false
-  elim _ _ := div_le_div_right'
-
-@[to_additive]
-instance div_right_anti [OrderedCommGroup α] {a : α} : MonotoneClass (a / · : α → α) where
-  anti := true
-  elim _ _ h := div_le_div_left' h a
-
-section dvd
-
-local instance dvd_le [Semigroup α] : LE α :=
-  ⟨(· ∣ ·)⟩
-
-local instance dvd_preoder (α : Type u) [CancelCommMonoidWithZero α] [Subsingleton αˣ] : PartialOrder α where
-  __ := dvd_le
-  le_refl a := dvd_refl a
-  le_trans _ _ _ f g := dvd_trans f g
-  le_antisymm _ _ Hab Hba := dvd_antisymm Hab Hba
-
-instance dvd_right_mono {α : Type u} {a : α} [CancelCommMonoidWithZero α] [Subsingleton αˣ] : MonotoneClass (a ∣ .) where
-  anti := false
-  order := (@PartialOrder.toPreorder α (dvd_preoder α))
-  elim _ _ h₁ h₂ := dvd_trans h₂ h₁
-
-instance dvd_left_anti {α : Type u} [CancelCommMonoidWithZero α] [Subsingleton αˣ] : MonotoneClass (α := α) (. ∣ .) where
-  anti := true
-  order := (@PartialOrder.toPreorder α (dvd_preoder α))
-  elim _ _ h₁ _ h₃ := dvd_trans h₁ h₃
-
-end dvd
 
 instance or_right_mono {P : Prop} : MonotoneClass (Or P) where
   anti := false
@@ -111,6 +81,16 @@ instance add_right_mono {μ : β → α → α} [Preorder α] [i : CovariantClas
 instance inv_anti [OrderedCommGroup α] : MonotoneClass (fun x : α => x⁻¹) where
   anti := true
   elim _ _ := inv_le_inv'
+  
+@[to_additive]
+instance div_left_mono [OrderedCommGroup α] : MonotoneClass (· / · : α → α → α) where
+  anti := false
+  elim _ _ := div_le_div_right'
+
+@[to_additive]
+instance div_right_anti [OrderedCommGroup α] {a : α} : MonotoneClass (a / · : α → α) where
+  anti := true
+  elim _ _ h := div_le_div_left' h a
 
 -- instance nat_pow_mono [Monoid M] [Preorder M] [CovariantClass M M (· * ·) (· ≤ ·)] [CovariantClass M M (swap (· * ·)) (· ≤ ·)]
 --   : MonotoneClass (fun (a : M) (n : ℕ) => (a ^ n)) where
@@ -118,9 +98,31 @@ instance inv_anti [OrderedCommGroup α] : MonotoneClass (fun x : α => x⁻¹) w
 --   elim _ _ h n := pow_mono_right n h
 
 
+section dvd
 
-namespace Tree
+local instance dvd_preorder [Monoid α] : Preorder α where
+  le := (· ∣ ·)
+  le_refl := dvd_refl
+  le_trans _ _ _ := dvd_trans
 
+instance dvd_right_mono [Monoid α] (a : α) : MonotoneClass (a ∣ .) where
+  anti := false
+  elim _ _ := swap dvd_trans
+
+instance dvd_left_anti [Monoid α] : MonotoneClass (α := α) (. ∣ .) where
+  anti := true
+  elim _ _ h _ := dvd_trans h
+
+
+instance mul_left_dvd_mono [CommMonoid α] (a : α) : MonotoneClass (a * ·) where
+  anti := false
+  elim _ _ := mul_dvd_mul_left a
+
+instance mul_right_dvd_mono [CommMonoid α] : MonotoneClass (α := α) (· * ·) where
+  anti := false
+  elim _ _ := mul_dvd_mul_right
+
+end dvd
 
 
 open Lean Meta
@@ -388,6 +390,11 @@ example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1]
   make_tree
   lib_apply refl [1]
+
+example : 2 ∣ 4 → 4*3 ∣ 9 → 2*3 ∣ 9 := by
+  make_tree
+  tree_rewrite_ord [0] [1,0,2,0,1,0,1]
+  tree_apply [0] [1]
 
 /-
 What should the isolate tactic do?
