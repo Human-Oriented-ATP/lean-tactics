@@ -1,7 +1,7 @@
 import LeanTactics.Reducers
 import ProofWidgets.Component.HtmlDisplay
 
-open Lean ProofWidgets Server Html Jsx
+open Lean ProofWidgets Server Html Jsx Json
 
 structure HtmlReducerRenderingProps where
   html : Html
@@ -15,4 +15,12 @@ def HtmlReducerRendering : Component HtmlReducerRenderingProps where
   let (x, y) ← (testReducer.Ref.get : IO _)
   return x
 
-#html .ofComponent HtmlReducerRendering ⟨testReducer.html testReducer.init⟩ #[]
+
+elab "#test_reducer" : command => do
+  let (σ, _) ← testReducer.Ref.get
+  let code := testReducer.html σ
+  Elab.Command.runTermElabM fun _ ↦ do 
+    savePanelWidgetInfo (← getRef) ``HtmlReducerRendering do
+      return json% { html : $(← rpcEncode code)}
+
+#test_reducer
