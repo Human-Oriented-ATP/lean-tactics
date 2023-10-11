@@ -119,6 +119,10 @@ lean_lib LeanTactics.DynamicButtonList {
   -- add any library configuration options here
 }
 
+lean_lib LeanTactics.MotivatedProofList {
+  -- add any library configuration options here
+}
+
 section Scripts
 
 /-! A script to automatically generate top-level import files for each library. -/

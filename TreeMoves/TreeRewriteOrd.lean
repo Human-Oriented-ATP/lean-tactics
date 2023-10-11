@@ -6,7 +6,9 @@ import Mathlib.Topology.MetricSpace.Basic
 
 open Function
 
-class MonotoneClass {α : Type u} {β : Type v} [Preorder β] (f : α → β) where
+namespace Tree
+
+class MonotoneClass {α : Type u} {β : Type v} [order : Preorder β] (f : α → β) where
   anti : Bool
   order : Preorder α
   elim : if anti then @Antitone _ _ order _ f else @Monotone _ _ order _ f
@@ -32,7 +34,6 @@ instance tree_and_left_mono : MonotoneClass Tree.And := and_left_mono
 instance exists_mono {α : Type u} : MonotoneClass (@_root_.Exists α) where
   anti := false
   elim _ _ := Exists.imp
-    
 
 instance le_right_mono [Preorder α] (a : α) : MonotoneClass (a ≤ ·) where
   anti := false
@@ -80,7 +81,7 @@ instance add_right_mono {μ : β → α → α} [Preorder α] [i : CovariantClas
 instance inv_anti [OrderedCommGroup α] : MonotoneClass (fun x : α => x⁻¹) where
   anti := true
   elim _ _ := inv_le_inv'
-
+  
 @[to_additive]
 instance div_left_mono [OrderedCommGroup α] : MonotoneClass (· / · : α → α → α) where
   anti := false
@@ -97,9 +98,31 @@ instance div_right_anti [OrderedCommGroup α] {a : α} : MonotoneClass (a / · :
 --   elim _ _ h n := pow_mono_right n h
 
 
+section dvd
 
-namespace Tree
+local instance dvd_preorder [Monoid α] : Preorder α where
+  le := (· ∣ ·)
+  le_refl := dvd_refl
+  le_trans _ _ _ := dvd_trans
 
+instance dvd_right_mono [Monoid α] (a : α) : MonotoneClass (a ∣ .) where
+  anti := false
+  elim _ _ := swap dvd_trans
+
+instance dvd_left_anti [Monoid α] : MonotoneClass (α := α) (. ∣ .) where
+  anti := true
+  elim _ _ h _ := dvd_trans h
+
+
+instance mul_left_dvd_mono [CommMonoid α] (a : α) : MonotoneClass (a * ·) where
+  anti := false
+  elim _ _ := mul_dvd_mul_left a
+
+instance mul_right_dvd_mono [CommMonoid α] : MonotoneClass (α := α) (· * ·) where
+  anti := false
+  elim _ _ := mul_dvd_mul_right
+
+end dvd
 
 
 open Lean Meta
@@ -367,6 +390,11 @@ example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1]
   make_tree
   lib_apply refl [1]
+
+example : 2 ∣ 4 → 4*3 ∣ 9 → 2*3 ∣ 9 := by
+  make_tree
+  tree_rewrite_ord [0] [1,0,2,0,1,0,1]
+  tree_apply [0] [1]
 
 /-
 What should the isolate tactic do?
