@@ -32,13 +32,13 @@ def registerRefRequest (a : α) : RequestM (RequestTask Html) := do
 
 end Reducer
 
-structure HtmlReducerRenderingProps where
-  html : Html
-deriving RpcEncodable
+-- structure HtmlReducerRenderingProps where
+--   html : Html
+-- deriving RpcEncodable
 
-@[widget_module]
-def HtmlReducerRendering : Component HtmlReducerRenderingProps where
-  javascript := include_str "../build/js/reducerRendering.js"
+-- @[widget_module]
+-- def HtmlReducerRendering : Component HtmlReducerRenderingProps where
+--   javascript := include_str "../build/js/reducerRendering.js"
 
 
 section Test
