@@ -10,7 +10,6 @@ export default function HtmlDisplayPanel({pos, html} : {pos: DocumentPosition, h
   return (
     <RenderingContext.Provider value={setOutput}>
         <details open>
-        <summary className='mv2 pointer'>HTML Display</summary>
         <HtmlDisplay pos={pos} html={output} />
         </details>
     </RenderingContext.Provider> );
