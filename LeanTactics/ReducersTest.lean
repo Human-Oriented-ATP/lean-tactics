@@ -1,12 +1,13 @@
-import LeanTactics.Reducers
 import ProofWidgets.Component.HtmlDisplay
 
-open ProofWidgets Html Jsx
+open Lean ProofWidgets Server Html Jsx
 
-#check HtmlDisplay
+structure HtmlReducerRenderingProps where
+  html : Html
+deriving Server.RpcEncodable
 
-#html <LspButton label={"Test"} method={""} />
+@[widget_module]
+def HtmlReducerRendering : Component HtmlReducerRenderingProps where
+  javascript := include_str "../build/js/reducerRendering.js"
 
 #html .ofComponent HtmlReducerRendering ⟨<p> Hello World </p>⟩ #[]
-
--- #html .ofComponent HtmlReducerRendering ⟨testReducer.html testReducer.init⟩ #[]
