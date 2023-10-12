@@ -3,19 +3,6 @@ import ProofWidgets.Component.HtmlDisplay
 
 open Lean ProofWidgets Server Html Jsx Json
 
-structure HtmlReducerRenderingProps where
-  html : Html
-deriving Server.RpcEncodable
-
-@[widget_module]
-def HtmlReducerRendering : Component HtmlReducerRenderingProps where
-  javascript := include_str "../build/js/reducerRendering.js"
-
-#eval show IO _ from do
-  let (x, y) ← (testReducer.Ref.get : IO _)
-  return x
-
-
 elab "#test_reducer" : command => do
   let (σ, _) ← testReducer.Ref.get
   let code := testReducer.html σ
@@ -24,3 +11,19 @@ elab "#test_reducer" : command => do
       return json% { html : $(← rpcEncode code)}
 
 #test_reducer
+
+structure JsonProps where
+  json : Json
+
+instance : FromJson JsonProps where
+  fromJson? j := return ⟨j⟩
+
+instance : ToJson JsonProps where
+  toJson := JsonProps.json
+
+@[server_rpc_method]
+def testRpcMethod (props : JsonProps) : RequestM (RequestTask Html) := do
+  IO.FS.writeFile "./test_lsp_button.txt" "Button clicked"
+  return .pure <p>Success</p>
+
+#html <LspButton label={"Test Lsp button"} method={"xyz"} />
