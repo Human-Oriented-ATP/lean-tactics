@@ -103,7 +103,8 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM D
     do return t
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
-  let f := Array.foldl (fun t (diffs, treePos, pos, key) => t.insertCore key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
+  let f := Array.foldl (fun t (diffs, treePos, pos, key) =>
+    if key matches #[.star _] then t else t.insertCore key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
 open Mathlib.Tactic
