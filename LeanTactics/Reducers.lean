@@ -22,23 +22,23 @@ def updateRef (a : α) : IO Unit := do
   let (state, actions) ← ref.get
   ref.set (ρ.update state a, actions.push a)
 
-def getRefHtml : RequestM (RequestTask Html) := do
+def getRefHtml : IO Html := do
   let (s, _) ← ref.get
-  return .pure <| ρ.html s
+  return ρ.html s
 
 def registerRefRequest (a : α) : RequestM (RequestTask Html) := do
   ρ.updateRef ref a
-  ρ.getRefHtml ref
+  return .pure <| ← ρ.getRefHtml ref
 
 end Reducer
 
--- structure HtmlReducerRenderingProps where
---   html : Html
--- deriving RpcEncodable
+structure HtmlReducerRenderingProps where
+  html : Html
+deriving RpcEncodable
 
--- @[widget_module]
--- def HtmlReducerRendering : Component HtmlReducerRenderingProps where
---   javascript := include_str "../build/js/reducerRendering.js"
+@[widget_module]
+def HtmlReducerRendering : Component HtmlReducerRenderingProps where
+  javascript := include_str "../build/js/reducerRendering.js"
 
 
 section Test
@@ -52,20 +52,24 @@ deriving ToJson, FromJson
 def LspButton : Component LspButtonProps where
   javascript := include_str "../build/js/lspTestButton.js"
 
-structure TestParams where
+structure LspButtonParams where
   position : Lsp.Position
+  label : String
+  method : String
 deriving ToJson, FromJson
 
 open scoped Jsx in
-def testReducer : Reducer Nat TestParams where
+def testReducer : Reducer Nat LspButtonParams where
   init := 0
   update := fun n _ ↦ n + 1
   html := fun n ↦
     <LspButton label={s!"Clicked {n} times"} method={"testReducer.registerRequest"} />
 
-initialize testReducer.Ref : IO.Ref (Nat × Array TestParams) ← testReducer.mkRef
+initialize testReducer.Ref : IO.Ref (Nat × Array LspButtonParams) ← testReducer.mkRef
 
 @[server_rpc_method]
-def testReducer.registerRequest := testReducer.registerRefRequest testReducer.Ref
+def testReducer.registerRequest (a : LspButtonParams) : RequestM (RequestTask Html) := do
+  IO.FS.writeFile "./rpc_call_test.txt" (toString <| toJson a)
+  testReducer.registerRefRequest testReducer.Ref a
 
 end Test
