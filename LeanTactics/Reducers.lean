@@ -52,23 +52,17 @@ deriving ToJson, FromJson
 def LspButton : Component LspButtonProps where
   javascript := include_str "../build/js/lspTestButton.js"
 
-structure LspButtonParams where
-  position : Lsp.Position
-  label : String
-  method : String
-deriving ToJson, FromJson
-
 open scoped Jsx in
-def testReducer : Reducer Nat LspButtonParams where
+def testReducer : Reducer Nat LspButtonProps where
   init := 0
   update := fun n _ ↦ n + 1
   html := fun n ↦
     <LspButton label={s!"Clicked {n} times"} method={"testReducer.registerRequest"} />
 
-initialize testReducer.Ref : IO.Ref (Nat × Array LspButtonParams) ← testReducer.mkRef
+initialize testReducer.Ref : IO.Ref (Nat × Array LspButtonProps) ← testReducer.mkRef
 
 @[server_rpc_method]
-def testReducer.registerRequest (a : LspButtonParams) : RequestM (RequestTask Html) := do
+def testReducer.registerRequest (a : LspButtonProps) : RequestM (RequestTask Html) := do
   IO.FS.writeFile "./rpc_call_test.txt" (toString <| toJson a)
   testReducer.registerRefRequest testReducer.Ref a
 
