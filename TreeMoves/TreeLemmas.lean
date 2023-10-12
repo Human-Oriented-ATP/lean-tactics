@@ -4,6 +4,8 @@ import Mathlib.Control.Bifunctor
 
 namespace Tree
 
+@[reducible] def Not (p : Prop) := ¬ p
+
 @[reducible] def Imp (p q : Prop) := p → q
 @[reducible] def And (p q : Prop) := p ∧ q
 
@@ -13,6 +15,19 @@ namespace Tree
 @[reducible] def Instance (α : Sort u) (p : α → Prop) := (inst : α) → p inst
 
 open Lean Meta
+/- These are the constructors for the Tree nodes. -/
+def mkNot (p : Expr) : Expr := mkApp (.const ``Not []) p
+
+def mkImp (p q : Expr) : Expr := mkApp2 (.const ``Imp []) p q
+def mkAnd (p q : Expr) : Expr := mkApp2 (.const ``And []) p q
+
+def mkForall (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Forall [u]) domain (.lam name domain body .default)
+def mkExists (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Exists [u]) domain (.lam name domain body .default)
+
+def mkInstance (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
+  mkApp2 (.const ``Instance [u]) domain (.lam name domain body .default)
 
 structure TreeProof where
   newTree : Option Expr := none
@@ -22,15 +37,33 @@ deriving Inhabited
 
 section nonDependent
 
-def bindPropBinderAux (saveClosed : Bool) (p : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma save_lemma : Name) (tree : Expr) : TreeProof → TreeProof :=
+variable {old new : Prop}
+lemma not  (h : old → new) : Not new → Not old := mt h
+lemma not' (h : new → old) : Not old → Not new := mt h
+lemma closed_not  (h : ¬ old) : Not old := h
+lemma closed_not' (h :   old) : ¬ Not old := not_not_intro h
+
+def bindNot (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
   fun {newTree, proof} =>
+  match newTree with
+  | none => {
+    proof := mkApp2 (.const (if pol then ``closed_not else ``closed_not')  []) tree proof }
+
+  | some newTree => {
+    newTree := mkNot newTree
+    proof := mkApp3 (.const (if pol then ``not else ``not') []) tree newTree proof }
+
+
+
+def bindPropBinderAux (saveClosed : Bool) (p : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma save_lemma : Name) (tree : Expr) : TreeProof → TreeProof
+| {newTree, proof} =>
   match newTree with
   | none => if !keepsClosed && saveClosed
     then {
-      newTree := if isImp then (if isRev then mkApp2 (.const ``And []) tree p else mkApp2 (.const ``And []) (mkNot tree) (mkNot p)) else mkApp2 (.const ``Imp []) tree p
+      newTree := if isImp then (if isRev then mkAnd tree p else mkAnd (Lean.mkNot tree) (Lean.mkNot p)) else mkImp tree p
       proof := mkApp3 (.const save_lemma  []) p tree proof }
     else { 
-      newTree := if keepsClosed then none else (if isImp && !isRev then mkNot p else p)
+      newTree := if keepsClosed then none else (if isImp && !isRev then Lean.mkNot p else p)
       proof := mkApp3 (.const close_lemma []) p tree proof }
 
   | some newTree => {
@@ -40,8 +73,8 @@ def bindPropBinderAux (saveClosed : Bool) (p : Expr) (isImp isRev keepsClosed : 
 def bindPropBinder (saveClosed : Bool) (p : Expr) (isImp isRev : Bool) (imp_lemma imp_lemma' close_lemma close_lemma' save_lemma : Name) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
   bindPropBinderAux saveClosed p isImp isRev (isImp == pol) (ite pol imp_lemma imp_lemma') (ite pol close_lemma close_lemma') save_lemma tree
 
-def bindDepPropBinderAux (delete? : Bool) (p fvar : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma forget_lemma : Name) (nonDep : Unit → TreeProof) (tree : Expr) : TreeProof → TreeProof :=
-  fun {newTree, proof} =>
+def bindDepPropBinderAux (delete? : Bool) (p fvar : Expr) (isImp isRev keepsClosed : Bool) (imp_lemma close_lemma forget_lemma : Name) (nonDep : Unit → TreeProof) (tree : Expr) : TreeProof → TreeProof
+| {newTree, proof} =>
   let proof := proof.abstract #[fvar]
   if !proof.hasLooseBVars
   then nonDep ()
@@ -49,7 +82,7 @@ def bindDepPropBinderAux (delete? : Bool) (p fvar : Expr) (isImp isRev keepsClos
     let proof := .lam `h p proof .default
     match newTree with
     | none => {
-      newTree := if keepsClosed then none else (if isImp && !isRev then mkNot p else p),
+      newTree := if keepsClosed then none else (if isImp && !isRev then Lean.mkNot p else p),
       proof := mkApp3 (.const close_lemma []) p tree proof }
 
     | some newTree => if keepsClosed && delete?
@@ -133,13 +166,26 @@ def bindUnknown (p fvar : Expr) (pol : Bool) : Expr → TreeProof → TreeProof 
 lemma imp_make  (hp : p) (h : new → old) : Imp p new → old := fun g => h (g hp)
 lemma and_make' (hp : p) (h : old → new) : old → And p new := fun g => ⟨hp, h g⟩
 
-def bindKnown (p definition : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
-  fun {newTree, proof} => match newTree with
+def bindKnown (p definition : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof
+| {newTree, proof} => match newTree with
   | some newTree => {
     newTree := mkApp2 (.const (if pol then ``Imp else ``And) []) p newTree,
     proof := mkApp5 (.const (if pol then ``imp_make else ``and_make') []) p tree newTree definition proof }
   | none => {proof}
 
+end nonDependent
+
+
+
+
+section getHypothesis
+
+/- 
+we need to manage the hypothesis that we want to use.
+this is done by putting the hypothesis in the proof as either a hypothesis in the hypothesis or a conjuction in the conclusion.
+in particular, the proof has the form `(hyp → new) → old` or `new → (hyp ∧ old)`.
+if the newTree is `none`, then this is equivalent to it being `True`.
+-/
 
 structure TreeHyp where
   hyp : Expr
@@ -148,8 +194,8 @@ structure TreeHyp where
 deriving Inhabited
 
 
-private def bindPropBinderWithHyp (p : Expr) (isImp : Bool) (isRev : Bool) (lemma_ lemma' closed_lemma closed_lemma' : Name) (pol : Bool) (tree : Expr) : TreeHyp → TreeHyp :=
-  fun {hyp, newTree, proof} =>
+private def bindPropBinderWithHyp (p : Expr) (isImp : Bool) (isRev : Bool) (lemma_ lemma' closed_lemma closed_lemma' : Name) (pol : Bool) (tree : Expr) : TreeHyp → TreeHyp
+| {hyp, newTree, proof} =>
   match newTree with
   | none => { 
     hyp
@@ -162,10 +208,7 @@ private def bindPropBinderWithHyp (p : Expr) (isImp : Bool) (isRev : Bool) (lemm
     proof := mkApp5 (.const (if pol then lemma_ else lemma') []) p hyp tree newTree proof }
 
 
--- we need to manage the hypothesis that we want to use.
--- this is done by putting the hypothesis in the proof as either a hypothesis in the hypothesis or a conjuction in the conclusion.
-
-variable {hyp old new : Prop}
+variable {p hyp old new : Prop}
 
 lemma hyp_imp_right  (h : (hyp → new) → old) : (hyp → Imp p new) → Imp p old := fun h₁ hp => h (fun hh => h₁ hh hp)
 lemma hyp_imp_right' (h : (hyp → old) → new) : (hyp → Imp p old) → Imp p new := fun h₁ hp => h (fun hh => h₁ hh hp)
@@ -265,12 +308,12 @@ def UseHypImpRight (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId 
 
 lemma use_hyp_imp_left   (h₁ : (hyp → new) → old) (h₂ : hyp → (old' → new')) : Imp new' new → Imp old' old := fun g h₃ => h₁ (fun hh => g (h₂ hh h₃))
 lemma use_hyp_imp_left'  (h₁ : (hyp → old) → new) (h₂ : hyp → (new' → old')) : Imp old' old → Imp new' new := fun g h₃ => h₁ (fun hh => g (h₂ hh h₃))
--- lemma closed_use_hyp_imp_left   (h₁ : (hyp → new) → old) (h₂ : hyp → ¬ old') : Imp old' old         := fun h₃ => h₁ (fun hh => (h₂ hh h₃).elim)
-lemma closed_use_hyp_imp_left'  (h₁ : (hyp → old) → new) (h₂ : hyp →   old') : Imp old' old →   new := fun g  => h₁ (fun hh => g (h₂ hh))
+lemma closed_use_hyp_imp_left   (h₁ : (hyp → new) → old) (h₂ : hyp → ¬ old') : Imp old' old       := fun h₃ => h₁ (fun hh => (h₂ hh h₃).elim)
+lemma closed_use_hyp_imp_left'  (h₁ : (hyp → old) → new) (h₂ : hyp →   old') : Imp old' old → new := fun g  => h₁ (fun hh => g (h₂ hh))
 
 def UseHypImpLeft (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId → TreeProof → TreeProof :=
   UseHyp tree hyp true true pol 
-  ``use_hyp_imp_left ``use_hyp_imp_left' .anonymous .anonymous .anonymous ``closed_use_hyp_imp_left' .anonymous
+  ``use_hyp_imp_left ``use_hyp_imp_left' .anonymous .anonymous ``closed_use_hyp_imp_left ``closed_use_hyp_imp_left' .anonymous
 
 
 lemma use_hyp_and_right  (h₁ : new → (hyp ∧ old)) (h₂ : hyp → (new' → old')) : And new new' → And old old' := fun ⟨h₃, h₄⟩ => let ⟨hh, h₃⟩ := h₁ h₃; ⟨h₃, h₂ hh h₄⟩
@@ -303,7 +346,7 @@ def UseHypAndLeft (tree : Expr) (hyp : TreeHyp) (pol : Bool) : Expr → FVarId �
 
 
 
-end nonDependent
+end getHypothesis
 
 
 partial def _root_.Lean.Expr.replace1BetaAux [Monad m] [STWorld ω m] [MonadLiftT (ST ω) m] (e var subst : Expr) : MonadCacheT ExprStructEq Expr m Expr :=
@@ -360,7 +403,7 @@ def bindTypeBinderAux (name : Name) (u : Level) (domain var : Expr) (binderKind 
     if ← isProp domain then return {
         newTree := if keepsClosed
           then none
-          else (if (binderKind == .ex) then id else mkNot) domain
+          else (if (binderKind == .ex) then id else Lean.mkNot) domain
         proof := mkApp3 (.const close_prop_lemma []) domain tree proof }
 
     let cls := mkApp (.const ``Nonempty [u]) domain
@@ -370,7 +413,7 @@ def bindTypeBinderAux (name : Name) (u : Level) (domain var : Expr) (binderKind 
     return {
         newTree := if keepsClosed
           then none
-          else (if (binderKind == .ex) then id else mkNot) cls
+          else (if (binderKind == .ex) then id else Lean.mkNot) cls
         proof := mkApp3 (.const close_empty_lemma [u]) domain tree proof }
 
   | some newTree => do
@@ -568,8 +611,8 @@ lemma destroy_forall (a : α) (h : old a → new) : Forall α old → new := fun
 lemma closed_destroy_exists (a : α) (h :   old a) :   Exists α old := ⟨a, h⟩
 lemma closed_destroy_forall (a : α) (h : ¬ old a) : ¬ Forall α old := fun g => h (g a)
 
-def introMVar (mvarId : MVarId) (name : Name) (u : Level) (type assignment : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof :=
-  fun {newTree, proof} =>
+def introMVar (mvarId : MVarId) (name : Name) (u : Level) (type assignment : Expr) (pol : Bool) (tree : Expr) : TreeProof → TreeProof
+| {newTree, proof} =>
   let proof := .letE name type assignment (proof.abstract #[.mvar mvarId]) false
   match newTree with
   | none => { proof := mkApp4 (.const (if pol then ``closed_destroy_exists else ``closed_destroy_forall) [u]) type tree assignment proof }

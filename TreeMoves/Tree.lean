@@ -3,27 +3,12 @@ import TreeMoves.TreeLemmas
 namespace Tree
 
 open Lean
-/- These are the constructors for the Tree nodes. -/
-def mkForall (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
-  mkApp2 (.const ``Forall [u]) domain (.lam name domain body .default)
-def mkExists (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
-  mkApp2 (.const ``Exists [u]) domain (.lam name domain body .default)
-
-def mkInstance (name : Name) (u : Level) (domain : Expr) (body : Expr) : Expr := 
-  mkApp2 (.const ``Instance [u]) domain (.lam name domain body .default)
-
-def mkImp (p q : Expr) : Expr :=
-  mkApp2 (.const ``Imp []) p q
-def mkAnd (p q : Expr) : Expr :=
-  mkApp2 (.const ``And []) p q
 
 /- These are the match patterns for the Tree nodes -/
-@[match_pattern]
-def imp_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const ``Imp []) p q
-@[match_pattern]
-def and_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const ``And []) p q
+@[match_pattern] def not_pattern (p : Expr) : Expr := mkApp (.const ``Not []) p
+
+@[match_pattern] def imp_pattern (p q : Expr) : Expr := mkApp2 (.const ``Imp []) p q
+@[match_pattern] def and_pattern (p q : Expr) : Expr := mkApp2 (.const ``And []) p q
 
 @[match_pattern]
 def forall_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
@@ -36,30 +21,21 @@ def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
 def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
   mkApp2 (.const ``Instance [u]) cls' (.lam name cls body bi)
 
-/- These are match patterns for some regular Lean combinators -/
-@[match_pattern]
-def regular_and_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const `And []) p q
+/- These are match patterns for some regular Lean logical combinators -/
+@[match_pattern] def regular_not_pattern (p : Expr) : Expr :=        mkApp  (.const `Not []) p
+@[match_pattern] def regular_and_pattern (p q : Expr) : Expr :=      mkApp2 (.const `And []) p q
+@[match_pattern] def regular_iff_pattern (p q : Expr) : Expr :=      mkApp2 (.const `Iff []) p q
+@[match_pattern] def eq_pattern (u : Level) (α p q : Expr) : Expr := mkApp3 (.const `Eq [u]) α p q
+@[match_pattern] def regular_or_pattern (p q : Expr) : Expr :=       mkApp2 (.const `Or  []) p q
 @[match_pattern]
 def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
   mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
-@[match_pattern]
-def regular_iff_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const `Iff []) p q
-@[match_pattern]
-def eq_pattern (u : Level) (α p q : Expr) : Expr :=
-  mkApp3 (.const `Eq [u]) α p q
-@[match_pattern]
-def regular_or_pattern (p q : Expr) : Expr :=
-  mkApp2 (.const `Or []) p q
-@[match_pattern]
-def regular_not_pattern (p : Expr) : Expr :=
-  .app (.const `Not []) p
 
 /-- Return True if the expression starts with a Tree node. -/
 def isTree : Expr → Bool
 | imp_pattern ..
 | and_pattern ..
+| not_pattern ..
 | forall_pattern ..
 | exists_pattern ..
 | instance_pattern .. => true
@@ -75,13 +51,13 @@ def badTreePosMessage (e : Expr) (pos : TreePos) : MessageData := m! "could not 
 structure DirectTreeRecursor (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
   ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
+  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → α → α
 
   imp_right (p : Expr) : Bool → Expr → α → α
   and_right (p : Expr) : Bool → Expr → α → α
   imp_left  (p : Expr) : Bool → Expr → α → α
   and_left  (p : Expr) : Bool → Expr → α → α
-
-  inst (n : Name) (u : Level) (cls : Expr) : Bool → Expr → α → α
+  not : Bool → Expr → α → α 
 
 def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor (m α)) (pol : Bool) (tree : Expr) (pos : TreePos)
   (k : Bool → Expr → m α) : m α :=
@@ -108,6 +84,7 @@ def emptyRecursor : DirectTreeRecursor α where
     imp_right _ _ _ k := k
     and_left  _ _ _ k := k
     and_right _ _ _ k := k
+    not _ _ k := k
 
 def getPolarity [Monad m] [MonadError m] (tree : Expr) (pos : TreePos) : m Bool :=
   emptyRecursor.recurse true tree pos (fun pol _ => return pol)
@@ -126,7 +103,7 @@ structure TreeRecursor (m : Type u → Type v) (α : Type u) where
   and_right (p : Expr) : Bool → Expr → m α → OptionT m α
   imp_left  (p : Expr) : Bool → Expr → m α → OptionT m α
   and_left  (p : Expr) : Bool → Expr → m α → OptionT m α
-
+  not : Bool → Expr → m α → OptionT m α
 
 
 partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool) (tree : Expr) (pos : TreePos)
@@ -137,10 +114,11 @@ partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : Tr
     | 1::xs, forall_pattern   n u α b => k? do r.all  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
     | 1::xs, exists_pattern   n u α b => k? do r.ex   n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
     | 1::xs, instance_pattern n u α b => k? do r.inst n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
-    | 1::xs, imp_pattern p tree     => k? do r.imp_right p pol tree (visit   pol  xs tree)
-    | 1::xs, and_pattern p tree     => k? do r.and_right p pol tree (visit   pol  xs tree)
-    | 0::xs, imp_pattern tree p     => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
-    | 0::xs, and_pattern tree p     => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | 1::xs, imp_pattern p tree       => k? do r.imp_right p pol tree (visit   pol  xs tree)
+    | 1::xs, and_pattern p tree       => k? do r.and_right p pol tree (visit   pol  xs tree)
+    | 0::xs, imp_pattern tree p       => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
+    | 0::xs, and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | 1::xs, not_pattern tree         => k? do r.not         pol tree (visit (!pol) xs tree)
     | [], e => k pol e []
     | xs, e => throwError badTreePosMessage e xs
   visit pol pos tree
@@ -169,6 +147,7 @@ partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM �
     | 1::xs, regular_and_pattern p tree       => k? do r.and_right p pol tree (visit   pol  xs tree)
     | 0::xs, imp_pattern tree p               => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
     | 0::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
+    | 1::xs, regular_not_pattern tree         => k? do r.not         pol tree (visit (!pol) xs tree)
     | [], e => k pol e []    
     | xs, e => throwError badTreePosMessage e xs
   visit pol path tree
@@ -274,10 +253,12 @@ def makeTreePathRec : TreeRecursor MetaM Expr where
   all n u α _ _ k := withLocalDeclD n α fun fvar => return mkForall n u α ((← k fvar).abstract #[fvar])
   ex  n u α _ _ k := withLocalDeclD n α fun fvar => return mkExists n u α ((← k fvar).abstract #[fvar])
   inst n u α _ _ k := withLocalDeclD n α fun fvar => return mkInstance n u α ((← k fvar).abstract #[fvar])
+
   imp_right p _ _ k := return mkImp p (← k)
   and_right p _ _ k := return mkAnd p (← k)
   imp_left  p _ _ k := return mkImp (← k) p
   and_left  p _ _ k := return mkAnd (← k) p
+  not _ _ k         := return mkNot (← k)
 
 def makeTreePath (pos : TreePos) (tree : Expr) : MetaM Expr :=
   makeTreePathRec.recurseNonTree true tree pos (fun _ leaf _ => pure leaf)
@@ -288,6 +269,7 @@ def MetaTreeRec : TreeRecursor MetaM α where
   imp_left  _ _ _ k := do k
   and_right _ _ _ k := do k
   and_left  _ _ _ k := do k
+  not         _ _ k := do k
 
   all  n _ d pol _ k := (if  pol then introFVar else introMVar) n d k
   ex   n _ d pol _ k := (if !pol then introFVar else introMVar) n d k
@@ -332,6 +314,7 @@ def TreeProofRec [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] (saveClo
   imp_left  := introProp bindImpLeft
   and_right := introProp bindAndRight
   and_left  := introProp bindAndLeft
+  not pol tree k := bindNot pol tree <$> k
 
   all  := introFree bindForall
   ex   := introFree bindExists

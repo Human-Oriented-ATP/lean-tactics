@@ -1,7 +1,5 @@
 import LeanTactics.MotivatedProofPanel
-import TreeMoves.TreeRewrite
 import TreeMoves.TreeMoves
-import Skolem
 
 /-!
 
@@ -241,27 +239,27 @@ def libApply : InfoviewAction := fun props ↦ do
     <DynamicEditButton 
         label={"Apply a library result"} 
         html?={<details «open»={true}>
-        <summary className="mv2 pointer">{.text "Ordered rewrite options"}</summary>
+        <summary className="mv2 pointer">{.text "Apply options"}</summary>
               <DynamicEditButton
-                    label = "Delete closed subgoals"
+                    label = "Delete the closed goal"
                     range? = {props.range}
                     html? = {html_delete}
                     color = {"secondary"} />
                     <DynamicEditButton
-                    label = "Preserve closed subgoals as hypotheses"
+                    label = "Preserve the closed goal as a hypothesis"
                     range? = {props.range}
                     html? = {html_keep}
                     color = {"secondary"} />
                     </details>} />
 
-@[motivated_proof_move]
-def libApplyKeepingTarget : InfoviewAction := fun props ↦ do
-  let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
-  let libSuggestions ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
-  pure
-    <DynamicEditButton 
-        label={"Apply a library result keeping the conclusion in the context"} 
-        html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
+-- @[motivated_proof_move]
+-- def libApplyKeepingTarget : InfoviewAction := fun props ↦ do
+--   let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
+--   let libSuggestions ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
+--   pure
+--     <DynamicEditButton 
+--         label={"Apply a library result keeping the conclusion in the context"} 
+--         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
 
 --TODO check if selected expression starts with `¬`
 @[motivated_proof_move]
