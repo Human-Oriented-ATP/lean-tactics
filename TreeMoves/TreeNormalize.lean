@@ -101,14 +101,7 @@ example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
   make_tree
   tree_simp [1,1,0]
 
-variable {p q : Prop}
-lemma not_imp : ¬ Imp p q ↔ And p ¬ q := _root_.not_imp
-lemma not_and : ¬ And p q ↔ Imp p ¬ q := _root_.not_and
-variable {α : Sort u} {p : α → Prop}
-lemma not_forall : ¬ Forall α (fun a => p a) ↔ Exists α (fun a => ¬ p a) := _root_.not_forall
-lemma not_exists : ¬ Exists α (fun a => p a) ↔ Forall α (fun a => ¬ p a) := _root_.not_exists
-
-
+-- since the tree binders are reducible, we can use lemma's about regular binders
 @[inline] def pushNegLemmas : List Name := [``not_imp, ``not_and, ``not_forall, ``not_exists, ``not_not, ``not_true, ``not_false_iff, ``not_le, ``not_lt]
 
 def pushNegContext : MetaM Simp.Context :=
