@@ -239,7 +239,7 @@ def libApply : InfoviewAction := fun props ↦ do
     <DynamicEditButton 
         label={"Apply a library result"} 
         html?={<details «open»={true}>
-        <summary className="mv2 pointer">{.text "Apply options"}</summary>
+        <summary className="mv2 pointer">{.text "Library apply options"}</summary>
               <DynamicEditButton
                     label = "Delete the closed goal"
                     range? = {props.range}
@@ -251,15 +251,6 @@ def libApply : InfoviewAction := fun props ↦ do
                     html? = {html_keep}
                     color = {"secondary"} />
                     </details>} />
-
--- @[motivated_proof_move]
--- def libApplyKeepingTarget : InfoviewAction := fun props ↦ do
---   let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
---   let libSuggestions ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
---   pure
---     <DynamicEditButton 
---         label={"Apply a library result keeping the conclusion in the context"} 
---         html?={← renderLibrarySearchResults props.range "Library apply results" libSuggestions} />
 
 --TODO check if selected expression starts with `¬`
 @[motivated_proof_move]
@@ -393,8 +384,7 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
 
-
-lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
+lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
 motivated_proof
 lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
 lib_rewrite Imp.swap [1, 1, 1, 1]
@@ -404,15 +394,74 @@ lib_rewrite [1, 1, 1, 2, 1] Nat.not_dvd_iff_between_consec_multiples [1, 1, 1, 1
 tree_name pk [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
 lib_rewrite [1, 1, 2, 1] Nat.succ_le_iff [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 lib_apply  [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] 
-tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
-lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
--- some glue needed to make the two the same 
+lib_apply * [1] Nat.succ_succ_ne_one [1, 1, 0, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.succ_inj' [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+tree_rewrite' [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
+lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_rewrite [1, 1, 1, 1, 1, 1, 2, 0, 1] mul_add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply * [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+tree_apply' [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply * [1, 1] Nat.Prime.pos [1, 1, 1, 1, 1, 1, 0, 2]
+tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 0, 2]
+tree_induction []
+tree_simp [0, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
+tree_induction [1, 1, 1, 1, 1]
+tree_rewrite [1, 1, 1, 1, 1, 0, 0, 2, 1] [1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
+tree_simp [1, 0, 1, 0, 2]
+tree_rewrite_ord [1, 0, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+tree_apply [1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 2]
+tree_simp []
+lib_rewrite [1, 1, 1, 1, 1, 1, 2, 1] lcm_dvd_iff [1, 1, 1]
+tree_name m [1, 1, 1, 2, 1]
+lib_apply * [1, 1, 1, 1, 1] Eq.dvd [1, 1, 1, 1, 1, 2]
+tree_rewrite [1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 2, 1]
+lib_rewrite [1, 1, 1, 1, 2, 1] Nat.sub_eq_iff_eq_add [1, 1, 1, 2]
+lib_apply refl [1, 1, 1, 1, 2]
+lib_rewrite [1, 2, 0, 1] Nat.one_le_iff_ne_zero [1, 1, 2]
+tree_simp []
+-- `¬n = 0`
 sorry
 
 
+lemma Infinitude_of_PrimesPos : ∀ n > 0, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
+motivated_proof
+lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 1, 2]
+lib_rewrite Imp.swap [1, 1, 1, 1, 1]
+lib_rewrite_rev contrapose [1, 1, 1, 1, 1, 1]
+lib_rewrite [1, 1, 2, 0, 1] Nat.not_le [1, 1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 2, 1] Nat.not_dvd_iff_between_consec_multiples [1, 1, 1, 1, 1, 1, 1, 2]
+tree_name m [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+lib_rewrite [1, 1, 2, 1] Nat.succ_le_iff [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply * [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+lib_apply * [1] Nat.succ_succ_ne_one [1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.succ_inj' [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
+tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
+tree_rewrite' [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
+lib_rewrite [1, 1, 1, 1, 1, 1, 2, 0, 1] mul_add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
+lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply * [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+tree_apply' [1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+lib_apply * [1, 1] Nat.Prime.pos [1, 1, 1, 1, 1, 1, 1, 0, 2]
+tree_apply [1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 0, 2]
+tree_induction []
+tree_simp [0, 0, 2]
+lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 1, 0, 2]
+lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 1, 0, 2]
+tree_induction [1, 1, 1, 1, 1, 1]
+tree_rewrite [1, 1, 1, 1, 1, 1, 0, 0, 2, 1] [1, 1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
+sorry
+
 --in the new version I re-add the fact that p is prime, and I instantiate `n_1` as a successor.
-lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 1 ∧ 
+lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 0 ∧ 
 ∀ p : ℕ,
 Nat.Prime p → 
 p < n → 
@@ -431,7 +480,6 @@ tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 2]
 tree_induction []
 tree_simp [0, 1, 1, 1, 0, 2]
-lib_apply [] Nat.zero_ne_one [0, 1, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
 lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
 lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
