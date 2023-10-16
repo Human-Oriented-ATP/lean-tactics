@@ -5,6 +5,12 @@ open scoped Jsx Json
 
 open Command
 
+@[widget_module]
+def HtmlView : Component HtmlDisplayProps where
+  javascript := include_str "../build/js/htmlView.js"
+
+#html <HtmlView html={<p> Testing </p>} />
+
 -- #eval show IO String from do
 --   let stdin ← IO.getStdin
 --   let stdout ← IO.getStdout
@@ -23,7 +29,11 @@ open Command
 elab "#test_lsp" : command => do
   unless (← lspFile.pathExists) do
     IO.FS.writeFile lspFile ""
-  -- withFile lspFile .read fun file ↦ do
-  let _ ← renderHtml <LspButton label={"Test"} />
+  withFile "./lsp-out.txt" .append fun outFile ↦ do
+  withFile lspFile .read fun file ↦ do
+    savePanelWidgetInfo' (← getRef) ``HtmlDisplay <| do
+      return json% { html : $(← rpcEncode <LspButton label={s!"Test"} />) }
+    let contents ← file.getLine
+    outFile.putStrLn contents
 
 #test_lsp
