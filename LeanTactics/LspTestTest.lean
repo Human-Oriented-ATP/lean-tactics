@@ -11,6 +11,25 @@ def HtmlView : Component HtmlDisplayProps where
 
 #html <HtmlView html={<p> Testing </p>} />
 
+structure NoProps where
+  deriving RpcEncodable
+
+@[widget_module]
+def StaticRenderingTest : Component NoProps where
+  javascript := "
+import * as React from 'react'
+import ReactDOMServer from 'react-dom/server'
+import { DocumentPosition } from '@leanprover/infoview'
+
+export default function(props) {
+    return React.createElement('p', ReactDOMServer.renderToStaticMarkup(
+        React.createElement('span', 'Testing static mark-up rendering')))
+}
+  "
+
+#html <StaticRenderingTest /> 
+
+
 -- #eval show IO String from do
 --   let stdin ← IO.getStdin
 --   let stdout ← IO.getStdout
