@@ -9,6 +9,7 @@ deriving ToJson, FromJson
 
 @[server_rpc_method]
 def testRpcMethod (props : TestProps) : RequestM (RequestTask Nat) := do
+  IO.sleep 1000
   return .pure (props.n + 10)
 
 @[widget_module]
