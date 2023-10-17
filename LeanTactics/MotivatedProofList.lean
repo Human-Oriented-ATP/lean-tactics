@@ -1,7 +1,5 @@
 import LeanTactics.MotivatedProofPanel
-import TreeMoves.TreeRewrite
 import TreeMoves.TreeMoves
-import Skolem
 
 /-!
 
@@ -243,12 +241,12 @@ def libApply : InfoviewAction := fun props ↦ do
         html?={<details «open»={true}>
         <summary className="mv2 pointer">{.text "Library apply options"}</summary>
               <DynamicEditButton
-                    label = "Delete closed subgoals"
+                    label = "Delete the closed goal"
                     range? = {props.range}
                     html? = {html_delete}
                     color = {"secondary"} />
                     <DynamicEditButton
-                    label = "Preserve closed subgoals as hypotheses"
+                    label = "Preserve the closed goal as a hypothesis"
                     range? = {props.range}
                     html? = {html_keep}
                     color = {"secondary"} />
@@ -385,7 +383,7 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1, 0, 1]
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
-
+#exit
 lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
 motivated_proof
 lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]

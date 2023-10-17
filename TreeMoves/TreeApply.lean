@@ -251,7 +251,8 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
     }) do
     k
     
-  imp_left _p _pol _tree _k := failure
+  imp_left _ _ _ _ := failure
+  not _ _ _ := failure
 
 where
   addBinder (hypBinder : HypBinder) : MetaM' Unit := do
@@ -271,9 +272,10 @@ def _root_.unfoldHypothesis [Monad m] [MonadControlT MetaM m] [MonadNameGenerato
 
 
 def getHypothesisRec (wantedPol : Bool) : TreeRecursor CoreM (TreeHyp × Expr × TreePos) where
-  all _ _ _ _ _ _ := failure
-  ex  _ _ _ _ _ _ := failure
+  all _ _ _ _ _ _   := failure
+  ex _ _ _ _ _ _    := failure
   inst _ _ _ _ _ _  := failure
+  not _ _ _         := failure
   imp_right p pol tree k := do if wantedPol == pol then failure else return Bifunctor.fst (ImpRightWithHyp p pol tree) (← k)
   imp_left  p pol tree k := do if wantedPol == pol then failure else return Bifunctor.fst (ImpLeftWithHyp  p pol tree) (← k)
   and_right p pol tree k := do if wantedPol != pol then failure else return Bifunctor.fst (AndRightWithHyp p pol tree) (← k)
@@ -313,6 +315,7 @@ def TreeRecMeta (hypInScope saveClosed : Bool) : TreeRecursor M TreeProof where
   imp_left  := introProp true  true  bindImpLeft
   and_right := introProp false false bindAndRight
   and_left  := introProp false true  bindAndLeft
+  not pol tree k := Functor.map (f := M) some <| withReader (Functor.map (· ∘ bindNot pol tree)) k
 
   all name u domain pol :=
     if pol
@@ -410,7 +413,7 @@ partial def applyBound (hypTreePos goalTreePos : TreePos) (hypPos goalPos : Pos)
       | imp_pattern goal p, 1::hypTreePos, 0::goalTreePos => do pure (p, goal, goalTreePos, !pol, UseHypImpLeft , ← getHypothesis delete? (!pol)  pol   p hypTreePos)
       | and_pattern p goal, 0::hypTreePos, 1::goalTreePos => do pure (p, goal, goalTreePos,  pol, UseHypAndRight, ← getHypothesis delete?   pol   pol   p hypTreePos)
       | and_pattern goal p, 1::hypTreePos, 0::goalTreePos => do pure (p, goal, goalTreePos,  pol, UseHypAndLeft , ← getHypothesis delete?   pol   pol   p hypTreePos)
-      | _, _, _ => throwError m!"cannot have hypothesis at {hypTreePos} and goal at {goalTreePos} in {tree}"
+      | _, _, _ => throwError m! "cannot have hypothesis at {hypTreePos} and goal at {goalTreePos} in {tree}"
 
       withLocalDeclD `hyp hyp fun fvar => do
       let fvarId := fvar.fvarId!
@@ -445,7 +448,7 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
     for mvar in mvars do
       let mvarId := mvar.mvarId!
       unless ← isDefEq mvar (← synthInstance (← mvarId.getType)) do
-        throwError m!"failed to assign synthesized instance of class {indentExpr (← mvarId.getType)} to {indentExpr mvar}"
+        throwError m! "failed to assign synthesized instance of class {indentExpr (← mvarId.getType)} to {indentExpr mvar}"
   else do
     for mvar in mvars do
       let mvarId := mvar.mvarId!
@@ -454,13 +457,13 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
 
 def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypTreePos : TreePos) (hypPos goalPos : Pos) : MetaM' TreeProof := do
   unless hypPos == [] do    
-    throwError m!"cannot apply a subexpression: position {hypPos} in {hyp}"
+    throwError m! "cannot apply a subexpression: position {hypPos} in {hyp}"
   unless goalPos == [] do
-    throwError m!"cannot apply in a subexpression: position {goalPos} in {goal}"
-  match hypTreePos with
-  | [] =>
+    throwError m! "cannot apply in a subexpression: position {goalPos} in {goal}"
+  match hypTreePos, hyp with
+  | [], _ =>
     unless pol do
-      throwError m!"cannot apply in negative position"
+      throwError m! "cannot apply in negative position"
     let {metaIntro, instMetaIntro, hypProofM} := hypContext
     _ ← metaIntro
     let instMVars ← instMetaIntro
@@ -470,12 +473,11 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
       let (_hyp, proof) ← hypProofM
       return {proof}
     else 
-      throwError m!"couldn't unify hypothesis {hyp} with target {goal}"
+      throwError m! "couldn't unify hypothesis {hyp} with target {goal}"
 
-  | [0] =>
-    let imp_pattern cond _ := hyp | throwError "cannot apply a subexpression: subtree {hypTreePos} in {hyp}"
+  | [0], imp_pattern cond _ =>
     if pol then
-      throwError m!"cannot apply a hypothesis of a hypothesis in positive position"
+      throwError m! "cannot apply a hypothesis of a hypothesis in positive position"
     let {metaIntro, instMetaIntro, hypProofM} := hypContext
     _ ← metaIntro
     let instMVars ← instMetaIntro
@@ -485,8 +487,20 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
       let imp_pattern _ newTree := hyp | panic! "imp_left didn't give imp_pattern"
       return {proof, newTree}
     else
-      throwError m!"couldn't unify condition {cond} with target {goal}"
-  | _ => throwError "cannot apply a subexpression: subtree {hypTreePos} in {hyp}"
+      throwError m! "couldn't unify condition {cond} with target {goal}"
+  | [1], not_pattern p =>
+      if pol then
+        throwError m! "cannot apply a negative in positive position"
+      let {metaIntro, instMetaIntro, hypProofM} := hypContext
+      _ ← metaIntro
+      let instMVars ←instMetaIntro
+      if ← isDefEq goal p then
+        synthMetaInstances instMVars
+        let (_, proof) ← hypProofM
+        return {proof}
+      else
+        throwError m! "couldn't unify negative {p} with target {goal}"
+  | _, _ => throwError "cannot apply a subexpression: subtree {hypTreePos} in {hyp}"
 
 def getApplyPos (pos? : Option (TreePos × Pos)) (hyp : Expr) (goalPol : MetaM Bool) : MetaM (Expr × TreePos × Pos) := do
   let hypTree ← makeTree hyp
@@ -666,6 +680,28 @@ example [Preorder α] (a b : α) : a < b → a ≤ b := by
   make_tree
   lib_intro le_of_lt
   tree_apply [0,1,1,1,1] [1]
+
+example : p → ¬ p → q := by
+  make_tree
+  tree_apply [1,0,1] [0]
+
+example : ¬ p → p → q := by
+  make_tree
+  tree_apply [1,0] [0,1]
+
+example : p → ¬ p → q := by
+  make_tree
+  tree_apply [0] [1,0,1]
+
+example : ¬ p → p → q := by
+  make_tree
+  tree_apply [0,1] [1,0]
+
+example : (p → False) → ¬ p := by
+  make_tree
+  tree_apply [0,0] [1,1]
+  simp
+
 
 /-
 I was wondering what the exact way should be in which quantifiers are handled by the tree apply/rewrite moves.
