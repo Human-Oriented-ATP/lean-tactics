@@ -6,8 +6,8 @@
 3. `git clone` this repository.
 4. Open the folder of this repository and run the following commands (as described [here](https://github.com/leanprover-community/mathlib4/wiki/Using-mathlib4-as-a-dependency)):
 	```
-	lake update
 	curl -L https://raw.githubusercontent.com/leanprover-community/mathlib4/master/lean-toolchain -o lean-toolchain
+	lake update
 	lake exe cache get
 	```
 	This will download Mathlib4 including its cache files which you will then find in the folder `lake-packages`.
