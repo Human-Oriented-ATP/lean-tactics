@@ -9,7 +9,7 @@ require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
 
 @[default_target]
-lean_lib LeanTactics {
+lean_lib Interface {
 }
 
 lean_lib TreeMoves {
@@ -189,8 +189,8 @@ target widgetJsAllDev (pkg : NPackage _package.name) : Array FilePath := do
 
 @[default_target]
 target all (pkg : NPackage _package.name) : Unit := do
-  let some lib := pkg.findLeanLib? ``LeanTactics |
-    error "Cannot find lean_lib target {LeanTactics}."
+  let some lib := pkg.findLeanLib? ``Interface |
+    error "Cannot find lean_lib target {Interface}."
   let job₁ ← fetch (pkg.target ``widgetJsAll)
   let _ ← job₁.await
   let job₂ ← lib.recBuildLean

@@ -1,5 +1,5 @@
-import LeanTactics.MotivatedProofPanel
-import TreeMoves.TreeRewrite
+import Interface.MotivatedProofPanel
+import Interface.DisplayTree
 import TreeMoves.TreeMoves
 import Skolem
 

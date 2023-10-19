@@ -6,6 +6,7 @@ open Lean Elab Tactic
 -- library search is different because we have two scenarios
 -- automatic: try first n results
 -- interactive: choose result
+-- And we always have a lot of potential selections...
 
 -- How to deal with multiple subgoals? → currently: Not accepted, everything stays in one expression
 
