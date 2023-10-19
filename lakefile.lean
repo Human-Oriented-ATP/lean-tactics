@@ -11,116 +11,13 @@ require mathlib from git
 require Paperproof from git "https://github.com/Paper-Proof/paperproof.git"@"main"/"lean"
 
 @[default_target]
-lean_lib «LeanTactics» {
-  -- add any library configuration options here
+lean_lib LeanTactics {
 }
 
-lean_lib Tidying {
-  -- add any library configuration options here
+lean_lib TreeMoves {
 }
 
-lean_lib Skolem {
-  -- add any library configuration options here
-}
-
-lean_lib Implementations {
-  -- add any library configuration options here
-}
-
-lean_lib RewriteExperiments {
-  -- add any library configuration options here
-}
-
-lean_lib RewriteOrd {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeLemmas {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.Tree {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.PrintTree {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.DiscrTreeTypes {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.DiscrTree {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.LibrarySearch {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeApply {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeRewrite {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeRewriteDef {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeRewriteOrd {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeInduction {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeNormalize {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeSearch {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeNaming {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeMoves {
-  -- add any library configuration options here
-}
-
-lean_lib TreeMoves.TreeExamples {
-  -- add any library configuration options here
-}
-
-lean_lib InfoDisplayTactics {
-  -- add any library configuration options here
-}
-
-lean_lib MotivatedProofInterface {
-  -- add any library configuration options here
-}
-
-lean_lib EditLinkInsertion {
-  -- add any library configuration options here
-}
-
-lean_lib DynamicButton {
-  -- add any library configuration options here
-}
-
-lean_lib LeanTactics.DynamicButtonList {
-  -- add any library configuration options here
-}
-
-lean_lib LeanTactics.MotivatedProofList {
-  -- add any library configuration options here
+lean_lib BFS {
 }
 
 section Scripts

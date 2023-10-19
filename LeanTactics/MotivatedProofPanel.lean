@@ -277,5 +277,3 @@ def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
       |         _          => return #[]
 
 end MotivatedProofMode
-
-#check Nat.ne_zero_of_succ
