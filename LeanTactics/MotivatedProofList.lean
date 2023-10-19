@@ -1,6 +1,6 @@
 import LeanTactics.MotivatedProofPanel
-import TreeMoves.TreeRewrite
 import TreeMoves.TreeMoves
+import TreeMoves.PrintTree
 import Skolem
 
 /-!
@@ -462,35 +462,3 @@ tree_induction [1, 1, 1, 1, 1, 1]
 tree_rewrite [1, 1, 1, 1, 1, 1, 0, 0, 2, 1] [1, 1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
 sorry
 
---in the new version I re-add the fact that p is prime, and I instantiate `n_1` as a successor.
-lemma primes_continued : ∀ n : ℕ, ∃ n_1 : ℕ, n_1 ≠ 0 ∧ 
-∀ p : ℕ,
-Nat.Prime p → 
-p < n → 
-∃ k : ℕ, ∀ pk : ℕ,
-p * k = pk → pk = n_1 ∧ 
-n_1.succ < p * (k + 1) := by
-motivated_proof
-tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
-tree_rewrite [1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1, 1]
-lib_rewrite [1, 1, 1, 2, 0, 1] Nat.mul_add [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
-lib_rewrite [1, 2, 1] Nat.add_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-lib_rewrite [1, 1, 1, 2, 0, 1] Nat.add_lt_add_iff_left [1, 1, 1, 1, 1, 1, 1, 1, 2]
-lib_rewrite [1, 2, 0, 1] Nat.mul_one [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
-lib_apply [1, 1] Nat.Prime.one_lt [1, 1, 1, 1, 1, 1, 1, 1, 2]
-tree_apply [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 2]
-lib_rewrite [1, 1, 2, 0, 1] Nat.mul_div_eq_iff_dvd [1, 1, 1, 1, 1, 1, 2]
-tree_induction []
-tree_simp [0, 1, 1, 1, 0, 2]
-lib_rewrite [1, 1, 2, 0, 1] Nat.lt_add_one_iff [1, 1, 1, 1, 1, 0, 2]
-lib_rewrite [1, 1, 2, 1] Nat.not_lt [1, 1, 1, 1, 1, 0, 2]
-lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 0, 2]
-tree_induction [1, 1, 1, 1, 1]
-tree_rewrite_ord [1, 0, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1, 1, 2, 0, 1]
-tree_apply [1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
-lib_apply [1, 1, 1, 0] Eq.symm [1, 1, 1, 1, 1, 1, 0, 0, 2]
-tree_rewrite [1, 1, 1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
-lib_rewrite [1, 1, 1, 1, 1, 1, 2, 1] lcm_dvd_iff [1, 1, 1, 1, 1]
-lib_apply refl [1, 1, 1, 1, 1, 2]
-tree_simp []
-tree_apply [1, 1, 0, 2] [1, 1, 1, 1, 2]
