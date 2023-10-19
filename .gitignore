@@ -4,3 +4,4 @@ lake-packages/*
 !build/js/*.js
 /widget/dist
 /widget/node_modules
+*.olean
