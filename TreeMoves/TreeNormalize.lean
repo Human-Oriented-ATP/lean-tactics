@@ -21,7 +21,7 @@ def normalize (norm : Expr → MetaM (Expr × Expr)) (fvars : Array Expr) (lhs :
   return (motive_core, rhs, proof, type)
 
 
-private def NormalizeRecursion (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : Pos) : MetaM RewriteInfo :=
+private def NormalizeRec (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : Pos) : MetaM RewriteInfo :=
   
   let rec visit (fvars : Array Expr) : Pos → Expr → MetaM RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
@@ -59,26 +59,27 @@ private def NormalizeRecursion (norm : Expr → MetaM (Expr × Expr)) (target : 
 
 
 
-def simpMoveAux (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (target : Expr) : MetaM (Expr × Expr) := do
-  let (r, _) ← simp target ctx discharge? {}
+def simpMoveAux (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (e : Expr) : MetaM (Expr × Expr) := do
+  let (r, _) ← simp e ctx discharge? {}
   match r.proof? with
   | some proof => return (r.expr, proof)
-  | none => throwError m! "could not simplify {target}"
+  | none => return (e, ← mkEqRefl e) --throwError m! "could not simplify {e}"
 
-def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge) (treePos : TreePos) (pos : Pos) : TacticM Unit :=
-  workOnTreeAt treePos fun pol tree => do
-    let (motive_core, rhs, proof, type) ← NormalizeRecursion (simpMoveAux ctx discharge?) tree pos
-    let motive := Expr.lam `_a type motive_core .default
-    let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
-    if pos == [] then
-      let rhsIsConstOf := (Expr.consumeMData rhs).isConstOf
-      if pol
-      then if rhsIsConstOf ``True then
-        return { proof := mkApp proof (.const ``True.intro [])}
-      else if rhsIsConstOf `False then
-        return { proof }
-    
-    return { newTree := rhs, proof }
+def simpMove (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (pos : Pos) (pol : Bool) (e : Expr) : MetaM TreeProof := do
+  let (motive_core, rhs, proof, type) ← NormalizeRec (simpMoveAux ctx discharge?) e pos
+  let motive := Expr.lam `_a type motive_core .default
+  let proof ← mkAppM (if pol then ``substitute else ``substitute') #[motive, proof]
+  if pos == [] then
+    let rhsIsConstOf := (Expr.consumeMData rhs).isConstOf
+    if pol
+    then if rhsIsConstOf ``True then
+      return { proof := mkApp proof (.const ``True.intro [])}
+    else if rhsIsConstOf `False then
+      return { proof }
+  return { newTree := rhs, proof }
+
+def simpMoveAt (ctx : Simp.Context) (discharge? : Option Simp.Discharge) (treePos : TreePos) (pos : Pos) : TacticM Unit :=
+  workOnTreeAt treePos (simpMove ctx discharge? pos)
 
 def getSimpContext : MetaM Simp.Context := do
   let mut simpTheorems : SimpTheoremsArray := #[← getSimpTheorems]
@@ -88,7 +89,7 @@ def getSimpContext : MetaM Simp.Context := do
   return { simpTheorems }
 
 def defaultSimpMove (treePos : TreePos) (pos : Pos) : TacticM Unit :=
-  do simpMove (← getSimpContext) none treePos pos
+  do simpMoveAt (← getSimpContext) none treePos pos
 
 
 
@@ -109,4 +110,4 @@ def pushNegContext : MetaM Simp.Context :=
 
 elab "tree_push_neg" goalPos:treePos : tactic => do
   let (goalTreePos, goalPos) := getSplitPosition goalPos
-  simpMove (← pushNegContext) none goalTreePos goalPos
+  simpMoveAt (← pushNegContext) none goalTreePos goalPos

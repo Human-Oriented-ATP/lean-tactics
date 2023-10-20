@@ -34,6 +34,27 @@ structure TreeProof where
   proof : Expr
 deriving Inhabited
 
+-- def ProofStep := Expr → MetaM TreeProof
+
+/- given a TreeProof, and a proof step, construct the TreeProof obtained by applying
+the proof step. -/
+def TreeProof.map (step : Expr → MetaM TreeProof) (pol : Bool) (tree0 : Expr) (proof : TreeProof) : MetaM TreeProof := do
+  let {proof := proof1, newTree := some tree1} := proof | return proof
+  let {proof := proof2, newTree := tree2} ← step tree1
+  match tree2 with
+  | none => return { 
+    proof := if pol
+      then mkApp proof1 proof2 
+      else .lam `h tree0 (mkApp proof2 (mkApp proof1 (.bvar 0))) .default }
+  | some tree2 => return {
+    newTree := tree2
+    proof := if pol
+      then .lam `h tree2 (mkApp proof1 (mkApp proof2 (.bvar 0))) .default 
+      else .lam `h tree0 (mkApp proof2 (mkApp proof1 (.bvar 0))) .default }
+
+/- compose two proof steps.-/
+def ComposeMoves (step1 step2 : Expr → MetaM TreeProof) (pol : Bool) : Expr → MetaM TreeProof :=
+  fun tree => do (← step1 tree).map step2 pol tree
 
 section nonDependent
 

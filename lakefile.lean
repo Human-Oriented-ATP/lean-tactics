@@ -82,6 +82,9 @@ lean_lib TreeMoves.TreeInduction {
 lean_lib TreeMoves.TreeNormalize {
   -- add any library configuration options here
 }
+lean_lib TreeMoves.TreeContradiction {
+  -- add any library configuration options here
+}
 
 lean_lib TreeMoves.TreeSearch {
   -- add any library configuration options here

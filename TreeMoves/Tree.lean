@@ -206,9 +206,6 @@ def makeTree (e : Expr) : MetaM Expr := do
 
 open Elab.Tactic
 
-def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
-  replaceMainGoal [← (← getMainGoal).change (← makeTree (← move (← getMainTarget)))] 
-  
 def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
   withMainContext do
     let {newTree, proof} ← move (← getMainTarget)
@@ -227,6 +224,9 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
       (← getMainGoal).assign proof
       replaceMainGoal [mvarNew.mvarId!]
 
+def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
+  replaceMainGoal [← (← getMainGoal).change (← makeTree (← move (← getMainTarget)))] 
+  
 
 elab "make_tree" : tactic => workOnTreeDefEq pure
 
