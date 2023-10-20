@@ -5,3 +5,4 @@ hello world.lean
 !build/js/*.js
 /widget/dist
 /widget/node_modules
+*.olean
