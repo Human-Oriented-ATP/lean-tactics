@@ -7,7 +7,7 @@ import Std.Lean.Position
 import Mathlib
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
-import TreeMoves.Tree
+import MotivatedMoves.ProofState.Tree
 
 /-!
 
@@ -87,7 +87,7 @@ deriving RpcEncodable
 /-- The implementation of the button as a component with the logic specified in the JavaScript code.
     Run `lake build customWidgetJs` to build this JavaScript file. -/
 @[widget_module] def DynamicButton : Component DynamicButtonProps where
-  javascript := include_str ".." / "build" / "js" / "dynamicButton.js"
+  javascript := include_str ".." / ".." / "build" / "js" / "dynamicButton.js"
 
 /-- A wrapper around `DynamicButton` that requires an `Lsp.Range` instead of `EditParams`.
     This is usually much more convenient in practice. -/

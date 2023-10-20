@@ -1,4 +1,4 @@
-import TreeMoves.LibrarySearch
+import MotivatedMoves.LibrarySearch.LibrarySearch
 
 namespace Tree
 

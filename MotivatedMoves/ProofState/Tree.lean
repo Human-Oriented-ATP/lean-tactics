@@ -1,4 +1,4 @@
-import TreeMoves.TreeLemmas
+import MotivatedMoves.ProofState.TreeLemmas
 
 namespace Tree
 

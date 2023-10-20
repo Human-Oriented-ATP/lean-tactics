@@ -1,4 +1,4 @@
-import TreeMoves.Tree
+import MotivatedMoves.ProofState.Tree
 import ProofWidgets.Compat
 
 namespace Tree

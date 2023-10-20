@@ -1,4 +1,4 @@
-import TreeMoves.TreeRewriteDef
+import MotivatedMoves.Moves.TreeRewriteDef
 
 namespace Tree
 

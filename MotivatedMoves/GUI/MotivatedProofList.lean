@@ -1,7 +1,6 @@
-import Interface.MotivatedProofPanel
-import Interface.DisplayTree
-import TreeMoves.TreeMoves
-import Skolem
+import MotivatedMoves.GUI.MotivatedProofPanel
+import MotivatedMoves.GUI.DisplayTree
+import MotivatedMoves.Moves
 
 /-!
 
@@ -277,7 +276,7 @@ structure NamingButtonProps where
 deriving RpcEncodable
 
 @[widget_module] def NamingButton : Component NamingButtonProps where
-  javascript := include_str ".." / "build" / "js" / "namingButton.js"
+  javascript := include_str ".." / ".." / "build" / "js" / "namingButton.js"
 
 
 @[motivated_proof_move]

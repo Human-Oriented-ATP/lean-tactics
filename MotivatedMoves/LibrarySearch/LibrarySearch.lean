@@ -1,4 +1,4 @@
-import TreeMoves.DiscrTree
+import MotivatedMoves.LibrarySearch.DiscrTree
 namespace Tree
 
 open DiscrTree Lean Meta

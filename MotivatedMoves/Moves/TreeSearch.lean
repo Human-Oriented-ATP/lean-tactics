@@ -1,4 +1,4 @@
-import TreeMoves.Tree
+import MotivatedMoves.ProofState.Tree
 
 namespace Tree
 namespace Search

@@ -1,11 +1,7 @@
-import TreeMoves.TreeMoves
--- import Mathlib
-import LeanTactics.MotivatedProofPanel
-
+import MotivatedMoves.Moves
+import MotivatedMoves.GUI.MotivatedProofPanel
 
 example : True := by lib_apply trivial []
-
-
 
 example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   → UniformContinuous f → Continuous f := by
@@ -42,39 +38,39 @@ lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
     ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
-  (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
-  make_tree
-  lib_rewrite Metric.tendstoUniformly_iff [1,0]
-  make_tree
-  lib_rewrite Filter.eventually_atTop [1,0,1,1]
-  make_tree
-  try_lib_rewrite [1,1]
-  lib_rewrite Metric.continuous_iff [1,1]
-  make_tree
-  try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,2,0,1]
-  tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
-  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
-  tree_search
-  try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
-  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
-  tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
-  try_lib_rewrite [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
-  tree_search
-  lib_rewrite Metric.continuous_iff [0,1]
-  make_tree
-  tree_rewrite_ord [0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
-  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
-  tree_search
-  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1]
-  tree_search
-  lib_rewrite_rev max_le_iff [1,1,1]
-  lib_apply refl [1,1,1]
+-- example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
+--   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
+--   make_tree
+--   lib_rewrite Metric.tendstoUniformly_iff [1,0]
+--   make_tree
+--   lib_rewrite Filter.eventually_atTop [1,0,1,1]
+--   make_tree
+--   try_lib_rewrite [1,1]
+--   lib_rewrite Metric.continuous_iff [1,1]
+--   make_tree
+--   try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,0,1]
+--   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,2,0,1]
+--   tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
+--   lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+--   lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+--   tree_search
+--   try_lib_rewrite_ord [1,1,1,1,1,1,1,1,1,1,1,1,0,1]
+--   lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
+--   lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+--   tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+--   try_lib_rewrite [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+--   lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+--   lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+--   tree_search
+--   lib_rewrite Metric.continuous_iff [0,1]
+--   make_tree
+--   tree_rewrite_ord [0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
+--   tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
+--   tree_search
+--   lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1]
+--   tree_search
+--   lib_rewrite_rev max_le_iff [1,1,1]
+--   lib_apply refl [1,1,1]
 
 
 variable [TopologicalSpace X]
@@ -173,31 +169,3 @@ example : ∀ r : ℚ, r^2 ≠ 2 := by
   (↑(num⋆) * (↑(den⋆))⁻¹) ^ 2 ≠ 2
   -/
   sorry
-
--- #exit
-example (a b c : Int) : a + b + c = a + (b + c) := by
-  try_lib_rewrite [2,0,1]
-
-#check Finset.sum_range_id
-
-example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
-  try_lib_rewrite [2,0,1]
-
-example (N : ℕ) : ∑ n in Finset.range N, (a + b)  = N * (N - 1) / 2 := by
-  try_lib_rewrite [2,0,1]
-
-
-
-
-example (α : Type u) : ∃ x:α, x = x := by
-  make_tree
-  -- try_lib_apply [1]
-
-example : (∃ x:Nat, 1=1) → True := by
-  make_tree
-  tree_induction []
-
-
-example (f g : α → ℝ) (hf : (mulSupport f).Finite) (hg : (mulSupport g).Finite) : 
-  ( ∏ᶠ i, f i * g i ) = (∏ᶠ i, (f i + 1)) * (∏ᶠ i : α, g i) := by
-    try_lib_rewrite [2,0,1]

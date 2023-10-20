@@ -1,5 +1,5 @@
-import TreeMoves.DiscrTreeTypes
-import TreeMoves.Tree
+import MotivatedMoves.LibrarySearch.DiscrTreeTypes
+import MotivatedMoves.ProofState.Tree
 
 namespace Tree.DiscrTree
 

@@ -1,4 +1,4 @@
-import Interface.MotivatedProofList
+import MotivatedMoves.GUI.MotivatedProofList
 
 /- `Cantor's Theorem` in `Set Theory` -/
 theorem Cantor : (X : Type u) → (f : X → Set X) → ¬ f.Surjective := by

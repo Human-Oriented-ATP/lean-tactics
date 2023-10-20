@@ -1,7 +1,7 @@
 import Mathlib.Algebra.CovariantAndContravariant
 import Mathlib.Data.SetLike.Basic
 import Mathlib.Algebra.Order.Group.Defs
-import TreeMoves.TreeApply
+import MotivatedMoves.Moves.TreeApply
 import Mathlib.Topology.MetricSpace.Basic
 
 open Function

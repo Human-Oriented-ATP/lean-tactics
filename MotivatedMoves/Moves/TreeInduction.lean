@@ -1,4 +1,4 @@
-import TreeMoves.TreeApply
+import MotivatedMoves.Moves.TreeApply
 
 namespace Tree
 
