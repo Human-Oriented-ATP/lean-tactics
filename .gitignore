@@ -4,4 +4,6 @@ lake-packages/*
 !build/js/*.js
 /widget/dist
 /widget/node_modules
+/widget/package-lock.json.hash
+/widget/package-lock.json.trace
 *.olean
