@@ -97,9 +97,8 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
 
 
 @[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And]
-def delabTree : Delab := do
-  let stx ← delabTreeAux true true
-  `(firstLine| $stx)
+def delabTree : Delab :=
+  delabTreeAux true true
 
 /- note that we do not call the main delab function, but delabFVar directly. This is to avoid a seccond term annotation
 on the free variable itself, without the bullet/star.-/

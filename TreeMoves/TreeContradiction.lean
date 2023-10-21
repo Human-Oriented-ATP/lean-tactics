@@ -24,10 +24,20 @@ def contrapose (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (
     proof := mkApp3 (.const ``tree_contrapose []) hyp goal proof }
   result.map (simpMove (← pushNegContext) none [] pol) pol goal
 
+/- Contrapose hypothesis `H`, replacing the target `T` with `¬ T ⇨ ¬ H`.
+This also pushes the negations through and deletes hypothesis `H`.
+For a version that remembers `H`, see `tree_contrapose'`. -/
 elab "tree_contrapose" hypPos:treePos goalPos:treePos : tactic => do
   let (hypTreePos, hypPos) := getSplitPosition hypPos
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true contrapose false)
+
+/- Contrapose hypothesis `H`, replacing the target `T` with `¬ T ⇨ ¬ H`.
+This also pushes the negations through and remembers `H` -/
+elab "tree_contrapose'" hypPos:treePos goalPos:treePos : tactic => do
+  let (hypTreePos, hypPos) := getSplitPosition hypPos
+  let (goalTreePos, goalPos) := getSplitPosition goalPos
+  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false contrapose false)
 
 
 example : (¬ p → q) → (¬ p → q) := by

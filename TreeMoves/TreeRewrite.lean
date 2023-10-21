@@ -160,6 +160,27 @@ elab "try_lib_rewrite" goalPos:treePos : tactic => do
 --   try_lib_rewrite [1]
 --   try_lib_rewrite [0,1]
 --   lib_rewrite [1,1,1] Nat.add_assoc [0,1]
+-- example : {α : Sort u} → {b : α → Sort v} → {p : (x : α) → b x → Prop} →
+--   (∀ (x : α), ∃ y, p x y) ↔ ∃ f : (x : α) → b x, ∀ (x : α), p x (f x) := by
+--   make_tree
+--   try_lib_rewrite [1,1,1,2,1]
+--   try_lib_apply [1,1,1,2]
+
+
+-- example : ∀ {α : Sort u} {b : Sort v} {p : Prop}, (∀ (x : α), ∃ y:b, p) := by
+-- make_tree
+-- try_lib_rewrite [1,1,1,2]
+
+-- elab "oho" : tactic => show MetaM _ from do
+--   let name := ``Classical.skolem
+--   let cinfo ← getConstInfo name
+--   let type ← makeTree cinfo.type
+--   (_ : Unit) ← MetaTreeRec.recurse false type [1,1,1] (fun pol tree _ => do
+--     logInfo m! "{← DiscrTree.mkPath tree.appFn!.appArg!}"
+--     throwError "kk")
+--   pure ()
+
+-- example := by oho
 
 
 example (p q : Prop) : (p ∧ (p → (p ↔ q))) → (q → False) → False := by

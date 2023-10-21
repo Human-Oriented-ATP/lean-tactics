@@ -89,6 +89,15 @@ where
     fun ⟨a, b, c, d, e⟩ => ⟨a.map f, b.map f, c.map f, d.map f, e.map f⟩
 
 
+def isSpecific (key : Array Key) : Bool :=
+  match key.toList with
+  | [.star _]
+  | [.lam, .star _]
+  | [.forall, .star _, .star _]
+  | [.const `Exists 2, .star _, .star _]
+  | [.const `Exists 2, .star _, .lam, .star _] => false
+  | _ => true
+
 def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
   if cinfo.isUnsafe then return t
   if ← name.isBlackListed then return t
@@ -104,7 +113,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM D
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
   let f := Array.foldl (fun t (diffs, treePos, pos, key) =>
-    if key matches #[.star _] then t else t.insertCore key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)})
+    if isSpecific key then t.insertCore key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)} else t)
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
 open Mathlib.Tactic
