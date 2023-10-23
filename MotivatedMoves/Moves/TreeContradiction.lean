@@ -1,5 +1,5 @@
-import TreeMoves.TreeApply
-import TreeMoves.TreeNormalize
+import MotivatedMoves.Moves.TreeApply
+import MotivatedMoves.Moves.TreeNormalize
 
 namespace Tree
 open Lean Meta
@@ -38,11 +38,3 @@ elab "tree_contrapose'" hypPos:treePos goalPos:treePos : tactic => do
   let (hypTreePos, hypPos) := getSplitPosition hypPos
   let (goalTreePos, goalPos) := getSplitPosition goalPos
   workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false contrapose false)
-
-
-example : (¬ p → q) → (¬ p → q) := by
-  make_tree
-  tree_contrapose [1,0] [1,1]
-  tree_apply [0,1] [1,0,1]
-  tree_push_neg [0]
-  tree_apply [0] [1]

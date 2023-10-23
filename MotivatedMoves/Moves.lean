@@ -6,6 +6,7 @@ import MotivatedMoves.Moves.TreeRewrite
 import MotivatedMoves.Moves.TreeRewriteDef
 import MotivatedMoves.Moves.TreeRewriteOrd
 import MotivatedMoves.Moves.TreeSearch
+import MotivatedMoves.Moves.TreeContradiction
 
 namespace Tree
 
