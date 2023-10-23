@@ -160,7 +160,7 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : MetaM Boo
     if info.isInstImplicit then
       return true
     else if info.isImplicit || info.isStrictImplicit then
-      return not (← isType a)
+      return !(← isType a)
     else
       isProof a
   else
@@ -495,7 +495,7 @@ mutual
         | _ => findExprs args (c, assignments, score+1)
 
   private partial def findExprs (args : Array Expr) : (Trie α s × HashMap Nat Expr × Nat) → ArrayT M (Trie α s × HashMap Nat Expr × Nat) :=
-    args.foldrM (findExpr)
+    args.foldrM findExpr
 
   private partial def findBoundExpr (domain body : Expr) : (Trie α s × HashMap Nat Expr × Nat) → M (Array (Trie α s × HashMap Nat Expr × Nat)) :=
     (withLocalDeclD `_a domain fun fvar =>
@@ -512,7 +512,10 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
     | _ =>
       let result ← match d.root.find? k with
         | none   => pure #[]
-        | some c => findExprs args (c, {}, 1) |>.run {} |>.run' {}
+        | some c => (match k with
+          | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! (c, {}, 0)
+          | .forall => show ArrayT M _ from findExpr e.bindingDomain! (c, {}, 1) >>= findBoundExpr e.bindingDomain! e.bindingBody!
+          | _ => findExprs args (c, {}, 1)) |>.run {} |>.run' {}
       let result := result.map $ fun (.node vs _, _, n) => (vs, n)
       match d.root.find? (.star 0) with
       | none => return result

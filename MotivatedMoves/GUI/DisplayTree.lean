@@ -20,6 +20,7 @@ syntax (name := binders) symbol_binder,+ newLineTermParser : tree
 syntax (name := hypothesis) term newLineTermParser : tree
 syntax (name := dotHypothesis) "·" ppHardSpace term newLineTermParser : tree
 syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
+syntax (name := negation) "¬ " ppHardSpace term : tree
 
 def newLine := ppDedent (ppLine >> categoryParser `term 0)
 syntax (name := firstLine) newLine : tree
@@ -87,14 +88,17 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     let stxP ← descend p 0 (delabTreeAux pol)
     let stxQ ← descend q 1 (delabTreeAux pol)
     annotateTermInfo =<< `(sidegoal|⊢ $stxP⠀$stxQ)
+  
+  | not_pattern p =>
+    let stx ← descend p 0 (delabTreeAux !pol)
+    annotateTermInfo =<< `(negation| ¬ $stx)
 
   | e => if root then failure else descend e 2 delab
 
 
 @[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And]
-def delabTree : Delab := do
-  let stx ← delabTreeAux true true
-  `(firstLine| $stx)
+def delabTree : Delab :=
+  delabTreeAux true true
 
 /- note that we do not call the main delab function, but delabFVar directly. This is to avoid a seccond term annotation
 on the free variable itself, without the bullet/star.-/
@@ -126,7 +130,7 @@ def ppTreeTagged (e : Expr) : MetaM CodeWithInfos := do
 
 
 
-example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ∃ g n : Int, ∃ m:Nat, Nat → q a) →  p → (p → p) → ∃ m h : Nat, q m := by
+example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ¬ ∃ g n : Int, ∃ m:Nat, Nat → q a) → p → ¬ (p → p) → ∃ m h : Nat, q m := by
   make_tree
   sorry
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by

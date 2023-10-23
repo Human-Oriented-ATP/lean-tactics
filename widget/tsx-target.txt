@@ -1,1 +1,1 @@
-namingButton.tsx
+reducerRendering.tsx

@@ -99,19 +99,20 @@ def mkNameAbstraction (meta : Bool) (name : Name) (outer : Expr) (inner : Expr) 
 
 
 def NamingRecursor (meta : Bool) (name : Name) : TreeRecursor MetaM Abstraction where
-  imp_right := introProp bindImpRight mkImp
-  imp_left  := introProp bindImpLeft (Function.swap mkImp)
-  and_right := introProp bindAndRight mkAnd
-  and_left  := introProp bindAndLeft (Function.swap mkAnd)
+  imp_right p := introProp (bindImpRight false p) (mkImp p)  
+  imp_left  p := introProp (bindImpLeft  false p) (mkImp · p)
+  and_right p := introProp (bindAndRight false p) (mkAnd p)  
+  and_left  p := introProp (bindAndLeft  false p) (mkAnd · p)
+  not         := introProp bindNot mkNot
 
   all  := introFree bindForall mkForall
   ex   := introFree bindExists mkExists
   inst := introFree bindInstance mkInstance
 where
-  introProp (bind : Bool → Expr → Bool → Expr → TreeProof → TreeProof) (wrap : Expr → Expr → Expr) (p : Expr) (pol : Bool) (tree : Expr) (k : MetaM Abstraction) : OptionT MetaM Abstraction := do
+  introProp (bind : Bool → Expr → TreeProof → TreeProof) (wrap : Expr → Expr) (pol : Bool) (tree : Expr) (k : MetaM Abstraction) : OptionT MetaM Abstraction := do
     match ← k with
-    | .abstract outer inner => return .abstract (wrap p outer) inner
-    | .closed treeProof => return .closed $ bind false p pol tree treeProof
+    | .abstract outer inner => return .abstract (wrap outer) inner
+    | .closed treeProof => return .closed $ bind pol tree treeProof
 
   introFree (bind : Name → Level → Expr → Expr → Bool → Expr → TreeProof → MetaM TreeProof) (wrap : Name → Level → Expr → Expr → Expr) (n : Name) (u : Level) (domain : Expr) (pol : Bool)
       (tree : Expr) (k : Expr → MetaM Abstraction) : OptionT MetaM Abstraction :=
