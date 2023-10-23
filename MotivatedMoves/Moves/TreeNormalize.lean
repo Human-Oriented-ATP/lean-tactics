@@ -105,7 +105,7 @@ variable {p q : Prop}
 lemma not_imp : ¬ Imp p q ↔ And p ¬ q := _root_.not_imp
 lemma not_and : ¬ And p q ↔ Imp p ¬ q := _root_.not_and
 variable {α : Sort u} {p : α → Prop}
-lemma not_forall : ¬ Forall α (fun a => p a) ↔ Exists α (fun a => ¬ p a) := sorry --_root_.not_forall
+lemma not_forall : ¬ Forall α (fun a => p a) ↔ Exists α (fun a => ¬ p a) := sorry -- _root_.not_forall
 lemma not_exists : ¬ Exists α (fun a => p a) ↔ Forall α (fun a => ¬ p a) := _root_.not_exists
 
 

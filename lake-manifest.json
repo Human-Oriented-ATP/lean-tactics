@@ -4,10 +4,18 @@
  [{"git":
    {"url": "https://github.com/leanprover-community/mathlib4.git",
     "subDir?": null,
-    "rev": "53ae52b4b02665479ad5297e05878c07e129e969",
+    "rev": "4b5f7e5b67bcb0b432429647fc059ac1c91656d6",
     "opts": {},
     "name": "mathlib",
     "inputRev?": null,
+    "inherited": false}},
+  {"git":
+   {"url": "https://github.com/Paper-Proof/paperproof.git",
+    "subDir?": "lean",
+    "rev": "812eb399ad53d8fe2a6f9114f489d097433e6c4d",
+    "opts": {},
+    "name": "Paperproof",
+    "inputRev?": "main",
     "inherited": false}},
   {"git":
    {"url": "https://github.com/leanprover/std4",
