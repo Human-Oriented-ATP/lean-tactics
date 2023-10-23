@@ -83,25 +83,8 @@ def replaceByDef (e : Expr) : MetaM Expr := do
 
 
 open Elab.Tactic in
-
 elab "tree_rewrite_def" pos:treePos : tactic => do
   let (treePos, pos) := getSplitPosition pos
   workOnTreeDefEq (edit treePos pos replaceByDef)
   let mkTree ← `(tactic | make_tree)
   evalTactic mkTree
-
-example : ∀ n:Nat, n + n = 2*n := by
-  make_tree
-  tree_rewrite_def [1,2,0,1]
-  tree_rewrite_def [1,2,0,1]
-  sorry
-
-example : ∀ n:Nat, Prod.fst (n,n) = n := by
-  make_tree
-  tree_rewrite_def [1,2,0,1]
-  sorry
-
-example : (fun x => x) 1 = 1 := by
-  tree_rewrite_def [2,0,1]
-  rfl
-
