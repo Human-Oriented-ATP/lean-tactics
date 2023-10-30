@@ -16,7 +16,7 @@ structure ExprsDisplayProps where
 deriving RpcEncodable
 
 @[widget_module]
-def ExprsDisplay : Component (Array ExprDisplayProps) where
+def ExprsDisplay : Component ExprsDisplayProps where
   javascript := include_str "../build/js/exprDisplay.js"
 
 syntax (name := exprCmd) "#expr " term : command
@@ -28,7 +28,7 @@ def elabHtmlCmd : CommandElab := fun
     runTermElabM fun _ => do
       let trm ← Term.elabTerm t none
       let e ← Widget.ppExprTagged trm
-      let ht : Html := .ofComponent ExprsDisplay #[{expr := e, subexprPos := "", description := "Test"}] #[] 
+      let ht := <ExprsDisplay exprs={#[{expr := e, subexprPos := "", description := "Test"}]} />
       savePanelWidgetInfo stx ``HtmlDisplay do
         return json% { html: $(← rpcEncode ht) }
   | stx => throwError "Unexpected syntax {stx}."
