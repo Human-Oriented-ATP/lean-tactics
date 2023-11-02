@@ -49,9 +49,10 @@ def unfoldDefinitionAtGoalLoc (mvarId : MVarId) : SubExpr.GoalLocation → MetaM
       mvarId.replaceTargetDefEq =<< 
         replaceByDef pos target
 
-elab "unfold" loc:location : tactic => do
-  let goalLoc ← SubExpr.GoalLocation.ofLocation loc
-  liftMetaTactic1 (unfoldDefinitionAtGoalLoc · goalLoc)
+elab "unfold" pos:position : tactic => do
+  let goalLocs ← expandPosition pos
+  for goalLoc in goalLocs do
+    liftMetaTactic1 (unfoldDefinitionAtGoalLoc · goalLoc)
 
 end
 
@@ -59,15 +60,16 @@ section
 
 @[server_rpc_method]
 def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
-  let #[loc] := props.selectedLocations | return .pure <p>Select a sub-expression to unfold.</p>
+  let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to unfold.</p>
   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
+  -- let pos ← loc.loc.toPosition goal
   let tacticStr : String :=
     match loc.loc with
-      | .target pos =>  s!"unfold at ⊢ position \"{pos.toString}\""
+      | .target pos =>  s!"unfold at ⊢ with position \"{pos.toString}\""
       | .hypType fvarId pos => Id.run do
         let some hyp := goal.hyps.find? (·.fvarIds.contains fvarId) | panic! s!"Could not find hypothesis {fvarId.name} in the local context."
         let some (hypName, _) := (Array.zip hyp.names hyp.fvarIds).find? (·.snd == fvarId) | panic! "Could not retrieve name for {fvarId.name}."
-        return s!"unfold at {hypName} position \"{pos.toString}\""
+        return s!"unfold at {hypName} with position \"{pos.toString}\""
       | _ => ""  
   return .pure (
         <DynamicEditButton 
@@ -94,7 +96,6 @@ section Test
 def f := Nat.add
 
 example (hyp₀ hyp₁ : f 1 1 = 5) : f 1 2 = 3 := by
-  unfold?
   sorry
 
 end Test
