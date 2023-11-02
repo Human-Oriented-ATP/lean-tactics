@@ -57,12 +57,8 @@ end
 
 section
 
-structure UIProps extends PanelWidgetProps where
-  range : Lsp.Range
-deriving RpcEncodable
-
 @[server_rpc_method]
-def Unfold.rpc (props : UIProps) : RequestM (RequestTask Html) := do
+def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
   let #[loc] := props.selectedLocations | return .pure <p>Select a sub-expression to unfold.</p>
   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
   let tacticStr : String ← 
@@ -80,20 +76,20 @@ def Unfold.rpc (props : UIProps) : RequestM (RequestTask Html) := do
   return .pure (
         <DynamicEditButton 
           label={"Unfold definition"} 
-          range?={props.range} 
+          range?={props.replaceRange} 
           insertion?={tacticStr} 
           variant={"contained"} 
           size={"small"} />
       )
 
 @[widget_module]
-def Unfold : Component UIProps := 
+def Unfold : Component InteractiveTacticProps := 
   mk_rpc_widget% Unfold.rpc
 
 elab stx:"unfold?" : tactic => do
   let range := (← getFileMap).rangeOfStx? stx 
   savePanelWidgetInfo stx ``Unfold do
-    return json% { range : $(range) }
+    return json% { replaceRange : $(range) }
 
 end
 
@@ -102,6 +98,7 @@ section Test
 def f := Nat.add
 
 example (hyp₀ : f 1 1 = 5) : f 1 2 = 3 := by
+  unfold at ⊢ position "/0/1"
   unfold at hyp₀ position "/0/1"
   sorry
 
