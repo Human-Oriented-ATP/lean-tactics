@@ -61,18 +61,14 @@ section
 def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
   let #[loc] := props.selectedLocations | return .pure <p>Select a sub-expression to unfold.</p>
   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
-  let tacticStr : String ← 
-    goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
-      let md ← goal.mvarId.getDecl
-      let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
-      Meta.withLCtx lctx md.localInstances do
-        match loc.loc with
-          | .target pos => do
-              return s!"unfold at ⊢ position \"{pos.toString}\""
-          | .hypType fvarId pos => do
-              let hypName ← fvarId.getUserName
-              return s!"unfold at {hypName.toString} position \"{pos.toString}\""
-          | _ => return ""  
+  let tacticStr : String :=
+    match loc.loc with
+      | .target pos =>  s!"unfold at ⊢ position \"{pos.toString}\""
+      | .hypType fvarId pos => Id.run do
+        let some hyp := goal.hyps.find? (·.fvarIds.contains fvarId) | panic! s!"Could not find hypothesis {fvarId.name} in the local context."
+        let some (hypName, _) := (Array.zip hyp.names hyp.fvarIds).find? (·.snd == fvarId) | panic! "Could not retrieve name for {fvarId.name}."
+        return s!"unfold at {hypName} position \"{pos.toString}\""
+      | _ => ""  
   return .pure (
         <DynamicEditButton 
           label={"Unfold definition"} 
@@ -97,9 +93,8 @@ section Test
 
 def f := Nat.add
 
-example (hyp₀ : f 1 1 = 5) : f 1 2 = 3 := by
-  unfold at ⊢ position "/0/1"
-  unfold at hyp₀ position "/0/1"
+example (hyp₀ hyp₁ : f 1 1 = 5) : f 1 2 = 3 := by
+  unfold?
   sorry
 
 end Test
