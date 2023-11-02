@@ -1,6 +1,7 @@
 import Lean
 import Std.Lean.Position
 import MotivatedMoves.GUI.DynamicEditButton
+import MotivatedMoves.ForMathlib.Basic
 
 open Lean Server ProofWidgets Jsx Json Meta MonadExceptOf Elab Tactic
 
@@ -48,18 +49,9 @@ def unfoldDefinitionAtGoalLoc (mvarId : MVarId) : SubExpr.GoalLocation → MetaM
       mvarId.replaceTargetDefEq =<< 
         replaceByDef pos target
 
-syntax (name := unfold) "unfold" " at" (term <|> "⊢") " position " str : tactic
-
-@[tactic unfold]
-def unfoldTac : Tactic
-  | `(tactic| unfold at ⊢ position $pos:str) => do
-    let loc : SubExpr.GoalLocation := .target (.fromString! pos.getString)
-    liftMetaTactic1 (unfoldDefinitionAtGoalLoc · loc)
-  | `(tactic| unfold at $h:term position $pos:str) => do
-    let fvarId ← getFVarId h
-    let loc : SubExpr.GoalLocation := .hypType fvarId (.fromString! pos.getString)
-    liftMetaTactic1 (unfoldDefinitionAtGoalLoc · loc)
-  | _ => throwUnsupportedSyntax
+elab "unfold" loc:location : tactic => do
+  let goalLoc ← SubExpr.GoalLocation.ofLocation loc
+  liftMetaTactic1 (unfoldDefinitionAtGoalLoc · goalLoc)
 
 end
 
@@ -110,8 +102,7 @@ section Test
 def f := Nat.add
 
 example (hyp₀ : f 1 1 = 5) : f 1 2 = 3 := by
-  unfold at hyp₀ position "/0/1" -- click on `f 1 2`
-  unfold at ⊢ position "/0/1"
+  unfold at hyp₀ position "/0/1"
   sorry
 
 end Test
