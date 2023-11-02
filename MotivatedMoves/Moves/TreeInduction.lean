@@ -4,13 +4,13 @@ namespace Tree
 
 open Lean Meta Elab.Tactic
 
-def getInductionPos (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × TreePos × Pos) := do
+def getInductionPos (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × OuterPosition × InnerPosition) := do
   let hypTree ← makeTree hyp
-  let path := findTreePos hypTree
+  let path := findOuterPosition hypTree
   return (← makeTreePath path hyp, path.take (path.length - 1), [])
 
 elab "tree_induction" pos:treePos : tactic => do
-  let (treePos, pos) := getSplitPosition pos
+  let (treePos, pos) := getOuterInnerPosition pos
   (workOnTreeAt treePos fun pol tree => do
   unless pos == [] do
     throwError m! "cannot apply induction in a subexpression: position {pos} in {indentExpr tree}"

@@ -1,4 +1,4 @@
-import MotivatedMoves.ProofState.TreeLemmas
+import MotivatedMoves.ProofState.SubexpressionPosition
 
 namespace Tree
 
@@ -41,11 +41,6 @@ def isTree : Expr → Bool
 | instance_pattern .. => true
 | _ => false
 
-abbrev Pos := List ℕ
-abbrev TreePos := List ℕ
-
-def badPosMessage (e : Expr) (pos : Pos) : MessageData := m! "could not find position {pos} in target {e}"
-def badTreePosMessage (e : Expr) (pos : TreePos) : MessageData := m! "could not find tree position {pos} in target {e}"
 
 /-- The general structure for recursing through a Tree expression. -/
 structure DirectTreeRecursor (α : Type u) where
@@ -59,9 +54,9 @@ structure DirectTreeRecursor (α : Type u) where
   and_left  (p : Expr) : Bool → Expr → α → α
   not : Bool → Expr → α → α 
 
-def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor (m α)) (pol : Bool) (tree : Expr) (pos : TreePos)
+def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor (m α)) (pol : Bool) (tree : Expr) (pos : OuterPosition)
   (k : Bool → Expr → m α) : m α :=
-  let rec visit (pol : Bool) (ys : TreePos) (e : Expr) : m α :=
+  let rec visit (pol : Bool) (ys : OuterPosition) (e : Expr) : m α :=
     match ys, e with
     | 1::xs, forall_pattern   n u α b => r.all  n u α pol (.lam n α b .default) (visit pol xs b)
     | 1::xs, exists_pattern   n u α b => r.ex   n u α pol (.lam n α b .default) (visit pol xs b)
@@ -71,7 +66,7 @@ def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor 
     | 0::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
     | 0::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
     | [], e => k pol e
-    | xs, e => throwError badTreePosMessage e xs
+    | xs, e => throwError badOuterPositionMessage e xs
   visit pol pos tree
 
 
@@ -86,13 +81,11 @@ def emptyRecursor : DirectTreeRecursor α where
     and_right _ _ _ k := k
     not _ _ k := k
 
-def getPolarity [Monad m] [MonadError m] (tree : Expr) (pos : TreePos) : m Bool :=
+def getPolarity [Monad m] [MonadError m] (tree : Expr) (pos : OuterPosition) : m Bool :=
   emptyRecursor.recurse true tree pos (fun pol _ => return pol)
 
-def getExpression [Monad m] [MonadError m] (tree : Expr) (pos : TreePos) : m Expr :=
+def getExpression [Monad m] [MonadError m] (tree : Expr) (pos : OuterPosition) : m Expr :=
   emptyRecursor.recurse true tree pos (fun _ e => return e )
-
-
 
 structure TreeRecursor (m : Type u → Type v) (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → (Expr → m α) → OptionT m α
@@ -106,9 +99,9 @@ structure TreeRecursor (m : Type u → Type v) (α : Type u) where
   not : Bool → Expr → m α → OptionT m α
 
 
-partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool) (tree : Expr) (pos : TreePos)
-  (k : Bool → Expr → TreePos → m α) : m α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : TreePos) (e : Expr) : m α :=
+partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : TreeRecursor m α) (pol : Bool) (tree : Expr) (pos : OuterPosition)
+  (k : Bool → Expr → OuterPosition → m α) : m α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : OuterPosition) (e : Expr) : m α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
     match ys, e with
     | 1::xs, forall_pattern   n u α b => k? do r.all  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
@@ -120,7 +113,7 @@ partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : Tr
     | 0::xs, and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
     | 1::xs, not_pattern tree         => k? do r.not         pol tree (visit (!pol) xs tree)
     | [], e => k pol e []
-    | xs, e => throwError badTreePosMessage e xs
+    | xs, e => throwError badOuterPositionMessage e xs
   visit pol pos tree
 
 open Meta
@@ -136,8 +129,8 @@ def replaceForallE : Expr → MetaM Expr
   | e => return e
 
 partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM α)
-  (pol : Bool) (tree : Expr) (path : TreePos) (k : Bool → Expr → TreePos → MetaM α) : MetaM α :=
-  let rec visit [Inhabited α] (pol : Bool) (ys : TreePos) (e : Expr) : MetaM α :=
+  (pol : Bool) (tree : Expr) (path : OuterPosition) (k : Bool → Expr → OuterPosition → MetaM α) : MetaM α :=
+  let rec visit [Inhabited α] (pol : Bool) (ys : OuterPosition) (e : Expr) : MetaM α :=
     let k? l := do (Option.getDM (← l) (k pol e ys))
     do match ys, (← replaceForallE e) with
     | 1::xs, forall_pattern n u α b           => k? do r.all  n u α pol (.lam n α b .default) (fun a => visit pol xs (b.instantiate1 a))
@@ -149,26 +142,26 @@ partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM �
     | 0::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
     | 1::xs, regular_not_pattern tree         => k? do r.not         pol tree (visit (!pol) xs tree)
     | [], e => k pol e []    
-    | xs, e => throwError badTreePosMessage e xs
+    | xs, e => throwError badOuterPositionMessage e xs
   visit pol path tree
 
 
-def findTreePos : Expr → TreePos
-  | imp_pattern _ tree                 => 1 :: findTreePos tree
-  | and_pattern _ tree                 => 1 :: findTreePos tree
-  | forall_pattern (body := tree) ..   => 1 :: findTreePos tree
-  | exists_pattern (body := tree) ..   => 1 :: findTreePos tree
-  | instance_pattern (body := tree) .. => 1 :: findTreePos tree
+def findOuterPosition : Expr → OuterPosition
+  | imp_pattern _ tree                 => 1 :: findOuterPosition tree
+  | and_pattern _ tree                 => 1 :: findOuterPosition tree
+  | forall_pattern (body := tree) ..   => 1 :: findOuterPosition tree
+  | exists_pattern (body := tree) ..   => 1 :: findOuterPosition tree
+  | instance_pattern (body := tree) .. => 1 :: findOuterPosition tree
   | _ => []
 
-def findNegativeTreePos : Expr → Option TreePos
-  | imp_pattern _ tree => match findNegativeTreePos tree with
+def findNegativeOuterPosition : Expr → Option OuterPosition
+  | imp_pattern _ tree => match findNegativeOuterPosition tree with
       | some path => 1 :: path
       | none => some [0]
-  | and_pattern _ tree                 => (1 :: ·) <$> findNegativeTreePos tree
-  | forall_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeTreePos tree
-  | exists_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeTreePos tree
-  | instance_pattern (body := tree) .. => (1 :: ·) <$> findNegativeTreePos tree
+  | and_pattern _ tree                 => (1 :: ·) <$> findNegativeOuterPosition tree
+  | forall_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeOuterPosition tree
+  | exists_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeOuterPosition tree
+  | instance_pattern (body := tree) .. => (1 :: ·) <$> findNegativeOuterPosition tree
   | _ => none
 
 partial def makeTreeAux (e : Expr) : MetaM Expr := do match ← replaceForallE e with
@@ -230,24 +223,6 @@ def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
 
 elab "make_tree" : tactic => workOnTreeDefEq pure
 
-syntax treePos := "[" num,* "]"
-
-def splitPosition (pos : List ℕ) : TreePos × Pos :=
-  splitAt2 pos
-where
-  splitAt2 : List ℕ → TreePos × Pos
-  | x::xs => if x == 2 then ([], xs) else Bifunctor.fst (x::·) $ splitAt2 xs
-  | [] => ([],[])
-
-def printPosition (treePos : TreePos) (pos : Pos) : String :=
-  if pos == [] then s! "{treePos}"
-  else s! "{treePos ++ 2 :: pos}" 
-    
-
-def getPosition (stx : TSyntax `Tree.treePos) : List ℕ :=
-  (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
-
-def getSplitPosition (stx : TSyntax `Tree.treePos) : TreePos × Pos := splitPosition (getPosition stx)
 
 def makeTreePathRec : TreeRecursor MetaM Expr where
   all n u α _ _ k := withLocalDeclD n α fun fvar => return mkForall n u α ((← k fvar).abstract #[fvar])
@@ -260,7 +235,7 @@ def makeTreePathRec : TreeRecursor MetaM Expr where
   and_left  p _ _ k := return mkAnd (← k) p
   not _ _ k         := return mkNot (← k)
 
-def makeTreePath (pos : TreePos) (tree : Expr) : MetaM Expr :=
+def makeTreePath (pos : OuterPosition) (tree : Expr) : MetaM Expr :=
   makeTreePathRec.recurseNonTree true tree pos (fun _ leaf _ => pure leaf)
 
 
@@ -280,9 +255,9 @@ where
   introMVar (name : Name) (domain : Expr) (k : Expr → MetaM α) : OptionT MetaM α := do
     k (← mkFreshExprMVar domain (userName := name))
 
-def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : TreePos) (pos : Pos) (k : Bool → Expr → MetaM α) : MetaM α :=
+def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (k : Bool → Expr → MetaM α) : MetaM α :=
   MetaTreeRec.recurse true tree treePos fun pol e _ =>
-    let rec visit : Pos → Expr → ReaderT (Array Expr) MetaM α
+    let rec visit : InnerPosition → Expr → ReaderT (Array Expr) MetaM α
       | xs   , .mdata _ b       => visit xs b
 
       | []   , e                => fun fvars => k pol (e.instantiateRev fvars)
@@ -304,7 +279,7 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : TreePos) (pos : Pos)
       | 0::xs, .forallE _ t _ _ => visit xs t
       | 1::xs, .forallE n t b _ => fun fvars =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
-      | xs, e                 => throwError badPosMessage e xs
+      | xs, e                 => throwError badInnerPositionMessage e xs
 
     visit pos e #[]
 
@@ -329,7 +304,7 @@ where
       let treeProof ← k fvar
       bind name u domain fvar pol tree treeProof
 
-def workOnTreeAt (pos : TreePos) (move : Bool → Expr → MetaM TreeProof) (saveClosed : Bool := false) : TacticM Unit :=
+def workOnTreeAt (pos : OuterPosition) (move : Bool → Expr → MetaM TreeProof) (saveClosed : Bool := false) : TacticM Unit :=
   workOnTree fun tree => do 
     (TreeProofRec saveClosed).recurse true tree pos (fun pol tree _ => move pol tree)
 

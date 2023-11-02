@@ -17,7 +17,7 @@ def mkLetAbstraction (name : Name) (outer : Expr) (inner : Expr) : MetaM Expr :=
   let outer := outer.abstract #[abstractedExpression]
   return mkLet name (← inferType inner) inner outer
 
-partial def AbstractExpr (name : Name) : Pos → Expr → MetaM ExprAbstraction
+partial def AbstractExpr (name : Name) : InnerPosition → Expr → MetaM ExprAbstraction
   | xs   , .mdata d b        => return wrap (.mdata d ·) (← AbstractExpr name xs b)
   
   | 0::xs, .app f a          => return wrap (.app · a) (← AbstractExpr name xs f)
@@ -36,13 +36,13 @@ partial def AbstractExpr (name : Name) : Pos → Expr → MetaM ExprAbstraction
   | 1::xs, .forallE n t b bi => return wrap (.forallE n t · bi) (← withVar n t b xs)
 
   | [], e                    => return .abstract abstractedExpression e
-  | xs, e                    => throwError badPosMessage e xs
+  | xs, e                    => throwError badInnerPositionMessage e xs
 where
   wrap (wrap : Expr → Expr) : ExprAbstraction → ExprAbstraction
     | .abstract outer inner => .abstract (wrap outer) inner
     | .closed e => .closed (wrap e)
 
-  withVar (n : Name) (domain body : Expr) (pos : Pos) : MetaM ExprAbstraction := do
+  withVar (n : Name) (domain body : Expr) (pos : InnerPosition) : MetaM ExprAbstraction := do
     withLocalDeclD n domain fun fvar => do
     match ← AbstractExpr n pos (body.instantiate1 fvar) with
       | .abstract outer inner => do
@@ -132,7 +132,7 @@ where
       return .closed treeProof
 
 
-def NameSubExpr (meta : Bool) (name : Name) (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM TreeProof := do
+def NameSubExpr (meta : Bool) (name : Name) (treePos : OuterPosition) (pos : InnerPosition) (tree : Expr) : MetaM TreeProof := do
   let result ← (NamingRecursor meta name).recurse true tree treePos fun _pol e _ => do
     match ← AbstractExpr name pos e with
     | .abstract outer inner => return .abstract outer inner
@@ -147,12 +147,12 @@ def NameSubExpr (meta : Bool) (name : Name) (treePos : TreePos) (pos : Pos) (tre
 
 
 elab "tree_name" name:ident pos:treePos : tactic => do
-  let (treePos, pos) := getSplitPosition pos
+  let (treePos, pos) := getOuterInnerPosition pos
   let name := name.getId
   workOnTree $ NameSubExpr false name treePos pos
 
 elab "tree_name_meta" name:ident pos:treePos : tactic => do
-  let (treePos, pos) := getSplitPosition pos
+  let (treePos, pos) := getOuterInnerPosition pos
   let name := name.getId
   workOnTree $ NameSubExpr true name treePos pos
 
@@ -166,7 +166,7 @@ we get a let expression from the naming move. -/
 --   make_tree
 --   tree_name h [2,1,1,1]
 
-def AbstractAux (depth : ℕ) : Pos → Expr → MetaM (Expr × Expr)
+def AbstractAux (depth : ℕ) : InnerPosition → Expr → MetaM (Expr × Expr)
   | xs   , .mdata d b        => return Bifunctor.fst (.mdata d ·) (← AbstractAux depth xs b)
   
   | 0::xs, .app f a          => return Bifunctor.fst (.app · a) (← AbstractAux depth xs f)
@@ -190,17 +190,17 @@ def AbstractAux (depth : ℕ) : Pos → Expr → MetaM (Expr × Expr)
 
 
 
-def betaAbstractAux (pos : Pos) (e : Expr) : MetaM Expr := do
+def betaAbstractAux (pos : InnerPosition) (e : Expr) : MetaM Expr := do
   let (b, v) ← AbstractAux 0 pos e
   if v.hasLooseBVars then throwError m! "cannot β-abstract a subexpression with loose bound variables: {v}"
   return .app (.lam `x (← inferType v) b .default) v
 
--- def letAbstractAux (pos : Pos) (e : Expr) : MetaM Expr := do
+-- def letAbstractAux (pos : InnerPosition) (e : Expr) : MetaM Expr := do
 --   let (b, v) ← AbstractAux 0 pos e
 --   if v.hasLooseBVars then throwError m! "cannot let-abstract a subexpression with loose bound variables: {v}"
 --   return mkLet `x (← inferType v) v b
 
-def betaAbstract (pos abstractPos : Pos) (_tree : Expr) : MetaM (Option String) := do
+def betaAbstract (pos abstractPos : InnerPosition) (_tree : Expr) : MetaM (Option String) := do
   let rec takePrefix {α : Type} [BEq α] : List α → List α → Option (List α)
     | [], xs => some xs
     | _ , [] => none
@@ -209,7 +209,7 @@ def betaAbstract (pos abstractPos : Pos) (_tree : Expr) : MetaM (Option String) 
   return s! "beta_abstract {pos} {pos'}"
 
 elab "beta_abstract" pos:treePos pos':treePos : tactic => do
-  let (treePos, pos) := getSplitPosition pos
+  let (treePos, pos) := getOuterInnerPosition pos
   let pos' := getPosition pos'
   workOnTreeDefEq (edit treePos pos (betaAbstractAux pos'))
 

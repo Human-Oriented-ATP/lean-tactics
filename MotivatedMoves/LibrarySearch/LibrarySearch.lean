@@ -13,8 +13,8 @@ deriving BEq
 
 structure LibraryLemma where
   name : Name
-  treePos : TreePos
-  pos : Pos
+  treePos : OuterPosition
+  pos : InnerPosition
   diffs : AssocList SubExpr.Pos Widget.DiffTag
 
 instance : BEq LibraryLemma where
@@ -34,11 +34,11 @@ structure DiscrTrees where
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 
 structure ProcessResult where
-  apply           : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
-  apply_rev       : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
-  rewrite         : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
-  rewrite_ord     : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
-  rewrite_ord_rev : Array (AssocList TreePos Widget.DiffTag × TreePos × Pos × Array DiscrTree.Key) := #[]
+  apply           : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × Array DiscrTree.Key) := #[]
+  apply_rev       : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × Array DiscrTree.Key) := #[]
+  rewrite         : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × Array DiscrTree.Key) := #[]
+  rewrite_ord     : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × Array DiscrTree.Key) := #[]
+  rewrite_ord_rev : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × Array DiscrTree.Key) := #[]
 instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 

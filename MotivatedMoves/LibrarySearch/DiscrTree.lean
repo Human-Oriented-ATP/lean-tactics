@@ -522,7 +522,7 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
       | some (.node vs _) => return result.push (vs, 0)
 
 
-def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (treePos : TreePos) (pos : Pos) : MetaM (Array (Array α × Nat)) := do
+def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) : MetaM (Array (Array α × Nat)) := do
   withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e
 
 

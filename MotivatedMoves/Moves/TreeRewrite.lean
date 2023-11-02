@@ -31,9 +31,9 @@ def rewriteUnify (fvars : Array Expr) (side target : Expr) (hypContext : Hypothe
   else
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
-private def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : Pos) : MetaM' RewriteInfo :=
+private def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : InnerPosition) : MetaM' RewriteInfo :=
   
-  let rec visit (fvars : Array Expr) : Pos → Expr → MetaM' RewriteInfo
+  let rec visit (fvars : Array Expr) : InnerPosition → Expr → MetaM' RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
     | []   , e                 => rewriteUnify fvars side e hypContext
@@ -72,10 +72,10 @@ lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b
 lemma substitute' {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive a → motive b :=
   Eq.subst h₁
 
-def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool) (hypTreePos : TreePos) (hypPos goalPos : Pos)
+def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool) (hypOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition)
   : MetaM' TreeProof := do
-  unless hypTreePos == [] do
-    throwError m! "cannot rewrite using a subexpression: subtree {hypTreePos} in {eq}"
+  unless hypOuterPosition == [] do
+    throwError m! "cannot rewrite using a subexpression: subtree {hypOuterPosition} in {eq}"
   let cont (lhs rhs : Expr) (hypProofM : MetaM' (Expr × Expr)) :=
     let cont (symm : Bool) (side : Expr) (hypProofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
     
@@ -104,46 +104,46 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
 open Elab.Tactic
 
 elab "tree_rewrite" hypPos:treePos goalPos:treePos : tactic => do
-  let (hypTreePos, hypPos) := getSplitPosition hypPos
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeRewrite)
+  let (hypOuterPosition, hypPos) := getOuterInnerPosition hypPos
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  workOnTree (applyBound hypOuterPosition goalOuterPosition hypPos goalPos true treeRewrite)
 
 elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
-  let (hypTreePos, hypPos) := getSplitPosition hypPos
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeRewrite)
+  let (hypOuterPosition, hypPos) := getOuterInnerPosition hypPos
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  workOnTree (applyBound hypOuterPosition goalOuterPosition hypPos goalPos false treeRewrite)
 
-def getRewritePos (pos : TreePos × Pos ⊕ Bool) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × TreePos × Pos) := do
+def getRewritePos (pos : OuterPosition × InnerPosition ⊕ Bool) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × OuterPosition × InnerPosition) := do
   let hypTree ← makeTree hyp
   
   let (treePos, pos) := match pos with
     | .inl pos => pos
     | .inr rev? => 
-      let treePos := findTreePos hypTree
+      let treePos := findOuterPosition hypTree
       (treePos, (if rev? then [1] else [0,1]))
   return (← makeTreePath treePos hyp, treePos, pos)
 
 
 elab "lib_rewrite" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← getIdWithInfo hypName
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  let hypPos := hypPos.elim (.inr false) (.inl ∘ getSplitPosition)
-  workOnTree (applyUnbound hypName (getRewritePos hypPos) goalTreePos goalPos treeRewrite)
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  let hypPos := hypPos.elim (.inr false) (.inl ∘ getOuterInnerPosition)
+  workOnTree (applyUnbound hypName (getRewritePos hypPos) goalOuterPosition goalPos treeRewrite)
 
 elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   let hypName ← getIdWithInfo hypName
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalTreePos goalPos treeRewrite)
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalOuterPosition goalPos treeRewrite)
 
 open DiscrTree in
 def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
-  let (goalTreePos, goalPos) := splitPosition goalPos'
-  let results := (← getSubExprUnify discrTrees.2.rewrite tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite tree goalTreePos goalPos)
+  let (goalOuterPosition, goalPos) := splitPosition goalPos'
+  let results := (← getSubExprUnify discrTrees.2.rewrite tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite tree goalOuterPosition goalPos)
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     try
-      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos goalPos treeRewrite tree
+      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewrite tree
       return true
     catch _ =>
       return false
