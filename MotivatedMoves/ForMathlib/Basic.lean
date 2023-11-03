@@ -27,9 +27,7 @@ where
 
 def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) : Array String :=
   let hyps := goal.hyps.filter (·.fvarIds.contains fvarId)
-  hyps.concatMap <| fun hyp ↦ 
-    (Array.zip hyp.names hyp.fvarIds).filterMap <| fun (name, id) ↦
-      if id == fvarId then some name else none
+  hyps.concatMap (·.names)
 
 def Lean.SubExpr.GoalLocation.toPosition (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
   | .hyp fvarId =>
@@ -40,7 +38,7 @@ def Lean.SubExpr.GoalLocation.toPosition (goal : Widget.InteractiveGoal) : SubEx
   | .target pos => s!"with position {renderPos pos}"
 where 
   renderLocation (hyps : Array String) (type : Bool) : String :=
-    " at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
+    "at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
   renderPos (pos : SubExpr.Pos) : String :=
     s!"\"{pos.toString}\""
 
