@@ -556,5 +556,6 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
   let tree := (← getMainDecl).type
   logLibrarySearch (← librarySearchApply false goalPos tree)
 
+/- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i

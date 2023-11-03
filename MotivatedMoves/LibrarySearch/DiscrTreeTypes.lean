@@ -40,8 +40,9 @@ instance : Hashable Key := ⟨Key.hash⟩
 Discrimination tree trie. See `DiscrTree`.
 -/
 inductive Trie (α : Type) where
-  | node (vs : Array α) (children : Array (Key × Trie α))
-
+  | node (children : Array (Key × Trie α))
+  | path (keys : Array Key) (child : Trie α)
+  | values (vs : Array α)
 end DiscrTree
 
 open DiscrTree

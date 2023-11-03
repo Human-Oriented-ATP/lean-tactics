@@ -96,14 +96,16 @@ def Key.arity : Key → Nat
   | .proj _ _ a => 1 + a
   | _           => 0
 
-instance : Inhabited (Trie α) := ⟨.node #[] #[]⟩
+instance : Inhabited (Trie α) := ⟨.node #[]⟩
 
 def empty : DiscrTree α := { root := {} }
 
 partial def Trie.format [ToFormat α] : Trie α → Format
-  | .node vs cs => Format.group $ Format.paren $
-    "node" ++ (if vs.isEmpty then Format.nil else " " ++ Std.format vs)
-    ++ Format.join (cs.toList.map fun ⟨k, c⟩ => Format.line ++ Format.paren (Std.format k ++ " => " ++ format c))
+  | .node cs => Format.group $ Format.paren $
+    "node" ++ Format.join (cs.toList.map fun ⟨k, c⟩ => Format.line ++ Format.paren (Std.format k ++ " => " ++ format c))
+  | .values vs => "values" ++ if vs.isEmpty then Format.nil else " " ++ Std.format vs
+  | .path ks c => "path " ++ Std.format ks ++ " => " ++ format c
+  
 
 instance [ToFormat α] : ToFormat (Trie α) := ⟨Trie.format⟩
 
@@ -347,13 +349,11 @@ private def initCapacity := 8
 def mkPath (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (Array Key) := do
   withReducible do makeInsertionPath.mkPathAux (root := true) config e (.mkEmpty initCapacity) |>.run {} |>.run' {}
 
-private partial def createNodes (keys : Array Key) (v : α) (i : Nat) : Trie α :=
-  if h : i < keys.size then
-    let k := keys.get ⟨i, h⟩
-    let c := createNodes keys v (i+1)
-    .node #[] #[(k, c)]
-  else
-    .node #[v] #[]
+private def nonemptyPath (keys : Array Key) (child : Trie α) :=
+  if keys.isEmpty then child else .path keys child
+
+private partial def createPath (keys : Array Key) (v : α) (i : Nat) : Trie α :=
+  nonemptyPath keys[i:] (.values #[v])
 
 /--
 If `vs` contains an element `v'` such that `v == v'`, then replace `v'` with `v`.
@@ -374,18 +374,25 @@ private def insertVal [BEq α] (vs : Array α) (v : α) : Array α :=
 --       vs.push v
 -- termination_by loop i => vs.size - i
 
-private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Trie α → Trie α
-  | i, .node vs cs =>
-    if h : i < keys.size then
-      let k := keys.get ⟨i, h⟩
+private partial def insertAux [BEq α] (keys : Array Key) (v : α) (i : Nat) : Trie α → Trie α
+  | .node cs =>
+      let k := keys[i]!
       let c := Id.run $ cs.binInsertM
-          (fun a b => a.1 < b.1)
-          (fun ⟨_, s⟩ => let c := insertAux keys v (i+1) s; (k, c)) -- merge with existing
-          (fun _ => let c := createNodes keys v (i+1); (k, c))
-          (k, default)
-      .node vs c
-    else
-      .node (insertVal vs v) cs
+        (fun a b => a.1 < b.1)
+        (fun (_, s) => let c := insertAux keys v (i+1) s; (k, c)) -- merge with existing
+        (fun _ => let c := createPath keys v (i+1); (k, c))
+        (k, default)
+      .node c
+  | .values vs =>
+      .values (insertVal vs v)
+  | .path ks c => Id.run do
+    for n in [:ks.size] do
+      if ks[n]! != keys[i+n]! then
+        let shared := ks[:n]
+        let k := ks[n]!
+        let rest := ks[n+1:]
+        return nonemptyPath shared (insertAux keys v (i+n) (.node #[(k, nonemptyPath rest c)]))
+    return .path ks (insertAux keys v (i + ks.size) c)
 
 def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTree α :=
   if keys.isEmpty then panic! "invalid key sequence"
@@ -393,7 +400,7 @@ def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTr
     let k := keys[0]!
     match d.root.find? k with
     | none =>
-      let c := createNodes keys v 1
+      let c := createPath keys v 1
       { root := d.root.insert k c }
     | some c =>
       let c := insertAux keys v 1 c
@@ -451,10 +458,13 @@ private instance : Monad Array where
   bind a f := a.concatMap f
 
 partial def skipEntries : Nat → Trie α → Array (Trie α)
-  | skip+1, .node _ cs => do 
+  | 0     , c          => #[c]
+  | skip+1, .node cs => do 
     let (k, c) ← cs
     skipEntries (skip + k.arity) c
-  | 0     , c          => #[c]
+  | skip, .path ks c =>
+    skipEntries (ks.foldl (· + ·.arity) skip - ks.size) c
+  | _, .values _ => panic! "can't skip over a leaf"
 
 private def ArrayT (m : Type u → Type v) a := m (Array a)
 
@@ -464,13 +474,21 @@ private instance [Monad m] : Monad (ArrayT m) where
 
 mutual
   private partial def findExpr (config : WhnfCoreConfig) (e : Expr) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat))
-  | (.node _ cs, assignments, score) => do
+  | (.node cs, assignments, score) => go cs assignments score
+  | (.path ks c, assignments, score) => 
+    let k := ks[0]!
+    let ks := ks[1:]
+    go #[(k, nonemptyPath ks c)] assignments score
+  | _ => panic! "cannot lookup an expression in .values"
+
+  where
+  go cs assignments score := do
     let e ← reduceDT e config
     let (k, args) ← getKeyArgs e (root := false)
 
     let visitStars (start : Array (Trie α × HashMap Nat Expr × Nat)) : M (Array (Trie α × HashMap Nat Expr × Nat)) := do
       let mut result := start
-      for (k, v) in cs do
+      for (k, c) in cs do
         match k with
         | .star i =>
           match assignments.find? i with
@@ -478,9 +496,9 @@ mutual
             let s ← (saveState : MetaM _)
             if ← (try isDefEq e assignment catch _ => return false) then
               s.restore
-              result := result.push (v, assignments, score+1)
+              result := result.push (c, assignments, score+1)
           | none =>
-            result := result.push (v, assignments.insert i e, score)
+            result := result.push (c, assignments.insert i e, score)
         | _ => break
       return result
 
@@ -516,10 +534,10 @@ partial def getUnifyWithSpecificity (d : DiscrTree α) (e : Expr) (config : Whnf
           | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! config (c, {}, 0)
           | .forall => show ArrayT M _ from findExpr config e.bindingDomain! (c, {}, 1) >>= findBoundExpr e.bindingDomain! e.bindingBody! config
           | _ => findExprs args config (c, {}, 1)) |>.run {} |>.run' {}
-      let result := result.map $ fun (.node vs _, _, n) => (vs, n)
+      let result := result.map fun | (.values vs, _, n) => (vs, n) | _ => panic! "resulting Trie is not .values"
       match d.root.find? (.star 0) with
-      | none => return result
-      | some (.node vs _) => return result.push (vs, 0)
+      | some (.values vs) => return result.push (vs, 0)
+      | _ => return result
 
 
 def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {beta := false}) : MetaM (Array (Array α × Nat)) := do
@@ -557,8 +575,12 @@ variable {m : Type → Type} [Monad m]
 partial def Trie.mapArraysM (t : DiscrTree.Trie α) (f : Array α → m (Array β)) :
     m (Trie β) := do
   match t with
-  | .node vs children =>
-    return .node (← f vs) (← children.mapM fun (k, t') => do pure (k, ← t'.mapArraysM f))
+  | .node children =>
+    return .node (← children.mapM fun (k, t') => do pure (k, ← t'.mapArraysM f))
+  | .values vs =>
+    return .values (← f vs)
+  | .path ks c =>
+    return .path ks (← c.mapArraysM f)
 
 /-- Apply a monadic function to the array of values at each node in a `DiscrTree`. -/
 def mapArraysM (d : DiscrTree α) (f : Array α → m (Array β)) : m (DiscrTree β) := do
