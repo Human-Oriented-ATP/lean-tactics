@@ -25,11 +25,11 @@ instance : ToFormat LibraryLemma where
 
 
 structure DiscrTrees where
-  apply           : DiscrTree LibraryLemma true := {}
-  apply_rev       : DiscrTree LibraryLemma true := {}
-  rewrite         : DiscrTree LibraryLemma true := {}
-  rewrite_ord     : DiscrTree LibraryLemma true := {}
-  rewrite_ord_rev : DiscrTree LibraryLemma true := {}
+  apply           : DiscrTree LibraryLemma := {}
+  apply_rev       : DiscrTree LibraryLemma := {}
+  rewrite         : DiscrTree LibraryLemma := {}
+  rewrite_ord     : DiscrTree LibraryLemma := {}
+  rewrite_ord_rev : DiscrTree LibraryLemma := {}
 
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 

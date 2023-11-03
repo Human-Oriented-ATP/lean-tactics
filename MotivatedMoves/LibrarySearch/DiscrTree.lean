@@ -5,7 +5,7 @@ namespace Tree.DiscrTree
 
 open Lean Meta DiscrTree
 
-/-!
+/-! 
 things to add:
 give a score for a match from isDefEq, instead of always being 1?
 When replacing instances with a star, make sure that multiple of the same instance become the same star.
@@ -96,32 +96,32 @@ def Key.arity : Key → Nat
   | .proj _ _ a => 1 + a
   | _           => 0
 
-instance : Inhabited (Trie α s) := ⟨.node #[] #[]⟩
+instance : Inhabited (Trie α) := ⟨.node #[] #[]⟩
 
-def empty : DiscrTree α s := { root := {} }
+def empty : DiscrTree α := { root := {} }
 
-partial def Trie.format [ToFormat α] : Trie α s → Format
+partial def Trie.format [ToFormat α] : Trie α → Format
   | .node vs cs => Format.group $ Format.paren $
     "node" ++ (if vs.isEmpty then Format.nil else " " ++ Std.format vs)
     ++ Format.join (cs.toList.map fun ⟨k, c⟩ => Format.line ++ Format.paren (Std.format k ++ " => " ++ format c))
 
-instance [ToFormat α] : ToFormat (Trie α s) := ⟨Trie.format⟩
+instance [ToFormat α] : ToFormat (Trie α) := ⟨Trie.format⟩
 
-partial def format [ToFormat α] (d : DiscrTree α s) : Format :=
+partial def format [ToFormat α] (d : DiscrTree α) : Format :=
   let (_, r) := d.root.foldl
     (fun (p : Bool × Format) k c =>
       (false, p.2 ++ (if p.1 then Format.nil else Format.line) ++ Format.paren (Std.format k ++ " => " ++ Std.format c)))
     (true, Format.nil)
   Format.group r
 
-instance [ToFormat α] : ToFormat (DiscrTree α s) := ⟨format⟩
+instance [ToFormat α] : ToFormat (DiscrTree α) := ⟨format⟩
 
 /-- The discrimination tree ignores implicit arguments and proofs.
    We use the following auxiliary id as a "mark". -/
 private def tmpMVarId : MVarId := { name := `_discr_tree_tmp }
 private def tmpStar := mkMVar tmpMVarId
 
-instance : Inhabited (DiscrTree α s) where
+instance : Inhabited (DiscrTree α) where
   default := {}
 
 /--
@@ -166,12 +166,12 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : MetaM Boo
   else
     isProof a
 
-private partial def pushArgsAux (infos : Array ParamInfo) : Nat → Expr → Array Expr → MetaM (Array Expr)
+private partial def pushArgsAux (infos : Array ParamInfo) (config : WhnfCoreConfig) : Nat → Expr → Array Expr → MetaM (Array Expr)
   | i, .app f a, todo => do
     if (← ignoreArg a i infos) then
-      pushArgsAux infos (i-1) f (todo.push tmpStar)
+      pushArgsAux infos config (i-1) f (todo.push tmpStar)
     else
-      pushArgsAux infos (i-1) f (todo.push a)
+      pushArgsAux infos config (i-1) f (todo.push a)
   | _, _, todo => return todo
 
 /--
@@ -238,16 +238,16 @@ def hasNoindexAnnotation (e : Expr) : Bool :=
 
 /--
 Reduction procedure for the discrimination tree indexing.
-The parameter `simpleReduce` controls how aggressive the term is reduced.
+The parameter `config` controls how aggressive the term is reduced.
 The parameter at type `DiscrTree` controls this value.
 See comment at `DiscrTree`.
 -/
-partial def reduceDT (e : Expr) (simpleReduce : Bool) : MetaM Expr := do
-  let e ← whnfCore e (simpleReduceOnly := simpleReduce)
+partial def reduceDT (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
+  let e ← whnfCore e config
   match (← unfoldDefinition? e) with
-  | some e => reduceDT e simpleReduce
+  | some e => reduceDT e config
   | none => match e.etaExpandedStrict? with
-    | some e => reduceDT e simpleReduce
+    | some e => reduceDT e config
     | none   => return e
 
 namespace makeInsertionPath
@@ -274,11 +274,11 @@ def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key := do
   return .fvar s.fvarCount arity
 
 /- Remark: we use `shouldAddAsStar` only for nested terms, and `root == false` for nested terms -/
-private def getPathArgs (root : Bool) (e : Expr) : M (Key × Array Expr) := do
+private def getPathArgs (root : Bool) (e : Expr) (config : WhnfCoreConfig) : M (Key × Array Expr) := do
     let fn := e.getAppFn
     let push (k : Key) (nargs : Nat) (args : Array Expr) : M (Key × Array Expr) := do
       let info ← getFunInfoNArgs fn nargs
-      let args ← pushArgsAux info.paramInfo (nargs-1) e args
+      let args ← pushArgsAux info.paramInfo config (nargs-1) e args
       return (k, args)
     match fn with
     | .const c _ =>
@@ -321,33 +321,33 @@ private def getPathArgs (root : Bool) (e : Expr) : M (Key × Array Expr) := do
     | _          => return (.other,  #[])
 
 mutual
-  partial def mkPathAux (root : Bool) (simpleReduce : Bool) (e : Expr) (keys : Array Key) : M (Array Key) := do
+  partial def mkPathAux (root : Bool) (config : WhnfCoreConfig) (e : Expr) (keys : Array Key) : M (Array Key) := do
     if hasNoindexAnnotation e then
       keys.push <$> setNewStar none
     else
-    let e ← reduceDT e simpleReduce
-    let (k, args) ← getPathArgs root e     
+    let e ← reduceDT e config
+    let (k, args) ← getPathArgs root e config
     match k with
-    | .lam    => mkPathBinder e.bindingDomain! e.bindingBody! simpleReduce (keys.push k)
+    | .lam    => mkPathBinder e.bindingDomain! e.bindingBody! config (keys.push k)
     | .forall => do
-      let keys ← mkPathAux false simpleReduce e.bindingDomain! (keys.push k)
-      mkPathBinder e.bindingDomain! e.bindingBody! simpleReduce keys
+      let keys ← mkPathAux false config e.bindingDomain! (keys.push k)
+      mkPathBinder e.bindingDomain! e.bindingBody! config keys
     | _ =>
-      args.foldrM (init := keys.push k) (mkPathAux false simpleReduce)
+      args.foldrM (init := keys.push k) (mkPathAux false config)
 
-  partial def mkPathBinder (domain body : Expr) (simpleReduce : Bool) (keys : Array Key) : M (Array Key) := do
+  partial def mkPathBinder (domain body : Expr) (config : WhnfCoreConfig) (keys : Array Key) : M (Array Key) := do
     withLocalDeclD `_a domain fun fvar =>
       withReader (fun c => { boundVars := fvar.fvarId! :: c.boundVars }) do
-        mkPathAux false simpleReduce (body.instantiate1 fvar) keys
+        mkPathAux false config (body.instantiate1 fvar) keys
 end
 end makeInsertionPath
 
 private def initCapacity := 8
 
-def mkPath (e : Expr) (simpleReduce := true) : MetaM (Array Key) := do
-  withReducible do makeInsertionPath.mkPathAux (root := true) simpleReduce e (.mkEmpty initCapacity) |>.run {} |>.run' {}
+def mkPath (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (Array Key) := do
+  withReducible do makeInsertionPath.mkPathAux (root := true) config e (.mkEmpty initCapacity) |>.run {} |>.run' {}
 
-private partial def createNodes (keys : Array Key) (v : α) (i : Nat) : Trie α s :=
+private partial def createNodes (keys : Array Key) (v : α) (i : Nat) : Trie α :=
   if h : i < keys.size then
     let k := keys.get ⟨i, h⟩
     let c := createNodes keys v (i+1)
@@ -374,7 +374,7 @@ private def insertVal [BEq α] (vs : Array α) (v : α) : Array α :=
 --       vs.push v
 -- termination_by loop i => vs.size - i
 
-private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Trie α s → Trie α s
+private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Trie α → Trie α
   | i, .node vs cs =>
     if h : i < keys.size then
       let k := keys.get ⟨i, h⟩
@@ -387,7 +387,7 @@ private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Tri
     else
       .node (insertVal vs v) cs
 
-def insertCore [BEq α] (d : DiscrTree α s) (keys : Array Key) (v : α) : DiscrTree α s :=
+def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTree α :=
   if keys.isEmpty then panic! "invalid key sequence"
   else
     let k := keys[0]!
@@ -399,8 +399,8 @@ def insertCore [BEq α] (d : DiscrTree α s) (keys : Array Key) (v : α) : Discr
       let c := insertAux keys v 1 c
       { root := d.root.insert k c }
 
-def insert [BEq α] (d : DiscrTree α s) (e : Expr) (v : α) : MetaM (DiscrTree α s) := do
-  let keys ← mkPath e s
+def insert [BEq α] (d : DiscrTree α) (e : Expr) (v : α) (config : WhnfCoreConfig) : MetaM (DiscrTree α) := do
+  let keys ← mkPath e config
   return d.insertCore keys v
 
 
@@ -418,7 +418,7 @@ def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key := do
   set {s with fvarCount := s.fvarCount + 1, fvarNums := s.fvarNums.insert fvarId s.fvarCount : State}
   return .fvar s.fvarCount arity
 
-
+-- note that the returned arguments are not valid when the key is a `λ` or `∀`.
 private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
   match e.getAppFn with
   | .const c _     =>
@@ -443,14 +443,14 @@ private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
   | .forallE ..    => return (.forall, #[])
   | _              => return (.other,  #[])
 
-private abbrev findKey (cs : Array (Key × Trie α s)) (k : Key) : Option (Trie α s) :=
+private abbrev findKey (cs : Array (Key × Trie α)) (k : Key) : Option (Trie α) :=
   Prod.snd <$> cs.binSearch (k, default) (fun a b => a.1 < b.1)
 
 private instance : Monad Array where
   pure a   := #[a]
   bind a f := a.concatMap f
 
-partial def skipEntries : Nat → Trie α s → Array (Trie α s)
+partial def skipEntries : Nat → Trie α → Array (Trie α)
   | skip+1, .node _ cs => do 
     let (k, c) ← cs
     skipEntries (skip + k.arity) c
@@ -463,12 +463,12 @@ private instance [Monad m] : Monad (ArrayT m) where
   bind a f := bind (m := m) a (Array.concatMapM f)
 
 mutual
-  private partial def findExpr (e : Expr) : (Trie α s × HashMap Nat Expr × Nat) → M (Array (Trie α s × HashMap Nat Expr × Nat))
+  private partial def findExpr (config : WhnfCoreConfig) (e : Expr) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat))
   | (.node _ cs, assignments, score) => do
-    let e ← reduceDT e (simpleReduce := s)
+    let e ← reduceDT e config
     let (k, args) ← getKeyArgs e (root := false)
 
-    let visitStars (start : Array (Trie α s × HashMap Nat Expr × Nat)) : M (Array (Trie α s × HashMap Nat Expr × Nat)) := do
+    let visitStars (start : Array (Trie α × HashMap Nat Expr × Nat)) : M (Array (Trie α × HashMap Nat Expr × Nat)) := do
       let mut result := start
       for (k, v) in cs do
         match k with
@@ -490,22 +490,22 @@ mutual
     | _       => visitStars =<< match findKey cs k with
       | none   => return #[]
       | some c => match k with
-        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! (c, assignments, score)
-        | .forall => show ArrayT M _ from findExpr e.bindingDomain! (c, assignments, score+1) >>= findBoundExpr e.bindingDomain! e.bindingBody!
-        | _ => findExprs args (c, assignments, score+1)
+        | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! config (c, assignments, score)
+        | .forall => show ArrayT M _ from findExpr config e.bindingDomain! (c, assignments, score+1) >>= findBoundExpr e.bindingDomain! e.bindingBody! config
+        | _ => findExprs args config (c, assignments, score+1)
 
-  private partial def findExprs (args : Array Expr) : (Trie α s × HashMap Nat Expr × Nat) → ArrayT M (Trie α s × HashMap Nat Expr × Nat) :=
-    args.foldrM findExpr
+  private partial def findExprs (args : Array Expr) (config : WhnfCoreConfig) : (Trie α × HashMap Nat Expr × Nat) → ArrayT M (Trie α × HashMap Nat Expr × Nat) :=
+    args.foldrM (findExpr config)
 
-  private partial def findBoundExpr (domain body : Expr) : (Trie α s × HashMap Nat Expr × Nat) → M (Array (Trie α s × HashMap Nat Expr × Nat)) :=
+  private partial def findBoundExpr (domain body : Expr) (config : WhnfCoreConfig) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat)) :=
     (withLocalDeclD `_a domain fun fvar =>
-    withReader (fun {boundVars,} => ⟨fvar.fvarId! :: boundVars⟩) $ findExpr (body.instantiate1 fvar) ·)
+    withReader (fun {boundVars,} => ⟨fvar.fvarId! :: boundVars⟩) $ findExpr config (body.instantiate1 fvar) ·)
 
 end
 
-partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Array (Array α × Nat)) :=
+partial def getUnifyWithSpecificity (d : DiscrTree α) (e : Expr) (config : WhnfCoreConfig) : MetaM (Array (Array α × Nat)) :=
   withReducible do
-    let e ← reduceDT e (simpleReduce := s)
+    let e ← reduceDT e config
     let (k, args) ← getKeyArgs e (root := true) |>.run {} |>.run' {}
     match k with
     | .star _ => return #[] --throwError "the unification pattern is a metavariable, so it cannot be used for a search"
@@ -513,17 +513,17 @@ partial def getUnifyWithSpecificity (d : DiscrTree α s) (e : Expr) : MetaM (Arr
       let result ← match d.root.find? k with
         | none   => pure #[]
         | some c => (match k with
-          | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! (c, {}, 0)
-          | .forall => show ArrayT M _ from findExpr e.bindingDomain! (c, {}, 1) >>= findBoundExpr e.bindingDomain! e.bindingBody!
-          | _ => findExprs args (c, {}, 1)) |>.run {} |>.run' {}
+          | .lam    => findBoundExpr e.bindingDomain! e.bindingBody! config (c, {}, 0)
+          | .forall => show ArrayT M _ from findExpr config e.bindingDomain! (c, {}, 1) >>= findBoundExpr e.bindingDomain! e.bindingBody! config
+          | _ => findExprs args config (c, {}, 1)) |>.run {} |>.run' {}
       let result := result.map $ fun (.node vs _, _, n) => (vs, n)
       match d.root.find? (.star 0) with
       | none => return result
       | some (.node vs _) => return result.push (vs, 0)
 
 
-def getSubExprUnify (d : DiscrTree α s) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) : MetaM (Array (Array α × Nat)) := do
-  withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e
+def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {beta := false}) : MetaM (Array (Array α × Nat)) := do
+  withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e config
 
 
 def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Bool)
@@ -554,17 +554,17 @@ def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α �
 variable {m : Type → Type} [Monad m]
 
 /-- Apply a monadic function to the array of values at each node in a `DiscrTree`. -/
-partial def Trie.mapArraysM (t : DiscrTree.Trie α s) (f : Array α → m (Array β)) :
-    m (Trie β s) := do
+partial def Trie.mapArraysM (t : DiscrTree.Trie α) (f : Array α → m (Array β)) :
+    m (Trie β) := do
   match t with
   | .node vs children =>
     return .node (← f vs) (← children.mapM fun (k, t') => do pure (k, ← t'.mapArraysM f))
 
 /-- Apply a monadic function to the array of values at each node in a `DiscrTree`. -/
-def mapArraysM (d : DiscrTree α s) (f : Array α → m (Array β)) : m (DiscrTree β s) := do
+def mapArraysM (d : DiscrTree α) (f : Array α → m (Array β)) : m (DiscrTree β) := do
   pure { root := ← d.root.mapM (fun t => t.mapArraysM f) }
 
 /-- Apply a function to the array of values at each node in a `DiscrTree`. -/
-def mapArrays (d : DiscrTree α s) (f : Array α → Array β) : DiscrTree β s :=
+def mapArrays (d : DiscrTree α) (f : Array α → Array β) : DiscrTree β :=
   d.mapArraysM fun A => (pure (f A) : Id (Array β))
 

@@ -493,7 +493,7 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
         throwError m! "cannot apply a negative in positive position"
       let {metaIntro, instMetaIntro, hypProofM} := hypContext
       _ ← metaIntro
-      let instMVars ←instMetaIntro
+      let instMVars ← instMetaIntro
       if ← isDefEq goal p then
         synthMetaInstances instMVars
         let (_, proof) ← hypProofM
