@@ -34,19 +34,57 @@ def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) :
     (Array.zip hyp.names hyp.fvarIds).filterMap <| fun (name, id) ↦
       if id == fvarId then some name else none
 
-def mkLocation (hyps : Array String) [Monad M] [MonadQuotation M] : M (TSyntax ``location) :=
+def mkLocation (hyps : Array String) : TSyntax ``location :=
   let locs : TSyntaxArray `term := hyps.map (Coe.coe ∘ Syntax.mkStrLit)
-  `(location| at $[$locs]*)
+  ⟨
+    .node .none `Lean.Parser.Tactic.location
+      #[Lean.Syntax.atom (Lean.SourceInfo.none) "at",
+        .node .none `Lean.Parser.Tactic.locationHyp
+          #[.node .none `null locs,
+            .node .none `null #[]]]
+  ⟩
 
-def Lean.SubExpr.GoalLocation.toPosition [Monad M] [MonadQuotation M] (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → M (TSyntax ``position)
-  | .hyp fvarId => do
-      let loc ← mkLocation (fvarId.getUserNames goal)
-      `(position| $loc with position "/")
-  | .hypType fvarId pos => do
-      let loc ← mkLocation (fvarId.getUserNames goal)
-      `(position| $loc with position $(pos.toStrLit))
-  | .hypValue fvarId pos => `(position| at * with position "/") -- TODO: Treat this case properly
-  | .target pos => `(position| with position $(pos.toStrLit))
+def Lean.SubExpr.GoalLocation.toPosition (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → TSyntax ``position
+  | .hyp fvarId =>
+      let loc := mkLocation (fvarId.getUserNames goal)
+      -- `(position| $loc with position "/")
+      ⟨
+      .node .none `position
+        #[.node .none `null #[loc],
+        .atom .none "with position",
+        .node .none `str #[.atom .none "\"/\""]]
+      ⟩
+  | .hypType fvarId pos =>
+      let loc := mkLocation (fvarId.getUserNames goal)
+      -- `(position| $loc with position $(pos.toStrLit))
+      ⟨
+      .node .none `position
+        #[.node .none `null #[loc],
+        .atom .none "with position",
+        .node .none `str #[.atom .none pos.toString]]
+      ⟩
+  | .hypValue fvarId pos =>
+      -- TODO: Treat this case properly
+      -- `(position| at * with position "/") 
+      ⟨
+      .node .none `position
+        #[.node .none `null
+            #[.node .none `Lean.Parser.Tactic.location
+                #[.atom .none "at",
+                  .node .none `Lean.Parser.Tactic.locationWildcard
+                    #[.atom .none "*"]]],
+          .atom .none "with position",
+          .node .none `str #[.atom .none "\"/\""]]
+      ⟩
+  | .target pos => 
+      -- `(position| with position $(pos.toStrLit))
+      ⟨
+      .node .none `position
+        #[.node .none `null
+            #[.node .none `Lean.Parser.Tactic.location #[]],
+          .atom .none "with position",
+          .node .none `str #[.atom .none pos.toString]]
+      ⟩
 
 end
 
