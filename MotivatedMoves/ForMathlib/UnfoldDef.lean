@@ -62,20 +62,11 @@ section
 def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
   let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to unfold.</p>
   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
-  -- let pos ← loc.loc.toPosition goal
-  let tacticStr : String :=
-    match loc.loc with
-      | .target pos =>  s!"unfold at ⊢ with position \"{pos.toString}\""
-      | .hypType fvarId pos => Id.run do
-        let some hyp := goal.hyps.find? (·.fvarIds.contains fvarId) | panic! s!"Could not find hypothesis {fvarId.name} in the local context."
-        let some (hypName, _) := (Array.zip hyp.names hyp.fvarIds).find? (·.snd == fvarId) | panic! "Could not retrieve name for {fvarId.name}."
-        return s!"unfold at {hypName} with position \"{pos.toString}\""
-      | _ => ""  
   return .pure (
         <DynamicEditButton 
           label={"Unfold definition"} 
           range?={props.replaceRange} 
-          insertion?={tacticStr} 
+          insertion?={some s!"unfold {loc.loc.toPosition goal}"} 
           variant={"contained"} 
           size={"small"} />
       )
@@ -96,6 +87,8 @@ section Test
 def f := Nat.add
 
 example (hyp₀ hyp₁ : f 1 1 = 5) : f 1 2 = 3 := by
+  unfold with position "/0/1"
+  unfold  at hyp₀ with position "/0/1"
   sorry
 
 end Test
