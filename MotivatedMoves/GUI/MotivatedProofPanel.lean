@@ -271,7 +271,7 @@ def startMotivatedProof : Std.CodeAction.CommandCodeAction :=
           lazy? := some do
             let some ⟨_, stxEnd⟩ := doc.meta.text.rangeOfStx? stx | return eager
             return { eager with
-              edit? := some <| .ofTextEdit doc.meta.uri {
+              edit? := some <| .ofTextEdit ⟨doc.meta.uri, doc.meta.version⟩ {
                 range := ⟨stxEnd, stxEnd⟩, newText := "\n  motivated_proof\n  "
               } } }]
       |         _          => return #[]
