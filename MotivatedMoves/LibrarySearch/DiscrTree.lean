@@ -453,18 +453,20 @@ private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
 private abbrev findKey (cs : Array (Key × Trie α)) (k : Key) : Option (Trie α) :=
   Prod.snd <$> cs.binSearch (k, default) (fun a b => a.1 < b.1)
 
+private def children : Trie α → Array (Key × Trie α)
+| .node cs => cs
+| .path ks c => #[(ks[0]!, nonemptyPath ks[1:] c)]
+| .values _ => panic! "did not expect .values constructor"
+
 private instance : Monad Array where
   pure a   := #[a]
   bind a f := a.concatMap f
 
 partial def skipEntries : Nat → Trie α → Array (Trie α)
-  | 0     , c          => #[c]
-  | skip+1, .node cs => do 
-    let (k, c) ← cs
+  | 0     , t => #[t]
+  | skip+1, t => do
+    let (k, c) ← children t
     skipEntries (skip + k.arity) c
-  | skip, .path ks c =>
-    skipEntries (ks.foldl (· + ·.arity) skip - ks.size) c
-  | _, .values _ => panic! "can't skip over a leaf"
 
 private def ArrayT (m : Type u → Type v) a := m (Array a)
 
@@ -474,15 +476,8 @@ private instance [Monad m] : Monad (ArrayT m) where
 
 mutual
   private partial def findExpr (config : WhnfCoreConfig) (e : Expr) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat))
-  | (.node cs, assignments, score) => go cs assignments score
-  | (.path ks c, assignments, score) => 
-    let k := ks[0]!
-    let ks := ks[1:]
-    go #[(k, nonemptyPath ks c)] assignments score
-  | _ => panic! "cannot lookup an expression in .values"
-
-  where
-  go cs assignments score := do
+  | (c, assignments, score) => do
+    let cs := children c
     let e ← reduceDT e config
     let (k, args) ← getKeyArgs e (root := false)
 
