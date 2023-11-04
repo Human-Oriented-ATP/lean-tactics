@@ -142,11 +142,7 @@ def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Arr
   let results := (← getSubExprUnify discrTrees.2.rewrite tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite tree goalOuterPosition goalPos)
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
-    try
-      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewrite tree
-      return true
-    catch _ =>
-      return false
+    _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewrite tree
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite {printPosition treePos pos} {name} {goalPos'}")
 

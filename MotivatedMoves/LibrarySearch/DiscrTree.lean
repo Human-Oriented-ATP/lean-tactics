@@ -543,23 +543,29 @@ partial def getUnifyWithSpecificity (d : DiscrTree α) (e : Expr) (config : Whnf
 def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {beta := false}) : MetaM (Array (Array α × Nat)) := do
   withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e config
 
+def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Unit) (max_results : Option Nat := some 18)
+    (maxHeartbeats : Nat := 1000) (maxTotalHeartbeats : Nat := 10000) : MetaM (Array (Array α × Nat)) := do
+  let numHeartbeats ← IO.getNumHeartbeats
+  let maxTotalHeartbeats := maxTotalHeartbeats * 1000
+  let filter a := Aesop.withMaxHeartbeats maxHeartbeats do
+    try
+      filter a
+      return true
+    catch _ => 
+      return false
 
-def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Bool)
-    (max_results : Option Nat := some 18) (max_tries : Option Nat := some 40) : MetaM (Array (Array α × Nat)) := do
   let «matches» := «matches».qsort (·.2 > ·.2)
   let mut result := #[]
-  let mut num_results : Nat := 0
-  let mut num_tries : Nat := 0
+  let mut num_results := 0
   
   for (candidates, score) in «matches» do
-    if max_results.elim false (num_results ≥ ·) || max_tries.elim false (num_tries ≥ ·) then
-      break
+    if max_results.elim false (num_results ≥ ·) || (← IO.getNumHeartbeats) - numHeartbeats > maxTotalHeartbeats then
+      return result
 
     let mut filtered := #[]
     for candidate in candidates do
-      if max_results.elim false (num_results ≥ ·) || max_tries.elim false (num_tries ≥ ·) then
-        break
-      num_tries := num_tries + 1
+      if max_results.elim false (num_results ≥ ·) || (← IO.getNumHeartbeats) - numHeartbeats > maxTotalHeartbeats then
+        return result
       if ← filter candidate then
         filtered := filtered.push candidate
         num_results := num_results + 1

@@ -536,11 +536,8 @@ def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : 
     (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
-    try
-      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
-      return true
-    catch _ =>
-      return false
+    _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
+
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, 
     s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
