@@ -560,11 +560,10 @@ def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α �
     let mut filtered := #[]
     for candidate in candidates do
       if max_results.elim false (num_results ≥ ·) || (← IO.getNumHeartbeats) - numHeartbeats > maxTotalHeartbeats then
-        return result
+        break
       if ← filter candidate then
         filtered := filtered.push candidate
         num_results := num_results + 1
-        continue
 
     unless filtered.isEmpty do
       result := result.push (filtered, score)
