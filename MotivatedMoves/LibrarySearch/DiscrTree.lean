@@ -6,48 +6,39 @@ namespace Tree.DiscrTree
 open Lean Meta DiscrTree
 
 /-! 
-things to add:
-give a score for a match from isDefEq, instead of always being 1?
-When replacing instances with a star, make sure that multiple of the same instance become the same star.
+This file is a modification of DiscrTree.lean in Lean, with some parts removed and some new features added.
+I document only what is different from that file.
 
+We define discrimination trees for the purpose of unifying local expressions with library results that apply at that expression.
 
-  (Imperfect) discrimination trees.
-  We use a hybrid representation.
-  - A `PersistentHashMap` for the root node which usually contains many children.
-  - A sorted array of key/node pairs for inner nodes.
+These are the features that are not in Lean's discrimination trees:
 
-  The edges are labeled by keys:
-  - Constant names (and arity). Universe levels are ignored.
-  - Free variables (and arity). Thus, an entry in the discrimination tree
-    may reference hypotheses from the local context.
-  - Literals
-  - Star/Wildcard. We use them to represent metavariables and terms
-    we want to ignore. We ignore implicit arguments and proofs.
-  - Other. We use to represent other kinds of terms (e.g., nested lambda, forall, sort, etc).
+- The constructor `Key.fvar` and `Key.star` now take a `Nat` as an argument, as an identifier.
+  For example, the library pattern `a+a` is encoded as `[⟨Hadd.hadd, 6⟩, *0, *0, *0, *1, *2, *2]`.
+  `*0` is the type of `a`, `*1` is the `Hadd` instance, and `*2` is `a`.
+  This means that it will only match an expression `x+y` if `x` is definitionally equal to `y`.
 
-  We reduce terms using `TransparencyMode.reducible`. Thus, all reducible
-  definitions in an expression `e` are unfolded before we insert it into the
-  discrimination tree.
+  `Key.fvar` is used in lemmas like `Nat.exists_prime_and_dvd {n : ℕ} (hn : n ≠ 1) : ∃ p, Prime p ∧ p ∣ n`,
+  where the part `Prime p` gets the pattern `[⟨Nat.Prime, 1⟩, .fvar 0 0]`.
+  the first argument of `Key.fvar` is the identifier, and the second argument is the arity.
 
-  Recall that projections from classes are **NOT** reducible.
-  For example, the expressions `Add.add α (ringAdd ?α ?s) ?x ?x`
-  and `Add.add Nat Nat.hasAdd a b` generates paths with the following keys
-  respctively
-  ```
-  ⟨Add.add, 4⟩, *, *, *, *
-  ⟨Add.add, 4⟩, *, *, ⟨a,0⟩, ⟨b,0⟩
-  ```
+  If a discrimination tree is built locally, there is a need for a `Key.fvar` that takes an `FVarId`
+  as an idenitifier, which is what the DiscrTree defined in Lean does, but this is of no use for us.
 
-  That is, we don't reduce `Add.add Nat inst a b` into `Nat.add a b`.
-  We say the `Add.add` applications are the de-facto canonical forms in
-  the metaprogramming framework.
-  Moreover, it is the metaprogrammer's responsibility to re-pack applications such as
-  `Nat.add a b` into `Add.add Nat inst a b`.
+- The constructors `Key.lam`, `Key.forall` and `Key.bvar` have been introduced in order to allow for patterns under binders.
+  For example, this allows for more specific matching with the left hand side of
+  `Finset.sum_range_id (n : ℕ) : ∑ i in range n, i = n * (n - 1) / 2`
 
-  Remark: we store the arity in the keys
-  1- To be able to implement the "skip" operation when retrieving "candidate"
-     unifiers.
-  2- Distinguish partial applications `f a`, `f a b`, and `f a b c`.
+- We keep track of a matching score of a unification. 
+  This score represent the number of keys that had to be the same for the unification to succeed.
+  For example, matching `(1 + 2) + 3` with `add_comm` gives a score of 3,
+  since the pattern of commutativity is [⟨Hadd.hadd, 6⟩, *0, *0, *0, *1, *2, *3],
+  so matching `⟨Hadd.hadd, 6⟩` gives 1 point, 
+  and matching `*0` two times after its first appearence gives another 2 points.
+  Similarly, matching it with `add_assoc` gives a score of 7.
+
+  TODO: the third type parameter of `Hadd.hadd` is an outparam, so its matching should not be counted to the score.
+
 -/
 
 def Key.ctorIdx : Key → Nat
@@ -126,36 +117,6 @@ private def tmpStar := mkMVar tmpMVarId
 instance : Inhabited (DiscrTree α) where
   default := {}
 
-/--
-  Return true iff the argument should be treated as a "wildcard" by the discrimination tree.
-
-  - We ignore proofs because of proof irrelevance. It doesn't make sense to try to
-    index their structure.
-
-  - We ignore instance implicit arguments (e.g., `[Add α]`) because they are "morally" canonical.
-    Moreover, we may have many definitionally equal terms floating around.
-    Example: `Ring.hasAdd Int Int.isRing` and `Int.hasAdd`.
-
-  - We considered ignoring implicit arguments (e.g., `{α : Type}`) since users don't "see" them,
-    and may not even understand why some simplification rule is not firing.
-    However, in type class resolution, we have instance such as `Decidable (@Eq Nat x y)`,
-    where `Nat` is an implicit argument. Thus, we would add the path
-    ```
-    Decidable -> Eq -> * -> * -> * -> [Nat.decEq]
-    ```
-    to the discrimination tree IF we ignored the implict `Nat` argument.
-    This would be BAD since **ALL** decidable equality instances would be in the same path.
-    So, we index implicit arguments if they are types.
-    This setting seems sensible for simplification theorems such as:
-    ```
-    forall (x y : Unit), (@Eq Unit x y) = true
-    ```
-    If we ignore the implicit argument `Unit`, the `DiscrTree` will say it is a candidate
-    simplification theorem for any equality in our goal.
-
-  Remark: if users have problems with the solution above, we may provide a `noIndexing` annotation,
-  and `ignoreArg` would return true for any term of the form `noIndexing t`.
--/
 private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : MetaM Bool := do
   if h : i < infos.size then
     let info := infos.get ⟨i, h⟩
@@ -219,18 +180,6 @@ where
         failure
     | _ => failure
 
-/--
-  TODO: add hook for users adding their own functions for controlling `shouldAddAsStar`
-  Different `DiscrTree` users may populate this set using, for example, attributes.
-
-  Remark: we currently tag "offset" terms as star to avoid having to add special
-  support for offset terms.
-  Example, suppose the discrimination tree contains the entry
-  `Nat.succ ?m |-> v`, and we are trying to retrieve the matches for `Expr.lit (Literal.natVal 1) _`.
-  In this scenario, we want to retrieve `Nat.succ ?m |-> v`
--/
-private def shouldAddAsStar (_fName : Name) (_e : Expr) : MetaM Bool := do
-  return false --isOffset fName e
 
 def mkNoindexAnnotation (e : Expr) : Expr :=
   mkAnnotation `noindex e
@@ -238,12 +187,6 @@ def mkNoindexAnnotation (e : Expr) : Expr :=
 def hasNoindexAnnotation (e : Expr) : Bool :=
   annotation? `noindex e |>.isSome
 
-/--
-Reduction procedure for the discrimination tree indexing.
-The parameter `config` controls how aggressive the term is reduced.
-The parameter at type `DiscrTree` controls this value.
-See comment at `DiscrTree`.
--/
 partial def reduceDT (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
   let e ← whnfCore e config
   match (← unfoldDefinition? e) with
@@ -275,7 +218,6 @@ def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key := do
   set {s with fvarCount := s.fvarCount + 1, fvarNums := s.fvarNums.insert fvarId s.fvarCount : State}
   return .fvar s.fvarCount arity
 
-/- Remark: we use `shouldAddAsStar` only for nested terms, and `root == false` for nested terms -/
 private def getPathArgs (root : Bool) (e : Expr) (config : WhnfCoreConfig) : M (Key × Array Expr) := do
     let fn := e.getAppFn
     let push (k : Key) (nargs : Nat) (args : Array Expr) : M (Key × Array Expr) := do
@@ -292,12 +234,6 @@ private def getPathArgs (root : Bool) (e : Expr) (config : WhnfCoreConfig) : M (
       let nargs := e.getAppNumArgs
       push (.const c nargs) nargs #[]
     | .proj s i a =>
-      /-
-      If `s` is a class, then `a` is an instance. Thus, we annotate `a` with `no_index` since we do not
-      index instances. This should only happen if users mark a class projection function as `[reducible]`.
-
-      TODO: add better support for projections that are functions
-      -/
       let a := if isClass (← getEnv) s then mkNoindexAnnotation a else a
       let nargs := e.getAppNumArgs
       push (.proj s i nargs) nargs #[a]
@@ -356,6 +292,8 @@ private partial def createPath (keys : Array Key) (v : α) (i : Nat) : Trie α :
   nonemptyPath keys[i:] (.values #[v])
 
 /--
+Note: I have removed this equality check as it doesn't seem to be necessary, but in the future this might change.
+
 If `vs` contains an element `v'` such that `v == v'`, then replace `v'` with `v`.
 Otherwise, push `v`.
 See issue #2155
@@ -379,7 +317,7 @@ private partial def insertAux [BEq α] (keys : Array Key) (v : α) (i : Nat) : T
       let k := keys[i]!
       let c := Id.run $ cs.binInsertM
         (fun a b => a.1 < b.1)
-        (fun (_, s) => let c := insertAux keys v (i+1) s; (k, c)) -- merge with existing
+        (fun (_, s) => let c := insertAux keys v (i+1) s; (k, c))
         (fun _ => let c := createPath keys v (i+1); (k, c))
         (k, default)
       .node c
@@ -425,7 +363,7 @@ def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key := do
   set {s with fvarCount := s.fvarCount + 1, fvarNums := s.fvarNums.insert fvarId s.fvarCount : State}
   return .fvar s.fvarCount arity
 
--- note that the returned arguments are not valid when the key is a `λ` or `∀`.
+/- note that the returned arguments are not valid when the key is a `λ` or `∀`. -/
 private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
   match e.getAppFn with
   | .const c _     =>
@@ -458,21 +396,24 @@ private def children : Trie α → Array (Key × Trie α)
 | .path ks c => #[(ks[0]!, nonemptyPath ks[1:] c)]
 | .values _ => panic! "did not expect .values constructor"
 
-private instance : Monad Array where
+section MonadArray
+
+/- I define the instances `Monad Array` and `Monad m → Monad (ArrayT m)` locally for convenience. -/
+local instance : Monad Array where
   pure a   := #[a]
   bind a f := a.concatMap f
+
+private def ArrayT (m : Type u → Type v) a := m (Array a)
+
+local instance [Monad m] : Monad (ArrayT m) where
+  pure a := pure (f := m) #[a]
+  bind a f := bind (m := m) a (Array.concatMapM f)
 
 partial def skipEntries : Nat → Trie α → Array (Trie α)
   | 0     , t => #[t]
   | skip+1, t => do
     let (k, c) ← children t
     skipEntries (skip + k.arity) c
-
-private def ArrayT (m : Type u → Type v) a := m (Array a)
-
-private instance [Monad m] : Monad (ArrayT m) where
-  pure a := pure (f := m) #[a]
-  bind a f := bind (m := m) a (Array.concatMapM f)
 
 mutual
   private partial def findExpr (config : WhnfCoreConfig) (e : Expr) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat))
@@ -515,8 +456,8 @@ mutual
     withReader (fun {boundVars,} => ⟨fvar.fvarId! :: boundVars⟩) $ findExpr config (body.instantiate1 fvar) ·)
 
 end
-
-partial def getUnifyWithSpecificity (d : DiscrTree α) (e : Expr) (config : WhnfCoreConfig) : MetaM (Array (Array α × Nat)) :=
+/-- return the results from the DiscrTree that match the given expression, together with their matching scores. -/
+partial def getUnifyWithScore (d : DiscrTree α) (e : Expr) (config : WhnfCoreConfig) : MetaM (Array (Array α × Nat)) :=
   withReducible do
     let e ← reduceDT e config
     let (k, args) ← getKeyArgs e (root := true) |>.run {} |>.run' {}
@@ -534,10 +475,12 @@ partial def getUnifyWithSpecificity (d : DiscrTree α) (e : Expr) (config : Whnf
       | some (.values vs) => return result.push (vs, 0)
       | _ => return result
 
-
+end MonadArray
+/-- apply `getUnifyWithScore` at the given subexrpession. -/
 def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {beta := false}) : MetaM (Array (Array α × Nat)) := do
-  withTreeSubexpr tree treePos pos fun _ e => getUnifyWithSpecificity d e config
+  withTreeSubexpr tree treePos pos fun _ e => getUnifyWithScore d e config
 
+/-- Filter the matches coming from `getUnifyWithScore` by whether the `filter` function succeeds within the given `maxHeartbeats`.-/
 def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Unit) (max_results : Option Nat := some 18)
     (maxHeartbeats : Nat := 1000) (maxTotalHeartbeats : Nat := 10000) : MetaM (Array (Array α × Nat)) := do
   let numHeartbeats ← IO.getNumHeartbeats
