@@ -31,10 +31,8 @@ def replaceByDefAux (e : Expr) : ExceptT MessageData MetaM Expr := do
 
 --
 
-#check kabstract
-#check MVarId.rewrite
-
-def replaceByDef (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr := do 
+def replaceByDef (e : Expr) (pattern : AbstractMVarsResult) (occs : Occurrences) : MetaM Expr := do 
+  let (_, _, p) ← openAbstractMVarsResult pattern
   let eAbst ← kabstract e p occs
   unless eAbst.hasLooseBVars do
     throwError m!"Failed to find instance of pattern {indentExpr p} in {indentExpr e}."
@@ -49,11 +47,11 @@ end
 open Parser Tactic Conv
 
 -- from Lean/Elab/Tactic/Conv/Pattern
-def expandPattern (p : Term) : TermElabM Expr :=
+def expandPattern (p : Term) : TermElabM AbstractMVarsResult :=
   withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) <|
        Term.withoutModifyingElabMetaStateWithInfo <| withRef p <|
        Term.withoutErrToSorry do
-         Term.elabTerm p none
+         abstractMVars (← Term.elabTerm p none)
 
 def expandOccs : Option (TSyntax ``occs) → Occurrences
   | none => .all
@@ -87,6 +85,7 @@ elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
 def f := Nat.add
 
 example (h : f 0 0 = 1 + 1) : f 0 0 = f 1 1 := by
-  unfold' (occs := 1 2) f 0 0
+  unfold' (occs := 1 2) f _ _
   unfold' (occs := 1) f at h
+  unfold' (occs := 1) _ + _ at h
   sorry
