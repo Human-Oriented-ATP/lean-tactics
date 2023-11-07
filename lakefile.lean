@@ -92,10 +92,10 @@ target widgetPackageLock : FilePath := do
 
 /-- Target to build `build/js/foo.js` from a `widget/src/foo.tsx` widget module.
 Rebuilds whenever the `.tsx` source, or any part of the build configuration, has changed. -/
-def widgetTsxTarget (pkg : NPackage _package.name) (nodeModulesMutex : IO.Mutex Bool)
-    (tsxName : String) (deps : Array (BuildJob FilePath)) (isDev : Bool) :
+def widgetTsxTarget (nodeModulesMutex : IO.Mutex Bool)
+    (tsxName : String) (deps : Array (BuildJob FilePath)) (isDev : Bool) (tgtDir : FilePath := ".") :
     IndexBuildM (BuildJob FilePath) := do
-  let jsFile := pkg.buildDir / "js" / s!"{tsxName}.js"
+  let jsFile := tgtDir / "js" / s!"{tsxName}.js"
   buildFileAfterDepArray jsFile deps fun _srcFile => do
     /-
     HACK: Ensure that NPM modules are installed before building TypeScript, *if* we are building it.
@@ -128,7 +128,7 @@ def widgetTsxTarget (pkg : NPackage _package.name) (nodeModulesMutex : IO.Mutex 
     }
 
 /-- Target to build all TypeScript widget modules that match `widget/src/*.tsx`. -/
-def widgetJsAllTarget (pkg : NPackage _package.name) (isDev : Bool) :
+def widgetJsAllTarget (pkg : NPackage _package.name) (isDev : Bool) (tgtDir : FilePath := ".") :
     IndexBuildM (BuildJob (Array FilePath)) := do
   let fs ← (widgetDir / "src").readDir
   let tsxs : Array FilePath := fs.filterMap fun f =>
@@ -138,7 +138,7 @@ def widgetJsAllTarget (pkg : NPackage _package.name) (isDev : Bool) :
   let deps ← liftM <| depFiles.mapM inputFile
   let deps := deps.push $ ← fetch (pkg.target ``widgetPackageLock)
   let nodeModulesMutex ← IO.Mutex.new false
-  let jobs ← tsxs.mapM fun tsx => widgetTsxTarget pkg nodeModulesMutex tsx.fileStem.get! deps isDev
+  let jobs ← tsxs.mapM fun tsx => widgetTsxTarget nodeModulesMutex tsx.fileStem.get! deps isDev tgtDir
   BuildJob.collectArray jobs
 
 def customTsxTargetFilePath : FilePath :=
@@ -153,7 +153,7 @@ def customTsxFilePath : IO FilePath := do
 
 /-- A version of `widgetJsAllTarget` that builds a single standalone `.tsx` file
    whose name is specified in the `./widget/tsx-target.txt` file. -/
-def customWidgetJsTarget (pkg : NPackage _package.name) (isDev : Bool) :
+def customWidgetJsTarget (pkg : NPackage _package.name) (isDev : Bool) (tgtDir : FilePath := ".") :
     IndexBuildM (BuildJob (Array FilePath)) := do
   let tsx ← customTsxFilePath
   let depFiles := #[ widgetDir / "rollup.config.js", widgetDir / "tsconfig.json" ]
@@ -162,14 +162,14 @@ def customWidgetJsTarget (pkg : NPackage _package.name) (isDev : Bool) :
   let nodeModulesMutex ← IO.Mutex.new false
   let tsxFileStem := tsx.fileStem.get!
   IO.println s!"Building JavaScript file for {tsxFileStem}..."
-  let jsFile := pkg.buildDir / "js" / s!"{tsxFileStem}.js"
-  let jsFileTrace := pkg.buildDir / "js" / s!"{tsxFileStem}.js.trace"
+  let jsFile := tgtDir / "js" / s!"{tsxFileStem}.js"
+  let jsFileTrace := tgtDir / "js" / s!"{tsxFileStem}.js.trace"
   if (← jsFile.pathExists) && (← jsFileTrace.pathExists) then
     IO.println "Removing previous builds ..."
     IO.FS.removeFile jsFile
     IO.FS.removeFile jsFileTrace
   else IO.println "No previous builds to remove. Starting afresh ..."
-  let job ← widgetTsxTarget pkg nodeModulesMutex tsxFileStem deps isDev
+  let job ← widgetTsxTarget nodeModulesMutex tsxFileStem deps isDev tgtDir
   BuildJob.collectArray #[job]
 
 target customWidgetJs (pkg : NPackage _package.name) : Array FilePath := do
