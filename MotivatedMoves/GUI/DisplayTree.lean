@@ -20,7 +20,6 @@ syntax (name := binders) symbol_binder,+ newLineTermParser : tree
 syntax (name := hypothesis) term newLineTermParser : tree
 syntax (name := dotHypothesis) "·" ppHardSpace term newLineTermParser : tree
 syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
-syntax (name := negation) "¬ " ppHardSpace term : tree
 
 def newLine := ppDedent (ppLine >> categoryParser `term 0)
 syntax (name := firstLine) newLine : tree
@@ -45,6 +44,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     Meta.withLocalDeclD n d fun fvar =>
     descend (b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)) 1 do
     match ← (delabTreeAux pol) with
+      | `(tree|∀ $a:binder⠀ $stx)                        => `(tree|∀ $stxND:binder, $a:binder⠀ $stx)
       | `(tree|∀ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∀ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
       | `(tree|$[$b:symbol_binder],*⠀ $stx)              => `(tree|∀ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
       | `(tree|$stx)                                     => `(tree|∀ $stxND:binder⠀ $stx)
@@ -57,6 +57,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     Meta.withLocalDeclD n d fun fvar =>
     descend (b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)) 1 do
     match ← (delabTreeAux pol) with
+      | `(tree|∃ $a:binder⠀ $stx)                        => `(tree|∃ $stxND:binder, $a:binder⠀ $stx)
       | `(tree|∃ $a:binder, $[$b:symbol_binder],*⠀ $stx) => `(tree|∃ $stxND:binder, $a:binder, $[$b:symbol_binder],*⠀ $stx)
       | `(tree|$[$b:symbol_binder],*⠀ $stx)              => `(tree|∃ $stxND:binder, $[$b:symbol_binder],*⠀ $stx)
       | `(tree|$stx)                                     => `(tree|∃ $stxND:binder⠀ $stx)
@@ -91,12 +92,12 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   
   | not_pattern p =>
     let stx ← descend p 0 (delabTreeAux !pol)
-    annotateTermInfo =<< `(negation| ¬ $stx)
+    annotateTermInfo =<< `(¬ $stx)
 
   | e => if root then failure else descend e 2 delab
 
 
-@[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And]
+@[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And, delab app.Tree.Not]
 def delabTree : Delab :=
   delabTreeAux true true
 

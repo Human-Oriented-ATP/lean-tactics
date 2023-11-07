@@ -3,7 +3,7 @@ import MotivatedMoves.BreadthFirstSearch.Move
 
 open Lean Elab Tactic Move 
 
-def SearchRedundancyMove : Move Unit where
+def SearchRedundancyMove : Move where
   name := "Search Redundancy"
   tactic := fun _ => do 
     evalTactic (← `(tactic| tree_search))

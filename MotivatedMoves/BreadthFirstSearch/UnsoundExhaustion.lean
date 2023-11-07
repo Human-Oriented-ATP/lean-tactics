@@ -60,21 +60,3 @@ def exhaustParametricTacticOnAllPositions2
   let allPositions2 := allPositions.map (fun fst => allPositions.map (fun snd => (fst, snd))) 
   exhaustParametricTacticUnsound tactic allPositions2.flatten
 
--- TESTS: 
-
-def myTactic (n : Nat) : TacticM Unit := do 
-  match n with 
-  | 0 => dbg_trace "Case 0: Error" 
-         throwError "Ouch!"
-  | 1 => dbg_trace "Case 1: Nothing"
-         pure ()
-  | 2 => dbg_trace "Case 2: Simp"
-         evalTactic (← `(tactic|simp))
-  | _ => dbg_trace "Case >=3: Nothing"
-         pure ()
-
-elab "testExhaust" : tactic => do 
-  exhaustParametricTacticUnsound myTactic #[0, 1]
-
-example : 1+1 = 2 := by 
-  testExhaust

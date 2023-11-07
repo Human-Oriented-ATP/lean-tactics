@@ -114,3 +114,90 @@ lib_rewrite [1, 1, 1, 1, 2, 0, 1] not_lt_iff_eq_or_lt [1, 1, 1, 1, 1, 1, 0, 2]
 tree_induction [1, 1, 1, 1, 1, 1]
 tree_rewrite [1, 1, 1, 1, 1, 1, 0, 0, 2, 1] [1, 1, 1, 1, 1, 1, 0, 1, 2, 0, 1]
 sorry
+
+
+
+
+
+
+#exit
+
+example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
+  → UniformContinuous f → Continuous f := by
+  make_tree
+  lib_rewrite Metric.uniformContinuous_iff [1,1,1,0]
+  lib_rewrite Metric.continuous_iff [1,1,1,1]
+  tree_apply [1,1,1,0,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1]
+  tree_apply [1,1,1,0] [1,1,1,1,0]
+  tree_apply [1,1,1,0] [1,1,1,1,1,0]
+  tree_search
+
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) : 
+  LipschitzWith 1 f → Continuous f := by
+  make_tree
+  lib_rewrite Metric.continuous_iff [1]
+  lib_rewrite lipschitzWith_iff_dist_le_mul [0]
+  tree_simp [0,1,2,1,1]
+  tree_rewrite_ord [0,1,1] [1,1,1,1,1,1,1,1,2,0,1]
+  tree_rewrite_ord [1,1,1,1,1,1,0] [1,1,1,1,1,1,1,2,0,1]
+  lib_rewrite_rev Set.mem_Ioo [1,1,1]
+  lib_rewrite_rev Set.nonempty_def [1,1]
+  lib_rewrite Set.nonempty_Ioo [1,1]
+  tree_apply [1,0] [1,1]
+
+
+lemma epsilon_lemma₁ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ∃ η > 0, ζ ≤ ε - η :=
+  fun ε hε =>
+    let hε2 : ε / 2 > 0 := div_pos hε (by simp)
+    ⟨ε/2, hε2, ε/2, hε2, by ring_nf;rfl⟩
+
+lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
+  fun ε hε =>
+    ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
+
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
+  (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
+  make_tree
+  lib_rewrite Metric.tendstoUniformly_iff [1,0]
+  try_lib_apply [1,0,1,1] -- this is the library search that hits a deterministic time-out
+  lib_rewrite Filter.eventually_atTop [1,0,1,1]
+
+  lib_rewrite Metric.continuous_iff [1,1]
+
+  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,2,0,1]
+  tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
+  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+  tree_search
+
+  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
+  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+  tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+
+  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
+  tree_search
+  lib_rewrite Metric.continuous_iff [0,1]
+  tree_rewrite_ord [0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
+  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
+  tree_search
+  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1]
+  tree_search
+  lib_rewrite_rev max_le_iff [1,1,1]
+  lib_apply refl [1,1,1]
+
+
+
+
+ 
+  
+example (a b c : Int) : a + b + c = a + (b + c) := by
+  try_lib_rewrite [2,0,1]
+
+open BigOperators
+
+example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
+  try_lib_rewrite [2,0,1]
+
+example (N : ℕ) : ∑ n in Finset.range N, (a + b)  = N * (N - 1) / 2 := by
+  try_lib_rewrite [2,0,1]

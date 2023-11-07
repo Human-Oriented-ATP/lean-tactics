@@ -3,7 +3,7 @@ import MotivatedMoves.BreadthFirstSearch.Move
 
 open Lean Elab Tactic Move Tree
   
-def applyMove : Move2 (Array Nat) where 
+def applyMove : Move2 where 
   name := "Apply"
   tactic := fun (position1, position2) => do
     let (outer1, inner1) := splitPosition position1

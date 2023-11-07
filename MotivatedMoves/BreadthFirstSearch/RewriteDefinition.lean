@@ -3,8 +3,8 @@ import MotivatedMoves.BreadthFirstSearch.Move
 
 open Lean Elab Tactic Move Tree
   
-def rewriteDefinitionMove : Move (Array Nat) where 
-  name := "Rewrite def"
+def rewriteDefinitionMove : Move where 
+  name := "Rewrite Definition"
   tactic position := do
     let (outer, inner) := splitPosition position
     workOnTreeDefEq (edit outer inner replaceByDef)

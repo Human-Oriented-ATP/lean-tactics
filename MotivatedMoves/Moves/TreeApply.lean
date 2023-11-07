@@ -493,7 +493,7 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
         throwError m! "cannot apply a negative in positive position"
       let {metaIntro, instMetaIntro, hypProofM} := hypContext
       _ ← metaIntro
-      let instMVars ←instMetaIntro
+      let instMVars ← instMetaIntro
       if ← isDefEq goal p then
         synthMetaInstances instMVars
         let (_, proof) ← hypProofM
@@ -536,11 +536,8 @@ def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : 
     (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
 
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
-    try
-      _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
-      return true
-    catch _ =>
-      return false
+    _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
+
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, 
     s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
@@ -556,5 +553,6 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
   let tree := (← getMainDecl).type
   logLibrarySearch (← librarySearchApply false goalPos tree)
 
+/- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i

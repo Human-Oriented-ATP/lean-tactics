@@ -25,7 +25,7 @@ def tree_apply : InfoviewAction :=
     let subexprPos := panelProps.selectedLocations
     let some pos1 := subexprPos[0]? | failure
     let some pos2 := subexprPos[1]? | failure
-    let ⟨_, .target subexprPos1⟩  := pos1 | failure
+    let ⟨_, .target subexprPos1⟩ := pos1 | failure
     let ⟨_, .target subexprPos2⟩ := pos2 | failure
     let text := subexprPos1.toArray.toList.toString ++ " " ++ 
                   subexprPos2.toArray.toList.toString
