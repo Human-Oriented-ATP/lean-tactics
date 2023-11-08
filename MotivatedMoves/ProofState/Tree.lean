@@ -15,7 +15,10 @@ def forall_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
   mkApp2 (.const ``Forall [u]) domain' (.lam name domain body bi)
 @[match_pattern]
 def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
-  mkApp2 (.const ``Exists [u]) domain' (.lam name domain body bi)
+  mkApp2 (.const ``Tree.Exists [u]) domain' (.lam name domain body bi)
+@[match_pattern]
+def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
+  mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
 
 @[match_pattern]
 def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
@@ -27,9 +30,7 @@ def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body 
 @[match_pattern] def regular_iff_pattern (p q : Expr) : Expr :=      mkApp2 (.const `Iff []) p q
 @[match_pattern] def eq_pattern (u : Level) (α p q : Expr) : Expr := mkApp3 (.const `Eq [u]) α p q
 @[match_pattern] def regular_or_pattern (p q : Expr) : Expr :=       mkApp2 (.const `Or  []) p q
-@[match_pattern]
-def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
-  mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
+
 
 /-- Return True if the expression starts with a Tree node. -/
 def isTree : Expr → Bool
