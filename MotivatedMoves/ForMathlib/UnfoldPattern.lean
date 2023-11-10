@@ -110,7 +110,47 @@ def delabMVarWithType : Delab := do
 #eval show TermElabM _ from do
   let s ← `(term| ∀ n m : Nat, n + m = m + n)
   let e ← Term.elabTerm s none
-  SubExpr.display (.fromString! "/1/1") e
+  SubExpr.display (.fromString! "/1/1/0/1") e
+
+-- based on `kabstract`
+def findOccurrence (root pattern : Expr) (position : SubExpr.Pos) : MetaM Nat := do
+  let e ← instantiateMVars root
+  let pHeadIdx := pattern.toHeadIndex
+  let pNumArgs := pattern.headNumArgs
+  let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat MetaM Unit := do
+    let visitChildren : Unit → StateRefT Nat MetaM Unit := fun _ => do
+      match e with
+      | .app f a         => do
+        visit f p.pushAppFn offset
+        visit a p.pushAppArg offset
+      | .mdata _ b       => visit b p offset
+      | .proj _ _ b      => visit b p.pushProj offset
+      | .letE _ t v b _  => do
+        visit t p.pushLetVarType offset
+        visit v p.pushLetValue offset
+        visit b p.pushLetBody (offset+1)
+      | .lam _ d b _     => do
+        visit d p.pushBindingDomain offset
+        visit b p.pushBindingBody (offset+1)
+      | .forallE _ d b _ => do
+        visit d p.pushBindingDomain offset
+        visit b p.pushBindingBody (offset+1)
+      | e                => return ()
+    if e.hasLooseBVars then
+      visitChildren ()
+    else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+      visitChildren ()
+    else if (← isDefEq e pattern) then
+      let i ← get
+      set (i+1)
+      if p = position then
+        return ()
+      else
+        visitChildren ()
+    else
+      visitChildren ()
+  let (_, occ) ← visit e .root 0 |>.run 0
+  return occ
 
 example (h : f 0 0 = g (1 + 1)) : f 0 1 = f 1 1 := by
   unfold' (occs := 1 2) f ?n ?n
