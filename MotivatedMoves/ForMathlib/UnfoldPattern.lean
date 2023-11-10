@@ -2,7 +2,7 @@ import Lean
 import Std.Lean.Position
 import MotivatedMoves.ForMathlib.Basic
 
-open Lean Meta MonadExceptOf Elab Tactic
+open Lean Core Meta MonadExceptOf Elab Tactic
 
 section
 -- Jovan's `tree_rewrite_def`
@@ -84,8 +84,36 @@ elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
 
 def f := Nat.add
 
-example (h : f 0 0 = 1 + 1) : f 0 0 = f 1 1 := by
-  unfold' (occs := 1 2) f _ _
+def g (n : Nat) := n + 2
+
+def SubExpr.display (p : SubExpr.Pos) (root : Expr) : MetaM String := do
+  let e ← Core.viewSubexpr p root
+  let binders ← Core.viewBinders p root
+  let mvars ← binders.mapM fun (name, type) ↦ 
+    mkFreshExprMVar type (userName := name)
+  let e' := e.instantiateRev mvars
+  let fmt ← PrettyPrinter.ppExpr e'
+  return fmt.pretty
+
+open PrettyPrinter Delaborator SubExpr in
+@[delab mvar]
+def delabMVarWithType : Delab := do
+  let Expr.mvar n ← getExpr | unreachable!
+  let type ← delab <| ← inferType <| ← getExpr
+  let mvarDecl ← n.getDecl
+  let n :=
+    match mvarDecl.userName with
+    | Name.anonymous => n.name.replacePrefix `_uniq `m
+    | n => n.getRoot -- TODO: This may not be hygienic
+  `((?$(mkIdent n) : $type))
+
+#eval show TermElabM _ from do
+  let s ← `(term| ∀ n m : Nat, n + m = m + n)
+  let e ← Term.elabTerm s none
+  SubExpr.display (.fromString! "/1/1") e
+
+example (h : f 0 0 = g (1 + 1)) : f 0 1 = f 1 1 := by
+  unfold' (occs := 1 2) f ?n ?n
   unfold' (occs := 1) f at h
-  unfold' (occs := 1) _ + _ at h
+  -- unfold' (occs := 1) (_ : Nat → Nat) (1 + 1) at h
   sorry
