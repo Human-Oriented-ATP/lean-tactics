@@ -46,26 +46,7 @@ def replaceByDef (e : Expr) (pattern : AbstractMVarsResult) (occs : Occurrences)
 
 end
 
-open Parser Tactic Conv
-
--- from Lean/Elab/Tactic/Conv/Pattern
-def expandPattern (p : Term) : TermElabM AbstractMVarsResult :=
-  withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) <|
-       Term.withoutModifyingElabMetaStateWithInfo <| withRef p <|
-       Term.withoutErrToSorry do
-         abstractMVars (← Term.elabTerm p none)
-
-def expandOccs : Option (TSyntax ``occs) → Occurrences
-  | none => .all
-  | some occs =>
-    match occs with
-      | `(occs| (occs := *)) => .all
-      | `(occs| (occs := $ids*)) => .pos <| ids.map (TSyntax.getNat) |>.toList        
-      | _ => .neg [] -- garbage
-
-def Lean.Elab.Tactic.liftMetaTactic1' (tactic : MVarId → MetaM MVarId) : TacticM Unit :=
-  liftMetaTactic <| fun mvarId ↦ do return [← tactic mvarId]
-
+open Parser Tactic Conv in
 elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
   let pattern ← expandPattern p
   let location := (expandLocation <$> loc).getD (.targets #[] true)
@@ -83,75 +64,6 @@ elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
           replaceByDef (← goal.getType) pattern occurrences  
         replaceMainGoal [newGoal])
       (failed := (throwTacticEx `unfold · m!"Failed to unfold pattern {p}."))
-
-def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do  
-  let e ← Core.viewSubexpr p root
-  let binders ← Core.viewBinders p root
-  let mvars ← binders.mapM fun (name, type) ↦ 
-    mkFreshExprMVar type (userName := name)
-  return e.instantiateRev mvars
-
-def SubExpr.display (p : SubExpr.Pos) (root : Expr) : MetaM String := do
-  let fmt ← PrettyPrinter.ppExpr <| ← SubExpr.patternAt p root
-  return fmt.pretty
-
-open PrettyPrinter Delaborator SubExpr in
-@[delab mvar]
-def delabMVarWithType : Delab := do
-  let Expr.mvar n ← getExpr | unreachable!
-  let type ← delab <| ← inferType <| ← getExpr
-  let mvarDecl ← n.getDecl
-  let n :=
-    match mvarDecl.userName with
-    | Name.anonymous => n.name.replacePrefix `_uniq `m
-    | n => n.getRoot -- TODO: This may not be hygienic
-  `((?$(mkIdent n) : $type))
-
-#eval show TermElabM _ from do
-  let s ← `(term| ∀ n m : Nat, n + m = m + n)
-  let e ← Term.elabTerm s none
-  SubExpr.display (.fromString! "/1/1/0/1") e
-
--- based on `kabstract`
-def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
-  let e ← instantiateMVars root
-  let pattern ← SubExpr.patternAt position root
-  let pHeadIdx := pattern.toHeadIndex
-  let pNumArgs := pattern.headNumArgs
-  let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat MetaM Unit := do
-    let visitChildren : Unit → StateRefT Nat MetaM Unit := fun _ => do
-      match e with
-      | .app f a         => do
-        visit f p.pushAppFn offset
-        visit a p.pushAppArg offset
-      | .mdata _ b       => visit b p offset
-      | .proj _ _ b      => visit b p.pushProj offset
-      | .letE _ t v b _  => do
-        visit t p.pushLetVarType offset
-        visit v p.pushLetValue offset
-        visit b p.pushLetBody (offset+1)
-      | .lam _ d b _     => do
-        visit d p.pushBindingDomain offset
-        visit b p.pushBindingBody (offset+1)
-      | .forallE _ d b _ => do
-        visit d p.pushBindingDomain offset
-        visit b p.pushBindingBody (offset+1)
-      | e                => return ()
-    if e.hasLooseBVars then
-      visitChildren ()
-    else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
-      visitChildren ()
-    else if (← isDefEq e pattern) then
-      let i ← get
-      set (i+1)
-      if p = position then
-        return ()
-      else
-        visitChildren ()
-    else
-      visitChildren ()
-  let (_, occ) ← visit e .root 0 |>.run 0
-  return occ
 
 @[server_rpc_method]
 def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
@@ -187,9 +99,7 @@ def f := Nat.add
 
 def g (n : Nat) := n + 2
 
-example (h : f 0 0 = g (1 + 1)) : f 1 1 = f 1 1 := by
-  unfold' (occs := 2) f 1 1
-  unfold' (occs := 1 2) f ?n ?n
-  unfold' (occs := 1) f at h 
+example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f 1 n := by
+  unfold' (occs := 1) g (1 + 1) at h
   -- unfold' (occs := 1) (_ : Nat → Nat) (1 + 1) at h
   sorry
