@@ -1,8 +1,10 @@
 import Lean
 import Std.Lean.Position
+import MotivatedMoves.GUI.DynamicEditButton
 import MotivatedMoves.ForMathlib.Basic
 
-open Lean Core Meta MonadExceptOf Elab Tactic
+open Lean Server Core Meta MonadExceptOf Elab Tactic
+open ProofWidgets Json Jsx
 
 section
 -- Jovan's `tree_rewrite_def`
@@ -82,17 +84,15 @@ elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
         replaceMainGoal [newGoal])
       (failed := (throwTacticEx `unfold · m!"Failed to unfold pattern {p}."))
 
-def f := Nat.add
-
-def g (n : Nat) := n + 2
-
-def SubExpr.display (p : SubExpr.Pos) (root : Expr) : MetaM String := do
+def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do  
   let e ← Core.viewSubexpr p root
   let binders ← Core.viewBinders p root
   let mvars ← binders.mapM fun (name, type) ↦ 
     mkFreshExprMVar type (userName := name)
-  let e' := e.instantiateRev mvars
-  let fmt ← PrettyPrinter.ppExpr e'
+  return e.instantiateRev mvars
+
+def SubExpr.display (p : SubExpr.Pos) (root : Expr) : MetaM String := do
+  let fmt ← PrettyPrinter.ppExpr <| ← SubExpr.patternAt p root
   return fmt.pretty
 
 open PrettyPrinter Delaborator SubExpr in
@@ -113,8 +113,9 @@ def delabMVarWithType : Delab := do
   SubExpr.display (.fromString! "/1/1/0/1") e
 
 -- based on `kabstract`
-def findOccurrence (root pattern : Expr) (position : SubExpr.Pos) : MetaM Nat := do
+def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
   let e ← instantiateMVars root
+  let pattern ← SubExpr.patternAt position root
   let pHeadIdx := pattern.toHeadIndex
   let pNumArgs := pattern.headNumArgs
   let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat MetaM Unit := do
@@ -152,8 +153,43 @@ def findOccurrence (root pattern : Expr) (position : SubExpr.Pos) : MetaM Nat :=
   let (_, occ) ← visit e .root 0 |>.run 0
   return occ
 
-example (h : f 0 0 = g (1 + 1)) : f 0 1 = f 1 1 := by
+@[server_rpc_method]
+def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
+  let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to unfold.</p>
+  let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
+  let tacticStr : String ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+    let md ← goal.mvarId.getDecl
+    let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
+    Meta.withLCtx lctx md.localInstances do
+      let subExpr ← loc.toSubExpr
+      let pattern ← SubExpr.patternAt subExpr.pos subExpr.expr
+      let occurrence ← findOccurrence subExpr.pos subExpr.expr
+      return s!"unfold' (occs := {occurrence}) {(← PrettyPrinter.ppExpr pattern).pretty} {loc.loc.render goal}" 
+  return .pure (
+        <DynamicEditButton 
+          label={"Unfold definition"} 
+          range?={props.replaceRange} 
+          insertion?={some tacticStr} 
+          variant={"contained"} 
+          size={"small"} />
+      )
+
+@[widget_module]
+def Unfold : Component InteractiveTacticProps := 
+  mk_rpc_widget% Unfold.rpc
+
+elab stx:"unfold?" : tactic => do
+  let range := (← getFileMap).rangeOfStx? stx 
+  savePanelWidgetInfo stx ``Unfold do
+    return json% { replaceRange : $(range) }
+
+def f := Nat.add
+
+def g (n : Nat) := n + 2
+
+example (h : f 0 0 = g (1 + 1)) : f 1 1 = f 1 1 := by
+  unfold' (occs := 2) f 1 1
   unfold' (occs := 1 2) f ?n ?n
-  unfold' (occs := 1) f at h
+  unfold' (occs := 1) f at h 
   -- unfold' (occs := 1) (_ : Nat → Nat) (1 + 1) at h
   sorry

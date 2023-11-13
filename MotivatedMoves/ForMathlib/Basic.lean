@@ -4,43 +4,28 @@ import ProofWidgets
 open Lean Server ProofWidgets Elab Tactic Parser Tactic
 section
 
-syntax position := (location)? " with position " str
-
-def expandPosition : TSyntax ``position → TacticM (Array SubExpr.GoalLocation)
-| `(position| $[$loc?:location]? with position $p:str) =>
-  let pos : SubExpr.Pos := .fromString! p.getString
-  match expandLocation <$> loc? with
-    | none => return #[.target pos]
-    | some (.targets hyps type) => withMainContext do
-      let fvarIds ← hyps.mapM getFVarId 
-      expandPositionAux fvarIds type pos
-    | some .wildcard => withMainContext do
-      expandPositionAux (← getMainDecl).lctx.getFVarIds true pos
-|  _ => return #[]
-where
-  expandPositionAux (hyps : Array FVarId) (type : Bool) (pos : SubExpr.Pos) : TacticM (Array SubExpr.GoalLocation) := do
-    let hypLocs := hyps.map (.hypType · pos)
-    if type then
-      return hypLocs.push (.target pos)
-    else
-      return hypLocs
-
 def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) : Array String :=
   let hyps := goal.hyps.filter (·.fvarIds.contains fvarId)
   hyps.concatMap (·.names)
 
-def Lean.SubExpr.GoalLocation.toPosition (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
-  | .hyp fvarId =>
-      s!"{renderLocation (fvarId.getUserNames goal) false} with position {renderPos .root}"
-  | .hypType fvarId pos =>
-      s!"{renderLocation (fvarId.getUserNames goal) false} with position {renderPos pos}"
-  | .hypValue fvarId pos => "" -- TODO: Handle this case
-  | .target pos => s!"with position {renderPos pos}"
+def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubExpr 
+  | ⟨mvarId, .hyp fvarId⟩ => mvarId.withContext do
+      return ⟨← fvarId.getType, .fromString! "/"⟩
+  | ⟨mvarId, .hypType fvarId pos⟩ => mvarId.withContext do 
+      return ⟨← fvarId.getType, pos⟩
+  | ⟨mvarId, .hypValue fvarId pos⟩ => mvarId.withContext do
+      let .some val ← fvarId.getValue? | unreachable!
+      return ⟨val, pos⟩
+  | ⟨mvarId, .target pos⟩ => do return ⟨← mvarId.getType, pos⟩
+
+def Lean.SubExpr.GoalLocation.render (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
+  | .hyp fvarId => renderLocation (fvarId.getUserNames goal) false
+  | .hypType fvarId _ => renderLocation (fvarId.getUserNames goal) false
+  | .hypValue fvarId _ => "" -- TODO: Handle this case
+  | .target _ => ""
 where 
   renderLocation (hyps : Array String) (type : Bool) : String :=
     "at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
-  renderPos (pos : SubExpr.Pos) : String :=
-    s!"\"{pos.toString}\""
 
 end
 
