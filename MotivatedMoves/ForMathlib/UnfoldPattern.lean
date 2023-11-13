@@ -47,7 +47,7 @@ def replaceByDef (e : Expr) (pattern : AbstractMVarsResult) (occs : Occurrences)
 end
 
 open Parser Tactic Conv in
-elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => do
+elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => withMainContext do
   let pattern ← expandPattern p
   let location := (expandLocation <$> loc).getD (.targets #[] true)
   let occurrences := expandOccs occs
@@ -101,5 +101,8 @@ def g (n : Nat) := n + 2
 
 example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f 1 n := by
   unfold' (occs := 1) g (1 + 1) at h
+  intro n
+  unfold' (occs := 1) f 1 n
+
   -- unfold' (occs := 1) (_ : Nat → Nat) (1 + 1) at h
   sorry
