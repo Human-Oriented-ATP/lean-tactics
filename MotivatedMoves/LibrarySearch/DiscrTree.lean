@@ -69,10 +69,10 @@ def Key.format : Key → Format
   | .other                  => "◾"
   | .lit (Literal.natVal v) => Std.format v
   | .lit (Literal.strVal v) => repr v
-  | .const k _              => Std.format k
-  | .proj s i _             => Std.format s ++ "." ++ Std.format i
-  | .fvar k _               => Std.format k
-  | .bvar i _               => "#" ++ Std.format i
+  | .const k a              => "⟨" ++ Std.format k ++ ", " ++ Std.format a ++ "⟩"
+  | .proj s i a             => "⟨" ++ Std.format s ++ "." ++ Std.format i ++ ", " ++ Std.format a ++ "⟩"
+  | .fvar k a               => "⟨" ++ Std.format k ++ ", " ++ Std.format a ++ "⟩"
+  | .bvar i a               => "⟨" ++ "#" ++ Std.format i ++ ", " ++ Std.format a ++ "⟩"
   | .forall                 => "→"
   | .lam                    => "λ"
 
@@ -187,12 +187,12 @@ def mkNoindexAnnotation (e : Expr) : Expr :=
 def hasNoindexAnnotation (e : Expr) : Bool :=
   annotation? `noindex e |>.isSome
 
-partial def reduceDT (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
+partial def reduce (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
   let e ← whnfCore e config
   match (← unfoldDefinition? e) with
-  | some e => reduceDT e config
+  | some e => reduce e config
   | none => match e.etaExpandedStrict? with
-    | some e => reduceDT e config
+    | some e => reduce e config
     | none   => return e
 
 namespace makeInsertionPath
@@ -263,7 +263,7 @@ mutual
     if hasNoindexAnnotation e then
       keys.push <$> setNewStar none
     else
-    let e ← reduceDT e config
+    let e ← reduce e config
     let (k, args) ← getPathArgs root e config
     match k with
     | .lam    => mkPathBinder e.bindingDomain! e.bindingBody! config (keys.push k)
@@ -285,11 +285,11 @@ private def initCapacity := 8
 def mkPath (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (Array Key) := do
   withReducible do makeInsertionPath.mkPathAux (root := true) config e (.mkEmpty initCapacity) |>.run {} |>.run' {}
 
-private def nonemptyPath (keys : Array Key) (child : Trie α) :=
+private def withPath (keys : Array Key) (child : Trie α) :=
   if keys.isEmpty then child else .path keys child
 
-private partial def createPath (keys : Array Key) (v : α) (i : Nat) : Trie α :=
-  nonemptyPath keys[i:] (.values #[v])
+private partial def pathTrie (keys : Array Key) (v : α) (i : Nat) : Trie α :=
+  withPath keys[i:] (.values #[v])
 
 /--
 Note: I have removed this equality check as it doesn't seem to be necessary, but in the future this might change.
@@ -318,7 +318,7 @@ private partial def insertAux [BEq α] (keys : Array Key) (v : α) (i : Nat) : T
       let c := Id.run $ cs.binInsertM
         (fun a b => a.1 < b.1)
         (fun (_, s) => let c := insertAux keys v (i+1) s; (k, c))
-        (fun _ => let c := createPath keys v (i+1); (k, c))
+        (fun _ => let c := pathTrie keys v (i+1); (k, c))
         (k, default)
       .node c
   | .values vs =>
@@ -329,7 +329,7 @@ private partial def insertAux [BEq α] (keys : Array Key) (v : α) (i : Nat) : T
         let shared := ks[:n]
         let k := ks[n]!
         let rest := ks[n+1:]
-        return nonemptyPath shared (insertAux keys v (i+n) (.node #[(k, nonemptyPath rest c)]))
+        return withPath shared (insertAux keys v (i+n) (.node #[(k, withPath rest c)]))
     return .path ks (insertAux keys v (i + ks.size) c)
 
 def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTree α :=
@@ -338,7 +338,7 @@ def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTr
     let k := keys[0]!
     match d.root.find? k with
     | none =>
-      let c := createPath keys v 1
+      let c := pathTrie keys v 1
       { root := d.root.insert k c }
     | some c =>
       let c := insertAux keys v 1 c
@@ -393,7 +393,7 @@ private abbrev findKey (cs : Array (Key × Trie α)) (k : Key) : Option (Trie α
 
 private def children : Trie α → Array (Key × Trie α)
 | .node cs => cs
-| .path ks c => #[(ks[0]!, nonemptyPath ks[1:] c)]
+| .path ks c => #[(ks[0]!, withPath ks[1:] c)]
 | .values _ => panic! "did not expect .values constructor"
 
 section MonadArray
@@ -419,7 +419,7 @@ mutual
   private partial def findExpr (config : WhnfCoreConfig) (e : Expr) : (Trie α × HashMap Nat Expr × Nat) → M (Array (Trie α × HashMap Nat Expr × Nat))
   | (c, assignments, score) => do
     let cs := children c
-    let e ← reduceDT e config
+    let e ← reduce e config
     let (k, args) ← getKeyArgs e (root := false)
 
     let visitStars (start : Array (Trie α × HashMap Nat Expr × Nat)) : M (Array (Trie α × HashMap Nat Expr × Nat)) := do
@@ -459,7 +459,7 @@ end
 /-- return the results from the DiscrTree that match the given expression, together with their matching scores. -/
 partial def getUnifyWithScore (d : DiscrTree α) (e : Expr) (config : WhnfCoreConfig) : MetaM (Array (Array α × Nat)) :=
   withReducible do
-    let e ← reduceDT e config
+    let e ← reduce e config
     let (k, args) ← getKeyArgs e (root := true) |>.run {} |>.run' {}
     match k with
     | .star _ => return #[] --throwError "the unification pattern is a metavariable, so it cannot be used for a search"
@@ -477,7 +477,7 @@ partial def getUnifyWithScore (d : DiscrTree α) (e : Expr) (config : WhnfCoreCo
 
 end MonadArray
 /-- apply `getUnifyWithScore` at the given subexrpession. -/
-def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {beta := false}) : MetaM (Array (Array α × Nat)) := do
+def getSubExprUnify (d : DiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition) (config : WhnfCoreConfig := {}) : MetaM (Array (Array α × Nat)) := do
   withTreeSubexpr tree treePos pos fun _ e => getUnifyWithScore d e config
 
 /-- Filter the matches coming from `getUnifyWithScore` by whether the `filter` function succeeds within the given `maxHeartbeats`.-/
