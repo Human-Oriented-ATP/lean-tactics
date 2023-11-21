@@ -52,9 +52,14 @@ def delabMVarWithType : Delab := do
   `((?$(mkIdent n) : $type))
 
 -- based on `kabstract`
-def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
-  let e ← instantiateMVars root
-  let pattern ← SubExpr.patternAt position root
+-- optionally specializes the pattern before finding its occurrence
+def findOccurrence (position : SubExpr.Pos) (root : Expr) 
+    (patternM : MetaM Expr := SubExpr.patternAt position root) : MetaM Nat := do
+  let root ← instantiateMVars root
+  let pattern ← patternM
+  unless ← isDefEq pattern (← SubExpr.patternAt position root) do
+    throwError s!"The specified pattern does not match the pattern at position {position}."
+  let pattern ← instantiateMVars pattern   
   let pHeadIdx := pattern.toHeadIndex
   let pNumArgs := pattern.headNumArgs
   let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat MetaM Unit := do
@@ -89,7 +94,7 @@ def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
         visitChildren ()
     else
       visitChildren ()
-  let (_, occ) ← visit e .root 0 |>.run 0
+  let (_, occ) ← visit root .root 0 |>.run 0
   return occ
 
 end
