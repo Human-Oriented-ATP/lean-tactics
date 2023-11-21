@@ -9,6 +9,17 @@ structure RewriteProps extends InteractiveTacticProps where
   rwRule : Name
 deriving RpcEncodable
 
+-- TODO: Move this
+instance : ToString Occurrences where
+  toString := fun
+    | .all => ".all"
+    | .pos occs => s!".pos {occs}"
+    | .neg occs => s!".neg {occs}"
+
+instance : ToString Rewrite.Config where
+  toString cfg := 
+    "{ " ++ s!"occs := {cfg.occs}" ++ " }"
+
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
   let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
@@ -19,7 +30,7 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     let lhs : MetaM Expr := do
       let env ← getEnv
       let .some ci := env.find? props.rwRule | throwError s!"Failed to find {props.rwRule} in the environment."
-      let eqn := ci.type
+      let (_, _, eqn) ← forallMetaTelescopeReducing ci.type
       match (← matchEq? eqn) with
         | some (_, lhs, rhs) => return if props.symm then rhs else lhs
         | none =>
@@ -29,7 +40,8 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     Meta.withLCtx lctx md.localInstances do
       let subExpr ← loc.toSubExpr
       let occurrence ← findOccurrence subExpr.pos subExpr.expr lhs
-      return s!"rw (occs := {occurrence}) [{if props.symm then "← " else "" ++ props.rwRule.toString}] {loc.loc.render goal}" 
+      let cfg : Rewrite.Config := { occs := .pos [occurrence] }
+      return s!"rw (config := {cfg}) [{if props.symm then "← " else "" ++ props.rwRule.toString}] {loc.loc.render goal}" 
   return .pure (
         <DynamicEditButton 
           label={"Rewrite sub-term"} 
@@ -43,8 +55,11 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
 def Rewrite : Component RewriteProps :=
   mk_rpc_widget% Rewrite.rpc
 
-open Lean Parser Tactic in
-elab "rw" " [ " rule:rwRule " ] " stx:"at?" : tactic => do
+syntax (name := rw_at) "rw" "[" rwRule "]" "at?" : tactic
+
+@[tactic rw_at]
+def rewriteAt : Tactic
+| stx@`(tactic| rw [$rule] at?) => do
   let range := (← getFileMap).rangeOfStx? stx
   let (symm, name) :=
     match rule with
@@ -54,6 +69,8 @@ elab "rw" " [ " rule:rwRule " ] " stx:"at?" : tactic => do
       |       _            => panic! "Expected rewrite with identifier" 
   savePanelWidgetInfo stx ``Rewrite do
     return json% { replaceRange : $(range), symm : $(symm), rwRule : $(name) }
+| _ => throwUnsupportedSyntax
 
-example : 1 + 2 = 3 + 4 := by
-  rw [Nat.add_comm] at?
+example : 1 + 2 = (1 + 2) + (1 + 2) := by
+  rw (config := { occs := .pos [3] }) [Nat.add_comm]
+  sorry
