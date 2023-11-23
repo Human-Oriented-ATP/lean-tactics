@@ -44,20 +44,20 @@ instance : Append ProcessResult where
 
 -- might want to add some whnf applications with reducible transparency?
 partial def processTree : Expr → MetaM ProcessResult
-  | .forallE n domain body bi => do
-    let mvar ← mkFreshExprMVar domain (userName := n)
+  | .forallE _n domain body bi => do
+    let mvar ← mkFreshExprMVar domain
     let result ← processTree (body.instantiate1 mvar)
 
     if bi.isInstImplicit
     then
       return addBinderKind [1] 1 result
     else
-      let u ← getLevel domain
-      if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
-      then
-        let result := addBinderKind [1] 1 result
-        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExpr domain) }
-      else
+      -- let u ← getLevel domain
+      -- if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
+      -- then
+      --   let result := addBinderKind [1] 1 result
+      --   return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExpr domain) }
+      -- else
         return addBinderKind [1] 1 result
 
   | regular_exists_pattern n _u d body _ =>
@@ -74,13 +74,13 @@ partial def processTree : Expr → MetaM ProcessResult
     | .app (.app (.const ``Iff _) lhs) rhs => do
       result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [0,1], ← mkDTExpr lhs)
                                                      |>.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [1]  , ← mkDTExpr rhs) }
-    | .app (.app _ lhs) rhs =>
-      if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
-        result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExpr rhs)
-                                rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExpr lhs) }
+    -- | .app (.app _ lhs) rhs =>
+    --   if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
+    --     result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExpr rhs)
+    --                             rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExpr lhs) }
     | _ => pure ()
 
-    result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExpr e) }
+    -- result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExpr e) }
     return result
     
 where
@@ -89,32 +89,39 @@ where
     fun ⟨a, b, c, d, e⟩ => ⟨a.map f, b.map f, c.map f, d.map f, e.map f⟩
 
 
-def isSpecific (key : DTExpr) : Bool :=
-  match key with
-  | .star _
-  | .lam (.star _)
-  | .forall (.star _)  (.star _)
-  | .const `Exists #[.star _, .star _]
-  | .const `Exists #[.star _, .lam (.star _)] => false
+def isSpecific : DTExpr → Bool
+  | .star 0
+  | .const ``Eq #[.star 0, .star 1, .star 2] => false
   | _ => true
 
+
+def isBadDecl (name : Name) (cinfo : ConstantInfo) (env : Environment) : Bool :=
+  (match cinfo with
+    | .axiomInfo v => v.isUnsafe
+    | .thmInfo .. => false
+    | _ => true)
+  || (match name with
+    | .str _ "inj"
+    | .str _ "sizeOf_spec"
+    | .str _ "noConfusionType" => true
+    | _ => false)
+  || name.isInternal'
+  || isAuxRecursor env name
+  || isNoConfusion env name
+  || isMatcherCore env name
+
 def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
-  if cinfo.isUnsafe then return t
-  if ← name.isBlackListed then return t
-  if name matches .str _ "sizeOf_spec" then return t
-  unless ← (match cinfo with
-    | .axiomInfo ..
-    | .thmInfo .. => pure true
-    -- | .defnInfo .. => do
-    --   let us ← mkFreshLevelMVarsFor cinfo
-    --   isDefEq (← inferType (← instantiateTypeLevelParams cinfo us)) (.sort .zero)
-    | _ => pure false)
-    do return t
-  
+  if isBadDecl name cinfo (← getEnv) then
+    return t
+
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := t
-  let f := Array.foldl (fun t (diffs, treePos, pos, key) =>
-    if isSpecific key then t.insertDTExpr key { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)} else t)
+
+  let f := Array.foldl (fun t (diffs, treePos, pos, e) => 
+    if isSpecific e
+    then
+      t.insertDTExpr e { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)}
+    else t)
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
 open Mathlib.Tactic
@@ -155,53 +162,17 @@ open Lean Meta
   
 def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
   let numHeartbeats ← IO.getNumHeartbeats
-  -- logInfo m! "{numHeartbeats - (← read).initHeartbeats}"
   _ ← x
-  -- logInfo m! "{(← IO.getNumHeartbeats) - (← read).initHeartbeats}"
   return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
 
-def Cache.get  (cache : Cache α) : MetaM ℕ := do
-  match ← ST.Ref.get (m := BaseIO) cache with
-    | .inr t => panic! ""
-    | .inl init =>
-      let env ← getEnv
-      let fileName ← getFileName
-      let fileMap ← getFileMap
-      let options ← getOptions -- TODO: sanitize options?
-      -- Default heartbeats to a reasonable value.
-      -- otherwise exact? times out on mathlib
-      -- TODO: add customization option
-      let options := Core.maxHeartbeats.set options <|
-        options.get? Core.maxHeartbeats.name |>.getD 1000000
-      let res ← 
-        (countingHeartbeats init)
-      -- cache.set (m := BaseIO) (.inr res)
-      pure res
-  
-  
-  #check Core.checkMaxHeartbeats
-
-
 elab "hiii" : tactic => do
-  -- let t ← countingHeartbeats (do
-  --   let a ← Tree.buildDiscrTrees
-  --   a.cache.get) 
-  let a ← Tree.buildDiscrTrees
-  logInfo m! "{← Cache.get a.cache}"
-  -- logInfo m! "{t}"
+  let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) := 
+    fun name constInfo (tree₁, tree₂) => do
+      return (tree₁, ← processLemma name constInfo tree₂)
 
-  -- let mut keys := #[]
-  -- for (k, _) in t.root do
-  --   keys := keys.push k
-  -- logInfo m! "{t.1.root.size}, {t.2.root.size}, {t.3.root.size}, {t.4.root.size}, {t.5.root.size}"
-
-set_option maxHeartbeats 300000
-
-
--- set_option trace.Meta.isDefEq true
-set_option pp.all true
-example : True := by hiii
-
-
-#check List.zipWith_get?
-
+  let x ← countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a
+  logInfo m! "{x}"
+set_option maxHeartbeats 1000000 in
+example : True := by
+  hiii
+  trivial
