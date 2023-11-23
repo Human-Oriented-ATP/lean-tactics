@@ -1,5 +1,9 @@
 .cache
-build/*
+build/bin
+build/ir
+build/lib
+build/js/*.js.hash
+build/js/*.js.trace
 lake-packages/*
 !build/js/*.js
 /widget/dist

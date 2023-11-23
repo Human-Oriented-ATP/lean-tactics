@@ -6,7 +6,7 @@ namespace Tree
 open Lean Meta ProofWidgets
 
 
-def editTree (edit : Expr → MetaM Expr) : TreePos → Expr → MetaM Expr
+def editTree (edit : Expr → MetaM Expr) : OuterPosition → Expr → MetaM Expr
   | 1::xs, forall_pattern   n u d tree => withLocalDeclD n d fun fvar => return mkForall   n u d ((← editTree edit xs (tree.instantiate1 fvar)).abstract #[fvar])
   | 1::xs, exists_pattern   n u d tree => withLocalDeclD n d fun fvar => return mkExists   n u d ((← editTree edit xs (tree.instantiate1 fvar)).abstract #[fvar])
   | 1::xs, instance_pattern n u d tree => withLocalDeclD n d fun fvar => return mkInstance n u d ((← editTree edit xs (tree.instantiate1 fvar)).abstract #[fvar])
@@ -17,7 +17,7 @@ def editTree (edit : Expr → MetaM Expr) : TreePos → Expr → MetaM Expr
   | [], e => edit e
   | xs, e => throwError m! "could not find position {xs} in {indentExpr e}"
 
-partial def editExpr (edit : Expr → MetaM Expr) : Pos → Expr → MetaM Expr
+partial def editExpr (edit : Expr → MetaM Expr) : InnerPosition → Expr → MetaM Expr
   | xs   , .mdata d b        => return .mdata d (← editExpr edit xs b)
   
   | 0::xs, .app f a          => return .app (← editExpr edit xs f) a
@@ -41,7 +41,7 @@ partial def editExpr (edit : Expr → MetaM Expr) : Pos → Expr → MetaM Expr
   | []   , e                 => edit e
   | list , e                 => throwError m!"could not find subexpression {list} in '{e}'"
 
-def edit (treePos : TreePos) (pos : Pos) (edit : Expr → MetaM Expr) (tree : Expr) : MetaM Expr := do
+def edit (treePos : OuterPosition) (pos : InnerPosition) (edit : Expr → MetaM Expr) (tree : Expr) : MetaM Expr := do
   editTree (editExpr edit pos) treePos tree
 
 open MonadExceptOf
@@ -68,8 +68,8 @@ def replaceByDefAux (e : Expr) : ExceptT MessageData MetaM Expr := do
       if result == e then throw m! "could not find a definition for {e}"
       else return result
 
-def rewriteDef (goalTreePos : TreePos) (goalPos : Pos) (tree : Expr) : MetaM (Option (ExprWithCtx × AssocList SubExpr.Pos Widget.DiffTag × String)) :=
-  withTreeSubexpr tree goalTreePos goalPos fun _pol e => do
+def rewriteDef (goalOuterPosition : OuterPosition) (goalPos : InnerPosition) (tree : Expr) : MetaM (Option (ExprWithCtx × AssocList SubExpr.Pos Widget.DiffTag × String)) :=
+  withTreeSubexpr tree goalOuterPosition goalPos fun _pol e => do
     match ← replaceByDefAux e with
     | .error _ => return none
     | .ok result => do
@@ -84,7 +84,7 @@ def replaceByDef (e : Expr) : MetaM Expr := do
 
 open Elab.Tactic in
 elab "tree_rewrite_def" pos:treePos : tactic => do
-  let (treePos, pos) := getSplitPosition pos
+  let (treePos, pos) := getOuterInnerPosition pos
   workOnTreeDefEq (edit treePos pos replaceByDef)
   let mkTree ← `(tactic | make_tree)
   evalTactic mkTree

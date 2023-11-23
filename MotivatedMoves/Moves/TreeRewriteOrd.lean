@@ -284,7 +284,7 @@ partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadE
 
   | list, lhs => throwError "could not find sub position {list} in '{lhs}'"
 
-partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : TreePos) (hypPos goalPos : Pos) : MetaM' TreeProof := do
+partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) (pol : Bool) (hypPath : OuterPosition) (hypPos goalPos : InnerPosition) : MetaM' TreeProof := do
   unless hypPath == [] do
     throwError m! "cannot rewrite using a subexpression: subtree {hypPath} in {rel}"
   unless hypPos == [] do
@@ -292,7 +292,7 @@ partial def treeRewriteOrd (hypContext : HypothesisContext) (rel target : Expr) 
   let (newTree, proof) ← visit (fun fvars u α preorder lhs pol => rewriteOrdUnify fvars u α preorder rel lhs hypContext pol) (.zero) (.sort .zero) PropPreorder #[] pol goalPos target
   return ({ newTree, proof })
 
-def getOrdPolarity (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM Bool :=
+def getOrdPolarity (treePos : OuterPosition) (pos : InnerPosition) (tree : Expr) : MetaM Bool :=
   withTreeSubexpr tree treePos [] (fun pol e => do
     let Except.error pol ← show ExceptT Bool MetaM _ from visit (fun _ _ _ _ _ pol => MonadExceptOf.throw pol) (.zero) (.sort .zero) PropPreorder #[] pol pos e | unreachable!
     return pol)
@@ -300,40 +300,36 @@ def getOrdPolarity (treePos : TreePos) (pos : Pos) (tree : Expr) : MetaM Bool :=
 open Elab.Tactic
 
 elab "tree_rewrite_ord" hypPos:treePos goalPos:treePos : tactic  => do
-  let (hypTreePos, hypPos) := getSplitPosition hypPos
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos true treeRewriteOrd)
+  let (hypOuterPosition, hypPos) := getOuterInnerPosition hypPos
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  workOnTree (applyBound hypOuterPosition goalOuterPosition hypPos goalPos true treeRewriteOrd)
 
 elab "tree_rewrite_ord'" hypPos:treePos goalPos:treePos : tactic  => do
-  let (hypTreePos, hypPos) := getSplitPosition hypPos
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  workOnTree (applyBound hypTreePos goalTreePos hypPos goalPos false treeRewriteOrd)
+  let (hypOuterPosition, hypPos) := getOuterInnerPosition hypPos
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  workOnTree (applyBound hypOuterPosition goalOuterPosition hypPos goalPos false treeRewriteOrd)
 
-def getRewriteOrdPos (hypPos : Option (TreePos × Pos)) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × TreePos × List Nat) := do
+def getRewriteOrdPos (hypPos : Option (OuterPosition × InnerPosition)) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × OuterPosition × List Nat) := do
   let hypTree ← makeTree hyp
-  let (treePos, pos) := hypPos.getD (findTreePos hypTree, [])
+  let (treePos, pos) := hypPos.getD (findOuterPosition hypTree, [])
   return (← makeTreePath treePos hyp, treePos, pos)
 
 elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic => do
   let hypName ← getIdWithInfo hypName
-  let (goalTreePos, goalPos) := getSplitPosition goalPos
-  let hypPos := getSplitPosition <$> hypPos
-  workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalTreePos goalPos treeRewriteOrd)
+  let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
+  let hypPos := getOuterInnerPosition <$> hypPos
+  workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalOuterPosition goalPos treeRewriteOrd)
 
 open DiscrTree in 
 def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
-  let (goalTreePos, goalPos) := splitPosition goalPos'
-  let pol ← try getOrdPolarity goalTreePos goalPos tree catch _ => return #[]
+  let (goalOuterPosition, goalPos) := splitPosition goalPos'
+  let pol ← try getOrdPolarity goalOuterPosition goalPos tree catch _ => return #[]
   let discrTrees ← getLibraryLemmas
   let results := if pol
-    then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalTreePos goalPos)
-    else (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalTreePos goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalTreePos goalPos)
+    then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalOuterPosition goalPos)
+    else (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalOuterPosition goalPos)
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
-    try
-      _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalTreePos goalPos treeRewriteOrd tree
-      return true
-    catch _ =>
-      return false
+    _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewriteOrd tree
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite_ord {printPosition treePos pos} {name} {goalPos'}")
 
