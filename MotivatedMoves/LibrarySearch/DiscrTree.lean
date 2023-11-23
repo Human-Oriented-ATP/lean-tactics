@@ -110,50 +110,19 @@ partial def format [ToFormat α] (d : DiscrTree α) : Format :=
 instance [ToFormat α] : ToFormat (DiscrTree α) := ⟨format⟩
 
 
-
-
-
-/-- `DTExpr` is a simplified form of `Expr` which is used for representing `Expr`'s in a `DiscrTree`. -/
-inductive DTExpr where
-  | const  : Name → Array DTExpr → DTExpr
-  | fvar   : Nat → Array DTExpr → DTExpr
-  | bvar   : Nat → Array DTExpr → DTExpr
-  | star   : Nat → DTExpr
-  | lit    : Literal → DTExpr
-  | sort   : DTExpr
-  | lam    : DTExpr → DTExpr
-  | forall : DTExpr → DTExpr → DTExpr
-  | proj   : Name → Nat → DTExpr → Array DTExpr → DTExpr
-deriving Inhabited
-
 partial def DTExpr.format : DTExpr → Format
-  | .star i                 => "*" ++ Std.format i
+  | .star n                 => "*" ++ n.1.toString
   | .sort                   => "◾"
   | .lit (Literal.natVal v) => Std.format v
   | .lit (Literal.strVal v) => repr v
   | .const n as             => Std.format n  ++ if as.isEmpty then .nil else Format.paren (@Format.joinSep _ ⟨DTExpr.format⟩ as.toList ", ")
   | .proj _ i a as          => DTExpr.format a ++ "." ++ Std.format i ++ if as.isEmpty then .nil else Format.paren (@Format.joinSep _ ⟨DTExpr.format⟩ as.toList ", ")
-  | .fvar i as              => "f" ++ Std.format i  ++ if as.isEmpty then .nil else Format.paren (@Format.joinSep _ ⟨DTExpr.format⟩ as.toList ", ")
+  | .fvar n as              => "f" ++ n.1.toString ++ if as.isEmpty then .nil else Format.paren (@Format.joinSep _ ⟨DTExpr.format⟩ as.toList ", ")
   | .bvar i as              => "#" ++ Std.format i  ++ if as.isEmpty then .nil else Format.paren (@Format.joinSep _ ⟨DTExpr.format⟩ as.toList ", ")
   | .forall d b             => DTExpr.format d ++ " → " ++ DTExpr.format b
   | .lam b                  => "λ " ++ DTExpr.format b
 
-instance : ToFormat DTExpr := ⟨DTExpr.format⟩ 
-
-private partial def DTExpr.flattenAux (path : Array Key) : DTExpr → Array Key
-  | const n args => args.foldl (init := path.push (.const n args.size)) flattenAux
-  | fvar i args => args.foldl (init := path.push (.fvar i args.size)) flattenAux
-  | bvar i args => args.foldl (init := path.push (.bvar i args.size)) flattenAux
-  | star i => path.push (.star i)
-  | lit l => path.push (.lit l)
-  | sort => path.push .sort
-  | lam b => b.flattenAux (path.push .lam)
-  | «forall» d b => b.flattenAux (d.flattenAux (path.push .forall))
-  | proj n i e args => args.foldl (init := e.flattenAux (path.push (.proj n i args.size))) flattenAux
-
-/-- given a `DTExpr`, returns the linearized encoding in terms of `Key`, which is used for `DiscrTree` indexing. -/
-def DTExpr.flatten (e : DTExpr) (initCapacity := 8) : Array Key :=
-  DTExpr.flattenAux (.mkEmpty initCapacity) e
+instance : ToFormat DTExpr := ⟨DTExpr.format⟩
 
 /-- Checks whether there is any potential η-reduction in `e`.
 This is useful for avoiding the more expensive function `getEtas`. -/
@@ -169,7 +138,7 @@ partial def hasEta (e : DTExpr) (inLambda : Bool := false) : Bool :=
 
 
 /-- Given `e : DTExpr` that consists of `n` lambda's and body `b`, returns `f n b`. -/
-def DTExpr.withLambdas (f : Nat → DTExpr → α) : DTExpr → α :=
+def _root_.Tree.DTExpr.withLambdas (f : Nat → DTExpr → α) : DTExpr → α :=
   let rec go (i : Nat) : DTExpr → α
     | .lam e => go (i+1) e
     | e => f i e
@@ -217,7 +186,7 @@ private def reEta (lambdas : Nat) (stars : Array DTExpr) (e : DTExpr) : List DTE
   | _ => [lambdas.repeat .lam e]
 section MonadArray
 
-/- I define the instance `Monad Array` locally for convenience. -/
+/-- I define the instance `Monad Array` locally for convenience. -/
 local instance : Monad List where
   pure a   := [a]
   bind a f := a.bind f
@@ -248,16 +217,65 @@ structure Reindex.State where
   fvars : Array Nat := #[]
 
 def Reindex.step : Key → Reindex.State → Key × Reindex.State
-  | .star i, s => match s.stars.find? (Eq i) with
+  | .star i, s => match s.stars.findIdx? (· == i) with
     | some j => (.star j, s)
     | none => (.star s.stars.size, {s with stars := s.stars.push i})
-  | .fvar i a, s => match s.fvars.find? (Eq i) with
+  | .fvar i a, s => match s.fvars.findIdx? (· == i) with
     | some j => (.fvar j a, s)
     | none => (.fvar s.fvars.size a, {s with fvars := s.fvars.push i})
   | k, s => (k, s)
 
 def reindex (keys : Array Key) : Array Key :=
   (keys.mapM (m := StateM Reindex.State) Reindex.step).run' {}
+
+
+
+
+/-- The discrimination tree ignores implicit arguments and proofs.
+   We use the following auxiliary id as a "mark". -/
+private def tmpMVarId : MVarId := { name := `_discr_tree_tmp }
+private def tmpStar := mkMVar tmpMVarId
+
+
+structure Flatten.State where
+  stars : Array MVarId := #[]
+  fvars : Array FVarId := #[]
+
+def getFVar (fvarId : FVarId) : StateM Flatten.State Nat :=
+  modifyGet fun s =>
+  match s.fvars.findIdx? (· == fvarId) with
+  | some idx => (idx, s)
+  | none => (s.fvars.size, { s with fvars := s.fvars.push fvarId })
+  
+def getStar (mvarId : MVarId) : StateM Flatten.State Nat :=
+  modifyGet fun s =>
+  if mvarId != tmpMVarId then
+    if let some idx := s.stars.findIdx? (· == mvarId) then
+      (idx, s)
+    else
+      (s.stars.size, { s with stars := s.stars.push mvarId })
+  else
+    (s.stars.size, { s with stars := s.stars.push mvarId })
+    
+
+private partial def DTExpr.flattenAux (path : Array Key) : DTExpr → StateM Flatten.State (Array Key)
+  | .const n args =>   args.foldlM (init := path.push (.const n args.size)) flattenAux
+  | .fvar i args => do args.foldlM (init := path.push (.fvar (← getFVar i) args.size)) flattenAux
+  | .bvar i args =>    args.foldlM (init := path.push (.bvar i args.size)) flattenAux
+  | .star i => return path.push (.star (← getStar i))
+  | .lit l => return path.push (.lit l)
+  | .sort => return path.push .sort
+  | .lam b => flattenAux (path.push .lam) b
+  | .«forall» d b => do flattenAux (← flattenAux (path.push .forall) d) b
+  | .proj n i e args => do args.foldlM (init := ← flattenAux (path.push (.proj n i args.size)) e) flattenAux
+
+/-- given a `DTExpr`, returns the linearized encoding in terms of `Key`, which is used for `DiscrTree` indexing. -/
+def _root_.Tree.DTExpr.flatten (e : DTExpr) (initCapacity := 16) : Array Key :=
+  (DTExpr.flattenAux (.mkEmpty initCapacity) e).run' {}
+
+
+
+
 
 /-- 
 Because of η-reduction, some expression need to be indexed with multiple different paths
@@ -266,17 +284,13 @@ For example, `Continuous fun x => f x + g x` has to be indexed by
 `[⟨Continuous, 1⟩, ⟨Hadd.hadd, 5⟩, *0, *0, *0, *1, *2]`.
 `etaFlatten` returns all these `Key` indexings.
 -/
-def DTExpr.etaFlatten (e : DTExpr) (initCapacity := 8) : List (Array Key) :=
-  if hasEta e then (getEtas e).map (reindex $ ·.flatten initCapacity) else [flatten e]
+def _root_.Tree.DTExpr.etaFlatten (e : DTExpr) : List (Array Key) :=
+  if hasEta e then (getEtas e).map (·.flatten) else [e.flatten]
 
 
 
 -- **Transforming from Expr to DTExpr** 
 
-/-- The discrimination tree ignores implicit arguments and proofs.
-   We use the following auxiliary id as a "mark". -/
-private def tmpMVarId : MVarId := { name := `_discr_tree_tmp }
-private def tmpStar := mkMVar tmpMVarId
 
 instance : Inhabited (DiscrTree α) where
   default := {}
@@ -351,27 +365,12 @@ partial def reduce (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
 
 
 namespace makeInsertionPath
-
-private structure State where
-  mvarNums : HashMap MVarId Nat := {}
-  mvarCount : Nat := 0
-  fvarNums : HashMap FVarId Nat := {}
-  fvarCount : Nat := 0
+ 
 
 private structure Context where
   boundVars : List FVarId := []
 
-private abbrev M := ReaderT Context StateRefT State MetaM
-
-def setNewStar (mvarId : Option MVarId) : M DTExpr := do
-  let s ← get
-  set {s with mvarCount := s.mvarCount + 1, mvarNums := mvarId.elim s.mvarNums (s.mvarNums.insert · s.mvarCount)}
-  return .star s.mvarCount
-
-def setNewFVar (fvarId : FVarId) (args : Array DTExpr) : M DTExpr := do
-  let s ← get
-  set {s with fvarCount := s.fvarCount + 1, fvarNums := s.fvarNums.insert fvarId s.fvarCount : State}
-  return .fvar s.fvarCount args
+private abbrev M := ReaderT Context MetaM
 
 def mkNoindexAnnotation (e : Expr) : Expr :=
   mkAnnotation `noindex e
@@ -382,7 +381,7 @@ def hasNoindexAnnotation (e : Expr) : Bool :=
 
 partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : M DTExpr := do
   if hasNoindexAnnotation e then
-    setNewStar none
+    return .star tmpMVarId
   else
   let e ← reduce e config
   Expr.withApp e fun fn args => do
@@ -400,22 +399,15 @@ partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : M DTExpr := do
     let a := if isClass (← getEnv) s then mkNoindexAnnotation a else a
     return .proj s i (← mkPathAux config a) (← argPaths)
   | .fvar fvarId =>
-    if let some i := (← read).boundVars.findIdx? (· == fvarId) then
-      return .bvar i (← argPaths)
-    else if let some i := (← get).fvarNums.find? fvarId then
-      return .fvar i (← argPaths)
+    if let some idx := (← read).boundVars.findIdx? (· == fvarId) then
+      return .bvar idx (← argPaths)
     else
-      return ← setNewFVar fvarId (← argPaths)
-  | .mvar mvarId => 
-    if (e matches .app ..) || mvarId == tmpMVarId
-      then
-        setNewStar none
-      else
-        if let some i := (← get).mvarNums.find? mvarId
-        then
-          return .star i
-        else
-          setNewStar mvarId
+      return .fvar fvarId (← argPaths)
+  | .mvar mvarId =>
+    if (e matches .app ..) then
+      return .star tmpMVarId
+    else
+      return .star mvarId
 
   | .lam     _ d b _ => return .lam (← mkPathBinder d b config)
   | .forallE _ d b _ => return .forall (← mkPathAux config d) (← mkPathBinder d b config)
@@ -432,7 +424,7 @@ where
 end makeInsertionPath
 
 def mkDTExpr (e : Expr) (config : WhnfCoreConfig := {}) : MetaM DTExpr :=
-  withReducible do makeInsertionPath.mkPathAux config e |>.run {} |>.run' {}
+  withReducible do makeInsertionPath.mkPathAux config e |>.run {}
 
 -- def mkPath (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (Array Key) :=
 --   DTExpr.flatten <$> mkDTExpr e config
@@ -440,7 +432,7 @@ def mkDTExpr (e : Expr) (config : WhnfCoreConfig := {}) : MetaM DTExpr :=
 
 -- **Inserting intro a DiscrTree**
 
-/- Smart `Trie.path` constructor that only adds the path if it is non-empty. -/
+/-- Smart `Trie.path` constructor that only adds the path if it is non-empty. -/
 private def mkPath (keys : Array Key) (child : Trie α) :=
   if keys.isEmpty then child else Trie.path keys child
 
@@ -506,7 +498,7 @@ def insertInDiscrTree [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : 
     { root := d.root.insert k c }
 
 def insertDTExpr [BEq α] (d : DiscrTree α) (e : DTExpr) (v : α) : DiscrTree α :=
-  e.etaFlatten.foldl (init := d) (insertInDiscrTree · · v)
+  (e.etaFlatten).foldl (init := d) (insertInDiscrTree · · v)
 
 -- def insert [BEq α] (d : DiscrTree α) (e : Expr) (v : α) (config : WhnfCoreConfig) : MetaM (DiscrTree α) := do
 --   let key ← mkDTExpr e config
@@ -520,20 +512,18 @@ def insertDTExpr [BEq α] (d : DiscrTree α) (e : DTExpr) (v : α) : DiscrTree �
 -- **Retrieving from a DiscrTree**
 
 private structure State where
-  fvarNums : HashMap FVarId Nat := {}
-  fvarCount : Nat := 0
+  fvars : Array FVarId := #[]
 
 private structure Context where
   boundVars : List FVarId := []
 
 private abbrev M := ReaderT Context StateRefT State MetaM
 
-def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key := do
-  let s ← get
-  set {s with fvarCount := s.fvarCount + 1, fvarNums := s.fvarNums.insert fvarId s.fvarCount : State}
-  return .fvar s.fvarCount arity
+def setNewFVar (fvarId : FVarId) (arity : Nat) : M Key :=
+  modifyGet fun s =>
+  (.fvar s.fvars.size arity, {s with fvars := s.fvars.push fvarId : State})
 
-/- note that the returned arguments are not valid when the key is a `λ` or `∀`. -/
+/-- note that the returned arguments are not valid when the key is a `λ` or `∀`. -/
 private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
   match e.getAppFn with
   | .const c _     =>
@@ -546,7 +536,7 @@ private def getKeyArgs (e : Expr) (root : Bool) : M (Key × Array Expr) := do
     let nargs := e.getAppNumArgs
     if let some i := (← read).boundVars.findIdx? (· == fvarId) then
       return (.bvar i nargs, e.getAppRevArgs)
-    if let some i := (← get).fvarNums.find? fvarId then
+    if let some i := (← get).fvars.findIdx? (· == fvarId) then
       return (.fvar i nargs, e.getAppRevArgs)
     return (← setNewFVar fvarId nargs, e.getAppRevArgs)
   | .proj s i a .. =>
@@ -568,7 +558,7 @@ private def children : Trie α → Array (Key × Trie α)
 
 section MonadArray
 
-/- I define the instances `Monad Array` and `Monad m → Monad (ArrayT m)` locally for convenience. -/
+/-- I define the instances `Monad Array` and `Monad m → Monad (ArrayT m)` locally for convenience. -/
 local instance : Monad Array where
   pure a   := #[a]
   bind a f := a.concatMap f

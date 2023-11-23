@@ -1,4 +1,6 @@
 import MotivatedMoves.LibrarySearch.DiscrTree
+import Mathlib.Algebra.Module.Submodule.Map
+
 namespace Tree
 
 open DiscrTree Lean Meta
@@ -34,11 +36,11 @@ structure DiscrTrees where
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 
 structure ProcessResult where
-  apply           : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DiscrTree.DTExpr) := #[]
-  apply_rev       : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DiscrTree.DTExpr) := #[]
-  rewrite         : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DiscrTree.DTExpr) := #[]
-  rewrite_ord     : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DiscrTree.DTExpr) := #[]
-  rewrite_ord_rev : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DiscrTree.DTExpr) := #[]
+  apply           : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DTExpr) := #[]
+  apply_rev       : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DTExpr) := #[]
+  rewrite         : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DTExpr) := #[]
+  rewrite_ord     : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DTExpr) := #[]
+  rewrite_ord_rev : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × DTExpr) := #[]
 instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
@@ -46,6 +48,7 @@ instance : Append ProcessResult where
 partial def processTree : Expr → MetaM ProcessResult
   | .forallE _n domain body bi => do
     let mvar ← mkFreshExprMVar domain
+    -- logInfo m! "{mvar}"
     let result ← processTree (body.instantiate1 mvar)
 
     if bi.isInstImplicit
@@ -90,8 +93,8 @@ where
 
 
 def isSpecific : DTExpr → Bool
-  | .star 0
-  | .const ``Eq #[.star 0, .star 1, .star 2] => false
+  | .star _
+  | .const ``Eq #[.star _, .star _, .star _] => false
   | _ => true
 
 
@@ -110,18 +113,27 @@ def isBadDecl (name : Name) (cinfo : ConstantInfo) (env : Environment) : Bool :=
   || isNoConfusion env name
   || isMatcherCore env name
 
-def processLemma (name : Name) (cinfo : ConstantInfo) (t : DiscrTrees) : MetaM DiscrTrees := do
+-- def etaFlatten' (e : DTExpr) (initCapacity := 16) : List (Array Key) :=
+--   if hasEta e then (getEtas e).map (·.flatten initCapacity) else [DTExpr.flatten e]
+
+
+-- def insertDTExpr' [BEq α] (d : DiscrTree α) (e : DTExpr) (v : α) : MetaM $ DiscrTree α :=do
+--   let x := etaFlatten' e
+--   modify (· + x.length - 1)
+--   [e.flatten].foldlM (init := d) (return insertInDiscrTree · · v)
+
+def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM DiscrTrees := do
   if isBadDecl name cinfo (← getEnv) then
-    return t
+    return ds
 
   let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
-  let ⟨a',b',c',d',e'⟩ := t
-
-  let f := Array.foldl (fun t (diffs, treePos, pos, e) => 
+  let ⟨a',b',c',d',e'⟩ := ds
+  -- return ds
+  let f := Array.foldl (fun ds (diffs, treePos, pos, e) => 
     if isSpecific e
     then
-      t.insertDTExpr e { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)}
-    else t)
+      ds.insertDTExpr e { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)}
+    else ds)
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
 open Mathlib.Tactic
@@ -130,32 +142,31 @@ open Mathlib.Tactic
   DeclCache (DiscrTrees × DiscrTrees)
 
 
-def DiscrTreesCache.mk (profilingName : String)
-    (init : Option DiscrTrees := none) :
-    IO DiscrTreesCache :=
-  let updateTree := processLemma
-  let addDecl := fun name constInfo (tree₁, tree₂) => do
-    return (← updateTree name constInfo tree₁, tree₂)
-  let addLibraryDecl := fun name constInfo (tree₁, tree₂) => do
-    return (tree₁, ← updateTree name constInfo tree₂)
-  let s := fun A => A.map (fun lem => (lem.name.toString.length, lem)) |>.qsort (fun p q => p.1 < q.1) |>.map (·.2)
-  let post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays s, b.mapArrays s,c.mapArrays s, d.mapArrays s, e.mapArrays s⟩)
-  match init with
-  | some t => return ⟨← Cache.mk (pure ({}, t)), addDecl, addLibraryDecl⟩
-  | none => DeclCache.mk profilingName ({}, {}) addDecl addLibraryDecl (post := post)
+-- def DiscrTreesCache.mk (profilingName : String)
+--     (init : Option DiscrTrees := none) :
+--     IO DiscrTreesCache :=
+--   let updateTree := processLemma
+--   let addDecl := fun name constInfo (tree₁, tree₂) => do
+--     return (← updateTree name constInfo tree₁, tree₂)
+--   let addLibraryDecl := fun name constInfo (tree₁, tree₂) => do
+--     return (tree₁, ← updateTree name constInfo tree₂)
+--   let s := fun A => A.map (fun lem => (lem.name.toString.length, lem)) |>.qsort (fun p q => p.1 < q.1) |>.map (·.2)
+--   let post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays s, b.mapArrays s,c.mapArrays s, d.mapArrays s, e.mapArrays s⟩)
+--   match init with
+--   | some t => return ⟨← Cache.mk (pure ({}, t)), addDecl, addLibraryDecl⟩
+--   | none => DeclCache.mk profilingName ({}, {}) addDecl addLibraryDecl (post := post)
 
 
-def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search: init cache"
+-- def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search: init cache"
 
 
-initialize cachedData : DiscrTreesCache ← unsafe do
-  buildDiscrTrees
+-- initialize cachedData : DiscrTreesCache ← unsafe do
+--   buildDiscrTrees
 
-def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.cache.get
+-- def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.cache.get
 
 
 
-#exit
 
 
 open Lean Meta
@@ -164,15 +175,15 @@ def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
   let numHeartbeats ← IO.getNumHeartbeats
   _ ← x
   return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
-
+set_option profiler true
 elab "hiii" : tactic => do
   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) := 
     fun name constInfo (tree₁, tree₂) => do
       return (tree₁, ← processLemma name constInfo tree₂)
 
-  let x ← countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a
+  let x ← (countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a)
   logInfo m! "{x}"
 set_option maxHeartbeats 1000000 in
-example : True := by
+example : True := by 
   hiii
   trivial

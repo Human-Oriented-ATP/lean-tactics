@@ -56,3 +56,18 @@ Discrimination trees. It is an index from terms to values of type `α`.
 structure DiscrTree (α : Type) where
   root : PersistentHashMap Key (Trie α) := {}
 
+
+
+/-- `DTExpr` is a simplified form of `Expr` which is used for representing `Expr`'s in a `DiscrTree`. -/
+inductive DTExpr where
+  | const  : Name → Array DTExpr → DTExpr
+  | fvar   : FVarId → Array DTExpr → DTExpr
+  | bvar   : Nat → Array DTExpr → DTExpr
+  | star   : MVarId → DTExpr
+  | lit    : Literal → DTExpr
+  | sort   : DTExpr
+  | lam    : DTExpr → DTExpr
+  | forall : DTExpr → DTExpr → DTExpr
+  | proj   : Name → Nat → DTExpr → Array DTExpr → DTExpr
+deriving Inhabited
+
