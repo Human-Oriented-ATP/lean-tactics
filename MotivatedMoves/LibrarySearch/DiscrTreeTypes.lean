@@ -58,7 +58,7 @@ structure DiscrTree (α : Type) where
 
 
 
-/-- `DTExpr` is a simplified form of `Expr` which is used for representing `Expr`'s in a `DiscrTree`. -/
+/-- `DTExpr` is a simplified form of `Expr`, used as an intermediate step for translating from `Expr` to `Array Key`. -/
 inductive DTExpr where
   | const  : Name → Array DTExpr → DTExpr
   | fvar   : FVarId → Array DTExpr → DTExpr
