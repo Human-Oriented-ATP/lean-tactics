@@ -273,9 +273,32 @@ private partial def DTExpr.flattenAux (path : Array Key) : DTExpr → StateM Fla
 def _root_.Tree.DTExpr.flatten (e : DTExpr) (initCapacity := 16) : Array Key :=
   (DTExpr.flattenAux (.mkEmpty initCapacity) e).run' {}
 
-
-
-
+/-- The keys of all proper sub-expressions of the input expression, together with the key of the main expression. -/
+partial def DTExpr.flattenSubExprs : DTExpr → StateM Flatten.State (Array Key × Array (Array Key))
+  | .const n args => args.foldlM (init := (#[.const n args.size], #[])) fun (path, subExprPaths) arg ↦ do
+    let (argPath, argSubExprPaths) ← flattenSubExprs arg
+    return (path ++ argPath, (subExprPaths ++ argSubExprPaths).push argPath)
+  | .fvar i args => do args.foldlM (init := (#[.fvar (← getFVar i) args.size], #[])) fun (path, subExprPaths) arg ↦ do
+    let (argPath, argSubExprPaths) ← flattenSubExprs arg
+    return (path ++ argPath, (subExprPaths ++ argSubExprPaths).push argPath) 
+  | .bvar i args => args.foldlM (init := (#[.bvar i args.size], #[])) fun (path, subExprPaths) arg ↦ do
+    let (argPath, argSubExprPaths) ← flattenSubExprs arg
+    return (path ++ argPath, (subExprPaths ++ argSubExprPaths).push argPath) 
+  | .star i => do return (#[.star (← getStar i)], #[])
+  | .lit l => return (#[.lit l], #[])
+  | .sort => return (#[.sort], #[])
+  | .lam b => do
+    let (bodyPath, bodySubExprsPaths) ← flattenSubExprs b
+    return (#[.lam] ++ bodyPath, bodySubExprsPaths.push bodyPath) 
+  | .«forall» d b => do
+    let (domainPath, domainSubExprsPaths) ← flattenSubExprs d
+    let (bodyPath, bodySubExprsPaths) ← flattenSubExprs b
+    return (#[.forall] ++ domainPath ++ bodyPath, (domainSubExprsPaths.push domainPath ++ bodySubExprsPaths.push bodyPath)) 
+  | .proj n i e args => do 
+    let (exprPath, exprSubExprPaths) ← flattenSubExprs e
+    args.foldlM (init := (#[.proj n i args.size] ++ exprPath, exprSubExprPaths)) fun (path, subExprPaths) arg ↦ do
+    let (argPath, argSubExprPaths) ← flattenSubExprs arg
+    return (path ++ argPath, (subExprPaths ++ argSubExprPaths).push argPath) 
 
 /-- 
 Because of η-reduction, some expression need to be indexed with multiple different paths
