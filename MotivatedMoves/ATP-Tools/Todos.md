@@ -8,6 +8,8 @@
 
 - A function that returns all valid `SubExpr.Pos` in a given expression
 
+- - A function that accepts a pattern and returns the list of `GoalsLocations` where it occurs
+
 - A function that returns all valid `GoalsLocation` in a given target 
 
 ## For generating subtasks
