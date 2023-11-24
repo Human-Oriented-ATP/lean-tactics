@@ -8,18 +8,21 @@ namespace Tree.DiscrTree
 
 /--
 Discrimination tree key. See `DiscrTree`
-
-The index of the star constructor gives a unique index for each star, giving each next star the next unused number.
 -/
 inductive Key where
+  /-- `Key.const` takes a `Name` and the arity. -/
   | const  : Name → Nat → Key
+  /-- `Key.fvar` takes an index and the arity. -/
   | fvar   : Nat → Nat → Key
+  /-- `Key.bvar` takes an index and the arity. -/
   | bvar   : Nat → Nat → Key
+  /-- `Key.star` takes an index. -/
   | star   : Nat → Key
   | lit    : Literal → Key
-  | other  : Key
+  | sort   : Key
   | lam    : Key
   | forall : Key
+  /-- `Key.proj` takes the constructor `Name`, the projection index and the arity. -/
   | proj   : Name → Nat → Nat → Key
   deriving Inhabited, BEq, Repr
 
@@ -29,7 +32,7 @@ protected def Key.hash : Key → UInt64
   | .bvar i a    => mixHash 4323 $ mixHash (hash i) (hash a)
   | .star i      => mixHash 7883 $ hash i
   | .lit v       => mixHash 1879 $ hash v
-  | .other       => 2411
+  | .sort        => 2411
   | .lam         => 4742
   | .«forall»    => 9752
   | .proj s i a  => mixHash (hash a) $ mixHash (hash s) (hash i)
@@ -47,28 +50,24 @@ end DiscrTree
 
 open DiscrTree
 
-/-!
-Notes regarding term reduction at the `DiscrTree` module.
-- In `simp`, we want to have `simp` theorem such as
-```
-@[simp] theorem liftOn_mk (a : α) (f : α → γ) (h : ∀ a₁ a₂, r a₁ a₂ → f a₁ = f a₂) :
-    Quot.liftOn (Quot.mk r a) f h = f a := rfl
-```
-If we enable `iota`, then the lhs is reduced to `f a`.
-Note that when retrieving terms, we may also disable `beta` and `zeta` reduction.
-See issue https://github.com/leanprover/lean4/issues/2669
-- During type class resolution, we often want to reduce types using even `iota` and projection reductionn.
-Example:
-```
-inductive Ty where
-	@@ -80,7 +75,11 @@ def f (a b : Ty.bool.interp) : Ty.bool.interp :=
-  test (.==.) a b
-```
--/
-
 /--
 Discrimination trees. It is an index from terms to values of type `α`.
 -/
 structure DiscrTree (α : Type) where
   root : PersistentHashMap Key (Trie α) := {}
+
+
+
+/-- `DTExpr` is a simplified form of `Expr`, used as an intermediate step for translating from `Expr` to `Array Key`. -/
+inductive DTExpr where
+  | const  : Name → Array DTExpr → DTExpr
+  | fvar   : FVarId → Array DTExpr → DTExpr
+  | bvar   : Nat → Array DTExpr → DTExpr
+  | star   : MVarId → DTExpr
+  | lit    : Literal → DTExpr
+  | sort   : DTExpr
+  | lam    : DTExpr → DTExpr
+  | forall : DTExpr → DTExpr → DTExpr
+  | proj   : Name → Nat → DTExpr → Array DTExpr → DTExpr
+deriving Inhabited
 
