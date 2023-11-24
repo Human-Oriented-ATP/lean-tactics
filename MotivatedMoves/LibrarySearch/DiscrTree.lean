@@ -212,21 +212,21 @@ instance : ToFormat DTExpr := ⟨DTExpr.format⟩
 
 -- end MonadList
 
-structure Reindex.State where
-  stars : Array Nat := #[]
-  fvars : Array Nat := #[]
+-- structure Reindex.State where
+--   stars : Array Nat := #[]
+--   fvars : Array Nat := #[]
 
-def Reindex.step : Key → Reindex.State → Key × Reindex.State
-  | .star i, s => match s.stars.findIdx? (· == i) with
-    | some j => (.star j, s)
-    | none => (.star s.stars.size, {s with stars := s.stars.push i})
-  | .fvar i a, s => match s.fvars.findIdx? (· == i) with
-    | some j => (.fvar j a, s)
-    | none => (.fvar s.fvars.size a, {s with fvars := s.fvars.push i})
-  | k, s => (k, s)
+-- def Reindex.step : Key → Reindex.State → Key × Reindex.State
+--   | .star i, s => match s.stars.findIdx? (· == i) with
+--     | some j => (.star j, s)
+--     | none => (.star s.stars.size, {s with stars := s.stars.push i})
+--   | .fvar i a, s => match s.fvars.findIdx? (· == i) with
+--     | some j => (.fvar j a, s)
+--     | none => (.fvar s.fvars.size a, {s with fvars := s.fvars.push i})
+--   | k, s => (k, s)
 
-def reindex (keys : Array Key) : Array Key :=
-  (keys.mapM (m := StateM Reindex.State) Reindex.step).run' {}
+-- def reindex (keys : Array Key) : Array Key :=
+--   (keys.mapM (m := StateM Reindex.State) Reindex.step).run' {}
 
 
 
@@ -289,7 +289,7 @@ def _root_.Tree.DTExpr.flatten (e : DTExpr) (initCapacity := 16) : Array Key :=
 
 
 
--- **Transforming from Expr to DTExpr** 
+-- **Transforming from Expr to the possible DTExpr** 
 
 
 instance : Inhabited (DiscrTree α) where
@@ -398,14 +398,15 @@ def starEtaExpandedBody : Expr → Nat → Nat → Option Expr
   | _,        _+1, _ => none
   | b,        0,   _ => some b
 
-/-- If `e` is of the form `(fun x₁ ... xₙ => b x₁ ... xₙ)`, where `x₁`, ..., `xₙ` are represented by `Key.star`,
+/-- If `e` is of the form `(fun x₀ ... xₙ => b y₀ ... yₙ)`,
+where each `yᵢ` is a `Key.star` pattern that has `xᵢ` as an argument,
 then return `some b`. Otherwise, return `none`.
 -/
 def starEtaExpanded : Expr → Nat → Option Expr
   | .lam _ _ b _, n => starEtaExpanded b (n+1)
   | e,            n => starEtaExpandedBody e n 0
 
-/-- If `e` is of the form `(fun x₁ ... xₙ => b x₁ ... xₙ)`, where `x₁`, ..., `xₙ` are represented by `Key.star`,
+/-- If `e` is of the form `(fun x₁ ... xₙ => b y₁ ... yₙ)`,
 then introduce free variables for `x₁`, ..., `xₙ`, instantiate these in `b`, and run `x` on `b`. -/
 partial def introEtaBVars (e b : Expr) (x : Expr → M α) : M α :=
   match e with
