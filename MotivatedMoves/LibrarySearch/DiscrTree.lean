@@ -1,6 +1,6 @@
 import MotivatedMoves.LibrarySearch.DiscrTreeTypes
 import MotivatedMoves.ProofState.Tree
-
+import MotivatedMoves.LibrarySearch.ListState
 namespace Tree.DiscrTree
 
 open Lean Meta DiscrTree
@@ -124,112 +124,6 @@ partial def DTExpr.format : DTExpr → Format
 
 instance : ToFormat DTExpr := ⟨DTExpr.format⟩
 
--- /-- Checks whether there is any potential η-reduction in `e`.
--- This is useful for avoiding the more expensive function `getEtas`. -/
--- partial def hasEta (e : DTExpr) (inLambda : Bool := false) : Bool :=
---   match e with
---   | .const _ as             => (inLambda && as.back? matches some (.star _)) || as.any hasEta
---   | .proj _ _ a as          => (inLambda && as.back? matches some (.star _)) || as.any hasEta || hasEta a
---   | .fvar _ as              => (inLambda && as.back? matches some (.star _)) || as.any hasEta
---   | .bvar _ as              => (inLambda && as.back? matches some (.star _)) || as.any hasEta
---   | .forall d b             => hasEta d || hasEta b
---   | .lam b                  => hasEta b (inLambda := true)
---   | _                       => false
-
-
--- /-- Given `e : DTExpr` that consists of `n` lambda's and body `b`, returns `f n b`. -/
--- def _root_.Tree.DTExpr.withLambdas (f : Nat → DTExpr → α) : DTExpr → α :=
---   let rec go (i : Nat) : DTExpr → α
---     | .lam e => go (i+1) e
---     | e => f i e
---   go 0
-
--- /-- Drops at most `max` stars from the end of `e`, returning the resulting `DTExpr` and the removed stars. -/
--- private def dropStars (max : Nat) (e : DTExpr) : DTExpr × Array DTExpr :=
---   let go (args : Array DTExpr) : Array DTExpr × Array DTExpr := Id.run do
---     let mut args := args
---     let mut stars := #[]
---     for _ in [:max] do
---       match args.back? with
---       | some star@(.star _) =>
---         args := args.pop
---         stars := stars.push star
---       | _ =>
---         break
---     return (args, stars.reverse)
---   match e with
---   | .const n args    => Bifunctor.fst (.const n)    $ go args
---   | .fvar i args     => Bifunctor.fst (.fvar i)     $ go args
---   | .bvar i args     => Bifunctor.fst (.bvar i)     $ go args
---   | .proj n i e args => Bifunctor.fst (.proj n i e) $ go args
---   | _ => (e, #[])
-
--- /-- Given the body `e` of some η-reduced `DTExpr`, which had `lambdas` and `stars` removed,
--- returns all possible η equivalent forms. -/
--- private def reEta (lambdas : Nat) (stars : Array DTExpr) (e : DTExpr) : List DTExpr :=
---   let go (args : Array DTExpr) (c : Array DTExpr → DTExpr) : List DTExpr := Id.run do
---     let c (i : Nat) (args : Array DTExpr) :=
---       i.repeat .lam (c args)
---     let mut i := lambdas - stars.size
---     let mut args := args
---     let mut result := [c i args]
---     for star in stars do
---       i := i + 1
---       args := args.push star
---       result := result.cons (c i args)
---     return result
---   match e with
---   | .const n args    => go args (.const n)
---   | .fvar i args     => go args (.fvar i)
---   | .bvar i args     => go args (.bvar i)
---   | .proj n i e args => go args (.proj n i e)
---   | _ => [lambdas.repeat .lam e]
--- section MonadList
-
--- /-- I define the instance `Monad Array` locally for convenience. -/
--- local instance : Monad List where
---   pure a   := [a]
---   bind a f := a.bind f
-
--- /-- given `e : DTExpr`, returns all η-reduced forms of `e`. -/
--- partial def getEtas (e : DTExpr) : List DTExpr :=
---   match e with
---   | .lam .. =>
---     e.withLambdas fun n e => do
---     let (e, stars) := dropStars n e
---     let e ← getEtas e
---     reEta n stars e
---   | .const n args => (getEtasArray args).map (.const n)
---   | .fvar i args => (getEtasArray args).map (.fvar i)
---   | .bvar i args => (getEtasArray args).map (.bvar i)
---   | .proj n i e args => (getEtas e) >>= ((getEtasArray args).map $ .proj n i ·)
---   | .«forall» d b => (getEtas d) >>= ((getEtas b).map $ .«forall» ·)
---   | _ => [e]
--- where
---   getEtasArray : Array DTExpr → List (Array DTExpr) :=
---     Array.mapM getEtas
-
-
--- end MonadList
-
--- structure Reindex.State where
---   stars : Array Nat := #[]
---   fvars : Array Nat := #[]
-
--- def Reindex.step : Key → Reindex.State → Key × Reindex.State
---   | .star i, s => match s.stars.findIdx? (· == i) with
---     | some j => (.star j, s)
---     | none => (.star s.stars.size, {s with stars := s.stars.push i})
---   | .fvar i a, s => match s.fvars.findIdx? (· == i) with
---     | some j => (.fvar j a, s)
---     | none => (.fvar s.fvars.size a, {s with fvars := s.fvars.push i})
---   | k, s => (k, s)
-
--- def reindex (keys : Array Key) : Array Key :=
---   (keys.mapM (m := StateM Reindex.State) Reindex.step).run' {}
-
-
-
 
 /-- The discrimination tree ignores implicit arguments and proofs.
    We use the following auxiliary id as a "mark". -/
@@ -310,7 +204,6 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : MetaM Boo
 private def ignoreArgs (infos : Array ParamInfo) (args : Array Expr) : MetaM (Array Expr) :=
   args.mapIdxM (fun i arg => return if ← ignoreArg arg i infos then tmpStar else arg)
 
-
 /--
   Return true if `e` is one of the following
   - A nat literal (numeral)
@@ -364,16 +257,6 @@ partial def reduce (e : Expr) (config : WhnfCoreConfig) : MetaM Expr := do
     | none   => return e
 
 
-namespace makeInsertionPath
- 
-
-private structure Context where
-  /-- Free variables that have been introduced from a lambda. -/
-  bvars : List FVarId := []
-  /-- Free variables that come from a lambda that has been removed via η-reduction. -/
-  unbvars : List FVarId := []
-
-private abbrev M := ReaderT Context MetaM
 
 def mkNoindexAnnotation (e : Expr) : Expr :=
   mkAnnotation `noindex e
@@ -406,51 +289,64 @@ def starEtaExpanded : Expr → Nat → Option Expr
   | .lam _ _ b _, n => starEtaExpanded b (n+1)
   | e,            n => starEtaExpandedBody e n 0
 
+
+partial def _root_.Tree.DTExpr.hasLooseBVarsAux (i : Nat) : DTExpr → Bool
+  | .const _ as    => as.any (hasLooseBVarsAux i)
+  | .fvar _ as     => as.any (hasLooseBVarsAux i)
+  | .bvar j as     => j ≥ i || as.any (hasLooseBVarsAux i)
+  | .proj _ _ a as => a.hasLooseBVarsAux i || as.any (hasLooseBVarsAux i)
+  | .forall d b    => d.hasLooseBVarsAux i || b.hasLooseBVarsAux (i+1)
+  | .lam b         => b.hasLooseBVarsAux (i+1)
+  | _              => false
+
+def _root_.Tree.DTExpr.hasLooseBVars (e : DTExpr) : Bool :=
+  e.hasLooseBVarsAux 0
+
+
+namespace makeInsertionPath
+ 
+private structure Context where
+  /-- Free variables that have been introduced from a lambda. -/
+  bvars : List FVarId := []
+  /-- Free variables that come from a lambda that has been removed via η-reduction. -/
+  unbvars : List FVarId := []
+
+private abbrev M := ReaderT Context $ ListStateT (AssocList Expr DTExpr) MetaM
+
+/-
+Caching values is a bit dangerous, because when two expressions are be equal, they can live under
+a different number of binders, so that the resulting De Bruijn indices are offset.
+In practice, getting a `.bvar` in a `DTExpr` is very rare, so we exclude such values from the cache.
+-/
+instance : MonadCache Expr DTExpr M where
+  findCached? e := do
+    let c ← get
+    return c.find? e
+  cache e e' :=
+    if e'.hasLooseBVars then
+      return
+    else
+      modify (·.insert e e')
+
 /-- If `e` is of the form `(fun x₁ ... xₙ => b y₁ ... yₙ)`,
-then introduce free variables for `x₁`, ..., `xₙ`, instantiate these in `b`, and run `x` on `b`. -/
-partial def introEtaBVars (e b : Expr) (x : Expr → M α) : M α :=
+then introduce free variables for `x₁`, ..., `xₙ`, instantiate these in `b`, and run `k` on `b`. -/
+partial def introEtaBVars [Inhabited α] (e b : Expr) (k : Expr → M α) : M α :=
   match e with
   | .lam n d e' _ =>
     withLocalDeclD n d fun fvar =>
       withReader (fun c => { c with unbvars := fvar.fvarId! :: c.unbvars }) $
-        introEtaBVars e' (b.instantiate1 fvar) x
-  | _ => x b
+        introEtaBVars e' (b.instantiate1 fvar) k
+  | _ => k b
 
-
-section MonadList
-
-private abbrev ListT (m : Type u → Type v)  a := m (List a)
-
-local instance [Monad m] : Monad (ListT m) where
-  pure a   := pure (f := m) [a]
-  bind a f := (a >>= List.foldrM (init := []) (fun x => (· ++ x) <$> f ·) : m (List _))
-
-@[always_inline, inline] private def ListT.lift [Monad m] (x : m α) : ListT m α := ([].cons <$> x : m (List _))
-
-private instance [Monad m] : MonadLift m (ListT m) := ⟨ListT.lift⟩
-
-private instance [Monad m] : MonadControl m (ListT m) where
-  stM        := List
-  liftWith f := ListT.lift <| f id
-  restoreM x := x
-
-def LiftA2 [Applicative m] (f : α → β → γ) (a : m α) (b : m β) : m γ :=
-  f <$> a <*> b
-
-def AppendM [Applicative m] (as : ListT m α) (bs : ListT m α) : ListT m α :=
-  LiftA2 (m := m) List.append as bs
-def EmptyM [Applicative m] : m (List α) :=
-  pure []
-
-partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : ListT M DTExpr := do
+partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : M DTExpr := do
   if hasNoindexAnnotation e then
     return .star tmpMVarId
   else
-  let e ← ListT.lift $ reduce e config
+  let e ← reduce e config
   Expr.withApp e fun fn args => do
-  let argPaths : ListT M (Array DTExpr) := do
-    let info ← ListT.lift $ getFunInfoNArgs fn args.size
-    let args ← ListT.lift $ ignoreArgs info.paramInfo args
+  let argPaths : M (Array DTExpr) := do
+    let info ← getFunInfoNArgs fn args.size
+    let args ← ignoreArgs info.paramInfo args
     args.mapM (mkPathAux config)
 
   match fn with
@@ -467,7 +363,7 @@ partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : ListT M DTExpr := d
       return .bvar idx (← argPaths)
     else
       if c.unbvars.contains fvarId then
-          EmptyM
+        failure
       else
         return .fvar fvarId (← argPaths)
   | .mvar mvarId =>
@@ -477,12 +373,12 @@ partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : ListT M DTExpr := d
       return .star mvarId
 
   | .lam _ d b _ =>
-    AppendM
-      (match starEtaExpanded b 1 with
-        | some b => do
-          introEtaBVars fn b (mkPathAux config)
-        | none => EmptyM)
-      (.lam <$> mkPathBinder d b)
+    .lam <$> mkPathBinder d b
+    <|>
+    match starEtaExpanded b 1 with
+      | some b => do
+        introEtaBVars fn b (mkPathAux config)
+      | none => failure
 
   | .forallE _ d b _ => return .forall (← mkPathAux config d) (← mkPathBinder d b)
   | .lit v      => return .lit v
@@ -490,16 +386,16 @@ partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : ListT M DTExpr := d
   | _           => unreachable!
 
 where
-  mkPathBinder (domain body : Expr) : ListT M DTExpr := do
+  mkPathBinder (domain body : Expr) : M DTExpr := do
     withLocalDeclD `_a domain fun fvar =>
       withReader (m := M) (fun c => { bvars := fvar.fvarId! :: c.bvars }) $
         mkPathAux config (body.instantiate1 fvar)
 
-end MonadList
+
 end makeInsertionPath
 
 def mkDTExprs (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (List DTExpr) :=
-  withReducible do makeInsertionPath.mkPathAux config e |>.run {}
+  withReducible do (makeInsertionPath.mkPathAux config e |>.run {}).run' {}
 
 -- def mkPath (e : Expr) (config : WhnfCoreConfig := {}) : MetaM (Array Key) :=
 --   DTExpr.flatten <$> mkDTExpr e config
