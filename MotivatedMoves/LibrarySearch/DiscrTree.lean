@@ -289,7 +289,7 @@ partial def mkPathAux (config : WhnfCoreConfig) (e : Expr) : M DTExpr := do
     else
       return .star mvarId
 
-  | .lam _ d b _ =>
+  | .lam _ d b _ => checkCache fn fun _ =>
     .lam <$> mkPathBinder d b
     <|>
     match starEtaExpanded b 1 with
