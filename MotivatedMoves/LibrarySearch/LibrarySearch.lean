@@ -102,8 +102,6 @@ def isBadDecl (name : Name) (cinfo : ConstantInfo) (env : Environment) : Bool :=
     | .thmInfo .. => false
     | _ => true)
   || (match name with
-    /- `MeasureTheory.withDensitySMulLI_apply` has 256 η-reduction forms, so let's just leave it out of the `DiscrTree`. -/
-    | `MeasureTheory.withDensitySMulLI_apply
     | .str _ "inj"
     | .str _ "sizeOf_spec"
     | .str _ "noConfusionType" => true
