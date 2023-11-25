@@ -14,8 +14,12 @@ namespace StateList
 
 variable {α σ : Type u}
 
-protected def toList : StateList σ α → List α
-  | .cons a _ l => a :: l.toList
+protected def toList : StateList σ α → List (α × σ)
+  | .cons a s l => (a, s) :: l.toList
+  | .nil => []
+
+protected def toList' : StateList σ α → List α
+  | .cons a _ l => a :: l.toList'
   | .nil => []
   
 protected def map (f : α → β) : StateList σ α → StateList σ β
@@ -52,12 +56,12 @@ def ListStateT (σ : Type u) (m : Type u → Type v) (α : Type u) : Type (max u
   σ → m (StateList σ α)
 
 @[always_inline, inline]
-def ListStateT.run {σ : Type u} {m : Type u → Type v} {α : Type u} (x : ListStateT σ m α) (s : σ) : m (StateList σ α) :=
-  x s
+def ListStateT.run {σ : Type u} {m : Type u → Type v} [Functor m] {α : Type u} (x : ListStateT σ m α) (s : σ) : m (List (α × σ)) :=
+  StateList.toList <$> x s
 
 @[always_inline, inline]
 def ListStateT.run' {σ : Type u} {m : Type u → Type v} [Functor m] {α : Type u} (x : ListStateT σ m α) (s : σ) : m (List α) :=
-  StateList.toList <$> x s
+  StateList.toList' <$> x s
 
 @[reducible]
 def ListStateM (σ α : Type u) : Type u := ListStateT σ Id α
@@ -74,7 +78,7 @@ protected def pure (a : α) : ListStateT σ m α :=
 @[always_inline, inline]
 protected def bind (x : ListStateT σ m α) (f : α → ListStateT σ m β) : ListStateT σ m β :=
   fun s => do
-    (← x s).foldrM (fun a s bs => (· ++ bs) <$> f a s) .nil
+    (← x s).foldrM (fun a s bs => return (← f a s) ++ bs) .nil
 
 @[always_inline, inline]
 protected def map (f : α → β) (x : ListStateT σ m α) : ListStateT σ m β :=
@@ -140,6 +144,6 @@ end
 
 @[always_inline]
 instance ListStateT.monadControl (σ : Type u) (m : Type u → Type v) [Monad m] : MonadControl m (ListStateT σ m) where
-  stM      := fun α   => StateList σ α
-  liftWith := fun f => do let s ← get; liftM (f (fun x => x.run s))
+  stM      := StateList σ
+  liftWith := fun f => do let s ← get; liftM (f (fun x => x s))
   restoreM := fun x _ => x

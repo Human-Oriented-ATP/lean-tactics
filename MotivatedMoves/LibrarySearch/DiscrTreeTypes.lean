@@ -94,8 +94,30 @@ inductive Trie (α : Type) where
   | node (children : Array (Key × Trie α))
   | path (keys : Array Key) (child : Trie α)
   | values (vs : Array α)
-
 instance : Inhabited (Trie α) := ⟨.node #[]⟩
+
+/-- Smart `Trie.path` constructor that only adds the path if it is non-empty.
+we always use this constructor, so that paths are always non-empty. -/
+def Trie.mkPath (keys : Array Key) (child : Trie α) :=
+  if keys.isEmpty then child else Trie.path keys child
+
+def Trie.singleton (keys : Array Key) (value : α) (i : Nat) : Trie α :=
+  mkPath keys[i:] (values #[value])
+
+def Trie.mkNode2 (k1 : Key) (t1 : Trie α) (k2 : Key) (t2 : Trie α) : Trie α :=
+  if k1 < k2 then
+    .node #[(k1, t1), (k2, t2)]
+  else
+    .node #[(k2, t2), (k1, t1)]
+
+def Trie.values! : Trie α → Array α
+  | .values vs => vs
+  | _ => panic! "resulting Trie is not .values"
+
+def Trie.children! : Trie α → Array (Key × Trie α)
+| .node cs => cs
+| .path ks c => #[(ks[0]!, mkPath ks[1:] c)]
+| .values _ => panic! "did not expect .values constructor"
 
 partial def Trie.format [ToFormat α] : Trie α → Format
   | .node cs => Format.group $ Format.paren $
