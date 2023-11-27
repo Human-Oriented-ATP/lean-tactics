@@ -53,10 +53,8 @@ def delabMVarWithType : Delab := do
 
 -- based on `kabstract`
 -- optionally specializes the pattern before finding its occurrence
-def findOccurrence (position : SubExpr.Pos) (root : Expr) 
-    (patternM : MetaM Expr := SubExpr.patternAt position root) : MetaM Nat := do
+def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Nat := do
   let root ← instantiateMVars root
-  let pattern ← patternM
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
     throwError s!"The specified pattern does not match the pattern at position {position}."
   let pattern ← instantiateMVars pattern   
@@ -96,6 +94,10 @@ def findOccurrence (position : SubExpr.Pos) (root : Expr)
       visitChildren ()
   let (_, occ) ← visit root .root 0 |>.run 0
   return occ
+
+def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
+  let pattern ← SubExpr.patternAt position root
+  findMatchingOccurrence position root pattern 
 
 end
 
