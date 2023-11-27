@@ -626,13 +626,14 @@ we do an `isDefEq` check, without modifying the state. -/
 def matchStars (e : Expr) (children : Array (Key × Trie α)) : M (Trie α) := do
   let {assignments, ..} ← get
   let mut result := failure
-  /- The `.star` patterns are all at the start of the `Array`, so this for loop will find them all. -/
+  /- The `.star` patterns are all at the start of the `Array`,
+  so this for loop will find them all. -/
   for (k, c) in children do
     let .star i := k | break
     if let some assignment := assignments.find? i then
       try
         if ← liftMetaM (withoutModifyingState (isDefEq e assignment)) then
-          result := (pure c) <|> result
+          result := (incrementScore 1 *> pure c) <|> result
       catch _ =>
         pure ()
     else
