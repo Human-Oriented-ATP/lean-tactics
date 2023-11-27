@@ -152,7 +152,7 @@ def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search
 initialize cachedData : DiscrTreesCache ← unsafe do
   buildDiscrTrees
 
-def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.cache.get
+def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 
 
 
