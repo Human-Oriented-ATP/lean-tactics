@@ -27,21 +27,23 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
   let tacticStr : String ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
-    let lhs : MetaM Expr := do
-      let env ← getEnv
-      let .some ci := env.find? props.rwRule | throwError s!"Failed to find {props.rwRule} in the environment."
-      let (_, _, eqn) ← forallMetaTelescopeReducing ci.type
-      match (← matchEq? eqn) with
-        | some (_, lhs, rhs) => return if props.symm then rhs else lhs
-        | none =>
-          match (eqn.iff?) with
-            | some (lhs, rhs) => return if props.symm then rhs else lhs
-            | none => throwError s!"Received {props.rwRule}; equality or iff proof expected." 
     Meta.withLCtx lctx md.localInstances do
       let subExpr ← loc.toSubExpr
-      let occurrence ← findOccurrence subExpr.pos subExpr.expr lhs
+      let env ← getEnv
+      let .some ci := env.find? props.rwRule | throwError s!"Failed to find {props.rwRule} in the environment."
+      let (vars, binders, eqn) ← forallMetaTelescopeReducing ci.type
+      let lhs : Expr :=
+        match (← matchEq? eqn) with
+          | some (_, lhs, rhs) => if props.symm then rhs else lhs
+          | none =>
+            match (eqn.iff?) with
+              | some (lhs, rhs) => if props.symm then rhs else lhs
+              | none => panic! s!"Received {props.rwRule}; equality or iff proof expected." 
+      let occurrence ← findMatchingOccurrence subExpr.pos subExpr.expr lhs
       let cfg : Rewrite.Config := { occs := .pos [occurrence] }
-      return s!"rw (config := {cfg}) [{if props.symm then "← " else "" ++ props.rwRule.toString}] {loc.loc.render goal}" 
+      let p ← mkAppM props.rwRule (← vars.mapM instantiateMVars)
+      let arg : String := Format.pretty <| ← ppExpr p 
+      return s!"rw (config := {cfg}) [{if props.symm then "← " else "" ++ arg}] {loc.loc.render goal}" 
   return .pure (
         <DynamicEditButton 
           label={"Rewrite sub-term"} 
@@ -71,6 +73,5 @@ def rewriteAt : Tactic
     return json% { replaceRange : $(range), symm : $(symm), rwRule : $(name) }
 | _ => throwUnsupportedSyntax
 
-example : 1 + 2 = (1 + 2) + (1 + 2) := by
-  rw (config := { occs := .pos [3] }) [Nat.add_comm]
-  sorry
+example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
+  rw [Nat.add_comm] at?
