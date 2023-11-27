@@ -98,12 +98,13 @@ instance : Inhabited (Trie α) := ⟨.node #[]⟩
 
 /-- Smart `Trie.path` constructor that only adds the path if it is non-empty.
 we always use this constructor, so that paths are always non-empty. -/
+@[inline]
 def Trie.mkPath (keys : Array Key) (child : Trie α) :=
   if keys.isEmpty then child else Trie.path keys child
-
+@[inline]
 def Trie.singleton (keys : Array Key) (value : α) (i : Nat) : Trie α :=
   mkPath keys[i:] (values #[value])
-
+@[inline]
 def Trie.mkNode2 (k1 : Key) (t1 : Trie α) (k2 : Key) (t2 : Trie α) : Trie α :=
   if k1 < k2 then
     .node #[(k1, t1), (k2, t2)]
