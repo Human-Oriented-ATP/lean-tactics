@@ -60,25 +60,25 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
   let pattern ← instantiateMVars pattern   
   let pHeadIdx := pattern.toHeadIndex
   let pNumArgs := pattern.headNumArgs
-  let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat MetaM Unit := do
-    let visitChildren : Unit → StateRefT Nat MetaM Unit := fun _ => do
+  let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat (OptionT MetaM) Unit := do
+    let visitChildren : Unit → StateRefT Nat (OptionT MetaM) Unit := fun _ => do
       match e with
       | .app f a         => do
-        visit f p.pushAppFn offset
+        visit f p.pushAppFn offset <|>
         visit a p.pushAppArg offset
       | .mdata _ b       => visit b p offset
       | .proj _ _ b      => visit b p.pushProj offset
       | .letE _ t v b _  => do
-        visit t p.pushLetVarType offset
-        visit v p.pushLetValue offset
+        visit t p.pushLetVarType offset <|>
+        visit v p.pushLetValue offset <|>
         visit b p.pushLetBody (offset+1)
       | .lam _ d b _     => do
-        visit d p.pushBindingDomain offset
+        visit d p.pushBindingDomain offset <|>
         visit b p.pushBindingBody (offset+1)
       | .forallE _ d b _ => do
-        visit d p.pushBindingDomain offset
+        visit d p.pushBindingDomain offset <|>
         visit b p.pushBindingBody (offset+1)
-      | e                => return ()
+      | e                => failure
     if e.hasLooseBVars then
       visitChildren ()
     else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
@@ -92,7 +92,8 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
         visitChildren ()
     else
       visitChildren ()
-  let (_, occ) ← visit root .root 0 |>.run 0
+  let .some (_, occ) ← visit root .root 0 |>.run 0 |
+    throwError s!"Could not find pattern at specified position {position}."
   return occ
 
 def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
