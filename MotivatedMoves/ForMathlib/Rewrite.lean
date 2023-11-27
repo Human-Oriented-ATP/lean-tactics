@@ -20,6 +20,28 @@ instance : ToString Rewrite.Config where
   toString cfg := 
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
+def findRewriteOccurrence (thm : Name) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr ) := do
+  let env ← getEnv
+  let .some ci := env.find? thm | throwError s!"Failed to find {thm} in the environment."
+  let (vars, _, eqn) ← forallMetaTelescopeReducing ci.type
+  let lhs : Expr :=
+    match (← matchEq? eqn) with
+    | some (_, lhs, rhs) => if symm then rhs else lhs
+    | none =>
+      match (eqn.iff?) with
+      | some (lhs, rhs) => if symm then rhs else lhs
+      | none => panic! s!"Received {thm}; equality or iff proof expected." 
+  let occurrence ← findMatchingOccurrence position target lhs
+  let pattern ← mkAppM thm <| ← vars.mapM instantiateMVars
+  return (occurrence, pattern)
+
+def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) (thm : Name) (symm : Bool) : MetaM String := do
+  let subExpr ← loc.toSubExpr
+  let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
+  let cfg : Rewrite.Config := { occs := .pos [occurrence] }
+  let arg : String := Format.pretty <| ← ppExpr pattern
+  return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}] {loc.loc.render goal}"
+
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
   let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
@@ -28,22 +50,7 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
-      let subExpr ← loc.toSubExpr
-      let env ← getEnv
-      let .some ci := env.find? props.rwRule | throwError s!"Failed to find {props.rwRule} in the environment."
-      let (vars, binders, eqn) ← forallMetaTelescopeReducing ci.type
-      let lhs : Expr :=
-        match (← matchEq? eqn) with
-          | some (_, lhs, rhs) => if props.symm then rhs else lhs
-          | none =>
-            match (eqn.iff?) with
-              | some (lhs, rhs) => if props.symm then rhs else lhs
-              | none => panic! s!"Received {props.rwRule}; equality or iff proof expected." 
-      let occurrence ← findMatchingOccurrence subExpr.pos subExpr.expr lhs
-      let cfg : Rewrite.Config := { occs := .pos [occurrence] }
-      let p ← mkAppM props.rwRule (← vars.mapM instantiateMVars)
-      let arg : String := Format.pretty <| ← ppExpr p 
-      return s!"rw (config := {cfg}) [{if props.symm then "← " else "" ++ arg}] {loc.loc.render goal}" 
+      rewriteTacticCall loc goal props.rwRule props.symm
   return .pure (
         <DynamicEditButton 
           label={"Rewrite sub-term"} 
@@ -74,4 +81,5 @@ def rewriteAt : Tactic
 | _ => throwUnsupportedSyntax
 
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
-  rw [Nat.add_comm] at?
+  rw (config := { occs := .pos [1] }) [Nat.add_comm 1 2]
+  sorry 
