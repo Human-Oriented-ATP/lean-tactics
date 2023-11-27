@@ -12,18 +12,18 @@ def cachePath : IO System.FilePath := do
   catch _ =>
     return "build" / "lib" / "LibrarySearch" / "DiscrTreesData.extra"
 
-def dummyDiscrTree (n : Nat) : DiscrTree Nat := 
-  DiscrTree.insertInDiscrTree .empty #[.const `dummy 0] n
+def dummyDiscrTree (a : α) [BEq α] : DiscrTree α := 
+  DiscrTree.insertInDiscrTree .empty #[.const `dummy 0] a
 
-def buildData : IO (DiscrTree Nat) := do
+def buildData : IO (DiscrTree LibraryLemma) := do
   IO.sleep 1000
   IO.FS.writeFile "build/lib/LibrarySearch/debug.txt" "building data"
-  return dummyDiscrTree 10
+  return dummyDiscrTree (LibraryLemma.mk `flt [0] [1] (.cons .root .wasChanged .nil))
 
-initialize cachedData : DiscrTree Nat ← unsafe do
+initialize cachedData : DiscrTree LibraryLemma ← unsafe do
   let path ← cachePath
   if (← path.pathExists) then
-    let (d, _r) ← unpickle (DiscrTree Nat) path
+    let (d, _r) ← unpickle (DiscrTree LibraryLemma) path
     return d
   else
     buildData
