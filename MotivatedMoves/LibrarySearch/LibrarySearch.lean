@@ -2,7 +2,7 @@ import MotivatedMoves.LibrarySearch.DiscrTree
 
 namespace Tree
 
-open DiscrTree Lean Meta
+open Std.DiscrTree Lean Meta
 
 inductive LibraryLemmaKind where
 | apply
@@ -26,11 +26,11 @@ instance : ToFormat LibraryLemma where
 
 
 structure DiscrTrees where
-  apply           : DiscrTree LibraryLemma := {}
-  apply_rev       : DiscrTree LibraryLemma := {}
-  rewrite         : DiscrTree LibraryLemma := {}
-  rewrite_ord     : DiscrTree LibraryLemma := {}
-  rewrite_ord_rev : DiscrTree LibraryLemma := {}
+  apply           : Std.DiscrTree LibraryLemma := {}
+  apply_rev       : Std.DiscrTree LibraryLemma := {}
+  rewrite         : Std.DiscrTree LibraryLemma := {}
+  rewrite_ord     : Std.DiscrTree LibraryLemma := {}
+  rewrite_ord_rev : Std.DiscrTree LibraryLemma := {}
 
 instance : Inhabited DiscrTrees := ⟨{}⟩ 
 

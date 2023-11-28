@@ -526,7 +526,7 @@ elab "lib_apply" s:("*")? hypPos:(treePos)? hypName:ident goalPos:treePos : tact
   let hypPos := getOuterInnerPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalOuterPosition goalPos treeApply · s.isSome)
 
-open DiscrTree in
+open Std.DiscrTree in
 def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas

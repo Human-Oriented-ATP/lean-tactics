@@ -135,7 +135,7 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalOuterPosition goalPos treeRewrite)
 
-open DiscrTree in
+open Std.DiscrTree in
 def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
