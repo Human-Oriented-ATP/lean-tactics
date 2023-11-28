@@ -21,7 +21,7 @@ instance : ToString Rewrite.Config where
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
 def findRewriteOccurrence (thm : Expr) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
-  let stmt ← inferType thm 
+  let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let lhs : Expr :=
     match (← matchEq? eqn) with
@@ -29,7 +29,7 @@ def findRewriteOccurrence (thm : Expr) (symm : Bool) (position : SubExpr.Pos) (t
     | none =>
       match (eqn.iff?) with
       | some (lhs, rhs) => if symm then rhs else lhs
-      | none => panic! s!"Received {thm}; equality or iff proof expected." 
+      | none => panic! s!"Received {stmt}; equality or iff proof expected."
   let occurrence ← findMatchingOccurrence position target lhs
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
   return (occurrence, pattern)
