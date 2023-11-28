@@ -76,7 +76,7 @@ def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) :=
       let subExpr ← loc.toSubExpr
       let pattern ← SubExpr.patternAt subExpr.pos subExpr.expr
       let occurrence ← findOccurrence subExpr.pos subExpr.expr
-      return s!"unfold' (occs := {occurrence}) {(← PrettyPrinter.ppExpr pattern).pretty} {loc.loc.render goal}" 
+      return s!"unfold' (occs := {occurrence}) {(← PrettyPrinter.ppExpr pattern).pretty}{loc.loc.render goal}" 
   return .pure (
         <DynamicEditButton 
           label={"Unfold definition"} 
@@ -99,10 +99,7 @@ def f := Nat.add
 
 def g (n : Nat) := n + 2
 
-example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f 1 n := by
-  unfold' (occs := 1) g (1 + 1) at h
+example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f n 1 := by
   intro n
-  unfold' (occs := 1) f 1 n
-
-  -- unfold' (occs := 1) (_ : Nat → Nat) (1 + 1) at h
+  unfold' (occs := 1) f n 1
   sorry

@@ -40,7 +40,7 @@ def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGo
   let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
   let cfg : Rewrite.Config := { occs := .pos [occurrence] }
   let arg : String := Format.pretty <| ← ppExpr pattern
-  return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}] {loc.loc.render goal}"
+  return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}]{loc.loc.render goal}"
 
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
@@ -81,5 +81,5 @@ def rewriteAt : Tactic
 | _ => throwUnsupportedSyntax
 
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
-  rw (config := { occs := .pos [1] }) [Nat.add_comm 1 2]
+  rw (config := { occs := .pos [1] }) [Nat.add_comm 3 4]
   sorry 

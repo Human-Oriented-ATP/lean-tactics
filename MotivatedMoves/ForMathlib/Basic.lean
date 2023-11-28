@@ -125,7 +125,7 @@ def Lean.SubExpr.GoalLocation.render (goal : Widget.InteractiveGoal) : SubExpr.G
   | .target _ => ""
 where 
   renderLocation (hyps : Array String) (type : Bool) : String :=
-    "at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
+    " at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
 
 end
 
