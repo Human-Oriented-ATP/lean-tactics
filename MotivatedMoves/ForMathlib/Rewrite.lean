@@ -1,12 +1,12 @@
 import Std.Lean.Position
-import MotivatedMoves.ForMathlib.Basic
+import MotivatedMoves.ForMathlib.Utils
 import MotivatedMoves.GUI.DynamicEditButton
 
 open Lean Server Elab Meta ProofWidgets Jsx Json Parser Tactic
 
 structure RewriteProps extends InteractiveTacticProps where
   symm : Bool
-  rwRule : Name
+  rwRule : Name -- TODO: Make this a term
 deriving RpcEncodable
 
 -- TODO: Move this
@@ -20,17 +20,17 @@ instance : ToString Rewrite.Config where
   toString cfg := 
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
+def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
+  match ← matchEq? e with
+  | some (_, lhs, rhs) => return (lhs, rhs)
+  | none => return e.iff?
+
 def findRewriteOccurrence (thm : Expr) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let lhs : Expr :=
-    match (← matchEq? eqn) with
-    | some (_, lhs, rhs) => if symm then rhs else lhs
-    | none =>
-      match (eqn.iff?) with
-      | some (lhs, rhs) => if symm then rhs else lhs
-      | none => panic! s!"Received {stmt}; equality or iff proof expected."
-  let occurrence ← findMatchingOccurrence position target lhs
+  let .some (lhs, rhs) ← matchEqn? eqn | panic! s!"Received {stmt}; equality or iff proof expected."
+  let hs := if symm then rhs else lhs
+  let occurrence ← findMatchingOccurrence position target hs
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
   return (occurrence, pattern)
 
@@ -80,5 +80,5 @@ def rewriteAt : Tactic
 | _ => throwUnsupportedSyntax
 
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
-  rw (config := { occs := .pos [1] }) [Nat.add_comm 3 4]
-  sorry 
+  rw (config := { occs := .all }) [Nat.add_comm 1 2]
+  sorry

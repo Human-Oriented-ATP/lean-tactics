@@ -1,7 +1,7 @@
 import Lean
 import Std.Lean.Position
 import MotivatedMoves.GUI.DynamicEditButton
-import MotivatedMoves.ForMathlib.Basic
+import MotivatedMoves.ForMathlib.Utils
 
 open Lean Server Core Meta MonadExceptOf Elab Tactic
 open ProofWidgets Json Jsx
@@ -99,7 +99,8 @@ def f := Nat.add
 
 def g (n : Nat) := n + 2
 
-example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f n 1 := by
+example (h : f 0 0 = g (1 + 1)) : ∀ n : Nat,  f n 1 = f 1 1 := by
   intro n
-  unfold' (occs := 1) f n 1
+  unfold' (occs := 1) g (1 + 1) at h
+  unfold' (occs := 1) f ?n ?n
   sorry
