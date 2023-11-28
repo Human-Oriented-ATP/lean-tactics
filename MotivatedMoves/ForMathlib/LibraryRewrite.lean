@@ -11,9 +11,12 @@ structure RewriteLemma where
   symm : Bool
   deletedPos : SubExpr.Pos
   insertedPos : SubExpr.Pos
-deriving BEq
+deriving BEq, Inhabited
 
-def processLemma (decl : Name) (cinfo : ConstantInfo) (discrTree : Std.DiscrTree RewriteLemma) : MetaM (Std.DiscrTree RewriteLemma) := do
+def RewriteLemma.length (rwLemma : RewriteLemma) : Nat :=
+  rwLemma.name.toString.length 
+
+def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : Std.DiscrTree RewriteLemma) : MetaM (Std.DiscrTree RewriteLemma) := do
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let .some (lhs, rhs) ← matchEqn? eqn | return discrTree
@@ -23,6 +26,62 @@ def processLemma (decl : Name) (cinfo : ConstantInfo) (discrTree : Std.DiscrTree
   (pure discrTree) 
     >>= DiscrTree.insert (e := lhs) (v := { name := decl, symm := false, deletedPos := lhsPos, insertedPos := rhsPos }) 
     >>= DiscrTree.insert (e := rhs) (v := { name := decl, symm := true, deletedPos := rhsPos, insertedPos := lhsPos })
+
+section
+
+open Mathlib Tactic
+
+@[reducible]
+def RewriteCache := DeclCache (Std.DiscrTree RewriteLemma × Std.DiscrTree RewriteLemma)
+
+instance : Inhabited RewriteCache := sorry 
+
+def RewriteCache.mk (profilingName : String)
+  (init : Option (Std.DiscrTree RewriteLemma) := none) :
+    IO RewriteCache := do
+  match init with
+    | some libraryTree => do return { 
+        cache := ← Cache.mk <| pure (.empty, libraryTree),
+        addDecl := addDecl,
+        addLibraryDecl := addLibraryDecl }
+    | none => DeclCache.mk profilingName 
+                (.empty, .empty) 
+                addDecl addLibraryDecl (post := post)
+where
+  addDecl (name : Name) (cinfo : ConstantInfo)
+    | (currentTree, libraryTree) => do
+    return (← updateRewriteTree name cinfo currentTree, libraryTree)
+  addLibraryDecl (name : Name) (cinfo : ConstantInfo)
+    | (currentTree, libraryTree) => do
+    return (currentTree, ← updateRewriteTree name cinfo libraryTree)
+  sortRewriteLemmas : Array RewriteLemma → Array RewriteLemma :=
+    Array.qsort (lt := (·.length < ·.length)) 
+  post
+    | (currentTree, libraryTree) => do
+    return (currentTree, libraryTree.mapArrays sortRewriteLemmas)
+
+def buildRewriteCache : IO RewriteCache :=
+  RewriteCache.mk "rewrite lemmas : init cache"
+
+def cachePath : IO System.FilePath := do
+  try
+    return (← findOLean `LibraryRewrite.RewriteLemmas).withExtension "extra"
+  catch _ =>
+    return "build" / "lib" / "LibraryRewrite" / "RewriteLemmas.extra"
+
+initialize cachedData : RewriteCache ← unsafe do
+  let path ← cachePath
+  if (← path.pathExists) then
+    let (d, _r) ← unpickle (Std.DiscrTree RewriteLemma) path
+    -- We can drop the `CompactedRegion` value; we do not plan to free it
+    RewriteCache.mk "library search: using cache" (init := some d)
+  else
+    buildRewriteCache
+
+def getRewriteLemmas : MetaM (Std.DiscrTree RewriteLemma × Std.DiscrTree RewriteLemma) :=
+  cachedData.get
+
+end
 
 -- @[server_rpc_method]
 -- def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
