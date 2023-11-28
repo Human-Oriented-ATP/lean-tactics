@@ -20,10 +20,9 @@ instance : ToString Rewrite.Config where
   toString cfg := 
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
-def findRewriteOccurrence (thm : Name) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr ) := do
-  let env ← getEnv
-  let .some ci := env.find? thm | throwError s!"Failed to find {thm} in the environment."
-  let (vars, _, eqn) ← forallMetaTelescopeReducing ci.type
+def findRewriteOccurrence (thm : Expr) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
+  let stmt ← inferType thm 
+  let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let lhs : Expr :=
     match (← matchEq? eqn) with
     | some (_, lhs, rhs) => if symm then rhs else lhs
@@ -32,12 +31,12 @@ def findRewriteOccurrence (thm : Name) (symm : Bool) (position : SubExpr.Pos) (t
       | some (lhs, rhs) => if symm then rhs else lhs
       | none => panic! s!"Received {thm}; equality or iff proof expected." 
   let occurrence ← findMatchingOccurrence position target lhs
-  let pattern ← mkAppM thm <| ← vars.mapM instantiateMVars
+  let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
   return (occurrence, pattern)
 
 def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) (thm : Name) (symm : Bool) : MetaM String := do
   let subExpr ← loc.toSubExpr
-  let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
+  let (occurrence, pattern) ← findRewriteOccurrence (← mkConstWithLevelParams thm) symm subExpr.pos subExpr.expr
   let cfg : Rewrite.Config := { occs := .pos [occurrence] }
   let arg : String := Format.pretty <| ← ppExpr pattern
   return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}]{loc.loc.render goal}"
