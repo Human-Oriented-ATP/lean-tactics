@@ -244,6 +244,9 @@ instance : ToFormat DTExpr := ⟨DTExpr.format⟩
 /-- Discrimination tree. It is an index from expressions to values of type `α`. -/
 def _root_.Std.DiscrTree (α : Type) := PersistentHashMap Key (Trie α)
 
+instance : Inhabited (Std.DiscrTree α) where
+  default := {}
+
 private partial def DiscrTree.format [ToFormat α] (d : DiscrTree α) : Format :=
   let (_, r) := d.foldl
     (fun (p : Bool × Format) k c =>
