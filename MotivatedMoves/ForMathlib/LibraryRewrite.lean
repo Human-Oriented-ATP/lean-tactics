@@ -16,6 +16,10 @@ deriving BEq, Inhabited
 def RewriteLemma.length (rwLemma : RewriteLemma) : Nat :=
   rwLemma.name.toString.length 
 
+def RewriteLemma.toDiffs (rwLemma : RewriteLemma) : Lean.AssocList SubExpr.Pos Widget.DiffTag :=
+  .cons rwLemma.insertedPos .wasInserted 
+  (.cons rwLemma.deletedPos .wasDeleted .nil)
+
 def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : Std.DiscrTree RewriteLemma) : MetaM (Std.DiscrTree RewriteLemma) := do
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
@@ -33,8 +37,6 @@ open Mathlib Tactic
 
 @[reducible]
 def RewriteCache := DeclCache (Std.DiscrTree RewriteLemma × Std.DiscrTree RewriteLemma)
-
-instance : Inhabited RewriteCache := sorry 
 
 def RewriteCache.mk (profilingName : String)
   (init : Option (Std.DiscrTree RewriteLemma) := none) :
@@ -74,7 +76,7 @@ initialize cachedData : RewriteCache ← unsafe do
   if (← path.pathExists) then
     let (d, _r) ← unpickle (Std.DiscrTree RewriteLemma) path
     -- We can drop the `CompactedRegion` value; we do not plan to free it
-    RewriteCache.mk "library search: using cache" (init := some d)
+    RewriteCache.mk "rewrite lemmas : using cache" (init := some d)
   else
     buildRewriteCache
 
@@ -83,34 +85,82 @@ def getRewriteLemmas : MetaM (Std.DiscrTree RewriteLemma × Std.DiscrTree Rewrit
 
 end
 
--- @[server_rpc_method]
--- def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
---   let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
---   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
---   let tacticStr : String ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
---     let md ← goal.mvarId.getDecl
---     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
---     Meta.withLCtx lctx md.localInstances do
---       let subExpr ← loc.toSubExpr
---       let lems ← Mathlib.Tactic.Rewrites.rewriteLemmas.get
---       let results ← viewSubexpr (p := subExpr.pos) (root := subExpr.expr) <| fun vars e ↦ do
---         return (← lems.1.getUnify e) ++ (← lems.2.getUnify e)
---       _  
---   return .pure (
---         <DynamicEditButton 
---           label={"Rewrite sub-term"} 
---           range?={props.replaceRange} 
---           insertion?={some tacticStr} 
---           variant={"contained"} 
---           size={"small"} />
---       )
+section
 
--- @[widget_module]
--- def LibraryRewrite : Component InteractiveTacticProps :=
---   mk_rpc_widget% LibraryRewrite.rpc
+open Widget
 
--- elab stx:"lib_rw?" : tactic => do
---   let range := (← getFileMap).rangeOfStx? stx
---   savePanelWidgetInfo stx ``LibraryRewrite do
---     return json% { replaceRange : $(range) }
+def mkDiv (elems : Array Html) (cfg : Array (String × Json) := #[]) : Html := 
+  .element "div" cfg elems
+
+def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos := 
+  code.map fun info ↦
+    match diffs.find? info.subexprPos with
+      | some diff => { info with diffStatus? := some diff }
+      |    none   =>   info
+
+def Lean.Expr.renderWithDiffs (e : Expr) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do 
+  let e' := (← Widget.ppExprTagged e).addDiffs diffs
+  return <InteractiveCode fmt={e'} />
+
+def Lean.Name.renderWithDiffs (nm : Name) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do
+  let env ← getEnv
+  let some ci := env.find? nm | failure
+  ci.type.renderWithDiffs diffs
+
+def renderResult 
+  (loc : SubExpr.GoalsLocation)
+  (goal : Widget.InteractiveGoal) 
+  (range : Lsp.Range)
+  (rwLemma : RewriteLemma) : MetaM Html := do
+  return mkDiv 
+    #[← rwLemma.name.renderWithDiffs rwLemma.toDiffs,
+        <DynamicEditButton 
+          label={rwLemma.name.toString} 
+          range?={range} 
+          insertion?={← rewriteTacticCall loc goal rwLemma.name rwLemma.symm}
+          variant={"text"}
+          color={"info"}
+          size={"small"} />]
+    #[("display", "flex"), ("justifyContent", "space-between")]
+
+end
+
+def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
+  let (localLemmas, libraryLemmas) ← getRewriteLemmas 
+  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun fvars s ↦ do
+    let localResults ← localLemmas.getUnifyWithScore s {}
+    let libraryResults ← libraryLemmas.getUnifyWithScore s {}
+    let allResults := 
+      localResults.toArray.qsort (·.2 > ·.2) ++ 
+      libraryResults.toArray.qsort (·.2 > ·.2) -- TODO: filtering
+    return allResults.concatMap Prod.fst
+
+
+
+@[server_rpc_method]
+def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
+  let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
+  let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
+  let core : Html ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+    let md ← goal.mvarId.getDecl
+    let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
+    Meta.withLCtx lctx md.localInstances do
+      let target ← loc.toSubExpr
+      let results ← getMatches target
+      let suggestions ← results.mapM <| renderResult loc goal props.replaceRange
+      return mkDiv suggestions  
+  return .pure (
+    <details «open»={true}>
+      <summary className="mv2 pointer">{.text "Library rewrite results"}</summary>
+      {core}
+    </details>)
+    
+@[widget_module]
+def LibraryRewrite : Component InteractiveTacticProps :=
+  mk_rpc_widget% LibraryRewrite.rpc
+
+elab stx:"lib_rw?" : tactic => do
+  let range := (← getFileMap).rangeOfStx? stx
+  savePanelWidgetInfo stx ``LibraryRewrite do
+    return json% { replaceRange : $(range) }
 
