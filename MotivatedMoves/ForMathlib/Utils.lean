@@ -52,7 +52,6 @@ def delabMVarWithType : Delab := do
   `((?$(mkIdent n) : $type))
 
 -- based on `kabstract`
--- optionally specializes the pattern before finding its occurrence
 def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Nat := do
   let root ← instantiateMVars root
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
