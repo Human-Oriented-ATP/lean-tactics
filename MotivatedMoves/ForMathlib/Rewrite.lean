@@ -4,37 +4,50 @@ import MotivatedMoves.GUI.DynamicEditButton
 
 open Lean Server Elab Meta ProofWidgets Jsx Json Parser Tactic
 
+/-- `Props` for the point-and-click rewrite tactic. -/
 structure RewriteProps extends InteractiveTacticProps where
+  /-- A flag to indicate whether to rewrite in reverse. -/
   symm : Bool
+  /-- The name of the lemma to rewrite with. -/
   rwRule : Name -- TODO: Make this a term
 deriving RpcEncodable
 
--- TODO: Move this
+section
+
+/-- Convert `Occurrences` to a `String`. -/
 instance : ToString Occurrences where
   toString := fun
     | .all => ".all"
     | .pos occs => s!".pos {occs}"
     | .neg occs => s!".neg {occs}"
 
+/-- Convert a `Rewrite.Config` to a `String`.
+    This instance is restricted to printing just the information about the occurrences. -/
 instance : ToString Rewrite.Config where
   toString cfg := 
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
+/-- Extract the left and right hand sides of an equality or iff statement. -/
 def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
   match ← matchEq? e with
   | some (_, lhs, rhs) => return (lhs, rhs)
   | none => return e.iff?
 
-def findRewriteOccurrence (thm : Expr) (symm : Bool) (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
+end  
+
+def findRewriteOccurrence (thm : Expr) (symm : Bool) 
+    (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let .some (lhs, rhs) ← matchEqn? eqn | panic! s!"Received {stmt}; equality or iff proof expected."
+  let .some (lhs, rhs) ← matchEqn? eqn | 
+    panic! s!"Received {stmt}; equality or iff proof expected."
   let hs := if symm then rhs else lhs
   let occurrence ← findMatchingOccurrence position target hs
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
   return (occurrence, pattern)
 
-def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) (thm : Name) (symm : Bool) : MetaM String := do
+def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) 
+    (thm : Name) (symm : Bool) : MetaM String := do
   let subExpr ← loc.toSubExpr
   let (occurrence, pattern) ← findRewriteOccurrence (← mkConstWithLevelParams thm) symm subExpr.pos subExpr.expr
   let cfg : Rewrite.Config := { occs := .pos [occurrence] }
@@ -79,6 +92,12 @@ def rewriteAt : Tactic
     return json% { replaceRange : $(range), symm : $(symm), rwRule : $(name) }
 | _ => throwUnsupportedSyntax
 
+
+section Demo
+
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
   rw (config := { occs := .all }) [Nat.add_comm 1 2]
+  rw [Nat.add_comm] at?
   sorry
+
+end Demo
