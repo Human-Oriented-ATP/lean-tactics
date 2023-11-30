@@ -3,31 +3,45 @@ import ProofWidgets
 
 open Lean Meta Server ProofWidgets Elab Tactic Parser Tactic
 
-section 
+/-!
 
--- from Lean/Elab/Tactic/Conv/Pattern
+# Utilities
+
+Basic programming and meta-programming utilities for point-and-click tactics.
+
+These include:
+- Functions for expanding certain pieces of syntax into their corresponding expressions
+- Code for viewing, rendering and finding the occurrences of patterns in expressions
+- Code for converting `SubExpr.GoalsLocation` into expressions and strings.
+
+-/
+
+section
+
+/-- Expand a term representing a pattern as an expression with meta-variables. 
+    This follows code from `Lean/Elab/Tactic/Conv/Pattern.lean`. -/
 def expandPattern (p : Term) : TermElabM AbstractMVarsResult :=
   withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) <|
-       Term.withoutModifyingElabMetaStateWithInfo <| withRef p <|
-       Term.withoutErrToSorry do
-         abstractMVars (← Term.elabTerm p none)
+    Term.withoutModifyingElabMetaStateWithInfo <| withRef p <|
+    Term.withoutErrToSorry do
+      abstractMVars (← Term.elabTerm p none)
 
 open Parser Tactic Conv in
+/-- Expand syntax of type `occs` into `Occurrences`. -/
 def expandOccs : Option (TSyntax ``occs) → Occurrences
   | none => .all
   | some occs =>
     match occs with
       | `(occs| (occs := *)) => .all
-      | `(occs| (occs := $ids*)) => .pos <| ids.map (TSyntax.getNat) |>.toList        
-      | _ => .neg [] -- garbage
-
-def Lean.Elab.Tactic.liftMetaTactic1' (tactic : MVarId → MetaM MVarId) : TacticM Unit :=
-  liftMetaTactic <| fun mvarId ↦ do return [← tactic mvarId]
+      | `(occs| (occs := $ids*)) => .pos <| ids.map TSyntax.getNat |>.toList        
+      | _ => panic! s!"Invalid syntax {occs} for occurrences."
 
 end
 
 section
 
+/-- The pattern at a given position in an expression.
+    Variables under binders are turned into meta-variables in the pattern. -/
 def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do  
   let e ← Core.viewSubexpr p root
   let binders ← Core.viewBinders p root
@@ -35,23 +49,25 @@ def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do
     mkFreshExprMVar type (userName := name)
   return e.instantiateRev mvars
 
+/-- Display the pattern at a given position in an expression as a string. -/
 def SubExpr.display (p : SubExpr.Pos) (root : Expr) : MetaM String := do
   let fmt ← PrettyPrinter.ppExpr <| ← SubExpr.patternAt p root
   return fmt.pretty
 
 open PrettyPrinter Delaborator SubExpr in
-@[delab mvar]
-def delabMVarWithType : Delab := do
+/-- A custom delaborator for meta-variables to preserve type information while displaying. -/
+@[delab mvar] def delabMVarWithType : Delab := do
   let Expr.mvar n ← getExpr | unreachable!
   let type ← delab <| ← inferType <| ← getExpr
   let mvarDecl ← n.getDecl
   let n :=
     match mvarDecl.userName with
     | Name.anonymous => n.name.replacePrefix `_uniq `m
-    | n => n.getRoot -- TODO: This may not be hygienic
+    | n => n.getRoot -- the root of the name; this operation may not be hygienic
   `((?$(mkIdent n) : $type))
 
--- based on `kabstract`
+/-- Finds the occurrence number of the pattern in the expression 
+    that matches the sub-expression at the specified position. -/
 def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Nat := do
   let root ← instantiateMVars root
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
@@ -95,6 +111,8 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
     throwError s!"Could not find pattern at specified position {position}."
   return occ
 
+/-- Finds the occurrence number of the pattern at
+    the specified position in the whole expression. -/
 def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
   let pattern ← SubExpr.patternAt position root
   findMatchingOccurrence position root pattern 
@@ -103,10 +121,12 @@ end
 
 section
 
+/-- The usernames in the same hypothesis bundle as `fvarId` (see `InteractiveHypothesisBundle`). -/
 def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) : Array String :=
   let hyps := goal.hyps.filter (·.fvarIds.contains fvarId)
   hyps.concatMap (·.names)
 
+/-- A `SubExpr.GoalsLocation` as a `SubExpr`. -/
 def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubExpr 
   | ⟨mvarId, .hyp fvarId⟩ => mvarId.withContext do
       return ⟨← fvarId.getType, .fromString! "/"⟩
@@ -117,17 +137,21 @@ def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubEx
       return ⟨val, pos⟩
   | ⟨mvarId, .target pos⟩ => do return ⟨← mvarId.getType, pos⟩
 
-def Lean.SubExpr.GoalLocation.render (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
+/-- Rendering a `SubExpr.GoalLocation` as a `String`. -/
+def Lean.SubExpr.GoalLocation.render 
+    (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
   | .hyp fvarId => renderLocation (fvarId.getUserNames goal) false
   | .hypType fvarId _ => renderLocation (fvarId.getUserNames goal) false
-  | .hypValue fvarId _ => "" -- TODO: Handle this case
+  | .hypValue fvarId _ => panic! "Unable to operate on `let`-value" -- TODO: handle this case
   | .target _ => ""
-where 
+where
   renderLocation (hyps : Array String) (type : Bool) : String :=
     " at " ++ " ".intercalate hyps.toList ++ (if type then " ⊢" else "")
 
 end
 
+/-- `Props` for interactive tactics keeps track of 
+    the range in the text document of the piece of syntax to replace. -/
 structure InteractiveTacticProps extends PanelWidgetProps where
   replaceRange : Lsp.Range
 deriving RpcEncodable
