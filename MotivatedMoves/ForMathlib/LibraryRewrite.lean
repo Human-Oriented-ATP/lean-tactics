@@ -111,13 +111,15 @@ def renderResult
   (loc : SubExpr.GoalsLocation)
   (goal : Widget.InteractiveGoal) 
   (range : Lsp.Range)
-  (rwLemma : RewriteLemma) : MetaM Html := do
+  (rwLemma : RewriteLemma) : MetaM (Option Html) := OptionT.run do
+  let tacticCall ← OptionT.mk <| try? <| 
+    rewriteTacticCall loc goal (← abstractMVars <| ← mkConstWithLevelParams rwLemma.name) rwLemma.symm 
   return mkDiv 
     #[← rwLemma.name.renderWithDiffs rwLemma.toDiffs,
         <DynamicEditButton 
           label={rwLemma.name.toString} 
           range?={range} 
-          insertion?={← rewriteTacticCall loc goal rwLemma.name rwLemma.symm}
+          insertion?={tacticCall}
           variant={"text"}
           color={"info"}
           size={"small"} />]
@@ -147,7 +149,7 @@ def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask 
     Meta.withLCtx lctx md.localInstances do
       let target ← loc.toSubExpr
       let results ← getMatches target
-      let suggestions ← results.mapM <| renderResult loc goal props.replaceRange
+      let suggestions ← results.filterMapM <| renderResult loc goal props.replaceRange
       return mkDiv suggestions  
   return .pure (
     <details «open»={true}>
