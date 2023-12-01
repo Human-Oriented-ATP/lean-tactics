@@ -2,15 +2,29 @@ import Std.Lean.Position
 import MotivatedMoves.ForMathlib.Utils
 import MotivatedMoves.GUI.DynamicEditButton
 
+/-!
+
+# Point-and-click rewriting
+
+This file defines a widget for making targeted rewrites by 
+pointing and clicking sub-expressions in the infoview.
+
+Once a sub-expression is selected, a `rw` tactic call with
+a configuration targeting the selected location is generated. 
+
+-/
+
 open Lean Server Elab Meta ProofWidgets Jsx Json Parser Tactic
 
-/-- `Props` for the point-and-click rewrite tactic. -/
+/-- `Props` for point-and-click rewriting. -/
 structure RewriteProps extends InteractiveTacticProps where
   /-- A flag to indicate whether to rewrite in reverse. -/
   symm : Bool
-  /-- The name of the lemma to rewrite with. -/
-  rwRule : Name -- TODO: Make this a term
-deriving RpcEncodable
+  /-- An expression representing the argument of the rewrite tactic. -/
+  rwRule : WithRpcRef AbstractMVarsResult
+
+deriving instance TypeName for AbstractMVarsResult
+#mkrpcenc RewriteProps
 
 section
 
@@ -35,6 +49,8 @@ def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
 
 end  
 
+/-- Specialises the theorem to match the sub-expression at the given position
+    and calculates its occurrence number in the whole expression. -/
 def findRewriteOccurrence (thm : Expr) (symm : Bool) 
     (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
   let stmt ← inferType thm
@@ -44,12 +60,15 @@ def findRewriteOccurrence (thm : Expr) (symm : Bool)
   let hs := if symm then rhs else lhs
   let occurrence ← findMatchingOccurrence position target hs
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
-  return (occurrence, pattern)
+  return (occurrence, ← reduce (skipTypes := false) (skipProofs := false) pattern)
 
+/-- Generates a rewrite tactic call with configuration from the arguments. -/
 def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) 
-    (thm : Name) (symm : Bool) : MetaM String := do
+    (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM String := do
   let subExpr ← loc.toSubExpr
-  let (occurrence, pattern) ← findRewriteOccurrence (← mkConstWithLevelParams thm) symm subExpr.pos subExpr.expr
+  let us ← thmAbst.paramNames.mapM <| fun _ ↦ mkFreshLevelMVar
+  let thm := thmAbst.expr.instantiateLevelParamsArray thmAbst.paramNames us
+  let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
   let cfg : Rewrite.Config := { occs := .pos [occurrence] }
   let arg : String := Format.pretty <| ← ppExpr pattern
   return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}]{loc.loc.render goal}"
@@ -62,7 +81,7 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
-      rewriteTacticCall loc goal props.rwRule props.symm
+      rewriteTacticCall loc goal props.rwRule.val props.symm
   return .pure (
         <DynamicEditButton 
           label={"Rewrite sub-term"} 
@@ -81,15 +100,20 @@ syntax (name := rw_at) "rw" "[" rwRule "]" "at?" : tactic
 @[tactic rw_at]
 def rewriteAt : Tactic
 | stx@`(tactic| rw [$rule] at?) => do
-  let range := (← getFileMap).rangeOfStx? stx
-  let (symm, name) :=
+  let .some range := (← getFileMap).rangeOfStx? stx | throwError s!"Could not find range of syntax {stx}."
+  let (symm, arg) :=
     match rule with
-      | `(rwRule| $n:ident) => (false, n.getId)
-      | `(rwRule| ← $n:ident) => (true, n.getId)
-      -- | `(rwRule| <- $n:ident) => (true, n.getId)
-      |       _            => panic! "Expected rewrite with identifier" 
+      | `(rwRule| $arg:term) => (false, arg)
+      | `(rwRule| ← $arg:term) => (true, arg)
+      -- | `(rwRule| <- $arg:term) => (true, arg)
+      |       _            => panic! s!"Failed to process {rule}."
+  let argAbst ← abstractMVars <| ← elabTerm arg none
   savePanelWidgetInfo stx ``Rewrite do
-    return json% { replaceRange : $(range), symm : $(symm), rwRule : $(name) }
+    return json% { 
+      replaceRange : $(range), 
+      symm : $(symm), 
+      rwRule : $(← rpcEncode (WithRpcRef.mk argAbst)) 
+      }
 | _ => throwUnsupportedSyntax
 
 
@@ -97,7 +121,7 @@ section Demo
 
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
   rw (config := { occs := .all }) [Nat.add_comm 1 2]
-  rw [Nat.add_comm] at?
+  rw [Nat.add_comm] at? -- select the sub-expression `5 + 6`
   sorry
 
 end Demo
