@@ -21,6 +21,9 @@ def RewriteLemma.toDiffs (rwLemma : RewriteLemma) : Lean.AssocList SubExpr.Pos W
   (.cons rwLemma.deletedPos .wasDeleted .nil)
 
 def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : Std.DiscrTree RewriteLemma) : MetaM (Std.DiscrTree RewriteLemma) := do
+  if Tree.isBadDecl decl cinfo (← getEnv) then
+    return discrTree
+  
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let .some (lhs, rhs) ← matchEqn? eqn | return discrTree
