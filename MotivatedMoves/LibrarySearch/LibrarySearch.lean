@@ -148,9 +148,20 @@ def DiscrTreesCache.mk (profilingName : String)
 
 def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search: init cache"
 
+def cachePath : IO System.FilePath := do
+  try
+    return (← findOLean `LibrarySearch.DiscrTreesData).withExtension "extra"
+  catch _ =>
+    return "build" / "lib" / "LibrarySearch" / "DiscrTreesData.extra"
 
 initialize cachedData : DiscrTreesCache ← unsafe do
-  buildDiscrTrees
+  let path ← cachePath
+  if (← path.pathExists) then
+    let (d, _r) ← unpickle DiscrTrees path
+    -- We can drop the `CompactedRegion` value; we do not plan to free it
+    DiscrTreesCache.mk "library search: using cache" (init := some d)
+  else
+    buildDiscrTrees
 
 def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 
