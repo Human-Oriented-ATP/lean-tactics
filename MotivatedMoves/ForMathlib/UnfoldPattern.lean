@@ -13,6 +13,9 @@ open ProofWidgets Json Jsx
 An implementation of a point-and-click tactic
 to unfold patterns at the specified locations.
 
+The idea of referring to sub-expressions via
+patterns and occurrences is due to Yaël Dillies.
+
 -/
 
 section

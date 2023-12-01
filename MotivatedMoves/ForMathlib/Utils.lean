@@ -67,7 +67,8 @@ open PrettyPrinter Delaborator SubExpr in
   `((?$(mkIdent n) : $type))
 
 /-- Finds the occurrence number of the pattern in the expression 
-    that matches the sub-expression at the specified position. -/
+    that matches the sub-expression at the specified position.
+    This follows the structure of `kabstract` from Lean core. -/
 def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Nat := do
   let root ← instantiateMVars root
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
@@ -150,8 +151,8 @@ where
 
 end
 
-/-- `Props` for interactive tactics keeps track of 
-    the range in the text document of the piece of syntax to replace. -/
+/-- `Props` for interactive tactics.
+    Keeps track of the range in the text document of the piece of syntax to replace. -/
 structure InteractiveTacticProps extends PanelWidgetProps where
   replaceRange : Lsp.Range
 deriving RpcEncodable
