@@ -1,7 +1,9 @@
 import Lean
-open Lean Elab Tactic Meta -- Expr
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
 
-#eval Lean.versionString
+open Lean Elab Tactic Meta
+
+#eval Lean.versionString -- 4.3.0-rc1
 
 /-- Tactic that does nothing. -/
 elab "do_nothing" : tactic => do
@@ -11,7 +13,7 @@ example : True := by
   do_nothing
   trivial
 
-/-- Tactic that prints the goal (e.g. True) -/
+/-- Tactic that prints the goal -/
 elab "print_goal" : tactic => do
   let goal ← getMainGoal
   logInfo goal
@@ -66,7 +68,8 @@ example {P : Prop} : P → True := by
 --   apply ctrp -- THROWS ERROR
 
 /-- Change the proof state with contrapositive -/
-macro "contrapos" : tactic => `(tactic| apply ctrp)
+macro "contrapos" : tactic =>
+  `(tactic| apply ctrp)
 
 example : P → True := by
   contrapos
@@ -83,22 +86,35 @@ macro "my_sorry" : tactic =>
 
 /--  Tactic that takes a hypothesis as an argument -/
 macro "contrapos_with" h:ident : tactic => `(tactic|
-  (revert $h; contrapos; intros)
+  (revert $h; contrapose)
 )
 
-example {P R : Prop} :  P → R → True  := by
-  intro p r
+example {P Q : Prop} :  P → Q → True  := by
+  intro p
+  contrapose
+  simp
+
+example {P Q : Prop} :  P → Q → True  := by
+  intro p q
+  revert p
+  contrapose
+  simp
+
+example {P Q : Prop} :  P → Q → True  := by
+  intro p q
   contrapos_with p
-  simp at *
+  simp
 
 /-- Tactic that takes two tactics as arguments -/
 macro "and_then" a:tactic b:tactic : tactic => `(tactic|
   ($a:tactic; all_goals $b:tactic))
 
+/-- Without and_then -/
 example: 1=1 ∧ 2=2 := by
   constructor -- split into two goals:  1 = 1 and 2 = 2
   rfl; rfl  -- solve each one
 
+/-- With and_then -/
 example: 1=1 ∧ 2=2 := by
   and_then constructor rfl
 
