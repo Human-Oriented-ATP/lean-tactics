@@ -2,7 +2,7 @@ import MotivatedMoves.LibrarySearch.DiscrTree
 
 namespace Tree
 
-open Std.DiscrTree Lean Meta
+open RefinedDiscrTree Lean Meta
 
 inductive LibraryLemmaKind where
 | apply
@@ -26,13 +26,13 @@ instance : ToFormat LibraryLemma where
 
 
 structure DiscrTrees where
-  apply           : Std.DiscrTree LibraryLemma := {}
-  apply_rev       : Std.DiscrTree LibraryLemma := {}
-  rewrite         : Std.DiscrTree LibraryLemma := {}
-  rewrite_ord     : Std.DiscrTree LibraryLemma := {}
-  rewrite_ord_rev : Std.DiscrTree LibraryLemma := {}
+  apply           : RefinedDiscrTree LibraryLemma := {}
+  apply_rev       : RefinedDiscrTree LibraryLemma := {}
+  rewrite         : RefinedDiscrTree LibraryLemma := {}
+  rewrite_ord     : RefinedDiscrTree LibraryLemma := {}
+  rewrite_ord_rev : RefinedDiscrTree LibraryLemma := {}
 
-instance : Inhabited DiscrTrees := ⟨{}⟩ 
+instance : Inhabited DiscrTrees := ⟨{}⟩
 
 structure ProcessResult where
   apply           : Array (AssocList OuterPosition Widget.DiffTag × OuterPosition × InnerPosition × List DTExpr) := #[]
@@ -54,7 +54,7 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
       return addBinderKind [1] 1 result
     else
       let u ← getLevel domain
-      if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero 
+      if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
       then
         let result := addBinderKind [1] 1 result
         return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain) }
@@ -67,7 +67,7 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
 
   | regular_and_pattern p q =>
     return (← addBinderKind [0,1] 0 <$> processTree name p) ++ (← addBinderKind [1] 1 <$> processTree name q)
-  
+
   | e => do
     let mut result : ProcessResult := {}
     match e with
@@ -83,7 +83,7 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
 
     result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExprs e) }
     return result
-    
+
 where
   addBinderKind (diffPos : List Nat) (kind : ℕ) : ProcessResult → ProcessResult :=
     let f := fun (diffs, pos, x) => (diffs.mapKey (diffPos ++ ·), kind :: pos, x)
@@ -169,7 +169,7 @@ def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 
 
 -- open Lean Meta
-  
+
 -- def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
 --   let numHeartbeats ← IO.getNumHeartbeats
 --   _ ← x
@@ -179,14 +179,14 @@ def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 --   -- let x ← mkFreshExprMVar none
 --   -- let y := (.lam `_  (.const `Nat []) (.app x $ x) .default)
 --   -- logInfo m! "{← mkDTExprs y}, {makeInsertionPath.starEtaExpanded y 0}"
---   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) := 
+--   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
 --     fun name constInfo (tree₁, tree₂) => do
 --       return (tree₁, ← processLemma name constInfo tree₂)
 
 --   let x ← (countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a)
 --   logInfo m! "{x}"
 -- set_option maxHeartbeats 1000000 in
--- example : True := by 
+-- example : True := by
 --   hiii
 --   trivial
 

@@ -32,7 +32,7 @@ open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
 /--
 For each node in the tree, specify hoe the syntax should be and which part of the syntax gets annotated with term info,
-so that it can be clicked on. The SubExpr.Pos encoding is using 0 or 1 within the tree, and uses a 2 to denote the transition to 
+so that it can be clicked on. The SubExpr.Pos encoding is using 0 or 1 within the tree, and uses a 2 to denote the transition to
 a regular expression. -/
 partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   match ← getExpr with
@@ -64,7 +64,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
 
   | instance_pattern n _u d b =>
     let stxD ← withAppFn $ withAppArg delab
-    let stxND ← annotateTermInfo <| ← do 
+    let stxND ← annotateTermInfo <| ← do
       if n.eraseMacroScopes == `inst then `(binder| [$stxD:term])
       else do
       let n ← getUnusedName n b
@@ -89,9 +89,9 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     let stxP ← descend p 0 (delabTreeAux pol)
     let stxQ ← descend q 1 (delabTreeAux pol)
     annotateTermInfo =<< `(sidegoal|⊢ $stxP⠀$stxQ)
-  
+
   | not_pattern p =>
-    let stx ← descend p 0 (delabTreeAux !pol)
+    let stx ← descend p 1 (delabTreeAux !pol)
     annotateTermInfo =<< `(¬ $stx)
 
   | e => if root then failure else descend e 2 delab
@@ -137,4 +137,3 @@ example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] �
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
   make_tree
   sorry
-

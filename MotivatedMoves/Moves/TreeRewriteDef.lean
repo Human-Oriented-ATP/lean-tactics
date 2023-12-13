@@ -14,12 +14,13 @@ def editTree (edit : Expr → MetaM Expr) : OuterPosition → Expr → MetaM Exp
   | 0::xs, imp_pattern tree p => return mkImp (← editTree edit xs tree) p
   | 1::xs, and_pattern p tree => return mkAnd p (← editTree edit xs tree)
   | 0::xs, and_pattern tree p => return mkAnd (← editTree edit xs tree) p
+  | 1::xs, not_pattern tree   => return mkNot (← editTree edit xs tree)
   | [], e => edit e
   | xs, e => throwError m! "could not find position {xs} in {indentExpr e}"
 
 partial def editExpr (edit : Expr → MetaM Expr) : InnerPosition → Expr → MetaM Expr
   | xs   , .mdata d b        => return .mdata d (← editExpr edit xs b)
-  
+
   | 0::xs, .app f a          => return .app (← editExpr edit xs f) a
   | 1::xs, .app f a          => return .app f (← editExpr edit xs a)
 
@@ -29,7 +30,7 @@ partial def editExpr (edit : Expr → MetaM Expr) : InnerPosition → Expr → M
   | 1::xs, .letE n t v b d   => return .letE n t (← editExpr edit xs v) b d
   | 2::xs, .letE n t v b d   => withLocalDeclD n t fun fvar =>
     return .letE n t v ((← editExpr edit xs (b.instantiate1 fvar)).abstract #[fvar]) d
-                                                    
+
   | 0::xs, .lam n t b bi     => return .lam n (← editExpr edit xs t) b bi
   | 1::xs, .lam n t b bi     => withLocalDeclD n t fun fvar =>
     return .lam n t ((← editExpr edit xs (b.instantiate1 fvar)).abstract #[fvar]) bi

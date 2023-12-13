@@ -11,7 +11,7 @@ In this file, we define the infrastructure for using one subexpression to work o
 We can also use a general (library) result to work in a subexpression.
 
 The main definitions are
-· unfoldHypothesis, which is a recursive function that runs an inner MetaM' monad, and it 
+· unfoldHypothesis, which is a recursive function that runs an inner MetaM' monad, and it
 -/
 inductive HypBinder where
 | meta (mvarId : MVarId) (type : Expr) : HypBinder
@@ -175,7 +175,7 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
         let (instance_pattern _n _u _domain tree, hypProof) ← c.hypProofM | panic! ""
         -- sometimes the metavariable assignment is not eta-reduced, but it should be.
         let assignment := Expr.eta (← instantiateMVars mvar)
-        
+
         let newMVars := ((assignment.collectMVars {}).result).filter (!(← get).boundMVars.contains ·)
         let newBinders ← liftMetaM <| newMVars.mapM mkMetaHypBinder
         modify fun s => { s with
@@ -207,7 +207,7 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
         return ((tree.instantiate1 mvar).replace1Beta mvar assignment, .app hypProof assignment)
       }) do
     k mvar
-    
+
 
   ex name _u domain _pol _tree k := do
     withLocalDeclD name domain fun fvar => do
@@ -220,7 +220,7 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
         return (tree.instantiate1 fvar, mkApp3 (.const ``Classical.choose_spec [u]) domain lamTree hypProof)
     }) do
     k fvar
-    
+
 
   imp_right p _pol _tree k := do
     withLocalDeclD `unknown p fun fvar => do
@@ -241,7 +241,7 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
         return (tree, .proj `And 1 hypProof)
     }) do
     k
-    
+
   and_left _p _pol _tree k := do
     withReader (fun c => { c with
       hypProofM := do
@@ -250,7 +250,7 @@ def HypothesisRec [Monad m] [MonadControlT MetaM m] [MonadNameGenerator m] : Tre
         return (tree, .proj `And 0 hypProof)
     }) do
     k
-    
+
   imp_left _ _ _ _ := failure
   not _ _ _ := failure
 
@@ -258,7 +258,7 @@ where
   addBinder (hypBinder : HypBinder) : MetaM' Unit := do
     modify fun s => { s with binders := s.binders.push hypBinder }
 
-/- 
+/-
 Run the inner MetaM' monad on the inner hypothesis-tree, and the remaining tree position, and the HypothesisContext.
 unfoldHypothesis adds free variables into the context for the Exists and Imp binders in the hypothesis-tree,
 and the metavariables for Forall and Instance binders are stored in the HypothesisContext. They will be added to the
@@ -305,7 +305,7 @@ For this, we have the state in the MetaM' monad.
 When we have an Exists binder in positive polarity or Forall binder in negative polarity, this variable is introduced as a metavariable (in the outer monad).
 Then in the inner monad, we close this binder using the instantiation of this metavariable.
 in front of this, we have to bind all variables that appear in this instantiation.
-In addition, we want all free variables and knowns from the hypothesis to be bound whenever a 
+In addition, we want all free variables and knowns from the hypothesis to be bound whenever a
 side goal or existential is bound in positive polarity, because it may be useful for proving that goal or instantiating that variable.
 -/
 @[reducible] def M := ReaderT (MetaM' (TreeProof → MetaM' TreeProof)) MetaM'
@@ -321,16 +321,16 @@ def TreeRecMeta (hypInScope saveClosed : Bool) : TreeRecursor M TreeProof where
     if pol
     then
       introFree name u domain pol bindForall
-    else 
+    else
       introMeta name u domain pol
 
-  ex name u domain pol := 
-    if pol 
+  ex name u domain pol :=
+    if pol
     then
       introMeta name u domain pol
     else
       introFree name u domain pol bindExists
-  
+
   inst n u cls pol :=
     introFree n u cls pol bindInstance
 
@@ -354,7 +354,7 @@ where
     Functor.map (f := M) some <|
     withLocalDeclD (`fvar ++ name) domain fun fvar =>
     withReader (Functor.map (· <=< liftMetaM ∘ bind name u domain fvar pol tree)) (k fvar) -- here somehow some free variable was not in the context
-   
+
   introMeta (name : Name) (u : Level) (domain : Expr) (pol : Bool) (tree : Expr)
    (k : Expr → M TreeProof) : OptionT M TreeProof :=
     Functor.map (f := M) some <| do
@@ -389,7 +389,7 @@ hypothesis, and the position in that.
 hypContext
 goal, with position in that, and polarity.
 -/
-abbrev Unification := HypothesisContext → Expr → Expr → Bool → OuterPosition → InnerPosition → InnerPosition → MetaM' TreeProof 
+abbrev Unification := HypothesisContext → Expr → Expr → Bool → OuterPosition → InnerPosition → InnerPosition → MetaM' TreeProof
 
 partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypOuterPosition goalOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition) (unification : Unification) (saveClosed : Bool)
   : M TreeProof :=
@@ -403,7 +403,7 @@ partial def applyAux (hypProof : Expr) (hyp goal : Expr) (pol : Bool) (hypOuterP
           makeTreeProof treeProof
           -- return do (← get).binders.foldrM (fun binder => revertHypBinder pol goal binder) treeProof
 
-partial def applyBound (hypOuterPosition goalOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition) (delete? : Bool) (unification : Unification) (saveClosed : Bool := false) (tree : Expr) : MetaM TreeProof := 
+partial def applyBound (hypOuterPosition goalOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition) (delete? : Bool) (unification : Unification) (saveClosed : Bool := false) (tree : Expr) : MetaM TreeProof :=
   let (treePos, hypOuterPosition, goalOuterPosition) := takeSharedPrefix hypOuterPosition goalOuterPosition
   ((TreeRecMeta false saveClosed).recurse true tree treePos
     fun pol tree _ => do
@@ -436,13 +436,13 @@ partial def applyUnbound (hypName : Name) (getHyp : Expr → MetaM Bool → Meta
   let us ← mkFreshLevelMVarsFor cinfo
   let hypProof := .const hypName us
   let hyp := cinfo.instantiateTypeLevelParams us
-  
+
   let (hyp, hypOuterPosition, hypPos) ← getHyp hyp $ getPolarity tree goalOuterPosition
 
   (applyAux hypProof hyp tree true hypOuterPosition goalOuterPosition hypPos goalPos unification saveClosed).run (pure pure) |>.run' {}
 
 
-def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit := 
+def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit :=
   if force
   then do
     for mvar in mvars do
@@ -456,7 +456,7 @@ def synthMetaInstances (mvars : Array Expr) (force : Bool := false) : MetaM Unit
         mvarId.assign (← synthInstance (← mvarId.getType))
 
 def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition) : MetaM' TreeProof := do
-  unless hypPos == [] do    
+  unless hypPos == [] do
     throwError m! "cannot apply a subexpression: position {hypPos} in {hyp}"
   unless goalPos == [] do
     throwError m! "cannot apply in a subexpression: position {goalPos} in {goal}"
@@ -472,7 +472,7 @@ def treeApply (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (h
       synthMetaInstances instMVars
       let (_hyp, proof) ← hypProofM
       return {proof}
-    else 
+    else
       throwError m! "couldn't unify hypothesis {hyp} with target {goal}"
 
   | [0], imp_pattern cond _ =>
@@ -526,7 +526,7 @@ elab "lib_apply" s:("*")? hypPos:(treePos)? hypName:ident goalPos:treePos : tact
   let hypPos := getOuterInnerPosition <$> hypPos
   workOnTree (applyUnbound hypName (getApplyPos hypPos) goalOuterPosition goalPos treeApply · s.isSome)
 
-open Std.DiscrTree in
+open RefinedDiscrTree in
 def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas
@@ -539,7 +539,7 @@ def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : 
     _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
 
 
-  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, 
+  return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs,
     s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
 
 

@@ -24,7 +24,7 @@ def ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
   { edit, newCursorPos? }
 
 /-- Insert a line with the given text, a useful special case of replacing a range. -/
-def insertLine (meta : Server.DocumentMeta) (line : Nat) 
+def insertLine (meta : Server.DocumentMeta) (line : Nat)
     (indent : Nat) (text : String) : EditParams :=
   let newText := "".pushn ' ' indent ++ text
   let pos := { line := line, character := 0 }
@@ -82,7 +82,7 @@ deriving RpcEncodable
 def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTask Html) := do
   RequestM.asTask do
     let doc ← RequestM.readDoc
-    let editParams? : Option EditParams := do 
+    let editParams? : Option EditParams := do
       let range ← props.range?
       let insertion ← props.insertion?
       return .ofReplaceRange doc.meta range insertion
