@@ -159,33 +159,17 @@ def getHypothesesTypes : MetaM (List Expr) := do
     hypotheses_types := hypothesis.type :: hypotheses_types
   return hypotheses_types
 
-/--  Tactic to return goal variable-/
+/--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
   return ← getMainGoal
 
-/-  Tactic that behaves identically to the above -/
--- def getGoalDecl : TacticM MetavarDecl := do
---   let goal_var ← getGoalVar
---   let goal ← goal_var.getDecl
---   return goal
-
-/-  Tactic to return goal declaration-/
+/--  Tactic to return goal declaration-/
 def getGoalDecl : TacticM MetavarDecl := do
-  return ← getMainDecl
-
-/-  Tactic that behaves identically to the above -/
--- def getGoalType : TacticM Expr := do
---   let goal ← getGoalVar
---   return ← goal.getType
-
-/- Tactic that behaves identically to the above -/
--- def getGoalType : TacticM Expr := do
---   let goal ← getGoalDecl
---   return goal.type
+  return ← getMainDecl -- (← getGoalVar).getDecl
 
 /--  Tactic to return goal expression (the type) -/
 def getGoalType : TacticM Expr := do
-  return ← getMainTarget
+  return ← getMainTarget -- (← getGoalDecl).type or (← getGoalVar).getType
 
 /--  Tactic that closes goal with a matching hypothesis if available-/
 elab "assump" : tactic => do
@@ -245,7 +229,7 @@ theorem test_assump_fails {P Q : Prop} (p : P): Q := by
   assump''
   sorry
 
-/-- Create 0, 1, and π --/
+/-- Create 0, 1, and π -/
 def zero := Expr.const ``Nat.zero []
 #eval zero
 
@@ -256,50 +240,103 @@ def one := Expr.app (.const ``Nat.succ []) zero
 def pi := Expr.const ``Real.pi []
 #eval pi
 
-/-- Elaborate it --/
+/-- Elaborate it -/
+-- elab "zero" : term => return zero
+-- #eval zero -- 0
+
 elab "one" : term => return one
 #eval one -- 1
 
-elab "num_to_term" : term => return one
-#eval
-
-/-- Turn lean Nats into Expressions --/
+/-- Turn lean Nats into Expressions -/
 def natExpr: Nat → Expr
-| 0 => Expr.const ``Nat.zero []
+| 0 => .const ``Nat.zero []
 | n + 1 => .app (.const ``Nat.succ []) (natExpr n)
 #eval natExpr 2
 
+#check Nat.add
+
 def sumExpr: Nat → Nat → Expr
-| 0, 0 => Expr.const ``Nat.zero []
-| m, 0 => (natExpr m)
-| m, n + 1 => .app (.const ``Nat.succ []) (sumExpr m n)
+| m, n =>  natExpr (m+n)
 #eval sumExpr 1 2
 
-/-- Turn lean Expressions back into Nats --/
+-- Check if you got the right answer by making sure the below line evaluates to "true"
+#eval isDefEq (sumExpr 1 2) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.const `Nat.zero []))))
+
+/- Turn Lean Expressions back into Nats with evalExpr -/
 def expectedType := Expr.const ``Nat []
 def value := (sumExpr 1 2)
 #eval evalExpr Nat expectedType value
 
+/- Turn Lean Expressions back into Nats with elab -/
+elab "sumExpr12" : term => return (sumExpr 1 2)
+#eval sumExpr12
 
-/-- Get types of Lean expressions --/
+/- Get types of Lean constant expressions -/
+#eval zero.isConst  -- true, is a natural number constant
+#eval pi.isConst    -- true, is a real number constant
 
--- already implemented in Lean
--- def isConst (e: Expr): Bool :=
---   match e with
---   | Expr.const _ _  =>  True
---   | _          =>  False
+#eval inferType zero  -- Lean.Expr.const `Nat []
+#eval inferType pi    -- Lean.Expr.const `Real []
+
+#eval (Expr.const `Nat []).isConstOf `Nat -- true
+#eval (Expr.const `Nat []).isConstOf `Real -- false
 
 def isNat (e: Expr): MetaM Bool := do
   let type_expr ← inferType e
-  if type_expr.isConstOf `Nat then return true else return false
+  return type_expr.isConstOf `Nat
+
 #eval isNat zero
 #eval isNat pi
 
-#eval zero.isConst
-#eval (sumExpr 1 2).isConst
-#eval constName! zero
-#eval inferType zero
-#eval zero.isConstOf `Nat.zero
+
+/- Get types of Lean constant expressions, with debugging -/
+def isNatDebug (e: Expr): MetaM Unit := do
+  let type_expr ← inferType e
+  dbg_trace "The type expression is: {type_expr}"
+
+#eval isNatDebug zero
+
+def isNatDebugRepr (e: Expr): MetaM Unit := do
+  let type_expr ← inferType e
+  dbg_trace "The type expression is: {repr type_expr}"
+
+#eval isNatDebugRepr zero
+
+/- Applications -/
+def f := Expr.const `Nat.succ []
+def x := Expr.const `Nat.zero []
+#eval (Expr.app f x) -- Nat.succ Nat.zero
+
+elab "fx" : term => return (Expr.app f x)
+#eval (fx = Nat.succ Nat.zero) -- true
+
+def f' := Expr.const `Nat.add []
+def x' := Expr.const `Nat.zero []
+def y' := Expr.const `Nat.zero []
+#eval (Expr.app (.app f' x') y') -- Nat.add Nat.zero Nat.zero
+
+elab "fxy" : term => return (Expr.app (.app f' x') y')
+#eval (fxy = Nat.add Nat.zero Nat.zero) -- true
+
+/- Applications puzzle -/
+def addExpr := Expr.const `Nat.add []
+def mulExpr := Expr.const `Nat.mul []
+
+def sumExpr': Nat → Nat → Expr
+| m, n =>  (Expr.app (.app addExpr (natExpr m)) (natExpr n))
+def mulExpr': Nat → Nat → Expr
+| m, n =>  (Expr.app (.app addExpr (natExpr m)) (natExpr n))
+
+elab "sum12" : term => return sumExpr' 1 2
+elab "mul12" : term => return mulExpr' 1 2
+#eval (sum12 = 3) -- should be true
+#eval (mul12 = 2) -- should be true
+
+/- Get types of Lean application expressions -/
+#eval (sumExpr 1 2).isConst -- false, is an application
+#eval (sumExpr 1 2).isApp   -- true, is an application
+
+
 
 /-- Given the lean code, find the full raw format of an expresion  --/
 elab "print_goal_as_expression" : tactic => do
