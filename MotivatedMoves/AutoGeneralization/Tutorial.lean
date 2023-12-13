@@ -325,7 +325,7 @@ def mulExpr := Expr.const `Nat.mul []
 def sumExpr': Nat → Nat → Expr
 | m, n =>  (Expr.app (.app addExpr (natExpr m)) (natExpr n))
 def mulExpr': Nat → Nat → Expr
-| m, n =>  (Expr.app (.app addExpr (natExpr m)) (natExpr n))
+| m, n =>  (Expr.app (.app mulExpr (natExpr m)) (natExpr n))
 
 elab "sum12" : term => return sumExpr' 1 2
 elab "mul12" : term => return mulExpr' 1 2
@@ -336,133 +336,31 @@ elab "mul12" : term => return mulExpr' 1 2
 #eval (sumExpr 1 2).isConst -- false, is an application
 #eval (sumExpr 1 2).isApp   -- true, is an application
 
+def isAddition (e : Expr) :  MetaM Bool := do
+  -- dbg_trace "The function: {e.getAppFn}"
+  if (← isDefEq e.getAppFn addExpr) then return true else return false
 
+#eval isAddition (sumExpr' 1 2) -- true
+#eval isAddition (mulExpr' 1 2) -- false
 
-/-- Given the lean code, find the full raw format of an expresion  --/
+/-- Given the compiled code in the goal, _print_ the full raw format of an expression  --/
 elab "print_goal_as_expression" : tactic => do
-  let goal ← getMainGoal
-  let goalt ←  goal.getType
-  logInfo (toExpr goalt)
+  let goal ← getGoalType
+  logInfo (toExpr goal) -- or logInfo (repr goalt)
 
 theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
   print_goal_as_expression
   ring; simp
 
-def multPermuteExpr := forallE `n (const `Nat [])   (forallE `m (const `Nat [])     (forallE `p (const `Nat [])       (app         (app (app (const `Eq [Level.succ Level.zero]) (const `Nat []))           (app             (app               (app                 (app (app (app (const `HMul.hMul [Level.zero, Level.zero, Level.zero]) (const `Nat [])) (const `Nat []))                   (const `Nat []))                 (app (app (const `instHMul [Level.zero]) (const `Nat [])) (const `instMulNat [])))               (bvar 2))             (app               (app                 (app                   (app                     (app (app (const `HMul.hMul [Level.zero, Level.zero, Level.zero]) (const `Nat [])) (const `Nat []))                     (const `Nat []))                   (app (app (const `instHMul [Level.zero]) (const `Nat [])) (const `instMulNat [])))                 (bvar 1))               (bvar 0))))         (app           (app             (app               (app (app (app (const `HMul.hMul [Level.zero, Level.zero, Level.zero]) (const `Nat [])) (const `Nat []))                 (const `Nat []))               (app (app (const `instHMul [Level.zero]) (const `Nat [])) (const `instMulNat [])))             (bvar 1))           (app             (app               (app                 (app (app (app (const `HMul.hMul [Level.zero, Level.zero, Level.zero]) (const `Nat [])) (const `Nat []))                   (const `Nat []))                 (app (app (const `instHMul [Level.zero]) (const `Nat [])) (const `instMulNat [])))               (bvar 2))             (bvar 0))))       BinderInfo.default)     BinderInfo.default)   BinderInfo.default
-
-def getGoalAsExpression  : TacticM Expr := do
-  let goal ← getMainGoal
-  let goalt ←  goal.getType
-  return (toExpr goalt)
-
--- #eval getLocalDeclFromUserName `multPermute
-
--- def thmToExpr (n : Name): MetaM Expr := do
---   let dec ← getLocalDeclFromUserName n
---   let t ←  dec.cdecl
---   let h ← hi
-
-
-
-
-
-/-- Print an expression to logs  --/
-def logExpression (e : Expr) : IO Unit :=
-  IO.println e
-
-def logExpressionType (e : Expr) : MetaM Unit :=
-  do
-    let t ← inferType e
-    IO.println t
-
+/-- Future helper function to print an expression to logs  --/
+def logExpression (e : Expr) : IO Unit := do
+  dbg_trace "{repr e}"
 #eval logExpression zero
-#eval logExpressionType zero
-
-/-- Get all subexpressions that involve a "leaf" in function application --/
-def printSub (e : Expr) : IO Unit :=
-  match e with
-  | Expr.app f arg => do
-      logExpression e
-      printSub arg
-      -- getSub f *> getSub arg
-  | _ => do
-    logExpression e
-
-def printSubTypes (e : Expr) : MetaM Unit :=
-  match e with
-  | Expr.app f arg => do
-    logExpressionType e
-    printSubTypes arg
-  | _ => do
-    logExpressionType e
-
-#eval sumExpr 1 2
-#eval printSub (sumExpr 1 2)
-#eval printSubTypes (sumExpr 1 2)
-
-/-- Get the subexpressions instead of just printing them --/
-def getSub (e : Expr) : MetaM (List Expr) :=
-  match e with
-  | Expr.app f arg => do
-      return [e]
-      -- printSub arg
-      -- getSub f *> getSub arg
-  | _ => do
-    return [e]
-    -- logExpression e
-
-#eval getSub (sumExpr 1 2)
 
 
-/-- Get all subexpressions, but count a natural number as one unit --/
-elab "print_subtypes" : tactic => do
-  let goal ← getMainGoal
-  let goal_type_expr ← goal.getType
-  logInfo goal_type_expr
+/-- Getting theorems from context --/
+def getTheoremStatement (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.type -- return the theorem statement
 
-
-theorem flt_example : 2^4 % 5 = 2 := by
-  print_subtypes
-
-#eval getSub (toExpr flt_example)
-
--- Getting context --
---   def someTactic (goal : MVarId) ... : ... :=
--- mvarId.withContext do
--- ..
-
-theorem apply_example {P Q : Prop} : P → (P → Q) → Q := by
-  intros h1 h2
-  apply h2
-  assumption
-
-
-def getConclusion (e : Expr) : MetaM Expr := do
-  let (args, _, conclusion) ← forallMetaTelescopeReducing e
-  logInfo f!"FULL EXPR: {e}"
-  logInfo f!"CONCLUSION: {conclusion}"
-
-  return conclusion
-
-elab "get_conclusion" : tactic => do
-  let goal_exp ← getGoalAsExpression
-  let conc ← getConclusion goal_exp
-  -- IO.println s!"CONCLUSION: {conc}"
-  -- ppExpr conc
-
-
-theorem test_get_conclusion {P Q : Prop} : P → Q := by
-  get_conclusion
-
-
-#eval do
-  let stx : Syntax ← `(∀ (P Q : Prop) , P → Q)
-  let expr ← Elab.Term.elabTermAndSynthesize stx none
-  let (_, _, conclusion) ← forallMetaTelescope expr
-  dbg_trace conclusion -- ?_uniq.9
-
-#eval do
-  let stx : Syntax ← `(∀ (a : Prop) (b : Prop), a ∨ b → b → a ∧ a)
-  let expr ← Elab.Term.elabTermAndSynthesize stx none
-  let (_, _, conclusion) ← forallMetaTelescope expr
-  dbg_trace conclusion -- And ?_uniq.10 ?_uniq.10
+#eval getTheoremStatement `multPermute
