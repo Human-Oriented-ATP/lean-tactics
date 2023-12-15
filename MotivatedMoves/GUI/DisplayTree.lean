@@ -188,7 +188,7 @@ partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree :=
     return .node (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
 
   | not_pattern p =>
-    return .node (.text "Not") #[← toDisplayTree p pol]
+    return .node (.text "Not") #[← toDisplayTree p !pol]
 
   | e => return .node (← ppTreeTagged e) #[]
 
