@@ -320,7 +320,7 @@ elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic 
   let hypPos := getOuterInnerPosition <$> hypPos
   workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalOuterPosition goalPos treeRewriteOrd)
 
-open DiscrTree in 
+open RefinedDiscrTree in 
 def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
   let pol ← try getOrdPolarity goalOuterPosition goalPos tree catch _ => return #[]
@@ -375,7 +375,7 @@ lemma testLib : ∀ x, x - 1 ≤ x := sorry
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
-  lib_rewrite_ord [1] Tree.testLib [1,2,0,1,1,1,0,1]
+  lib_rewrite_ord [1] Tree.testLib [1,2,1,1,1,0,1]
   lib_apply refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by

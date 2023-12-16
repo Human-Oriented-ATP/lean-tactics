@@ -86,8 +86,10 @@ tree_simp []
 -- `¬n = 0`
 sorry
 
+
 lemma Infinitude_of_PrimesPos : ∀ n > 0, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
+try_lib_apply []
 lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 1, 2]
 tree_contrapose [1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 1, 2, 1] Nat.not_dvd_iff_between_consec_multiples [1, 1, 1, 1, 1, 1, 1, 2]
@@ -117,10 +119,12 @@ sorry
 
 
 
+example : {f g : ℝ → ℂ} → {x : ℝ} → {a b : ℂ} → (hf : HasDerivAt f a x) → (hg : HasDerivAt g b x) → 
+    HasDerivAt (fun x => f x + g x) (a + b) x := by
+  motivated_proof
+  try_lib_apply [1,1,1,1,1,1,1]
 
 
-
-#exit
 
 example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   → UniformContinuous f → Continuous f := by
@@ -155,36 +159,60 @@ lemma epsilon_lemma₂ : ∀ ε > (0 : ℝ), ∃ ζ > 0, ζ < ε :=
   fun ε hε =>
     ⟨ε/2, div_pos hε (by simp), by linarith [hε]⟩
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) (F : ℕ → α → β) : 
+-- See here the lack of ability to case split :((
+lemma imp_exists [Nonempty α] {q : α → Prop} {p : Prop} : (∃ a : α, p → q a) ↔ p → ∃ a : α, q a := by
+revert α p
+motivated_proof
+lib_rewrite [1, 1, 2, 0, 1] iff_def [1, 1, 1, 1, 2]
+tree_apply [1, 1, 1, 1, 0, 0, 1, 1, 2] [1, 1, 1, 1, 0, 1, 1, 1, 2]
+tree_apply [1, 1, 1, 1, 0, 0, 2] [1, 1, 1, 1, 0, 1, 2]
+lib_rewrite [1, 1, 1, 2, 0, 1] Classical.skolem [1, 1, 1, 1, 0]
+tree_induction [1, 1, 1, 1]
+sorry
+example : ∀ (α : Type u) (p : Prop) (q : α → Prop) (a : α), (p → ∃ b : α, q b) → ∃ b : α, p → q b := by
+make_tree
+sorry
+
+
+
+example : ∀ (α β : Type*), [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →  
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
-  make_tree
-  lib_rewrite Metric.tendstoUniformly_iff [1,0]
-  try_lib_apply [1,0,1,1] -- this is the library search that hits a deterministic time-out
-  lib_rewrite Filter.eventually_atTop [1,0,1,1]
+motivated_proof
+lib_rewrite [1,1,1,1,1,2,0,1] Metric.continuous_iff [1,1,1,1,1,1,0,1,2]
+lib_rewrite [1,1,1,1,1,1,1,2,0,1] Metric.tendstoUniformly_iff [1,1,1,1,1,1,1,0,2]
+lib_rewrite [1,1,1,1,2,0,1] Filter.eventually_atTop [1,1,1,1,1,1,1,0,1,1,2]
+lib_rewrite [1,1,1,1,1,2,0,1] Metric.continuous_iff [1,1,1,1,1,1,1,1,2]
+lib_rewrite [1,1,1,1,2,0,1] Tree.imp_exists_iff [1,1,1,1,1,1,1,0,1]
+lib_rewrite [1,1,1,2,0,1] Classical.skolem [1,1,1,1,1,1,1,0]
+tree_induction [1,1,1,1,1,1,1]
+lib_rewrite_ord [1,1,1,1,1] dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
+lib_rewrite_ord [1,1,1,1,1] dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
+tree_rewrite_ord' [1,1,1,1,1,1,1,1,0,1,1,1,1,1,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,0,1,0,1]
+lib_rewrite [1,1,1,1,2,1] dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+tree_rewrite_ord [1,1,1,1,1,1,1,1,0,1,1,1,1,1,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
+tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2]
+tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2]
+tree_rewrite_ord [1,1,1,1,1,0,1,1,1,1,1,1,1,1,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,0,1,1]
+lib_apply refl [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2]
+tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0,2] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2]
+tree_apply [1,1,1,1,1,1,0,2] [1,1,1,1,1,1,1,0,2]
+lib_rewrite [1,1,1,1,1,2,0,1] add_right_comm [1,1,1,1,1,1,2,0,1]
+lib_apply  [1,1,1,1,1,1,0] exists_add_lt_and_pos_of_lt [1,1,1,1,1,1,2]
+tree_apply [1,1,1,1,1,0,2] [1,1,1,1,1,1,0,2]
+tree_name xd [1,1,1,0,2,0,1,0,1]
+tree_rewrite' [1,1,1,1,0,2] [1,1,1,1,1,0,2,0,1,1]
+lib_rewrite [1,1,1,2,1] mul_two [1,1,1,1,1,0,2,0,1]
+tree_rewrite [1,1,1,1,0,2,1] [1,1,1,1,1,0,2,0,1,0,1]
+lib_rewrite [1,1,1,1,1,1,2,1] lt_div_iff [1,1,1,0,2]
+tree_simp [1,1,1,0,0,2]
+lib_rewrite [1,1,2,0,1] and_comm [1,1,1]
+lib_rewrite [1,1,1,1,1,2,1] Set.mem_Ioo [1,1,1]
+lib_rewrite [1,1,2,1] Set.nonempty_def [1,1]
+lib_rewrite [1,1,1,1,1,2,0,1] Set.nonempty_Ioo [1,1,2]
+lib_rewrite [1,1,1,1,1,1,2,0,1] lt_div_iff [1,1,2]
+tree_simp [1, 1]
+tree_apply [1, 0, 2] [1, 1, 2]
 
-  lib_rewrite Metric.continuous_iff [1,1]
-
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,2,0,1]
-  tree_rewrite_ord' [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,2,0,1,0,1]
-  lib_apply add_lt_of_lt_sub_left [1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
-  tree_search
-
-  lib_rewrite_ord dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
-  lib_rewrite dist_comm [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
-  tree_rewrite_ord [1,0,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1,1]
-
-  lib_apply add_lt_of_lt_sub_right [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-  lib_rewrite_ord epsilon_lemma₁ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1]
-  tree_search
-  lib_rewrite Metric.continuous_iff [0,1]
-  tree_rewrite_ord [0,1,1,1,1,1,1,1,1] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
-  tree_apply [1,1,1,1,1,1,1,1,1,1,1,1,1,0] [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
-  tree_search
-  lib_apply epsilon_lemma₂ [1,1,1,1,1,1,1,1,1]
-  tree_search
-  lib_rewrite_rev max_le_iff [1,1,1]
-  lib_apply refl [1,1,1]
 
 
 
@@ -201,3 +229,11 @@ example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
 
 example (N : ℕ) : ∑ n in Finset.range N, (a + b)  = N * (N - 1) / 2 := by
   try_lib_rewrite [2,0,1]
+
+
+-- See here the η-reduction awareness in action :))
+example : Continuous Real.exp := by
+motivated_proof
+try_lib_apply []
+lib_apply  [1, 1, 1, 1] Continuous.exp []
+sorry
