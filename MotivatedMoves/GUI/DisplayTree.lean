@@ -152,7 +152,7 @@ where
 open Widget ProofWidgets Server
 
 inductive DisplayTree where
-| node : CodeWithInfos → Array DisplayTree → DisplayTree
+| node : (label : CodeWithInfos) → (children : Array DisplayTree) → DisplayTree
 deriving RpcEncodable
 
 partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree := do
