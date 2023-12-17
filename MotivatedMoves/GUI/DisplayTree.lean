@@ -208,8 +208,7 @@ open Meta Elab Tactic in
 @[tactic tree_display]
 def treeDisplay : Tactic
   | stx@`(tactic| with_tree_display $tacs) => do
-    let tgt ← withTransparency .instances do 
-      reduceAll (← getMainTarget)
+    let tgt ← getMainTarget
     let t ← Tree.toDisplayTree (← makeTree tgt)
     savePanelWidgetInfo stx ``OrdinaryTreeDisplay do
       return json% { tree : $(← rpcEncode t) }
