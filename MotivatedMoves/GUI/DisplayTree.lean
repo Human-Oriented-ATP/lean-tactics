@@ -152,11 +152,8 @@ where
 open Widget ProofWidgets Server
 
 inductive DisplayTree where
-| node : (label : CodeWithInfos) → (length : Nat) → (children : Array DisplayTree) → DisplayTree
+| node : (label : CodeWithInfos) → (children : Array DisplayTree) → DisplayTree
 deriving RpcEncodable
-
-def DisplayTree.mkNode (label : CodeWithInfos) (children : Array DisplayTree) : DisplayTree := 
-  .node label label.pretty.length children
 
 partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree := do
   match e with
@@ -165,14 +162,14 @@ partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree :=
     Meta.withLocalDeclD n d fun fvar => do
     let b := b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)
     let d ← ppTreeTagged d
-    return .mkNode (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
+    return .node (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
 
   | exists_pattern n _u d b =>
     let n ← getUnusedName n b
     Meta.withLocalDeclD n d fun fvar => do
     let b := b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)
     let d ← ppTreeTagged d
-    return .mkNode (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
+    return .node (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
 
   | instance_pattern n _u d b =>
     Meta.withLocalDeclD n d fun fvar => do
@@ -183,19 +180,19 @@ partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree :=
         return s! "{← getUnusedName n b} : ")
     let b := b.instantiate1 fvar
     let d ← ppTreeTagged d
-    return .mkNode (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
+    return .node (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
 
   | imp_pattern p q =>
     let p ← ppTreeTagged p
-    return .mkNode p #[← toDisplayTree q pol]
+    return .node p #[← toDisplayTree q pol]
 
   | and_pattern p q =>
-    return .mkNode (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
+    return .node (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
 
   | not_pattern p =>
-    return .mkNode (.text "Not") #[← toDisplayTree p !pol]
+    return .node (.text "Not") #[← toDisplayTree p !pol]
 
-  | e => return .mkNode (← ppTreeTagged e) #[]
+  | e => return .node (← ppTreeTagged e) #[]
 
 structure TreeDisplay extends PanelWidgetProps where 
   tree : DisplayTree

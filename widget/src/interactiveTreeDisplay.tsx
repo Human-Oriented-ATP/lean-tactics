@@ -1,31 +1,56 @@
 import * as React from 'react';
 import Tree from 'react-d3-tree';
-import { LocationsContext, CodeWithInfos, DocumentPosition, InteractiveCode, GoalsLocation, PanelWidgetProps } from '@leanprover/infoview';
+import { LocationsContext, TaggedText, CodeWithInfos, DocumentPosition, InteractiveCode, GoalsLocation, PanelWidgetProps } from '@leanprover/infoview';
 import type { RawNodeDatum, CustomNodeElementProps } from 'react-d3-tree/lib/types/types/common';
 
-export type DisplayTree =
-  { node: { label?: CodeWithInfos, length:number, children: Array<DisplayTree> } }
+/** Remove tags, leaving just the pretty-printed string. */
+function stripTags<T>(tt: TaggedText<T>): string {
+  function go(acc: string, ts: TaggedText<T>[]): string {
+    if (ts.length === 0) {
+      return acc;
+    }
 
-export type TreeNodeDatum = RawNodeDatum & { label?: CodeWithInfos, length?:number }
+    const last = ts[ts.length - 1];
+    if ('text' in last) {
+      const textValue = last.text;
+      return go(acc + textValue, ts.slice(0, -1));
+    } else if ('append' in last) {
+      const appended = last.append.reverse();
+      return go(acc, ts.slice(0, -1).concat(appended));
+    } else if ('tag' in last) {
+      const [tagValue, a] = last.tag;
+      const updatedTs = ts.slice(0, -1);
+      updatedTs[updatedTs.length - 1] = a;
+      return go(acc, updatedTs);
+    }
+
+    return acc;
+  }
+
+  return go('', [tt]);
+}
+
+export type DisplayTree =
+  { node: { label?: CodeWithInfos, children: Array<DisplayTree> } }
+
+export type TreeNodeDatum = RawNodeDatum & { label?: CodeWithInfos }
 
 export type DisplayTreeProps = PanelWidgetProps & { tree : DisplayTree }
 
 function treeToData(tree: DisplayTree): TreeNodeDatum {
-    const { label, length, children } = tree.node
+    const { label, children } = tree.node
     if (!Array.isArray(children)) {
         throw new Error("Children are not an array")
     }    
     if (children.length == 0) {
         return {
             name: 'node',
-            length: length,
             label: label
           }          
     } else {
         const childrenAsTrees = children.map(treeToData)
         return {
             name: 'node',
-            length: length,
             label: label,
             children: childrenAsTrees
         }
@@ -35,7 +60,15 @@ function treeToData(tree: DisplayTree): TreeNodeDatum {
 function renderForeignObjectNode({ nodeDatum }: CustomNodeElementProps, _: DocumentPosition,
   foreignObjectProps: React.SVGProps<SVGForeignObjectElement>): JSX.Element {
   const nodeDatum_ = nodeDatum as TreeNodeDatum
-  const width = 10 * (nodeDatum_.length ?? 10)
+  function getWidth(text?:CodeWithInfos) {
+    if (text) {
+      return 10 * stripTags(text).length;
+    } 
+    else {
+      return 100;
+    }
+  };
+  const width = getWidth(nodeDatum_.label)
   return (
     <g>
       <rect x="-50" y="-10" width={width} height="20" fill="green" style={{ border: "black" }} />
