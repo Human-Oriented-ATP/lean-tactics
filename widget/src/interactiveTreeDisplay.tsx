@@ -35,7 +35,7 @@ function renderForeignObjectNode({ nodeDatum }: CustomNodeElementProps, _: Docum
   const nodeDatum_ = nodeDatum as TreeNodeDatum
   return (
     <g>
-      <rect x="-50" y="-10" width="100" height="20" fill="green" style={{ border: "black" }} />
+      <rect fill="green" style={{ border: "black" }} />
       <foreignObject {...foreignObjectProps} style={{ textAlign: "center" }}>
         {nodeDatum_.label && <InteractiveCode fmt={nodeDatum_.label} />}
       </foreignObject>
