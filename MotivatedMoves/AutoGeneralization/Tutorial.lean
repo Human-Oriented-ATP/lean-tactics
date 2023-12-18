@@ -171,6 +171,13 @@ def getGoalDecl : TacticM MetavarDecl := do
 def getGoalType : TacticM Expr := do
   return ← getMainTarget -- (← getGoalDecl).type or (← getGoalVar).getType
 
+/--  Tactic to experiment with MetaM vs TacticM -/
+def lookIntoEnvironment  : MetaM Unit := do
+  let env ← getEnv
+  dbg_trace (env.contains `multPermute)
+
+#eval lookIntoEnvironment
+
 /--  Tactic that closes goal with a matching hypothesis if available-/
 elab "assump" : tactic => do
   let goal_decl ← getGoalDecl
@@ -302,6 +309,17 @@ def isNatDebugRepr (e: Expr): MetaM Unit := do
 
 #eval isNatDebugRepr zero
 
+def sayHello : MetaM Unit := do
+  logInfo "hi"
+
+#eval sayHello
+
+elab "sayHello" : tactic => sayHello
+
+example : True := by
+  sayHello
+  trivial
+
 /- Applications -/
 def f := Expr.const `Nat.succ []
 def x := Expr.const `Nat.zero []
@@ -352,15 +370,66 @@ theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
   print_goal_as_expression
   ring; simp
 
-/-- Future helper function to print an expression to logs  --/
-def logExpression (e : Expr) : IO Unit := do
+/-- What the expression looks like --/
+def logExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{repr e}"
 #eval logExpression zero
 
+/-- What the expression looks like, but prettier  --/
+def logFormattedExpression (e : Expr) : MetaM Unit := do
+  let s := Format.pretty (format e)
+  dbg_trace "{s}"
+
+/-- What the expression looks like, but prettier  --/
+def logPrettyExpression (e : Expr) : MetaM Unit := do
+  dbg_trace "{←ppExpr e}"
+
+/-- What type the expression compiles to  --/
+def logExpressionType (e : Expr) : MetaM Unit :=
+  do
+    let t ← inferType e
+    dbg_trace t
+
+-- def logCompiledExpression (e : Expr) : MetaM Unit := do
+--   dbg_trace "{e}"
+
+#eval logExpression zero        -- Lean.Expr.const `Nat.zero []
+#eval logFormattedExpression zero    -- Nat.zero
+#eval logPrettyExpression zero    -- Nat.zero
+#eval logExpressionType zero    -- Nat
+-- #eval logCompiledExpression zero -- 0
 
 /-- Getting theorems from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
   return thm.type -- return the theorem statement
 
+#eval do {let e ← getTheoremStatement `multPermute; logExpression e}
+
 #eval getTheoremStatement `multPermute
+#eval do {let e ← getTheoremStatement `multPermute; logPrettyExpression e}
+
+#eval do {let e ← getTheoremStatement `multPermute; logFormattedExpression e}
+#eval do {let e ← getTheoremStatement `multPermute; logExpressionType e}
+
+/-- Get all subexpressions that involve constants --/
+def printConstantsIn (e : Expr) : MetaM Unit :=
+  e.forEachWhere Expr.isConst logExpression
+
+#eval do {let e ← getTheoremStatement `multPermute; printConstantsIn e}
+
+/-- Get all subexpressions that involve natural numbers --/
+def printIfNat (subexpr : Expr) : MetaM Unit := do
+  try
+    let isNatResult ← isNat subexpr
+    if isNatResult
+      then logPrettyExpression subexpr; dbg_trace "---"
+      else return
+  catch
+  | Exception.error _ _ => return
+  | _ => throwError "Something about 'isNat subexpr' is throwing an error."
+
+def printNatsIn (e : Expr) : MetaM Unit := do
+  e.forEach printIfNat
+
+#eval do {let e ← getTheoremStatement `multPermute;  printNatsIn e}
