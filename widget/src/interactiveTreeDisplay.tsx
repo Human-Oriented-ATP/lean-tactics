@@ -4,26 +4,28 @@ import { LocationsContext, CodeWithInfos, DocumentPosition, InteractiveCode, Goa
 import type { RawNodeDatum, CustomNodeElementProps } from 'react-d3-tree/lib/types/types/common';
 
 export type DisplayTree =
-  { node: { label?: CodeWithInfos, children: Array<DisplayTree> } }
+  { node: { label?: CodeWithInfos, length:number, children: Array<DisplayTree> } }
 
-export type TreeNodeDatum = RawNodeDatum & { label?: CodeWithInfos }
+export type TreeNodeDatum = RawNodeDatum & { label?: CodeWithInfos, length?:number }
 
 export type DisplayTreeProps = PanelWidgetProps & { tree : DisplayTree }
 
 function treeToData(tree: DisplayTree): TreeNodeDatum {
-    const { label, children } = tree.node
+    const { label, length, children } = tree.node
     if (!Array.isArray(children)) {
         throw new Error("Children are not an array")
     }    
     if (children.length == 0) {
         return {
             name: 'node',
+            length: length,
             label: label
           }          
     } else {
         const childrenAsTrees = children.map(treeToData)
         return {
             name: 'node',
+            length: length,
             label: label,
             children: childrenAsTrees
         }
@@ -35,7 +37,7 @@ function renderForeignObjectNode({ nodeDatum }: CustomNodeElementProps, _: Docum
   const nodeDatum_ = nodeDatum as TreeNodeDatum
   return (
     <g>
-      <rect x="-50" y="-10" width="100" height="20" fill="green" style={{ border: "black" }} />
+      <rect x="-50" y="-10" width={10 * (nodeDatum_.length ?? 10)} height="20" fill="green" style={{ border: "black" }} />
       <foreignObject {...foreignObjectProps} style={{ textAlign: "center" }}>
         {nodeDatum_.label && <InteractiveCode fmt={nodeDatum_.label} />}
       </foreignObject>

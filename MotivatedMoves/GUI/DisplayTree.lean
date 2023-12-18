@@ -152,8 +152,11 @@ where
 open Widget ProofWidgets Server
 
 inductive DisplayTree where
-| node : (label : CodeWithInfos) → (children : Array DisplayTree) → DisplayTree
+| node : (label : CodeWithInfos) → (length : Nat) → (children : Array DisplayTree) → DisplayTree
 deriving RpcEncodable
+
+def DisplayTree.mkNode (label : CodeWithInfos) (children : Array DisplayTree) : DisplayTree := 
+  .node label label.pretty.length children
 
 partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree := do
   match e with
@@ -162,14 +165,14 @@ partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree :=
     Meta.withLocalDeclD n d fun fvar => do
     let b := b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)
     let d ← ppTreeTagged d
-    return .node (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
+    return .mkNode (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
 
   | exists_pattern n _u d b =>
     let n ← getUnusedName n b
     Meta.withLocalDeclD n d fun fvar => do
     let b := b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)
     let d ← ppTreeTagged d
-    return .node (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
+    return .mkNode (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
 
   | instance_pattern n _u d b =>
     Meta.withLocalDeclD n d fun fvar => do
@@ -180,19 +183,19 @@ partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree :=
         return s! "{← getUnusedName n b} : ")
     let b := b.instantiate1 fvar
     let d ← ppTreeTagged d
-    return .node (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
+    return .mkNode (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
 
   | imp_pattern p q =>
     let p ← ppTreeTagged p
-    return .node p #[← toDisplayTree q pol]
+    return .mkNode p #[← toDisplayTree q pol]
 
   | and_pattern p q =>
-    return .node (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
+    return .mkNode (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
 
   | not_pattern p =>
-    return .node (.text "Not") #[← toDisplayTree p !pol]
+    return .mkNode (.text "Not") #[← toDisplayTree p !pol]
 
-  | e => return .node (← ppTreeTagged e) #[]
+  | e => return .mkNode (← ppTreeTagged e) #[]
 
 structure TreeDisplay extends PanelWidgetProps where 
   tree : DisplayTree
@@ -208,9 +211,7 @@ open Meta Elab Tactic in
 @[tactic tree_display]
 def treeDisplay : Tactic
   | stx@`(tactic| with_tree_display $tacs) => do
-    let tgt ← withTransparency .instances do 
-      reduceAll (← getMainTarget)
-    let t ← Tree.toDisplayTree (← makeTree tgt)
+    let t ← Tree.toDisplayTree <| ← makeTree <| ← getMainTarget
     savePanelWidgetInfo stx ``OrdinaryTreeDisplay do
       return json% { tree : $(← rpcEncode t) }
     evalTacticSeq tacs
@@ -220,6 +221,11 @@ example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] �
   make_tree
   sorry
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
+  make_tree
+  with_tree_display
+  sorry
+
+example (a : Nat) : a + a + a + a + a + a = 6 * a := by
   make_tree
   with_tree_display
   sorry
