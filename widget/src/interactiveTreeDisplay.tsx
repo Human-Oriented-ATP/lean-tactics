@@ -35,10 +35,11 @@ function treeToData(tree: DisplayTree): TreeNodeDatum {
 function renderForeignObjectNode({ nodeDatum }: CustomNodeElementProps, _: DocumentPosition,
   foreignObjectProps: React.SVGProps<SVGForeignObjectElement>): JSX.Element {
   const nodeDatum_ = nodeDatum as TreeNodeDatum
+  const width = 10 * (nodeDatum_.length ?? 10)
   return (
     <g>
-      <rect x="-50" y="-10" width={10 * (nodeDatum_.length ?? 10)} height="20" fill="green" style={{ border: "black" }} />
-      <foreignObject {...foreignObjectProps} style={{ textAlign: "center" }}>
+      <rect x="-50" y="-10" width={width} height="20" fill="green" style={{ border: "black" }} />
+      <foreignObject {...foreignObjectProps} width={width} style={{ textAlign: "center" }}>
         {nodeDatum_.label && <InteractiveCode fmt={nodeDatum_.label} />}
       </foreignObject>
     </g>
