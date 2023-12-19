@@ -179,11 +179,12 @@ partial def makeTreeAux (e : Expr) : MetaM Expr := do match ← replaceForallE e
   | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTreeAux p)
   | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTreeAux p) (← makeTreeAux q)
   | e@(eq_pattern u α p q) => do
-      match ← whnfD α with
-      | .sort .zero => return mkApp3 (.const ``Eq [u]) α (← makeTreeAux p) (← makeTreeAux q)
-      | _           => pure e
-  | and_pattern  p q => return mkApp2 (.const ``And  []) (← makeTreeAux p) (← makeTreeAux q)
-  | imp_pattern  p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
+    match ← whnfD α with
+    | .sort .zero => return mkApp3 (.const ``Eq [u]) α (← makeTreeAux p) (← makeTreeAux q)
+    | _           => pure e
+  | and_pattern p q => return mkApp2 (.const ``And  []) (← makeTreeAux p) (← makeTreeAux q)
+  | imp_pattern p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
+  | not_pattern p   => return mkNot (← makeTreeAux p)
 
   | instance_pattern n u d b => withLocalDeclD n d fun fvar =>
     return mkInstance n u d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar])
