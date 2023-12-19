@@ -11,17 +11,15 @@ function stripTags<T>(tt: TaggedText<T>): string {
     }
 
     const last = ts[ts.length - 1];
+    const rest = ts.slice(0, ts.length - 1);
     if ('text' in last) {
-      const textValue = last.text;
-      return go(acc + textValue, ts.slice(0, -1));
+      return go(acc + last.text, rest);
     } else if ('append' in last) {
-      const appended = last.append.reverse();
-      return go(acc, ts.slice(0, -1).concat(appended));
+      const tail = last.append.reverse();
+      return go(acc, rest.concat(tail));
     } else if ('tag' in last) {
-      const [tagValue, a] = last.tag;
-      const updatedTs = ts.slice(0, -1);
-      updatedTs[updatedTs.length - 1] = a;
-      return go(acc, updatedTs);
+      const [tagValue, tt] = last.tag;
+      return go(acc, rest.concat(tt));
     }
 
     return acc;
