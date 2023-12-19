@@ -237,3 +237,10 @@ motivated_proof
 try_lib_apply []
 lib_apply  [1, 1, 1, 1] Continuous.exp []
 sorry
+
+example : Continuous fun x => Real.exp x ^ 2 := by
+motivated_proof
+lib_apply  [1, 1, 1, 1, 1, 1] Continuous.rpow_const []
+lib_apply  [] Real.continuous_exp [0, 2]
+lib_apply  [1, 1, 1] Or.intro_right [1, 2]
+lib_apply  [1, 1, 1, 1, 1] zero_le_two []
