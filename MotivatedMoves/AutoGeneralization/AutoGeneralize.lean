@@ -80,6 +80,7 @@ A theorem that uses FLT
 -- theorem flt_example : 2^4 ZMOD 5 = 1:= by
 
 theorem flt_example : 2^4 % 5 = 1 := by rfl
+#print flt_example
 
 theorem flt_example' : 2^4 % 5 = 1 := by
   generalize ha: 2 = a
@@ -99,5 +100,8 @@ theorem flt_example'' : 2^4 % (5 : ℤ) = (1 : ℤ) % (5 : ℤ):= by
   have hcp' := Nat.Coprime.isCoprime hcp
   have flt := Int.ModEq.pow_card_sub_one_eq_one hp5 hcp'
   assumption
+#print flt_example''
 
-#print flt_example
+
+theorem flt_general (hp : Nat.Prime p) (hpn : IsCoprime a p) : a ^ (p - 1) % p = 1 := by
+  sorry

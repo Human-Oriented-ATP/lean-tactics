@@ -412,13 +412,13 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
 #eval do {let e ← getTheoremStatement `multPermute; logFormattedExpression e}
 #eval do {let e ← getTheoremStatement `multPermute; logExpressionType e}
 
-/-- Get all subexpressions that involve constants --/
+/-- Print all subexpressions that involve constants --/
 def printConstantsIn (e : Expr) : MetaM Unit :=
   e.forEachWhere Expr.isConst logExpression
 
 #eval do {let e ← getTheoremStatement `multPermute; printConstantsIn e}
 
-/-- Get all subexpressions that involve natural numbers --/
+/-- Print all subexpressions that involve natural numbers --/
 def printIfNat (subexpr : Expr) : MetaM Unit := do
   try
     let isNatResult ← isNat subexpr
@@ -433,3 +433,41 @@ def printNatsIn (e : Expr) : MetaM Unit := do
   e.forEach printIfNat
 
 #eval do {let e ← getTheoremStatement `multPermute;  printNatsIn e}
+
+/- Get (in a list) all subexpressions in an expression -/
+def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
+  let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : MetaM (List Expr) :=
+    match e with
+    | Expr.forallE _ d b _   => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
+    | Expr.lam _ d b _       => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
+    | Expr.letE _ t v b _    => return [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
+    | Expr.app f a           => return [e] ++ (← getSubexpressionsInRec f acc) ++ (← getSubexpressionsInRec a acc)
+    | Expr.mdata _ b         => return [e] ++ (← getSubexpressionsInRec b acc)
+    | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
+    | _                      => return acc
+  getSubexpressionsInRec e []
+
+#eval do {let e ← getTheoremStatement `multPermute;  getSubexpressionsIn e}
+
+
+/- Get (in a list) all subexpressions that involve natural numbers -/
+def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
+  try
+    let isNatResult ← isNat subexpr
+    if isNatResult
+      then return some subexpr
+      else return none
+  catch
+  | Exception.error _ _ => return none
+  | _ => throwError "Something about 'isNat subexpr' is throwing an error."
+
+
+def getNatsIn (e : Expr) : MetaM (List Expr) := do
+  let subexprs ← getSubexpressionsIn e
+  let natSubexprs ← subexprs.filterMapM getIfNat
+  return natSubexprs
+
+theorem flt_example : 2^4 % 5 = 1 := by simp
+
+#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement `multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
