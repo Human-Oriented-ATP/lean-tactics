@@ -243,6 +243,9 @@ def zero := Expr.const ``Nat.zero []
 def one := Expr.app (.const ``Nat.succ []) zero
 #eval one
 
+def two := Expr.app (.const ``Nat.succ []) one
+#eval two
+
 #check Real.pi
 def pi := Expr.const ``Real.pi []
 #eval pi
@@ -366,6 +369,14 @@ elab "print_goal_as_expression" : tactic => do
   let goal ← getGoalType
   logInfo (toExpr goal) -- or logInfo (repr goalt)
 
+example :1+1=2 := by
+  print_goal_as_expression
+  ring
+
+example :0=0 := by
+  print_goal_as_expression
+  ring
+
 theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
   print_goal_as_expression
   ring; simp
@@ -392,7 +403,6 @@ def logExpressionType (e : Expr) : MetaM Unit :=
 
 -- def logCompiledExpression (e : Expr) : MetaM Unit := do
 --   dbg_trace "{e}"
-
 #eval logExpression zero        -- Lean.Expr.const `Nat.zero []
 #eval logFormattedExpression zero    -- Nat.zero
 #eval logPrettyExpression zero    -- Nat.zero
@@ -449,7 +459,6 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
 
 #eval do {let e ← getTheoremStatement `multPermute;  getSubexpressionsIn e}
 
-
 /- Get (in a list) all subexpressions that involve natural numbers -/
 def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
   try
@@ -471,3 +480,32 @@ theorem flt_example : 2^4 % 5 = 1 := by simp
 
 #eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
 #eval do { let e ← getTheoremStatement `multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+
+/-- Create new goals -/
+def createGoal (goalType : Expr) : TacticM Unit := do
+  let goal ← mkFreshExprMVar goalType
+  appendGoals [goal.mvarId!]
+
+elab "createNatGoal" : tactic => do
+  let goalType := (Expr.const ``Nat []) -- make the goal to find an instance of type "Nat"
+  createGoal goalType
+
+example : 1 + 2 = 3 := by
+  createNatGoal
+  simp; use 5
+
+elab "createReflexivityGoal" : tactic => do
+  let goalType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
+  createGoal goalType
+
+example : 1 + 2 = 3 := by
+  createReflexivityGoal
+  simp; simp
+
+elab "createReflexivityGoal'" : tactic => do
+  let goalType ← mkEq (Expr.const ``Nat.zero []) (Expr.const ``Nat.zero [])
+  createGoal goalType
+
+example : 1 + 2 = 3 := by
+  createReflexivityGoal'
+  simp; simp
