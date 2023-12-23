@@ -546,9 +546,18 @@ def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
 
 elab "createNatHypothesis" : tactic => do
   let hypType := Expr.const ``Nat []
-  let hypProof :=  (toExpr 0)
+  let hypProof :=  (toExpr 0) -- use 0 as a term of type Nat
   createHypothesis hypType hypProof
 
 example : 1 + 2 = 3 := by
   createNatHypothesis
+  simp
+
+elab "createReflHypothesis" : tactic => do
+  let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
+  let hypProof := Lean.mkAppN (.const ``Eq []) #[(toExpr 0), (toExpr 0)] -- proof that Eq 0 0
+  createHypothesis hypType hypProof
+
+example : 1 + 2 = 3 := by
+  createReflHypothesis
   simp
