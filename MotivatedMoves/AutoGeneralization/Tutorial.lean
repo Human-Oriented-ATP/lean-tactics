@@ -22,6 +22,10 @@ example : True := by
   print_goal -- True
   trivial
 
+theorem reflExample : 0 = 0 := by
+  rfl
+#print reflExample
+
 example : 1+1=2 := by
   print_goal -- 1+1=2
   trivial
@@ -373,9 +377,9 @@ example :1+1=2 := by
   print_goal_as_expression
   ring
 
-example :0=0 := by
+theorem reflOfZero : 0=0:= by
   print_goal_as_expression
-  ring
+  simp
 
 theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
   print_goal_as_expression
@@ -421,6 +425,16 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
 
 #eval do {let e ← getTheoremStatement `multPermute; logFormattedExpression e}
 #eval do {let e ← getTheoremStatement `multPermute; logExpressionType e}
+
+/-- Getting theorem proof from context --/
+def getTheoremProof (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.value! -- return the theorem statement
+
+#eval do {let e ← getTheoremProof `reflOfZero; logExpression e}
+#eval do {let e ← getTheoremProof `reflOfZero; logFormattedExpression e}
+#eval do {let e ← getTheoremProof `reflOfZero; logPrettyExpression e}
+
 
 /-- Print all subexpressions that involve constants --/
 def printConstantsIn (e : Expr) : MetaM Unit :=
@@ -489,7 +503,6 @@ def createGoal (goalType : Expr) : TacticM Unit := do
 elab "createNatGoal" : tactic => do
   let goalType := (Expr.const ``Nat []) -- make the goal to find an instance of type "Nat"
   createGoal goalType
-
 example : 1 + 2 = 3 := by
   createNatGoal
   simp; use 5
@@ -497,15 +510,45 @@ example : 1 + 2 = 3 := by
 elab "createReflexivityGoal" : tactic => do
   let goalType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
   createGoal goalType
-
 example : 1 + 2 = 3 := by
-  createReflexivityGoal
+  createReflexivityGoal; swap
   simp; simp
 
 elab "createReflexivityGoal'" : tactic => do
   let goalType ← mkEq (Expr.const ``Nat.zero []) (Expr.const ``Nat.zero [])
   createGoal goalType
-
 example : 1 + 2 = 3 := by
   createReflexivityGoal'
   simp; simp
+
+/-- Introduce a hypothesis already in the goal -/
+elab "introductor" : tactic => do
+  let goal ← getGoalVar
+  let (_, new_goal) ← goal.intro `h
+  setGoals [new_goal]
+
+elab "introductor'" : tactic => do
+  liftMetaTactic fun goal => do
+    let (_, new_goal) ← goal.intro `wow
+    return [new_goal]
+
+example (P Q : Prop) : P → Q → P := by
+  introductor
+  introductor
+  assumption
+
+/-- Create a new hypothesis -/
+def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
+  let hypName := `h
+  let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
+  let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
+  setGoals [new_goal]
+
+elab "createNatHypothesis" : tactic => do
+  let hypType := Expr.const ``Nat []
+  let hypProof :=  (toExpr 0)
+  createHypothesis hypType hypProof
+
+example : 1 + 2 = 3 := by
+  createNatHypothesis
+  simp
