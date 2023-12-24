@@ -1,8 +1,12 @@
 import MotivatedMoves.LibrarySearch.DiscrTree
-
+import Mathlib
+import MotivatedMoves.LibrarySearch.Untitled
+import MotivatedMoves.LibrarySearch.Untitled2
+open Lean Meta
+section RefinedDiscrTree
 namespace Tree
 
-open RefinedDiscrTree Lean Meta
+open RefinedDiscrTree
 
 inductive LibraryLemmaKind where
 | apply
@@ -49,16 +53,15 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
     let mvar ← mkFreshExprMVar domain
     let result ← processTree name (body.instantiate1 mvar)
 
-    if bi.isInstImplicit
-    then
+    if bi.isInstImplicit then
       return addBinderKind [1] 1 result
     else
-      let u ← getLevel domain
-      if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
-      then
-        let result := addBinderKind [1] 1 result
-        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain) }
-      else
+      -- let u ← getLevel domain
+      -- if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
+      -- then
+      --   let result := addBinderKind [1] 1 result
+      --   return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain) }
+      -- else
         return addBinderKind [1] 1 result
 
   | regular_exists_pattern n _u d body _ =>
@@ -75,13 +78,13 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
     | .app (.app (.const ``Iff _) lhs) rhs =>
       result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [0,1], ← mkDTExprs lhs)
                                                      |>.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [1]  , ← mkDTExprs rhs) }
-    | .app (.app _ lhs) rhs =>
-      if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
-        result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExprs rhs)
-                                rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExprs lhs) }
+    -- | .app (.app _ lhs) rhs =>
+    --   if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
+    --     result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExprs rhs)
+    --                             rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExprs lhs) }
     | _ => pure ()
 
-    result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExprs e) }
+    -- result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExprs e) }
     return result
 
 where
@@ -117,13 +120,14 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
     return ds
 
   let ⟨a, b, c, d, e⟩ ← processTree name cinfo.type
-  let ⟨a',b',c',d',e'⟩ := ds
-  let f := Array.foldl (fun ds (diffs, treePos, pos, es) => es.foldl (init := ds) (fun ds e =>
-    if isSpecific e
-    then
-      ds.insertDTExpr e { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)}
-    else ds))
-  return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
+  -- let ⟨a',b',c',d',e'⟩ := ds
+  -- let f := Array.foldl (fun ds (diffs, treePos, pos, es) => es.foldl (init := ds) (fun ds e =>
+  --   if isSpecific e
+  --   then
+  --     ds.insertDTExpr e { name, treePos, pos, diffs := diffs.mapKey (SubExpr.Pos.ofArray ·.toArray)}
+  --   else ds))
+  -- return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
+  return {}
 
 open Mathlib.Tactic
 
@@ -170,29 +174,127 @@ def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 
 -- open Lean Meta
 
--- def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
---   let numHeartbeats ← IO.getNumHeartbeats
---   _ ← x
---   return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
+def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
+  let numHeartbeats ← IO.getNumHeartbeats
+  _ ← x
+  return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
+elab "hiii" : tactic => do
+  -- let x ← mkFreshExprMVar none
+  -- let y := (.lam `_  (.const `Nat []) (.app x $ x) .default)
+  -- logInfo m! "{← mkDTExprs y}, {makeInsertionPath.starEtaExpanded y 0}"
+  let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
+    fun name constInfo (tree₁, tree₂) => do
+      return (tree₁, ← processLemma name constInfo tree₂)
+
+  let x ← (countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a)
+  logInfo m! "{x}"
+
+
+set_option maxHeartbeats 1000000
+set_option profiler true
+
+example : True := by
+  hiii
+  trivial
+
+end Tree
+end RefinedDiscrTree
+
+
+
+-- namespace Lean.Meta.MyDiscrTree
+-- open Mathlib Tactic
+
+-- variable {m : Type → Type} [Monad m]
+
+-- /-- Apply a monadic function to the array of values at each node in a `MyDiscrTree`. -/
+-- partial def Trie.mapArraysM (t : MyDiscrTree.Trie α) (f : Array α → m (Array β)) :
+--     m (MyDiscrTree.Trie β) :=
+--   match t with
+--   | .node vs children =>
+--     return .node (← f vs) (← children.mapM fun (k, t') => do pure (k, ← t'.mapArraysM f))
+
+-- /-- Apply a monadic function to the array of values at each node in a `MyDiscrTree`. -/
+-- def mapArraysM (d : MyDiscrTree α) (f : Array α → m (Array β)) : m (MyDiscrTree β) := do
+--   pure { root := ← d.root.mapM (fun t => t.mapArraysM f) }
+
+-- /-- Apply a function to the array of values at each node in a `MyDiscrTree`. -/
+-- def mapArrays (d : MyDiscrTree α) (f : Array α → Array β) : MyDiscrTree β :=
+--   Id.run <| d.mapArraysM fun A => pure (f A)
+
+-- def insertIfSpecific [BEq α] (d : MyDiscrTree α)
+--     (keys : Array MyDiscrTree.Key) (v : α) (config : WhnfCoreConfig) : MyDiscrTree α :=
+--   if keys == #[MyDiscrTree.Key.star] || keys == #[MyDiscrTree.Key.const `Eq 3, Key.star, Key.star, Key.star] then
+--     d
+--   else
+--     d.insertCore keys v config
+
+-- def DiscrTreeCache.mk [BEq α] (profilingName : String)
+--     (processDecl : Name → ConstantInfo → MetaM (Array (Array MyDiscrTree.Key × α))) :
+--     MetaM (MyDiscrTree α) := do
+--   let updateTree : Name → ConstantInfo → MyDiscrTree α → MetaM (MyDiscrTree α) := fun name constInfo tree => do
+--     return (← processDecl name constInfo).foldl (init := tree) fun t (k, v) =>
+--       insertIfSpecific t k v {}
+--   let addLibraryDecl := fun name constInfo tree =>
+--     updateTree name constInfo tree
+--   (← getEnv).constants.map₁.foldM (init := {}) fun a n c =>
+--         addLibraryDecl n c a
+
+-- /-- Weight to multiply the "specificity" of a rewrite lemma by when rewriting forwards. -/
+-- def forwardWeight := 2
+-- /-- Weight to multiply the "specificity" of a rewrite lemma by when rewriting backwards. -/
+-- def backwardWeight := 1
+
+-- /-- Configuration for `DiscrTree`. -/
+-- def discrTreeConfig : WhnfCoreConfig := {}
+
+-- /-- Prepare the discrimination tree entries for a lemma. -/
+-- def processLemma (name : Name) (constInfo : ConstantInfo) :
+--     MetaM (Array (Array MyDiscrTree.Key × (Name × Bool × Nat))) := do
+--   if constInfo.isUnsafe then return #[]
+--   if ← name.isBlackListed then return #[]
+--   -- We now remove some injectivity lemmas which are not useful to rewrite by.
+--   if name matches .str _ "injEq" then return #[]
+--   if name matches .str _ "sizeOf_spec" then return #[]
+--   match name with
+--   | .str _ n => if n.endsWith "_inj" ∨ n.endsWith "_inj'" then return #[]
+--   | _ => pure ()
+--   withNewMCtxDepth do withReducible do
+--     let (_, _, type) ← forallMetaTelescopeReducing constInfo.type
+--     match type.getAppFnArgs with
+--     | (``Eq, #[_, lhs, rhs])
+--     | (``Iff, #[lhs, rhs]) => do
+--       let lhsKey ← MyDiscrTree.mkPath lhs {}
+--       let rhsKey ← MyDiscrTree.mkPath rhs {}
+--       return #[(lhsKey, (name, false, forwardWeight * lhsKey.size)),
+--         (rhsKey, (name, true, backwardWeight * rhsKey.size))]
+--     | _ => return #[]
+
+-- /-- Construct the discrimination tree of all lemmas. -/
+-- def buildDiscrTree : MetaM (MyDiscrTree (Name × Bool × Nat)) := do
+--   DiscrTreeCache.mk "rw?: init cache" processLemma
+--     -- Sort so lemmas with longest names come first.
+--     -- This is counter-intuitive, but the way that `DiscrTree.getMatch` returns results
+--     -- means that the results come in "batches", with more specific matches *later*.
+--     -- Thus we're going to call reverse on the result of `DiscrTree.getMatch`,
+--     -- so if we want to try lemmas with shorter names first,
+--     -- we need to put them into the `DiscrTree` backwards.
+
+
+-- #check isExprDefEqAuxImpl
+
+-- #check Fin2
+-- def f := show MetaM _ from do
+--   let x ← Tree.countingHeartbeats (do
+--     let y ← buildDiscrTree
+--     return (y).root.size == 0)
+--   return x
+
 -- set_option profiler true
--- elab "hiii" : tactic => do
---   -- let x ← mkFreshExprMVar none
---   -- let y := (.lam `_  (.const `Nat []) (.app x $ x) .default)
---   -- logInfo m! "{← mkDTExprs y}, {makeInsertionPath.starEtaExpanded y 0}"
---   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
---     fun name constInfo (tree₁, tree₂) => do
---       return (tree₁, ← processLemma name constInfo tree₂)
+-- set_option maxHeartbeats 1000000
 
---   let x ← (countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a)
---   logInfo m! "{x}"
--- set_option maxHeartbeats 1000000 in
--- example : True := by
---   hiii
---   trivial
-
--- set_option pp.explicit true
--- set_option pp.explicit false
+-- #eval f
 
 
--- #check MeasureTheory.withDensitySMulLI_apply
--- #check CategoryTheory.HomOrthogonal.matrixDecompositionLinearEquiv_symm_apply
+-- #check inferTypeImp
+#check MLList2.uncons?

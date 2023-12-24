@@ -7,6 +7,7 @@ import MotivatedMoves.ProofState.Tree
 import MotivatedMoves.LibrarySearch.StateList
 import Std.Data.List.Basic
 import Lean.Meta
+import MotivatedMoves.LibrarySearch.Untitled2
 
 /-!
 We define discrimination trees for the purpose of unifying local expressions with library results.
@@ -434,7 +435,7 @@ private structure Context where
   fvarInContext : FVarId → Bool
 
 /-- Map `f` over `args` with a boolean flag for whether the argument should be ingored . -/
-private def mapArgsIgnore [Monad m] [MonadError m] [MonadControlT MetaM m] [MonadLiftT MetaM m]
+private def mapArgsIgnore [Monad m] [MonadLiftT MetaM m]
     (fn : Expr) (args : Array Expr) (f : Expr → Bool → m α) : m (Array α) := do
   let mut fnType ← inferType fn
   let mut result := Array.mkEmpty args.size
@@ -444,7 +445,7 @@ private def mapArgsIgnore [Monad m] [MonadError m] [MonadControlT MetaM m] [Mona
     if !(fnType matches .forallE ..) then
       fnType ← whnfD (fnType.instantiateRevRange j i args)
       j := i
-    let (.forallE _ d b binderInfo) := fnType | throwError m! "expected function type {indentExpr fnType}"
+    let (.forallE _ d b binderInfo) := fnType | panic s! "expected function type {fnType}"
     let ignore ← (do
       if d.isOutParam then
         return true
@@ -510,7 +511,7 @@ where
       withReader (fun c => { c with bvars := fvar.fvarId! :: c.bvars }) do
         mkDTExprAux false (e.instantiate1 fvar)
 
-private abbrev M := ReaderT Context $ StateListT (AssocList Expr DTExpr) MetaM
+private abbrev M := ReaderT Context $ StateT (AssocList Expr DTExpr) $ MLList2 MetaM
 
 /-
 Caching values is a bit dangerous, because when two expressions are be equal and they live under
@@ -527,14 +528,34 @@ instance : MonadCache Expr DTExpr M where
     else
       modify (·.insert e e')
 
+def g := MLList2.mapNatTrans (m := CoreM) (α := Unit) id
+
+private def withNewFVar (n : Name) (fvar fvarType : Expr) (k : Expr → MLList2 (CoreM) α) : MLList2 (CoreM) α := do
+  MLList2.mapNatTrans id (k fvar)
+
+private def withLocalDeclImp (n : Name) (bi : BinderInfo) (type : Expr) (k : Expr → MLList2 MetaM α) (kind : LocalDeclKind) : MLList2 MetaM α := do
+  let fvarId ← mkFreshFVarId
+  let ctx ← read
+  let lctx := ctx.lctx.mkLocalDecl fvarId n type bi kind
+  let fvar := mkFVar fvarId
+  MLList2.mapNatTrans (withReader (fun ctx => { ctx with lctx := lctx })) $ do withNewFVar n fvar type k
+
+/-- Create a free variable `x` with name, binderInfo and type, add it to the context and run in `k`.
+Then revert the context. -/
+def withLocalDecl (name : Name) (bi : BinderInfo) (type : Expr) (k : Expr → M α) (kind : LocalDeclKind := .default) : M α :=
+  controlAt (MLList2 MetaM) fun runInBase => (withLocalDeclImp name bi type (fun b => runInBase <| k b ) kind)
+
+def withLocalDeclD (name : Name) (type : Expr) (k : Expr → M α) : M α :=
+  withLocalDecl name BinderInfo.default type k
+
 /-- If `e` is of the form `(fun x₁ ... xₙ => b y₁ ... yₙ)`,
 then introduce variables for `x₁`, ..., `xₙ`, instantiate these in `b`, and run `k` on `b`. -/
 partial def introEtaBVars [Inhabited α] (e b : Expr) (k : Expr → M α) : M α :=
   match e with
-  | .lam n d e' _ =>
-    withLocalDeclD n d fun fvar =>
-      withReader (fun c => { c with unbvars := fvar.fvarId! :: c.unbvars }) $
-        introEtaBVars e' (b.instantiate1 fvar) k
+  | .lam n d e' _ => failure
+    -- withLocalDeclD n d fun fvar =>
+    --   withReader (fun c => { c with unbvars := fvar.fvarId! :: c.unbvars }) $
+    --     introEtaBVars e' (b.instantiate1 fvar) k
   | _ => k b
 
 /-- Return all encodings of `e` as a `DTExpr`, taking possible η-reductions into account.
@@ -608,7 +629,7 @@ def mkDTExpr (e : Expr) (config : WhnfCoreConfig := {})
 Return all encodings of `e` as a `DTExpr`, taking possible η-reductions into account. -/
 def mkDTExprs (e : Expr) (config : WhnfCoreConfig := {})
     (fvarInContext : FVarId → Bool := fun _ => false) : MetaM (List DTExpr) :=
-  withReducible do (MkDTExpr.mkDTExprsAux true e |>.run {config, fvarInContext}).run' {}
+  withReducible do (MkDTExpr.mkDTExprsAux true e |>.run {config, fvarInContext}).run' {} |>.force
 
 
 -- ## Inserting intro a RefinedDiscrTree
