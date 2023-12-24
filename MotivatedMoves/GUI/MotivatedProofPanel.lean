@@ -1,10 +1,6 @@
 import Lean.Server.Rpc.Basic
 import ProofWidgets.Data.Html
-import ProofWidgets.Component.HtmlDisplay
-import ProofWidgets.Component.Panel.Basic
-import ProofWidgets.Component.OfRpcMethod
 import Std.Lean.Position
-import Mathlib
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
 import MotivatedMoves.ProofState.Tree
@@ -95,12 +91,15 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     else
       let selectedLoc ← props.selectedLocations[0]?
       props.goals.find? (·.mvarId == selectedLoc.mvarId)
-  let some goal := goal? | return Task.pure <| .ok <| .element "span" #[] #[.text "No goals found"]
-  goal.ctx.val.runMetaM {} do
-    let infoviewActions := infoviewActionExt.getState (← getEnv)
-    let motivatedProofMoves ← infoviewActions.filterMapM 
-      fun (_, action) ↦ (action props').run
-    return Task.pure <| .ok <| .element "div" #[("id", "Grid")] motivatedProofMoves
+  let some goal := goal? | return .pure <| .element "span" #[] #[.text "No goals found"]
+  goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+    let md ← goal.mvarId.getDecl
+    let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
+    Meta.withLCtx lctx md.localInstances do
+      let infoviewActions := infoviewActionExt.getState (← getEnv)
+      let motivatedProofMoves ← infoviewActions.filterMapM 
+        fun (_, action) ↦ (action props').run
+      return .pure <| .element "div" #[("id", "Grid")] motivatedProofMoves
 
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
   mk_rpc_widget% MotivatedProofPanel.rpc
