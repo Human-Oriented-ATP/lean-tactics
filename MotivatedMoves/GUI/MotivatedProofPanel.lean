@@ -84,7 +84,6 @@ initialize registerBuiltinAttribute {
 
 @[server_rpc_method]
 def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
-  let props' := { props with range := ⟨props.range.end, props.range.end⟩ }
   let goal? : Option Widget.InteractiveGoal := do
     if props.selectedLocations.isEmpty then
       props.goals[0]?
@@ -98,7 +97,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     Meta.withLCtx lctx md.localInstances do
       let infoviewActions := infoviewActionExt.getState (← getEnv)
       let motivatedProofMoves ← infoviewActions.filterMapM 
-        fun (_, action) ↦ (action props').run
+        fun (_, action) ↦ (action props).run
       return .pure <| .element "div" #[("id", "Grid")] motivatedProofMoves
 
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
@@ -124,36 +123,26 @@ open scoped Json
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
--- def evalTacticSeqInterspersedWith (τ : TSyntax `tactic) : TSyntax ``Parser.Tactic.tacticSeq → TacticM Unit
---   | `(Parser.Tactic.tacticSeq| $[$tacs]*)
---   | `(Parser.Tactic.tacticSeq| { $[$tacs]* }) => do
---     evalTactic τ
---     for tac in tacs do
---       evalTactic τ
---       evalTactic tac
---       evalTactic τ
---   |           _             => pure ()
-
 @[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
-| stx@`(tactic| motivated_proof%$motivated_proof $seq) => do
-    let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
-    let defaultIndent := stxStart.character + 2
-    let indent : Nat :=
-      match seq with
-      | `(Parser.Tactic.tacticSeq| $[$tacs]*) =>
-        if tacs.size = 0 then
-          defaultIndent
-        else match stx.getHeadInfo with
-          | .original _ _ trailing _ =>
-            trailing.toString |>.dropWhile (· = '\n') |>.length
-          |  _  => panic! s!"Could not extract indentation from {stx}."
-      |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
-    let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
-    let range : Lsp.Range := ⟨stxEnd, pos⟩
-    savePanelWidgetInfo stx ``MotivatedProofPanel do
-      return json% { range : $(range) }
-    Tree.workOnTreeDefEq pure -- this turns the goal into a tree initially
-    evalTacticSeq seq
+| stx@`(tactic| motivated_proof $seq) => do
+  let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
+  let defaultIndent := stxStart.character + 2
+  let indent : Nat :=
+    match seq with
+    | `(Parser.Tactic.tacticSeq| $[$tacs]*) =>
+      if tacs.size = 0 then
+        defaultIndent
+      else match stx.getHeadInfo with
+        | .original _ _ trailing _ =>
+          trailing.toString |>.dropWhile (· = '\n') |>.length
+        |  _  => panic! s!"Could not extract indentation from {stx}."
+    |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
+  let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
+  let range : Lsp.Range := ⟨stxEnd, pos⟩
+  savePanelWidgetInfo stx ``MotivatedProofPanel do
+    return json% { range : $(range) }
+  Tree.workOnTreeDefEq pure -- this turns the goal into a tree initially
+  evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
 
 @[command_code_action Parser.Term.byTactic]
