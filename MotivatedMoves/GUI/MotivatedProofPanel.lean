@@ -14,8 +14,8 @@ This file contains code for
 - The `motivated_proof_move` attribute for
   tagging and registering new motivated proof moves
 - The `motivated_proof` tactic which
-  displays the motivated proof panel alongside the
-  problem state.
+  displays the panel of motivated proof moves 
+  alongside the problem state.
 
 -/
 
@@ -53,16 +53,29 @@ a piece of HTML and what to display in it.
 
 -/
 
+/-- The parameters taken by an `InfoviewAction`. -/
 structure InfoviewActionProps extends PanelWidgetProps where
+  /-- The range of the syntax to be replaced.
+      This is used to determine the position of the new tactic insertions in the document.
+
+      By convention, the range is from the end of the current tactic block
+      to the expected start position of the new tactic (this is used to compute the whitespace correctly). -/
   range : Lsp.Range
 deriving RpcEncodable
 
+/-- An `InfoviewAction` is a procedure to optionally compute a piece of HTML
+    based on the pattern of selections in the tactic state (which is roughly the infomation in `InfoActionProps`).
+    
+    This is used in the motivated proof panel to display a suggestion (usually in the form of an HTML button)
+    based on the selections made. -/
 abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
 
+/-- Evaluate a name to an `InfoviewAction` defined in the environment. -/
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   let { env, opts, .. } ← read
   IO.ofExcept <| unsafe env.evalConstCheck InfoviewAction opts ``InfoviewAction n
 
+/-- A global register of `InfoviewAction`s. -/
 initialize infoviewActionExt : 
     PersistentEnvExtension Name (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
   registerPersistentEnvExtension {
@@ -72,6 +85,7 @@ initialize infoviewActionExt :
     exportEntriesFn := .map Prod.fst
   }
 
+/-- An attribute for defining motivated proof moves out of `InfoviewAction`s. -/
 initialize registerBuiltinAttribute {
   name := `motivated_proof_move
   descr := "Declare a new motivated proof move to appear in the point-and-click tactic panel."
@@ -82,6 +96,7 @@ initialize registerBuiltinAttribute {
     modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
 }
 
+/-- Shortlist the applicable motivated proof moves and display them in a grid. -/
 @[server_rpc_method]
 def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
   let goal? : Option Widget.InteractiveGoal := do
@@ -100,6 +115,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
         fun (_, action) ↦ (action props).run
       return .pure <| .element "div" #[("id", "Grid")] motivatedProofMoves
 
+/-- The React component for the motivated proof panel. -/
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
   mk_rpc_widget% MotivatedProofPanel.rpc
 
@@ -121,13 +137,18 @@ panel of motivated proof moves alongside the goal state in the infoview.
 open Elab Tactic
 open scoped Json
 
+/-- The syntax for the `motivated_proof` mode. 
+    Typing this brings up the panel of motivated proof moves. -/
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
+/-- The implementation of the `motivated_proof` tactic.
+    This invokes the `MotivatedProofPanel` widget with the appropriate position data.
+    The tactic state is converted into the tree representation in the process. -/
 @[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
 | stx@`(tactic| motivated_proof $seq) => do
   let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
   let defaultIndent := stxStart.character + 2
-  let indent : Nat :=
+  let indent : Nat := -- compute the appropriate indentation for the next tactic
     match seq with
     | `(Parser.Tactic.tacticSeq| $[$tacs]*) =>
       if tacs.size = 0 then
@@ -145,13 +166,14 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
   evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
 
+/-- A code action that offers to start a motivated proof within a tactic proof. -/
 @[tactic_code_action *]
 def startMotivatedProof : Std.CodeAction.TacticCodeAction :=
   fun _ _ _ stk node ↦ do
     let .node (.ofTacticInfo _) _ := node | return #[]
     let _ :: (seq, _) :: _ := stk | return #[]
     if seq.findStack? (·.isOfKind ``motivatedProofMode) (accept := fun _ ↦ true) |>.isSome then
-      return #[]
+      return #[] -- the cursor is already within a `motivated_proof` block in this situation
     let doc ← RequestM.readDoc
     let eager : Lsp.CodeAction := {
       title := "Start a motivated proof."
