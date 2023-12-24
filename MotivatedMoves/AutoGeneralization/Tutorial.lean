@@ -596,3 +596,19 @@ elab "createReflHypothesis" : tactic => do
 example : 1 + 2 = 3 := by
   createReflHypothesis
   simp
+
+/-- Generalizing a term in a theorem  -/
+def generalizeTerm (e : Expr) (x : Name) (h : Name) : TacticM Unit := do
+  let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
+  let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
+  setGoals [new_goal]
+
+elab "generalize2" : tactic => do
+  let e := (toExpr 2)
+  let x := `x
+  let h := `h
+  generalizeTerm e x h -- like the lean command "generalize h : e = x"
+
+example : 2^4 % 5 = 1 := by
+  generalize2
+  rw [← h]; simp
