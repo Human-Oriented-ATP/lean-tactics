@@ -534,7 +534,8 @@ theorem flt_example : 2^4 % 5 = 1 := by simp
 #eval do { let e ← getTheoremStatement `multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
 
 def isAtomicNat (e : Expr) : MetaM Bool := do
-  if not (← isNat e) then return false else
+  if not (← isNat e) then return false
+  else
     let rec getFirstNonAppTerm (e : Expr) : MetaM Expr := match e with
     | Expr.app f a => return (← getFirstNonAppTerm f)
     | _ => return e
@@ -681,3 +682,4 @@ elab "generalizeAllNats" : tactic => do
 
 example : 2^4 % 5 = 1 := by
   generalizeAllNats
+  rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
