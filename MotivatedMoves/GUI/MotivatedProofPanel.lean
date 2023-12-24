@@ -15,7 +15,6 @@ import MotivatedMoves.GUI.DynamicEditButton
 # The motivated proof panel
 
 This file contains code for
-- Buttons for inserting text into the editor
 - The `motivated_proof_move` attribute for
   tagging and registering new motivated proof moves
 - The `motivated_proof` tactic which
