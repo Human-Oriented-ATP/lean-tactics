@@ -156,12 +156,51 @@ def getHypotheses : MetaM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
+/--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
+def getAllHypotheses : TacticM (List LocalDecl) := do
+  let mut hypotheses : List LocalDecl := []
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
+    if ldecl.isImplementationDetail then continue
+    hypotheses := ldecl :: hypotheses
+  return hypotheses
+
 /--  Tactic to return hypotheses expressions (the types)-/
 def getHypothesesTypes : MetaM (List Expr) := do
   let mut hypotheses_types : List Expr := []
   for hypothesis in ← getHypotheses do
     hypotheses_types := hypothesis.type :: hypotheses_types
   return hypotheses_types
+
+def getAllHypothesesTypes : TacticM (List Expr) := do
+  let mut hypotheses_types : List Expr := []
+  for hypothesis in ← getAllHypotheses do
+    hypotheses_types := hypothesis.type :: hypotheses_types
+  return hypotheses_types
+
+/--  Tactic to return hypotheses names-/
+def getHypothesesNames : MetaM (List Name) := do
+  let mut hypotheses_names : List Name := []
+  for hypothesis in ← getHypotheses do
+    hypotheses_names := hypothesis.userName :: hypotheses_names
+  return hypotheses_names
+elab "getHypothesesNames" : tactic => do
+  let names ← getHypothesesNames
+  logInfo ("Hyp names:" ++ toString names)
+
+def getAllHypothesesNames : TacticM (List Name) := do
+  let mut hypotheses_names : List Name := []
+  for hypothesis in ← getAllHypotheses do
+    hypotheses_names := hypothesis.userName :: hypotheses_names
+  return hypotheses_names
+elab "getAllHypothesesNames" : tactic => do
+  let names ← getAllHypothesesNames
+  logInfo ("Hyp names:" ++ toString names)
+
+
+example {P Q : Prop} (p : P) (q: Q): P := by
+  getHypothesesNames
+  assumption
 
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
@@ -510,7 +549,8 @@ def isAtomicNat (e : Expr) : MetaM Bool := do
         -- dbg_trace repr nonAppTerm; dbg_trace "==========";
         return false
 
-
+#eval toExpr 1
+#eval sumExpr 1 2
 #eval isAtomicNat (toExpr 1) -- true
 #eval isAtomicNat (sumExpr 1 2) -- false
 
@@ -597,18 +637,47 @@ example : 1 + 2 = 3 := by
   createReflHypothesis
   simp
 
+/-- Helper for incrementing idx when creating pretty names-/
+partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
+  let candidate := base.appendIndexAfter i
+  if (hypNames).contains candidate then
+    mkPrettyNameHelper hypNames base (i+1)
+  else
+    candidate
+
+/-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
+def mkPrettyName (baseName : Name) (idx : Nat) : TacticM Name := do
+  return mkPrettyNameHelper (← getAllHypothesesNames) baseName idx
+
 /-- Generalizing a term in a theorem  -/
-def generalizeTerm (e : Expr) (x : Name) (h : Name) : TacticM Unit := do
-  let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
-  let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
-  setGoals [new_goal]
+def generalizeTerm (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM Unit := do
+    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
+    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
+    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
+    let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
+    setGoals [new_goal]
 
 elab "generalize2" : tactic => do
   let e := (toExpr 2)
   let x := `x
   let h := `h
-  generalizeTerm e x h -- like the lean command "generalize h : e = x"
+  generalizeTerm e -- like the lean command "generalize h : e = x"
+
+elab "generalize4" : tactic => do
+  let e := (toExpr 4)
+  let x := `x
+  let h := `h
+  generalizeTerm e  -- like the lean command "generalize h : e = x"
 
 example : 2^4 % 5 = 1 := by
   generalize2
-  rw [← h]; simp
+  generalize4
+  rw [← h_0, ← h_1]; rfl
+
+/-- Generalizing all natural numbers in a theorem  -/
+elab "generalizeAllNats" : tactic => do
+  let nats ← getAtomicNatsIn (← getGoalType)
+  nats.forM generalizeTerm
+
+example : 2^4 % 5 = 1 := by
+  generalizeAllNats
