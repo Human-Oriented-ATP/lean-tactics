@@ -1,11 +1,10 @@
 import Lean
 import Mathlib.Tactic.Contrapose
-
 open Lean Elab Tactic Meta
 
-/-
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Helper functions that make Lean 4 Metaprogramming a bit more intuitive.
--/
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 /-- Return goal variable -/
 def getGoalVar : TacticM MVarId := do

@@ -270,7 +270,7 @@ def natExpr: Nat → Expr
 #check Nat.add
 
 def sumExpr: Nat → Nat → Expr
-| m, n =>  natExpr (m+n)
+| m, n =>  Expr.app (.app (.const `Nat.add []) (natExpr m)) (natExpr n)
 #eval sumExpr 1 2
 
 -- Check if you got the right answer by making sure the below line evaluates to "true"
@@ -491,9 +491,43 @@ def getNatsIn (e : Expr) : MetaM (List Expr) := do
   return natSubexprs
 
 theorem flt_example : 2^4 % 5 = 1 := by simp
-
 #eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
 #eval do { let e ← getTheoremStatement `multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+
+def isAtomicNat (e : Expr) : MetaM Bool := do
+  if not (← isNat e) then return false else
+    let rec getFirstNonAppTerm (e : Expr) : MetaM Expr := match e with
+    | Expr.app f a => return (← getFirstNonAppTerm f)
+    | _ => return e
+    let nonAppTerm ← getFirstNonAppTerm e
+    -- dbg_trace repr e
+    -- dbg_trace ">>>"
+    if nonAppTerm.isConstOf `OfNat.ofNat --nonAppTerm.isLit -
+      then
+        -- dbg_trace repr nonAppTerm; dbg_trace "==========";
+        return true
+      else
+        -- dbg_trace repr nonAppTerm; dbg_trace "==========";
+        return false
+
+
+#eval isAtomicNat (toExpr 1) -- true
+#eval isAtomicNat (sumExpr 1 2) -- false
+
+/- Get (in a list) all subexpressions that are just a single natural numbers -/
+def getIfAtomicNat (subexpr : Expr) : MetaM (Option Expr) := do
+  if (← isAtomicNat subexpr)
+    then return some subexpr
+    else return none
+
+/-- Returns single nats like 3 and 4, not 3^4 or 3*4 -/
+def getAtomicNatsIn (e : Expr) : MetaM (List Expr) := do
+  let subexprs ← getSubexpressionsIn e
+  let natSubexprs ← subexprs.filterMapM getIfAtomicNat
+  return natSubexprs
+
+#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getAtomicNatsIn e; natsInE.forM logPrettyExpression}
 
 /-- Create new goals -/
 def createGoal (goalType : Expr) : TacticM Unit := do
@@ -538,8 +572,9 @@ example (P Q : Prop) : P → Q → P := by
   assumption
 
 /-- Create a new hypothesis -/
-def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
-  let hypName := `h
+
+def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
   let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
   let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
   setGoals [new_goal]
@@ -547,7 +582,7 @@ def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
 elab "createNatHypothesis" : tactic => do
   let hypType := Expr.const ``Nat []
   let hypProof :=  (toExpr 0) -- use 0 as a term of type Nat
-  createHypothesis hypType hypProof
+  createHypothesis hypType hypProof `x
 
 example : 1 + 2 = 3 := by
   createNatHypothesis
