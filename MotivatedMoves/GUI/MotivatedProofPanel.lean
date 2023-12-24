@@ -96,6 +96,7 @@ initialize registerBuiltinAttribute {
     modifyEnv (infoviewActionExt.addEntry · (decl, ← mkInfoviewAction decl))
 }
 
+open scoped Jsx in
 /-- Shortlist the applicable motivated proof moves and display them in a grid. -/
 @[server_rpc_method]
 def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
@@ -113,7 +114,12 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
       let infoviewActions := infoviewActionExt.getState (← getEnv)
       let motivatedProofMoves ← infoviewActions.filterMapM 
         fun (_, action) ↦ (action props).run
-      return .pure <| .element "div" #[("id", "Grid")] motivatedProofMoves
+      return .pure <|
+        <details «open»={true}>
+          <summary className="mv2 pointer">Motivated proof moves</summary>
+          { .element "div" #[("class", "grid-container"), ("align", "center")] <|
+              motivatedProofMoves.map (<div «class»={"grid-item"}>{·}</div>) }
+        </details>
 
 /-- The React component for the motivated proof panel. -/
 @[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
