@@ -17,6 +17,16 @@ open ProofWidgets Lean Meta Server Widget
 
 open Jsx OptionT
 
+instance : Quote SubExpr.Pos `Tree.treePos where
+  quote pos :=
+  let posStx : TSyntaxArray `num := pos.toArray.map quote
+  let args : Array Syntax := ⟨List.intersperse (.atom .none ",") posStx.toList⟩
+  { raw := .node .none `Tree.treePos #[
+    .atom .none "[",
+    .node .none `null args,
+    .atom .none "]"
+  ] }
+
 @[motivated_proof_move]
 def tree_apply : InfoviewAction :=
   fun props => do
