@@ -10,6 +10,22 @@ import Mathlib.RingTheory.Coprime.Lemmas
 open Real
 
 /---------------------------------------------------------------------------
+A theorem that sqrt 2 is irrational
+---------------------------------------------------------------------------/
+
+theorem sqrt_2_irrational : Irrational (Real.sqrt 2) :=
+  sorry
+
+/---------------------------------------------------------------------------
+A theorem that sqrt of any prime p is irrational (from mathlib)
+---------------------------------------------------------------------------/
+
+theorem sqrt_p_irrational (hp : Nat.Prime p) : Irrational (Real.sqrt p) :=
+  @irrational_sqrt_of_multiplicity_odd p (Int.coe_nat_pos.2 hp.pos) p ⟨hp⟩ <| by
+    simp [multiplicity.multiplicity_self
+      (mt isUnit_iff_dvd_one.1 (mt Int.coe_nat_dvd.1 hp.not_dvd_one))]
+
+/---------------------------------------------------------------------------
 A theorem that uses associativity and commutativity of multiplication
 ---------------------------------------------------------------------------/
 theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
@@ -22,13 +38,19 @@ theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
 /---------------------------------------------------------------------------
 Using generalize to suppose the operation is not necessarily assoc/comm
 ---------------------------------------------------------------------------/
+
+def myToExpr : Tactic := fun stx =>
+  withMainContext do
+
+
 theorem multPermute' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) :=
 by
   intros n m p
-  generalize hm : @HMul.hMul Nat Nat Nat instHMul = f
-  -- clear hm -- removing that assumption from context, to fully generalize
-  rw [← hm]-- now this is false, so we need to revert it
+  generalize hf : @HMul.hMul Nat Nat Nat instHMul = f
+  -- clear hf -- removing that assumption from context, to fully generalize
+  rw [← hf]-- now this is false, so we need to revert it
   apply multPermute
+
 
 /---------------------------------------------------------------------------
 A generalization of the theorem to any binary operation that is assoc & comm
@@ -92,7 +114,7 @@ theorem flt_example' : 2^4 % 5 = 1 := by
 #check Nat.Prime.coprime_iff_not_dvd
 #check Nat.Coprime.isCoprime
 
-theorem flt_example'' : 2^4 % (5 : ℤ) = (1 : ℤ) % (5 : ℤ):= by
+theorem flt_example'' : 2^4 % 5 = 1 % (5 : ℤ):= by
   have hp2 : Nat.Prime 2 := by norm_num
   have hp5 : Nat.Prime 5 := by norm_num
   have ne25 : 2 ≠ 5 := by norm_num
@@ -102,6 +124,23 @@ theorem flt_example'' : 2^4 % (5 : ℤ) = (1 : ℤ) % (5 : ℤ):= by
   assumption
 #print flt_example''
 
+theorem flt_example''' : 2^4 % 5 = 1 % 5 := by
+  have hp2 : Nat.Prime 2 := by norm_num
+  have hp5 : Nat.Prime 5 := by norm_num
+  have ne25 : 2 ≠ 5 := by norm_num
+  have hcp := Iff.mpr (Nat.coprime_primes hp2 hp5) ne25
+  -- unfold Nat.Coprime at hcp
+  -- unfold Nat.gcd at hcp
+  assumption
+#print flt_example'''
 
-theorem flt_general (hp : Nat.Prime p) (hpn : IsCoprime a p) : a ^ (p - 1) % p = 1 := by
+-- The naive first step is to notice all we need is for 2 and 5 to be unequal primes)
+
+theorem flt_general (hneq : a ≠ p) (hp : Nat.Prime p) (ha : Nat.Prime a) : a ^ (p - 1) % p = 1 := by
+  have hcp := Iff.mpr (Nat.coprime_primes ha hp) hneq
+  have flt := Int.ModEq.pow_card_sub_one_eq_one hp (Nat.Coprime.isCoprime hcp)
+  assumption
+
+-- The next step is to notice we need even less -- we just need a and p to be coprime, and p prime.
+theorem flt_general' (hp : Nat.Prime p) (hpn : IsCoprime a p) : a ^ (p - 1) % p = 1 := by
   sorry
