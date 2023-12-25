@@ -21,7 +21,7 @@ This file contains code for
 
 namespace ProofWidgets
 
-open Lean Server Elab Command Lsp
+open Lean Server Elab Term Tactic Command Lsp
 
 section InfoviewAction
 
@@ -47,7 +47,7 @@ The panel is rendered by reading in the current `InfoviewActionProps`,
 applying it to all the `InfoviewAction`s registered in the environment
 and then rendering the resulting snippets of HTML together in a single `div` block.
 
-The HTML output of an `InfoviewAction` is computed in the `MetaM` monad,
+The HTML output of an `InfoviewAction` is computed in the `TacticM` monad,
 which makes it possible to encode sophisticated logic on when to display
 a piece of HTML and what to display in it.
 
@@ -68,7 +68,7 @@ deriving RpcEncodable
     
     This is used in the motivated proof panel to display a suggestion (usually in the form of an HTML button)
     based on the selections made. -/
-abbrev InfoviewAction := InfoviewActionProps → OptionT MetaM Html
+abbrev InfoviewAction := InfoviewActionProps → OptionT TacticM Html
 
 /-- Evaluate a name to an `InfoviewAction` defined in the environment. -/
 def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
@@ -113,7 +113,9 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     Meta.withLCtx lctx md.localInstances do
       let infoviewActions := infoviewActionExt.getState (← getEnv)
       let motivatedProofMoves ← infoviewActions.filterMapM 
-        fun (_, action) ↦ (action props).run
+        fun (_, action) ↦ TermElabM.run' do
+          Prod.fst <$> ( (action props).run { elaborator := .anonymous } 
+                          |>.run { goals := [goal.mvarId] } )
       return .pure <|
         <details «open»={true}>
           <summary className="mv2 pointer">Motivated proof moves</summary>
