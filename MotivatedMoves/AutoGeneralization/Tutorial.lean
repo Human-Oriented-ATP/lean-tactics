@@ -6,20 +6,20 @@ open Lean Elab Tactic Meta
 #eval Lean.versionString -- 4.3.0-rc1
 
 /-- Tactic that does nothing. -/
-elab "do_nothing" : tactic => do
+elab "doNothing" : tactic => do
   return
 
 example : True := by
-  do_nothing
+  doNothing
   trivial
 
 /-- Tactic that prints the goal -/
-elab "print_goal" : tactic => do
+elab "printGoal" : tactic => do
   let goal ← getMainGoal
   logInfo goal
 
 example : True := by
-  print_goal -- True
+  printGoal -- True
   trivial
 
 theorem reflExample : 0 = 0 := by
@@ -27,36 +27,36 @@ theorem reflExample : 0 = 0 := by
 #print reflExample
 
 example : 1+1=2 := by
-  print_goal -- 1+1=2
+  printGoal -- 1+1=2
   trivial
 
 /-- Tactic that still prints the goal-/
-elab "print_goal_type" : tactic => do
+elab "printGoalType" : tactic => do
   let goal ← getMainGoal
-  let goal_type ← goal.getType
-  logInfo goal_type
+  let goalType ← goal.getType
+  logInfo goalType
 
 example : True := by
-  print_goal_type -- True
+  printGoalType -- True
   trivial
 
 example : 1+1=2 := by
-  print_goal_type -- 1+1=2
+  printGoalType -- 1+1=2
   trivial
 
 /-- Tactic that prints the type of the type of the goal (e.g. Prop) --/
-elab "print_goal_type_type" : tactic => do
+elab "printGoalTypeType" : tactic => do
   let goal ← getMainGoal
-  let goal_type ← goal.getType
-  let goal_type_type ← inferType goal_type
-  logInfo goal_type_type
+  let goalType ← goal.getType
+  let goalTypeType ← inferType goalType
+  logInfo goalTypeType
 
 example : True := by
-  print_goal_type_type -- Prop
+  printGoalTypeType -- Prop
   trivial
 
 example : 1+1=2 := by
-  print_goal_type_type -- Prop
+  printGoalTypeType -- Prop
   trivial
 
 /-- Prove that taking the contrapositive is logically valid --/
@@ -80,16 +80,16 @@ example : P → True := by
   simp
 
 /-- A sorry elab -/
-elab "my_sorry" : tactic => do
+elab "mySorry" : tactic => do
   let goal ← getMainGoal
   admitGoal goal
 
 /-- A sorry macro -/
-macro "my_sorry" : tactic =>
+macro "mySorry" : tactic =>
   `(tactic| sorry)
 
 /--  Tactic that takes a hypothesis as an argument -/
-macro "contrapos_with" h:ident : tactic => `(tactic|
+macro "contraposWith" h:ident : tactic => `(tactic|
   (revert $h; contrapose)
 )
 
@@ -106,11 +106,11 @@ example {P Q : Prop} :  P → Q → True  := by
 
 example {P Q : Prop} :  P → Q → True  := by
   intro p q
-  contrapos_with p
+  contraposWith p
   simp
 
 /-- Tactic that takes two tactics as arguments -/
-macro "and_then" a:tactic b:tactic : tactic => `(tactic|
+macro "andThen" a:tactic b:tactic : tactic => `(tactic|
   ($a:tactic; all_goals $b:tactic))
 
 /-- Without and_then -/
@@ -120,34 +120,34 @@ example: 1=1 ∧ 2=2 := by
 
 /-- With and_then -/
 example: 1=1 ∧ 2=2 := by
-  and_then constructor rfl
+  andThen constructor rfl
 
 /--  More intuitive syntax for the above tactic  -/
-syntax tactic " and_then " tactic : tactic
+syntax tactic " andThen " tactic : tactic
 macro_rules
-| `(tactic| $a:tactic and_then $b:tactic) =>
-    `(tactic| and_then $a $b)
+| `(tactic| $a:tactic andThen $b:tactic) =>
+    `(tactic| andThen $a $b)
 
 example: 1 = 1 ∧ 2 = 2 := by
-  constructor and_then rfl
+  constructor andThen rfl
 
 /--  Tactic to print all non-implementation-detail hypotheses -/
-def print_hypotheses : MetaM Unit :=
+def printHypotheses : MetaM Unit :=
   for ldecl in ← getLCtx do
     if ldecl.isImplementationDetail then continue
-    let hyp_name := ldecl.userName
-    let hyp_type := ldecl.type
-    -- let hyp_expr := ldecl.toExpr
-    logInfo m!"Name: '{hyp_name}'  Type: '{hyp_type}'"
-    -- logInfo m!"Name: '{hyp_name}'  Type: '{hyp_type}'   Expr: '{hyp_expr}'"
+    let hypName := ldecl.userName
+    let hypType := ldecl.type
+    -- let hypExpr := ldecl.toExpr
+    logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
+    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
 
-elab "print_hypotheses" : tactic => do
-  print_hypotheses
+elab "printHypotheses" : tactic => do
+  printHypotheses
 
-theorem test_print_hyp {P Q : Prop} (p : P) (q: Q): P := by
-  print_hypotheses
+theorem testPrintHyp {P Q : Prop} (p : P) (q: Q): P := by
+  printHypotheses
   assumption
-
+```
 /--  Tactic to return hypotheses declarations-/
 def getHypotheses : MetaM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
@@ -223,10 +223,10 @@ def lookIntoEnvironment  : MetaM Unit := do
 
 /--  Tactic that closes goal with a matching hypothesis if available-/
 elab "assump" : tactic => do
-  let goal_decl ← getGoalDecl
-  for hyp_decl in ← getHypotheses do
-    if ← isDefEq hyp_decl.type goal_decl.type then
-      closeMainGoal hyp_decl.toExpr
+  let goalDecl ← getGoalDecl
+  for hypDecl in ← getHypotheses do
+    if ← isDefEq hypDecl.type goalDecl.type then
+      closeMainGoal hypDecl.toExpr
 
 example {P : Prop} (p : P): P := by
   assump -- works
@@ -237,12 +237,12 @@ example {P : Prop} : P := by
 
 /--  Tactic that closes goal with a matching hypothesis if available, throws error if not-/
 elab "assump'" : tactic => do
-  let goal_decl ← getGoalDecl
+  let goalDecl ← getGoalDecl
 
   -- check if any of the hypotheses matches the goal.
-  for hyp_decl in ← getHypotheses do
-    if ← isDefEq hyp_decl.type goal_decl.type then
-      closeMainGoal hyp_decl.toExpr
+  for hypDecl in ← getHypotheses do
+    if ← isDefEq hypDecl.type goalDecl.type then
+      closeMainGoal hypDecl.toExpr
       return
 
   -- if no hypothesis matched, this tactic fails.
@@ -257,25 +257,25 @@ example {P : Prop} : P := by
 
 /--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
 elab "assump''" : tactic => do
-  let goal_decl ← getGoalDecl
-  let hyp_decls ← getHypotheses
+  let goalDecl ← getGoalDecl
+  let hypDecls ← getHypotheses
 
   -- check if any of the hypotheses matches the goal.
-  let matching_hyp_decl ← hyp_decls.findM? (
-    -- when isDefEq returns true, we return the corresponding hyp_decl
+  let matchingHypDecl ← hypDecls.findM? (
+    -- when isDefEq returns true, we return the corresponding hypDecl
     -- if it never does, we return none
-    fun hyp_decl => return ← isDefEq hyp_decl.type goal_decl.type
+    fun hypDecl => return ← isDefEq hypDecl.type goalDecl.type
   )
 
    -- close the goal, or fail if no hypothesis matched
-  match matching_hyp_decl with
-  | some hyp_decl => closeMainGoal hyp_decl.toExpr
+  match matchingHypDecl with
+  | some hypDecl => closeMainGoal hypDecl.toExpr
   | none => throwError "No matching assumptions."
 
-theorem test_assump_success {P : Prop} (p : P): P := by
+theorem testAssumpSuccess {P : Prop} (p : P): P := by
   assump''
 
-theorem test_assump_fails {P Q : Prop} (p : P): Q := by
+theorem testAssumpFails {P Q : Prop} (p : P): Q := by
   assump''
   sorry
 
@@ -438,6 +438,10 @@ def logFormattedExpression (e : Expr) : MetaM Unit := do
 def logPrettyExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{←ppExpr e}"
 
+/-- What the expression looks like, but prettier  --/
+def logDelabExpression (e : Expr) : MetaM Unit := do
+  dbg_trace "{← Lean.PrettyPrinter.delab e}"
+
 /-- What type the expression compiles to  --/
 def logExpressionType (e : Expr) : MetaM Unit :=
   do
@@ -449,13 +453,14 @@ def logExpressionType (e : Expr) : MetaM Unit :=
 #eval logExpression zero        -- Lean.Expr.const `Nat.zero []
 #eval logFormattedExpression zero    -- Nat.zero
 #eval logPrettyExpression zero    -- Nat.zero
+#eval logDelabExpression zero    -- `Nat.zero
 #eval logExpressionType zero    -- Nat
 -- #eval logCompiledExpression zero -- 0
 
 /-- Getting theorems from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
-  return thm.type -- return the theorem statement
+  return thm.type -- return the theorem statement (the type is the proposition)
 
 #eval do {let e ← getTheoremStatement `multPermute; logExpression e}
 
@@ -468,7 +473,7 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
 /-- Getting theorem proof from context --/
 def getTheoremProof (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
-  return thm.value! -- return the theorem statement
+  return thm.value! -- return the theorem proof (the term is the proof)
 
 #eval do {let e ← getTheoremProof `reflOfZero; logExpression e}
 #eval do {let e ← getTheoremProof `reflOfZero; logFormattedExpression e}
