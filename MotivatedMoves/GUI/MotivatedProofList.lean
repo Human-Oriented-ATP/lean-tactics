@@ -6,14 +6,14 @@ import MotivatedMoves.Moves
 
 # Motivated proof list
 
-This file implements several motivated proof moves,
+This file implements the fron-facing UI for several motivated proof moves,
 most of which are based on the tree representation
-of the goal state developed in `TreeMoves`.
+of the goal state developed in `ProofState/` and `Moves/`.
 
 -/
 
 
-open ProofWidgets Lean Meta Server Widget
+open ProofWidgets Lean Meta Elab Tactic Server Widget
 
 open Jsx OptionT
 
@@ -37,8 +37,9 @@ def tree_apply : InfoviewAction :=
     let some pos2 := subexprPos[1]? | failure
     let ⟨_, .target subexprPos1⟩ := pos1 | failure
     let ⟨_, .target subexprPos2⟩ := pos2 | failure
-    let text := subexprPos1.toArray.toList.toString ++ " " ++
-                  subexprPos2.toArray.toList.toString
+    let tac ← `(tactic| tree_apply $(quote subexprPos1) $(quote subexprPos2))
+    let tac' ← `(tactic| tree_apply' $(quote subexprPos1) $(quote subexprPos2))
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
     pure <DynamicEditButton
             label={"Apply"}
             range?={props.range}
@@ -47,12 +48,12 @@ def tree_apply : InfoviewAction :=
               <DynamicEditButton
                     label = "Discard the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_apply " ++ text}
+                    insertion? = {tac.raw.reprint.get!}
                     color = {"secondary"} />
                     <DynamicEditButton
                     label = "Preserve the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_apply' " ++ text}
+                    insertion? = {tac'.raw.reprint.get!}
                     color = {"secondary"} />
                     </details>}
             vanish={true} />
@@ -68,8 +69,9 @@ def tree_rewrite : InfoviewAction :=
     let some pos2 := subexprPos[1]? | failure
     let ⟨_, .target subexprPos1⟩ := pos1 | failure
     let ⟨_, .target subexprPos2⟩ := pos2 | failure
-    let text := (subexprPos1.toArray.toList.toString ++ " " ++
-              subexprPos2.toArray.toList.toString)
+    let tac ← `(tactic| tree_rewrite $(quote subexprPos1) $(quote subexprPos2))
+    let tac' ← `(tactic| tree_rewrite' $(quote subexprPos1) $(quote subexprPos2))
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
     pure <DynamicEditButton
             label={"Rewrite"}
             range?={props.range}
@@ -78,12 +80,12 @@ def tree_rewrite : InfoviewAction :=
               <DynamicEditButton
                     label = "Discard the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_rewrite " ++ text}
+                    insertion? = {tac.raw.reprint.get!}
                     color = {"secondary"} />
                     <DynamicEditButton
                     label = "Preserve the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_rewrite' " ++ text}
+                    insertion? = {tac'.raw.reprint.get!}
                     color = {"secondary"} />
                     </details>}
             vanish={true} />
@@ -99,8 +101,9 @@ def tree_rewrite_ord : InfoviewAction :=
       let some pos2 := subexprPos[1]? | failure
       let ⟨_, .target subexprPos1⟩ := pos1 | failure
       let ⟨_, .target subexprPos2⟩ := pos2 | failure
-      let text := (subexprPos1.toArray.toList.toString ++ " " ++
-              subexprPos2.toArray.toList.toString)
+      let tac ← `(tactic| tree_rewrite_ord $(quote subexprPos1) $(quote subexprPos2))
+      let tac' ← `(tactic| tree_rewrite_ord' $(quote subexprPos1) $(quote subexprPos2))
+      let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
       pure <DynamicEditButton
             label={"Ordered rewrite"}
             range?={props.range}
@@ -109,12 +112,12 @@ def tree_rewrite_ord : InfoviewAction :=
               <DynamicEditButton
                     label = "Discard the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_rewrite_ord " ++ text}
+                    insertion? = {tac.raw.reprint.get!}
                     color = {"secondary"} />
                     <DynamicEditButton
                     label = "Preserve the hypothesis"
                     range? = {props.range}
-                    insertion? = {"tree_rewrite_ord' " ++ text}
+                    insertion? = {tac'.raw.reprint.get!}
                     color = {"secondary"} />
                     </details>}
             vanish={true} />
@@ -141,7 +144,7 @@ def tree_simp : InfoviewAction :=
 def tree_search : InfoviewAction := fun props => do
   if (props.selectedLocations.size == 0) then
       pure <DynamicEditButton
-              label={"Search for redundancy"}
+              label={"Search for redundant hypotheses and targets"}
               range?={props.range}
               insertion?={"tree_search"}
               html?={<p> Searching the tree... </p>}
@@ -155,17 +158,18 @@ def tree_induction : InfoviewAction :=
     if (panelProps.selectedLocations.size == 1) then
       let some pos := panelProps.selectedLocations[0]? | failure
       let ⟨_, .target subexprPos⟩ := pos | failure
-      let text := "tree_induction " ++ subexprPos.toArray.toList.toString
+      let tac ← `(tactic| tree_induction $(quote subexprPos))
+      let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
       pure
         <DynamicEditButton
           label={"Perform Induction"}
           range?={props.range}
-          insertion?={text}
+          insertion?={tac.raw.reprint.get!}
           html?={<p> Performing induction... </p>}
           vanish={true} />
     else failure
 
--- TODO: Move
+section LibraryPanelRendering
 
 open Widget
 
@@ -210,6 +214,8 @@ where
             color={"info"}
             size={"small"} />]
       #[("display", "flex"), ("justifyContent", "space-between")]
+
+end LibraryPanelRendering
 
 open Jsx in
 @[motivated_proof_move]
@@ -264,7 +270,6 @@ def libApply : InfoviewAction := fun props ↦ do
                     color = {"secondary"} />
                     </details>} />
 
---TODO check if selected expression starts with `¬`
 @[motivated_proof_move]
 def push_neg : InfoviewAction := fun props ↦ do
   unless (props.selectedLocations.size == 1) do failure
@@ -292,7 +297,7 @@ deriving RpcEncodable
 def name : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | failure
-    let ⟨_, .target pos⟩ := subexprPos | failure
+    let ⟨goal, .target pos⟩ := subexprPos | failure
     pure
       <DynamicEditButton
           label={"Give a name"}
@@ -305,7 +310,10 @@ def name : InfoviewAction := fun props ↦ do
 def unify : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | failure
-    let ⟨_, .target pos⟩ := subexprPos | failure
+    let ⟨goal, .target pos⟩ := subexprPos | failure
+    let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
+    unless (← Tree.withTreeSubexpr (← goal.getType) goalOuterPosition goalPos (fun _ x => pure x))
+      matches Expr.app (.const ``Eq _) _ do failure
     pure
       <DynamicEditButton
           label={"Unify"}
@@ -332,15 +340,16 @@ def unify_forall_exists : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | failure
     let ⟨_, .target pos⟩ := subexprPos | failure
+    let tac ← `(tactic| unify_forall_exists $(quote pos))
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
     pure
       <DynamicEditButton
           label={"Unify existential with preceding forall"}
           range?={props.range}
-          insertion?={"unify_forall_exists " ++ (pos.toArray.toList).toString}
+          insertion?={tac.raw.reprint.get!}
           vanish = {true} />
   else failure
 
--- TODO: add the option to use `tree_contrapose'` instead, which keeps the contraposed hypothesis in the context.
 @[motivated_proof_move]
 def contrapose_button : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 2) then
@@ -348,11 +357,26 @@ def contrapose_button : InfoviewAction := fun props ↦ do
     let ⟨_, .target pos1⟩ := subexprPos1 | failure
     let some subexprPos2 := props.selectedLocations[1]? | failure
     let ⟨_, .target pos2⟩ := subexprPos2 | failure
+    let tac ← `(tactic| tree_contrapose $(quote pos1) $(quote pos2))
+    let tac' ← `(tactic| tree_contrapose' $(quote pos1) $(quote pos2))
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac 
     pure
       <DynamicEditButton
           label={"Contrapose"}
           range?={props.range}
-          insertion?={s! "tree_contrapose {pos1.toArray.toList} {pos2.toArray.toList}"}
+          html?={<details «open»={true}>
+        <summary className="mv2 pointer">{.text "Contrapose options"}</summary>
+              <DynamicEditButton
+                    label = "Discard contraposed hypothesis"
+                    range? = {props.range}
+                    insertion?={tac.raw.reprint.get!}
+                    color = {"secondary"} />
+              <DynamicEditButton
+                    label = "Keep contraposed hypothesis"
+                    range? = {props.range}
+                    insertion?={tac'.raw.reprint.get!}
+                    color = {"secondary"} />
+                    </details>}
           vanish = {true} />
   else failure
 
@@ -362,10 +386,12 @@ def swap_hyps : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | failure
     let ⟨_, .target pos⟩ := subexprPos | failure
+    let tac ← `(tactic| lib_rewrite Imp.swap $(quote pos))
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac 
     pure
       <DynamicEditButton
           label={"Swap the hypotheses"}
           range?={props.range}
-          insertion?={"lib_rewrite Imp.swap " ++ (pos.toArray.toList).toString}
+          insertion?={tac.raw.reprint.get!}
           vanish = {true} />
   else failure
