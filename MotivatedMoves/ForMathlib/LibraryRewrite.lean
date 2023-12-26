@@ -36,7 +36,7 @@ def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : RefinedD
 
 section
 
-open Mathlib Tactic
+open Std Tactic
 
 @[reducible]
 def RewriteCache := DeclCache (RefinedDiscrTree RewriteLemma × RefinedDiscrTree RewriteLemma)
@@ -49,7 +49,7 @@ def RewriteCache.mk (profilingName : String)
         cache := ← Cache.mk <| pure ({}, libraryTree),
         addDecl := addDecl,
         addLibraryDecl := addLibraryDecl }
-    | none => DeclCache.mk profilingName
+    | none => DeclCache.mk profilingName (pre := failure)
                 ({}, {})
                 addDecl addLibraryDecl (post := post)
 where
@@ -133,8 +133,8 @@ end
 def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
   let (localLemmas, libraryLemmas) ← getRewriteLemmas
   viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars s ↦ do
-    let localResults ← localLemmas.getMatchWithScore s
-    let libraryResults ← libraryLemmas.getMatchWithScore s
+    let localResults ← localLemmas.getMatchWithScore s (unify := true) (config := {})
+    let libraryResults ← libraryLemmas.getMatchWithScore s (unify := true) (config := {})
     let allResults := localResults ++ libraryResults -- TODO: filtering
     return allResults.concatMap Prod.fst
 
@@ -164,5 +164,5 @@ def LibraryRewrite : Component InteractiveTacticProps :=
 
 elab stx:"lib_rw?" : tactic => do
   let range := (← getFileMap).rangeOfStx? stx
-  savePanelWidgetInfo stx ``LibraryRewrite do
+  Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }
