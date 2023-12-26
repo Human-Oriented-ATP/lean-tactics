@@ -36,12 +36,26 @@ theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
 #print multPermute -- the proof term
 
 /---------------------------------------------------------------------------
+A more general theorem that uses associativity and commutativity
+---------------------------------------------------------------------------/
+theorem multPermuteGen
+(f: ℕ → ℕ → ℕ)
+(f_assoc: ∀ n m p : ℕ, f n (f m p) = (f (f n m) p))
+(f_comm: ∀ n m : ℕ, f n m = f m n)
+(n m p : Nat) :
+f n (f m p) = f m (f n p) := by
+  rw [f_assoc]
+  rw [f_comm n m]
+  rw [f_assoc]
+#print multPermuteGen -- the proof term
+
+example : True := by
+  have multPermute := multPermute
+  have multPermuteGen := autogeneralize multPermute
+
+/---------------------------------------------------------------------------
 Using generalize to suppose the operation is not necessarily assoc/comm
 ---------------------------------------------------------------------------/
-
-def myToExpr : Tactic := fun stx =>
-  withMainContext do
-
 
 theorem multPermute' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) :=
 by

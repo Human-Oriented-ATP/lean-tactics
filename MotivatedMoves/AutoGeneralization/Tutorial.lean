@@ -202,6 +202,28 @@ example {P Q : Prop} (p : P) (q: Q): P := by
   getHypothesesNames
   assumption
 
+/--  Tactic get a hypothesis by its name -/
+def getHypothesisByName (h : Name) : TacticM LocalDecl := do
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
+    if ldecl.isImplementationDetail then continue
+    if ldecl.userName == h then
+      return ldecl
+  throwError "No hypothesis by that name."
+
+/-- Get the proposition for a given hypothesis (given its name) -/
+def getHypothesisType (h : Name) : TacticM Expr := do
+  let hyp ← getHypothesisByName h
+  return hyp.type
+
+/-- Get the proof of a given hypothesis (given its name) -/
+def getHypothesisProof (h : Name) : TacticM Expr := do
+  let hyp ← getHypothesisByName h
+  if hyp.hasValue
+    then return hyp.value
+    else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
+
+
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
   return ← getMainGoal
@@ -688,3 +710,11 @@ elab "generalizeAllNats" : tactic => do
 example : 2^4 % 5 = 1 := by
   generalizeAllNats
   rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
+
+elab "printHypothesisProof"  h:ident : tactic => do
+  let pf ← getHypothesisProof h.getId
+  logInfo pf
+
+example : True := by
+  let h : 1+1 = 2 := by rfl
+  printHypothesisProof h -- adds multPermuteGen to list of hypotheses
