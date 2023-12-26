@@ -225,6 +225,8 @@ structure _root_.RefinedDiscrTree (α : Type) where
   /-- The underlying `PersistentHashMap` of a `RefinedDiscrTree`. -/
   root : PersistentHashMap Key (Trie α) := {}
 
+deriving instance Nonempty for _root_.RefinedDiscrTree
+
 private partial def RefinedDiscrTree.format [ToFormat α] (d : RefinedDiscrTree α) : Format :=
   let (_, r) := d.root.foldl
     (fun (p : Bool × Format) k c =>
