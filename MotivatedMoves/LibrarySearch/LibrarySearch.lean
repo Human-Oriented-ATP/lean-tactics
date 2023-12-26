@@ -125,7 +125,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
     else ds))
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
-open Mathlib.Tactic
+open Std.Tactic
 
 @[reducible] def DiscrTreesCache : Type :=
   DeclCache (DiscrTrees × DiscrTrees)
@@ -143,7 +143,7 @@ def DiscrTreesCache.mk (profilingName : String)
   let post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays s, b.mapArrays s,c.mapArrays s, d.mapArrays s, e.mapArrays s⟩)
   match init with
   | some t => return ⟨← Cache.mk (pure ({}, t)), addDecl, addLibraryDecl⟩
-  | none => DeclCache.mk profilingName ({}, {}) addDecl addLibraryDecl (post := post)
+  | none => DeclCache.mk profilingName (pre := failure) ({}, {}) addDecl addLibraryDecl (post := post)
 
 
 def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search: init cache"

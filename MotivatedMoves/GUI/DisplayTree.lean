@@ -210,7 +210,7 @@ def treeDisplay : Tactic
   | stx@`(tactic| with_tree_display $tacs) => do
     let tgt ← getMainTarget
     let t ← Tree.toDisplayTree (← makeTree tgt)
-    savePanelWidgetInfo stx ``OrdinaryTreeDisplay do
+    Widget.savePanelWidgetInfo (hash OrdinaryTreeDisplay.javascript) (stx := stx) do
       return json% { tree : $(← rpcEncode t) }
     evalTacticSeq tacs
   | _ => throwUnsupportedSyntax

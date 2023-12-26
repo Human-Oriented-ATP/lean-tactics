@@ -168,7 +168,7 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
     |       _      => panic! s!"Could not extract tactic sequence from {seq}." 
   let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
   let range : Lsp.Range := ⟨stxEnd, pos⟩
-  savePanelWidgetInfo stx ``MotivatedProofPanel do
+  Widget.savePanelWidgetInfo (hash MotivatedProofPanel.javascript) (stx := stx) do
     return json% { range : $(range) }
   Tree.workOnTreeDefEq pure -- this turns the goal into a tree initially
   evalTacticSeq seq

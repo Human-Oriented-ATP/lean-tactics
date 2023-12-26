@@ -108,7 +108,7 @@ def rewriteAt : Tactic
       -- | `(rwRule| <- $arg:term) => (true, arg)
       |       _            => panic! s!"Failed to process {rule}."
   let argAbst ← abstractMVars <| ← elabTerm arg none
-  savePanelWidgetInfo stx ``Rewrite do
+  Widget.savePanelWidgetInfo (hash Rewrite.javascript) (stx := stx) do
     return json% {
       replaceRange : $(range),
       symm : $(symm),
