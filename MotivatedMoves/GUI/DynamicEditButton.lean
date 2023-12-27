@@ -88,6 +88,7 @@ structure DynamicEditButtonProps extends DynamicButtonStylingProps where
   range? : Option Lsp.Range := none
   insertion? : Option String := none
   html? : Option Html := none
+  onWhitespace : Bool := true
   vanish : Bool := false
 deriving RpcEncodable
 
@@ -99,7 +100,10 @@ def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTa
     let editParams? : Option EditParams := do
       let range ← props.range?
       let insertion ← props.insertion?
-      return .ofReplaceWhitespace doc.meta range insertion
+      if props.onWhitespace then
+        return .ofReplaceWhitespace doc.meta range insertion
+      else
+        return .ofReplaceRange doc.meta range insertion
     return .ofComponent DynamicButton (children := #[])
       { label := props.label
         edit? := editParams?
