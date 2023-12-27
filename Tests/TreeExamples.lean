@@ -1,4 +1,5 @@
 import MotivatedMoves.GUI.MotivatedProofList
+import Mathlib
 
 lemma simple_inverse : ∃ f : ℤ → ℤ, ∀ n, f (n+1) = n := by
 motivated_proof
@@ -123,6 +124,7 @@ example : {f g : ℝ → ℂ} → {x : ℝ} → {a b : ℂ} → (hf : HasDerivAt
     HasDerivAt (fun x => f x + g x) (a + b) x := by
   motivated_proof
   try_lib_apply [1,1,1,1,1,1,1]
+  sorry
 
 
 
