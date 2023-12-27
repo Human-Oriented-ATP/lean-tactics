@@ -17,6 +17,7 @@ lean_lib MotivatedMoves
 @[default_target]
 lean_exe discrTrees where
   root := `MotivatedMoves.LibrarySearch.DiscrTreesData
+  supportInterpreter := true
 
 lean_lib Tests {
   globs := #[.submodules "Tests"]
