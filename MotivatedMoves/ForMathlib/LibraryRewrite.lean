@@ -125,6 +125,7 @@ def renderResult
           insertion?={tacticCall}
           variant={"text"}
           color={"info"}
+          onWhitespace={false}
           size={"small"} />]
     #[("display", "flex"), ("justifyContent", "space-between")]
 
