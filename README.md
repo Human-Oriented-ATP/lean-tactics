@@ -21,6 +21,7 @@
 	Make sure the language of that VSCode file (in the bottom-right-hand corner of VSCode) says `lean4` rather than `lean`. 
 	It might take a while for Lean4 to build Mathlib in the background, you should see an info text that tells you the file that is currently being built. 
 7. (Temporary) In order to see the custom rendering of the infoview, a custom version of the Lean 4 VSCode extension is required. It can be found and install from the `widget\lean4fork-0.0.111.vsix` file after pressing `Command-Shift-P > Extensions : Install from VSIX...` and then disabling the original Lean 4 VSCode extension.
+8. (Optional, but recommended) Run `lake exe discrTrees` to build and store the discrimination tree cache.
 
 ## Testing
 You can run `lake build Tests` to run all tests in the `Tests` folder.  
