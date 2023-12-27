@@ -43,16 +43,13 @@ def RewriteCache := DeclCache (RefinedDiscrTree RewriteLemma × RefinedDiscrTree
 
 def RewriteCache.mk (profilingName : String)
   (init : Option (RefinedDiscrTree RewriteLemma) := none) :
-    IO RewriteCache := do
-  match init with
-    | some libraryTree => do return {
-        cache := ← Cache.mk <| pure ({}, libraryTree),
-        addDecl := addDecl,
-        addLibraryDecl := addLibraryDecl }
-    | none => DeclCache.mk profilingName (pre := failure)
-                ({}, {})
-                addDecl addLibraryDecl (post := post)
+    IO RewriteCache := 
+  DeclCache.mk profilingName (pre := pre) ({}, {}) 
+    addDecl addLibraryDecl (post := post)
 where
+  pre := do
+    let .some libraryTree := init | failure
+    return ({}, libraryTree)
   addDecl (name : Name) (cinfo : ConstantInfo)
     | (currentTree, libraryTree) => do
     return (← updateRewriteTree name cinfo currentTree, libraryTree)
@@ -64,9 +61,6 @@ where
   post
     | (currentTree, libraryTree) => do
     return (currentTree, libraryTree.mapArrays sortRewriteLemmas)
-
-def buildRewriteCache : IO RewriteCache :=
-  RewriteCache.mk "rewrite lemmas : init cache"
 
 def cachePath : IO System.FilePath := do
   try
@@ -81,7 +75,7 @@ initialize cachedData : RewriteCache ← unsafe do
     -- We can drop the `CompactedRegion` value; we do not plan to free it
     RewriteCache.mk "rewrite lemmas : using cache" (init := some d)
   else
-    buildRewriteCache
+    RewriteCache.mk "rewrite lemmas : init cache"
 
 def getRewriteLemmas : MetaM (RefinedDiscrTree RewriteLemma × RefinedDiscrTree RewriteLemma) :=
   cachedData.get
