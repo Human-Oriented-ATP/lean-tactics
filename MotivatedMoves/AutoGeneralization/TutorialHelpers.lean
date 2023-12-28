@@ -1,6 +1,6 @@
 import Lean
 import Mathlib.Tactic.Contrapose
-open Lean Elab Tactic Meta
+open Lean Elab Tactic Meta Term
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Helper functions that make Lean 4 Metaprogramming a bit more intuitive.
@@ -78,3 +78,10 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
     | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
     | _                      => return acc
   getSubexpressionsInRec e []
+
+/- Convert more typical Lean Syntax to an Expression -/
+def syntaxToExpr (e : TermElabM Syntax) : TermElabM Expr := do
+  let e ← elabTermAndSynthesize (← e) none
+  return e
+
+#eval syntaxToExpr `(@HMul.hMul Nat Nat Nat instHMul)

@@ -49,10 +49,6 @@ f n (f m p) = f m (f n p) := by
   rw [f_assoc]
 #print multPermuteGen -- the proof term
 
-example : True := by
-  have multPermute := multPermute
-  have multPermuteGen := autogeneralize multPermute
-
 /---------------------------------------------------------------------------
 Using generalize to suppose the operation is not necessarily assoc/comm
 ---------------------------------------------------------------------------/

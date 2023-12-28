@@ -1,7 +1,8 @@
 import Lean
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
+import MotivatedMoves.AutoGeneralization.mulPermuteProof
 
-open Lean Elab Tactic Meta
+open Lean Elab Tactic Meta Term
 
 #eval Lean.versionString -- 4.3.0-rc1
 
@@ -137,15 +138,26 @@ def printHypotheses : MetaM Unit :=
     if ldecl.isImplementationDetail then continue
     let hypName := ldecl.userName
     let hypType := ldecl.type
-    -- let hypExpr := ldecl.toExpr
-    logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
-    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
+    let hypExpr := ldecl.toExpr
+    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
+    logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
 
-elab "printHypotheses" : tactic => do
-  printHypotheses
+def printAllHypotheses : TacticM Unit := do
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
+    if ldecl.isImplementationDetail then continue
+    let hypName := ldecl.userName
+    let hypType := ldecl.type
+    let hypExpr := ldecl.toExpr
+    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
+    logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
+
+
+elab "printAllHypotheses" : tactic => do
+  printAllHypotheses
 
 theorem testPrintHyp {P Q : Prop} (p : P) (q: Q): P := by
-  printHypotheses
+  printAllHypotheses
   assumption
 ```
 /--  Tactic to return hypotheses declarations-/
@@ -711,10 +723,45 @@ example : 2^4 % 5 = 1 := by
   generalizeAllNats
   rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
 
-elab "printHypothesisProof"  h:ident : tactic => do
-  let pf ← getHypothesisProof h.getId
-  logInfo pf
+def syntaxToExpr (e : TermElabM Syntax) : TermElabM Unit := do
+  let e ← elabTermAndSynthesize (← e) none
+  logExpression e
+
+#eval syntaxToExpr `(@HMul.hMul Nat Nat Nat instHMul)
+
+elab "generalizef" : tactic => do
+  let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
+  let nat := .const ``Nat []
+  let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
+  let f := mkApp4 hmul nat nat nat inst
+  generalizeTerm f
 
 example : True := by
-  let h : 1+1 = 2 := by rfl
-  printHypothesisProof h -- adds multPermuteGen to list of hypotheses
+  generalizef
+  simp
+
+/-- Generalizing all natural numbers in a theorem  -/
+def autogeneralize (hypName : Name) : TacticM Unit := do
+  -- Print the proof
+  let hypProof ← getHypothesisProof hypName
+  logInfo hypProof
+
+  -- generalize the term "f"
+  let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
+  let nat := .const ``Nat []
+  let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
+  let f := mkApp4 hmul nat nat nat inst
+  generalizeTerm f
+
+elab "autogeneralize" h:ident : tactic =>
+  autogeneralize h.getId
+
+theorem multPermute' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
+  intros n m p
+  generalize hf : @HMul.hMul Nat Nat Nat instHMul = f
+  sorry
+
+example : True := by
+  let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize multPermuteHyp -- adds multPermuteGen to list of hypotheses
+  simp [multPermuteHyp] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
