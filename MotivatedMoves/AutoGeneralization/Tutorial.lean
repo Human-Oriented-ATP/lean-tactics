@@ -232,7 +232,10 @@ def getHypothesisType (h : Name) : TacticM Expr := do
 def getHypothesisProof (h : Name) : TacticM Expr := do
   let hyp ← getHypothesisByName h
   if hyp.hasValue
-    then return hyp.value
+    -- then return hyp.value
+    then
+      let val ← getExprMVarAssignment? hyp.value.mvarId!
+      return ← val
     else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 
@@ -536,6 +539,10 @@ def printNatsIn (e : Expr) : MetaM Unit := do
 
 #eval do {let e ← getTheoremStatement `multPermute;  printNatsIn e}
 
+/- (For debugging) Print what type of expression something is -/
+def printExprType (e : Expr) : MetaM Unit := do
+  logInfo e.ctorName
+
 /- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : MetaM (List Expr) :=
@@ -546,6 +553,7 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
     | Expr.app f a           => return [e] ++ (← getSubexpressionsInRec f acc) ++ (← getSubexpressionsInRec a acc)
     | Expr.mdata _ b         => return [e] ++ (← getSubexpressionsInRec b acc)
     | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
+    | Expr.mvar m            => return [e] ++ acc
     | _                      => return acc
   getSubexpressionsInRec e []
 
@@ -697,6 +705,8 @@ def generalizeTerm (e : Expr) (x? : Option Name := none) (h? : Option Name := no
     let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
     setGoals [new_goal]
 
+    -- TODO return the type of the generalized term..
+
 elab "generalize2" : tactic => do
   let e := (toExpr 2)
   let x := `x
@@ -740,11 +750,14 @@ example : True := by
   generalizef
   simp
 
+/-- Gets all identifier names in an expression -/
+def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
+
 /-- Generalizing all natural numbers in a theorem  -/
 def autogeneralize (hypName : Name) : TacticM Unit := do
   -- Print the proof
+  let hypType ← getHypothesisType hypName
   let hypProof ← getHypothesisProof hypName
-  logInfo hypProof
 
   -- generalize the term "f"
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
@@ -753,13 +766,19 @@ def autogeneralize (hypName : Name) : TacticM Unit := do
   let f := mkApp4 hmul nat nat nat inst
   generalizeTerm f
 
+  -- know that the type of the generalized term is N -> N -> N
+  let t ← `(ℕ → ℕ → ℕ)
+
+  -- get all free identifiers (that is, constants) in the proof term that don't already appear in the proof type
+  let freeIdentsInProofType := getFreeIdentifiers hypType
+  let freeIdentsInProofTerm := getFreeIdentifiers hypProof
+  let freeIdents := freeIdentsInProofTerm.removeAll freeIdentsInProofType
+  dbg_trace freeIdents
+
+
+
 elab "autogeneralize" h:ident : tactic =>
   autogeneralize h.getId
-
-theorem multPermute' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
-  intros n m p
-  generalize hf : @HMul.hMul Nat Nat Nat instHMul = f
-  sorry
 
 example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
