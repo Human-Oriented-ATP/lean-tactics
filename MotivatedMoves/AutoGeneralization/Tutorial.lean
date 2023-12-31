@@ -763,6 +763,20 @@ example : True := by
 /-- Gets all identifier names in an expression -/
 def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
 
+-- Demonstration of using the replace function
+def originalExpr : Expr := mkApp2 (Expr.const `Nat.add []) (mkNatLit 1) (mkNatLit 1)
+def replacementFunction : Expr → Option Expr
+  | .lit (Literal.natVal 1) => some $ .lit (Literal.natVal 2)
+  | _                      => none
+def replacedExpr : Expr := originalExpr.replace replacementFunction
+#eval ppExpr originalExpr
+#eval ppExpr replacedExpr
+
+/-- Creating a replacementRule to replace a -/
+def replacementRule : Expr → Option Expr
+  | .lit (Literal.natVal 1) => some $ .lit (Literal.natVal 2)
+  | _                      => none
+
 /-- Generalizing all natural numbers in a theorem  -/
 def autogeneralize (hypName : Name) : TacticM Unit := do
   -- Print the proof
