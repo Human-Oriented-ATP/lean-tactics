@@ -210,6 +210,7 @@ elab "getAllHypothesesNames" : tactic => do
   logInfo ("Hyp names:" ++ toString names)
 
 
+
 example {P Q : Prop} (p : P) (q: Q): P := by
   getHypothesesNames
   assumption
@@ -271,6 +272,15 @@ example {P : Prop} (p : P): P := by
 example {P : Prop} : P := by
   assump -- does nothing
   sorry
+
+/-- Demonstrate the difference between dbg_trace and logInfo -/
+elab "printMessages" : tactic =>
+  dbg_trace "The dbg_trace message"
+  logInfo "The logInfo message"
+
+example : True := by
+  printMessages
+  simp
 
 /--  Tactic that closes goal with a matching hypothesis if available, throws error if not-/
 elab "assump'" : tactic => do
@@ -773,9 +783,14 @@ def autogeneralize (hypName : Name) : TacticM Unit := do
   let freeIdentsInProofType := getFreeIdentifiers hypType
   let freeIdentsInProofTerm := getFreeIdentifiers hypProof
   let freeIdents := freeIdentsInProofTerm.removeAll freeIdentsInProofType
-  dbg_trace freeIdents
+  logInfo (toString freeIdents)
 
+  -- now get the types of those identifiers
+  let freeIdentsTypes ← liftMetaM (freeIdents.mapM getTheoremStatement)
 
+  -- only keep the ones that contain the generalized term (multiplication *) in their type
+  let freeIdentsContainingF := freeIdentsTypes.filter f.occurs
+  logInfo freeIdentsContainingF
 
 elab "autogeneralize" h:ident : tactic =>
   autogeneralize h.getId
