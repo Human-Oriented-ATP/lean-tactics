@@ -506,7 +506,7 @@ def logExpressionType (e : Expr) : MetaM Unit :=
 
 /-- Getting theorems from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
   return thm.type -- return the theorem statement (the type is the proposition)
 
 #eval do {let e ← getTheoremStatement `multPermute; logExpression e}
@@ -715,7 +715,15 @@ def generalizeTerm (e : Expr) (x? : Option Name := none) (h? : Option Name := no
     let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
     setGoals [new_goal]
 
-    -- TODO return the type of the generalized term..
+/-- Generalizing a term in a theorem, then returning the name and type of the new generalized variable-/
+def generalizeTerm' (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr) := do
+    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
+    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
+    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
+    let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
+    setGoals [new_goal]
+
+    return (x, ← getHypothesisType x) -- name and type of new generalized variable
 
 elab "generalize2" : tactic => do
   let e := (toExpr 2)
