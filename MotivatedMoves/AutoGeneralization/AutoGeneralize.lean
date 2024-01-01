@@ -61,6 +61,18 @@ by
   rw [← hf]-- now this is false, so we need to revert it
   apply multPermute
 
+theorem multPermute'' : True :=
+by
+  let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  -- generalize @HMul.hMul Nat Nat Nat instHMul = f at multPermuteHyp -- FAILURE
+  simp
+
+theorem multPermute''' : True :=
+by
+  have multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  generalize @HMul.hMul Nat Nat Nat instHMul = f at multPermuteHyp
+  simp
+
 
 /---------------------------------------------------------------------------
 A generalization of the theorem to any binary operation that is assoc & comm

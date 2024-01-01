@@ -85,9 +85,9 @@ elab "mySorry" : tactic => do
   let goal ← getMainGoal
   admitGoal goal
 
-/-- A sorry macro -/
-macro "mySorry" : tactic =>
-  `(tactic| sorry)
+/- A sorry macro -/
+-- macro "mySorry" : tactic =>
+--   `(tactic| sorry)
 
 /--  Tactic that takes a hypothesis as an argument -/
 macro "contraposWith" h:ident : tactic => `(tactic|
@@ -159,7 +159,7 @@ elab "printAllHypotheses" : tactic => do
 theorem testPrintHyp {P Q : Prop} (p : P) (q: Q): P := by
   printAllHypotheses
   assumption
-```
+
 /--  Tactic to return hypotheses declarations-/
 def getHypotheses : MetaM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
@@ -224,6 +224,11 @@ def getHypothesisByName (h : Name) : TacticM LocalDecl := do
       return ldecl
   throwError "No hypothesis by that name."
 
+/-- Get the FVarID for a hypothesis (given its name) -/
+def getHypothesisFVarId (h : Name) : TacticM FVarId := do
+  let hyp ← getHypothesisByName h
+  return hyp.fvarId
+
 /-- Get the proposition for a given hypothesis (given its name) -/
 def getHypothesisType (h : Name) : TacticM Expr := do
   let hyp ← getHypothesisByName h
@@ -233,10 +238,9 @@ def getHypothesisType (h : Name) : TacticM Expr := do
 def getHypothesisProof (h : Name) : TacticM Expr := do
   let hyp ← getHypothesisByName h
   if hyp.hasValue
-    -- then return hyp.value
     then
       let val ← getExprMVarAssignment? hyp.value.mvarId!
-      return ← val
+      return ← liftOption val
     else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 
@@ -269,9 +273,9 @@ elab "assump" : tactic => do
 example {P : Prop} (p : P): P := by
   assump -- works
 
-example {P : Prop} : P := by
-  assump -- does nothing
-  sorry
+-- example {P : Prop} : P := by
+--   assump -- does nothing
+--   sorry
 
 /-- Demonstrate the difference between dbg_trace and logInfo -/
 elab "printMessages" : tactic =>
@@ -298,9 +302,9 @@ elab "assump'" : tactic => do
 example {P : Prop} (p : P): P := by
   assump' -- works
 
-example {P : Prop} : P := by
-  assump' -- throws error "No matching assumptions."
-  sorry
+-- example {P : Prop} : P := by
+--   assump' -- throws error "No matching assumptions."
+-- sorry
 
 /--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
 elab "assump''" : tactic => do
@@ -322,9 +326,9 @@ elab "assump''" : tactic => do
 theorem testAssumpSuccess {P : Prop} (p : P): P := by
   assump''
 
-theorem testAssumpFails {P Q : Prop} (p : P): Q := by
-  assump''
-  sorry
+-- theorem testAssumpFails {P Q : Prop} (p : P): Q := by
+--   assump''
+--   sorry
 
 /-- Create 0, 1, and π -/
 def zero := Expr.const ``Nat.zero []
@@ -725,6 +729,23 @@ def generalizeTerm' (e : Expr) (x? : Option Name := none) (h? : Option Name := n
 
     return (x, ← getHypothesisType x) -- name and type of new generalized variable
 
+
+/-- Generalizing a term in the hypothesis, then returning the name and type of the new generalized variable-/
+def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr) := do
+    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
+    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
+    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
+
+    let goal ← getGoalVar
+    goal.withContext do
+      let (_, new_hyps, new_goal) ← goal.generalizeHyp [genArg].toArray  [hypToGeneralize].toArray
+      -- for fvarid in new_hyps do
+      --   new_goal.withContext $ (Expr.fvar fvarid).addLocalVarInfoForBinderIdent (← `(binderIdent| _))
+      setGoals [new_goal]
+
+    return (x, ← getHypothesisType x) -- name and type of new generalized variable
+
+
 elab "generalize2" : tactic => do
   let e := (toExpr 2)
   let x := `x
@@ -780,44 +801,68 @@ def replacedExpr : Expr := originalExpr.replace replacementFunction
 #eval ppExpr originalExpr
 #eval ppExpr replacedExpr
 
-/-- Creating a replacementRule to replace a -/
-def replacementRule : Expr → Option Expr
-  | .lit (Literal.natVal 1) => some $ .lit (Literal.natVal 2)
+/-- Creating a replacementRule to replace * with f -/
+def replacementRule' : Expr → Option Expr
+  | (Lean.Expr.app
+  (Lean.Expr.app
+    (Lean.Expr.app
+      (Lean.Expr.app
+        (Lean.Expr.const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+        (Lean.Expr.const `Nat []))
+      (Lean.Expr.const `Nat []))
+    (Lean.Expr.const `Nat []))
+  (Lean.Expr.app
+    (Lean.Expr.app (Lean.Expr.const `instHMul [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+    (Lean.Expr.const `instMulNat []))) => some $ (.const `f [])
   | _                      => none
 
+/-- Creating a replacementRule to replace "original" with "replacement" -/
+def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr := fun e =>
+  if e == original
+    then some replacement
+    else none
+
 /-- Generalizing all natural numbers in a theorem  -/
-def autogeneralize (hypName : Name) : TacticM Unit := do
+def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
   -- Print the proof
   let hypType ← getHypothesisType hypName
   let hypProof ← getHypothesisProof hypName
+  let hypFVarId ← getHypothesisFVarId genHypName -- the generalized hypothesis (without proof) is the one we'll modify
 
   -- generalize the term "f"
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
   let nat := .const ``Nat []
   let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
   let f := mkApp4 hmul nat nat nat inst
-  generalizeTerm f
-
-  -- know that the type of the generalized term is N -> N -> N
-  let t ← `(ℕ → ℕ → ℕ)
+  let (fName, fType) ← generalizeTermInHypothesis hypFVarId f `f `hf
+  -- logInfo fName -- f
+  -- logInfo f     -- HMul.hMul
+  -- logInfo fType -- (ℕ → ℕ → ℕ)
 
   -- get all free identifiers (that is, constants) in the proof term that don't already appear in the proof type
   let freeIdentsInProofType := getFreeIdentifiers hypType
   let freeIdentsInProofTerm := getFreeIdentifiers hypProof
   let freeIdents := freeIdentsInProofTerm.removeAll freeIdentsInProofType
-  logInfo (toString freeIdents)
 
   -- now get the types of those identifiers
   let freeIdentsTypes ← liftMetaM (freeIdents.mapM getTheoremStatement)
 
   -- only keep the ones that contain the generalized term (multiplication *) in their type
   let freeIdentsContainingF := freeIdentsTypes.filter f.occurs
-  logInfo freeIdentsContainingF
 
-elab "autogeneralize" h:ident : tactic =>
-  autogeneralize h.getId
+  -- Now we need to replace every occurence of * with f in those identifiers.
+  -- More generally, we need to replace every occurence of the expression f with mkConst fName
+  let freeIdentsAbstracted := freeIdentsContainingF.map (Expr.replace (replacementRule f (mkConst fName)))
+  logInfo freeIdentsAbstracted
+
+  -- then we need to add those abstracted identifiers to the hypothesis
+  -- so we create a proposition of type fType → freeIdentsAbstracted[0] → freeIdentsAbstracted[1] → hypAbstracted
+
+elab "autogeneralize" h1:ident h2:ident : tactic =>
+  autogeneralize h1.getId h2.getId
 
 example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize multPermuteHyp -- adds multPermuteGen to list of hypotheses
+  have multPermuteHypGen :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize multPermuteHyp multPermuteHypGen -- adds multPermuteGen to list of hypotheses
   simp [multPermuteHyp] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
