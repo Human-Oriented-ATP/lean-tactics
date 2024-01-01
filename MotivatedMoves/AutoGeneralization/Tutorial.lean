@@ -304,7 +304,7 @@ example {P : Prop} (p : P): P := by
 
 -- example {P : Prop} : P := by
 --   assump' -- throws error "No matching assumptions."
--- sorry
+--   sorry
 
 /--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
 elab "assump''" : tactic => do
@@ -558,20 +558,21 @@ def printExprType (e : Expr) : MetaM Unit := do
   logInfo e.ctorName
 
 /- Get (in a list) all subexpressions in an expression -/
-def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
-  let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : MetaM (List Expr) :=
+def getSubexpressionsIn (e : Expr) : List Expr :=
+  let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
     match e with
-    | Expr.forallE _ d b _   => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.lam _ d b _       => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.letE _ t v b _    => return [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.app f a           => return [e] ++ (← getSubexpressionsInRec f acc) ++ (← getSubexpressionsInRec a acc)
-    | Expr.mdata _ b         => return [e] ++ (← getSubexpressionsInRec b acc)
-    | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
-    | Expr.mvar m            => return [e] ++ acc
-    | _                      => return acc
+    | Expr.forallE _ d b _   => [e] ++ (getSubexpressionsInRec d acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.lam _ d b _       => [e] ++ (getSubexpressionsInRec d acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.letE _ t v b _    => [e] ++ (getSubexpressionsInRec t acc) ++ (getSubexpressionsInRec v acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.app f a           => [e] ++ (getSubexpressionsInRec f acc) ++ (getSubexpressionsInRec a acc)
+    | Expr.mdata _ b         => [e] ++ (getSubexpressionsInRec b acc)
+    | Expr.proj _ _ b        => [e] ++ (getSubexpressionsInRec b acc)
+    | Expr.mvar _            => [e] ++ acc
+    | Expr.bvar _            => [e] ++ acc
+    | _                      => acc
   getSubexpressionsInRec e []
 
-#eval do {let e ← getTheoremStatement `multPermute;  getSubexpressionsIn e}
+#eval do {let e ← getTheoremStatement `multPermute;  logInfo (getSubexpressionsIn e)}
 
 /- Get (in a list) all subexpressions that involve natural numbers -/
 def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
@@ -586,7 +587,7 @@ def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
 
 
 def getNatsIn (e : Expr) : MetaM (List Expr) := do
-  let subexprs ← getSubexpressionsIn e
+  let subexprs := getSubexpressionsIn e
   let natSubexprs ← subexprs.filterMapM getIfNat
   return natSubexprs
 
@@ -624,7 +625,7 @@ def getIfAtomicNat (subexpr : Expr) : MetaM (Option Expr) := do
 
 /-- Returns single nats like 3 and 4, not 3^4 or 3*4 -/
 def getAtomicNatsIn (e : Expr) : MetaM (List Expr) := do
-  let subexprs ← getSubexpressionsIn e
+  let subexprs := getSubexpressionsIn e
   let natSubexprs ← subexprs.filterMapM getIfAtomicNat
   return natSubexprs
 
@@ -731,10 +732,9 @@ def generalizeTerm' (e : Expr) (x? : Option Name := none) (h? : Option Name := n
 
 
 /-- Generalizing a term in the hypothesis, then returning the name and type of the new generalized variable-/
-def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr) := do
+def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr × FVarId) := do
     let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
-    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
-    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
+    let genArg : GeneralizeArg := { expr := e, xName? := x}
 
     let goal ← getGoalVar
     goal.withContext do
@@ -743,7 +743,7 @@ def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Optio
       --   new_goal.withContext $ (Expr.fvar fvarid).addLocalVarInfoForBinderIdent (← `(binderIdent| _))
       setGoals [new_goal]
 
-    return (x, ← getHypothesisType x) -- name and type of new generalized variable
+    return (x, ← getHypothesisType x, ← getHypothesisFVarId x) -- name and type of new generalized variable
 
 
 elab "generalize2" : tactic => do
@@ -801,40 +801,54 @@ def replacedExpr : Expr := originalExpr.replace replacementFunction
 #eval ppExpr originalExpr
 #eval ppExpr replacedExpr
 
-/-- Creating a replacementRule to replace * with f -/
-def replacementRule' : Expr → Option Expr
-  | (Lean.Expr.app
-  (Lean.Expr.app
-    (Lean.Expr.app
-      (Lean.Expr.app
-        (Lean.Expr.const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-        (Lean.Expr.const `Nat []))
-      (Lean.Expr.const `Nat []))
-    (Lean.Expr.const `Nat []))
-  (Lean.Expr.app
-    (Lean.Expr.app (Lean.Expr.const `instHMul [Lean.Level.zero]) (Lean.Expr.const `Nat []))
-    (Lean.Expr.const `instMulNat []))) => some $ (.const `f [])
-  | _                      => none
-
 /-- Creating a replacementRule to replace "original" with "replacement" -/
 def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr := fun e =>
   if e == original
     then some replacement
     else none
+    -- then do {dbg_trace s!"found a match! {e}"; some replacement}
+    -- else do {dbg_trace s!"no match! {e}"; none}
+
+def mkImplies (d b : Expr) : TacticM Expr :=
+  return .forallE (← mkFreshUserName `x) d b .default
+
+def getAllBVars (e : Expr) : List Expr :=
+  (getSubexpressionsIn e).filter Expr.isBVar
+
+def countBVars (e : Expr) : Nat :=
+  let bvars := (getAllBVars e);
+  if bvars == []
+    then 0
+  else
+    let bvarIdxs := bvars.map (fun bvar => bvar.bvarIdx!);
+    let max := bvarIdxs.maximum?;
+    max.getD 0 -- return 0 if list is empty, or the maximum
+
+
+/- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
+def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
+  -- for the first forall, the total number of bvars there works.
+  -- otherwise, you need to count number of bvars in the sub expression, and so on.
+  match e with
+    | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
+    | e =>
+      -- let lastBVarIndex := countBVars e;
+      dbg_trace s!"Depth: {depth}, Expr: {e}"
+      e.replaceFVarId id (.bvar depth)
 
 /-- Generalizing all natural numbers in a theorem  -/
 def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
-  -- Print the proof
+  -- Get details about the proof we're going to generalize
   let hypType ← getHypothesisType hypName
   let hypProof ← getHypothesisProof hypName
   let hypFVarId ← getHypothesisFVarId genHypName -- the generalized hypothesis (without proof) is the one we'll modify
 
-  -- generalize the term "f"
+  -- Get details about the term we're going to generalize
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
   let nat := .const ``Nat []
   let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
   let f := mkApp4 hmul nat nat nat inst
-  let (fName, fType) ← generalizeTermInHypothesis hypFVarId f `f `hf
+  let (fName, fType, fFVarId) ← generalizeTermInHypothesis hypFVarId f `f
   -- logInfo fName -- f
   -- logInfo f     -- HMul.hMul
   -- logInfo fType -- (ℕ → ℕ → ℕ)
@@ -851,12 +865,37 @@ def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
   let freeIdentsContainingF := freeIdentsTypes.filter f.occurs
 
   -- Now we need to replace every occurence of * with f in those identifiers.
-  -- More generally, we need to replace every occurence of the expression f with mkConst fName
-  let freeIdentsAbstracted := freeIdentsContainingF.map (Expr.replace (replacementRule f (mkConst fName)))
-  logInfo freeIdentsAbstracted
+  -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
+  let freeIdentsAbstracted := freeIdentsContainingF.map (Expr.replace (replacementRule f (.fvar fFVarId)))
 
   -- then we need to add those abstracted identifiers to the hypothesis
   -- so we create a proposition of type fType → freeIdentsAbstracted[0] → freeIdentsAbstracted[1] → hypAbstracted
+  let hypAbstracted ← getHypothesisType genHypName
+  let freeIdentsAbstracted := freeIdentsAbstracted --++ [hypAbstracted]
+  -- need to increment the bvar id in each hypothesis
+  -- because in first hypothesis, f is 4th bvar
+  -- in the second hypothesis, the first hypothesis is 4th bvar, and f is the 5th bvar
+  -- and so on.
+
+  let genPropTypeBody ← freeIdentsAbstracted.foldrM (mkImplies) hypAbstracted
+  -- let genPropTypeBody ← mkImplies freeIdentsAbstracted[0]! hypAbstracted
+  -- let genPropTypeBody := hypAbstracted
+  logInfo s!"The type body {← ppExpr genPropTypeBody}"
+
+  -- let genPropTypeBody :=  genPropTypeBody.replace (replacementRule (.fvar fFVarId) (.bvar 5))
+  let genPropTypeBody := replaceFVarWithBVar fFVarId genPropTypeBody
+  logInfo s!"The bvar-replaced body {← ppExpr genPropTypeBody}"
+
+  let genPropType := Expr.forallE fName fType genPropTypeBody .default
+  -- let genPropType := replaceFVarWithBVar (fFVarId) genPropTypeBody -- replace all instances of fvarid with the correct bvar
+  logInfo s!"The final type {← ppExpr genPropType}"
+
+  -- replace all occruences of the generalized "f" with the bound variable f in the beginnning of the for-all
+  -- let genPropType := replaceFVarWithBVar fFVarId genPropTypeBody
+  -- logInfo s!"The final type {← ppExpr genPropType}"
+
+  let genPropProof := toExpr 42
+  createHypothesis genPropType genPropProof `gen
 
 elab "autogeneralize" h1:ident h2:ident : tactic =>
   autogeneralize h1.getId h2.getId
@@ -865,4 +904,5 @@ example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   have multPermuteHypGen :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize multPermuteHyp multPermuteHypGen -- adds multPermuteGen to list of hypotheses
+
   simp [multPermuteHyp] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
