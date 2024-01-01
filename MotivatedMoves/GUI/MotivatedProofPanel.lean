@@ -158,16 +158,9 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
   -- the leading and trailing whitespaces around the `motivated_proof` syntax node
   let some (.original leading _ trailing _) := stx.getHeadInfo? | panic! s!"Could not extract head information from {stx}."
   let extractIndentation (s : Substring) : Nat :=
-    s.toString |>.dropWhile (· = '\n') |>.length -- compute the indentation of the last line in the string
+    s.toString |>.split (· = '\n') |>.tail! |>.length -- compute the indentation of the last line in the string
   let indent : Nat := -- compute the appropriate indentation for the next tactic
-    match seq with
-      | `(Parser.Tactic.tacticSeq| $[$tacs]* )
-      | `(Parser.Tactic.tacticSeq| { $[$tacs]* }) =>
-        if tacs.isEmpty then
-          (extractIndentation leading) + 2
-        else
-          extractIndentation trailing
-      | _ => 4
+    extractIndentation trailing
   let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
   let range : Lsp.Range := ⟨stxEnd, pos⟩
   Widget.savePanelWidgetInfo (hash MotivatedProofPanel.javascript) (stx := stx) do
