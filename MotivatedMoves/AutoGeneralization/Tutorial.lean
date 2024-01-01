@@ -833,8 +833,9 @@ def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
     | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
     | e =>
       -- let lastBVarIndex := countBVars e;
-      dbg_trace s!"Depth: {depth}, Expr: {e}"
-      e.replaceFVarId id (.bvar depth)
+      dbg_trace s!"Depth: {depth}, \nExpr: {e}, \nnewExpr: {e.replaceFVarId id (.bvar depth)} \n otherExpr: {e.replace (replacementRule f (.fvar id))} \n\n "
+      -- e.replaceFVarId id (.bvar depth)
+      e.replace (replacementRule (.fvar id) (.bvar depth))
 
 /-- Generalizing all natural numbers in a theorem  -/
 def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
