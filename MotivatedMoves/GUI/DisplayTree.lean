@@ -111,10 +111,10 @@ def delabAnnotation : Delab := do
   else failure
 
 open Widget in
-def ppTreeTagged (e : Expr) : MetaM CodeWithInfos := do
+def ppExprTaggedWith (e : Expr) (delab : Delab) : MetaM CodeWithInfos := do
   if pp.raw.get (← getOptions) then
     return .text (toString e)
-  let ⟨fmt, infos⟩ ← PrettyPrinter.ppExprWithInfos e (delab := delabTreeAux true)
+  let ⟨fmt, infos⟩ ← PrettyPrinter.ppExprWithInfos e (delab := delab)
   let tt := TaggedText.prettyTagged fmt
   let ctx := {
     env           := (← getEnv)
@@ -127,6 +127,7 @@ def ppTreeTagged (e : Expr) : MetaM CodeWithInfos := do
   }
   return tagCodeInfos ctx infos tt
 
+def ppTreeTagged := ppExprTaggedWith (delab := delabTreeAux true)
 
 private def getUnusedName (suggestion : Name) (body : Expr) : MetaM Name := do
   -- Use a nicer binder name than `[anonymous]`. We probably shouldn't do this in all LocalContext use cases, so do it here.
@@ -152,47 +153,98 @@ where
 open Widget ProofWidgets Server
 
 inductive DisplayTree where
-| node : (label : CodeWithInfos) → (children : Array DisplayTree) → DisplayTree
+| forall (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
+| exists (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
+| «instance» (inst : CodeWithInfos) (body : DisplayTree)
+| implication (antecedent : DisplayTree) (arrow : CodeWithInfos) (consequent : DisplayTree)
+| and (first : DisplayTree) (wedge : CodeWithInfos) (second : DisplayTree)
+| not (not : CodeWithInfos) (body : DisplayTree)
+| node (body : CodeWithInfos)
 deriving RpcEncodable
 
-partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree := do
-  match e with
+open Lean PrettyPrinter
+def annotateAs (txt : String) (e : SubExpr) (pos : SubExpr.Pos := .root) (delab : Delab := delab) : MetaM CodeWithInfos := do
+  let (_stx, infos) ← delabCore e.expr {} delab
+  let .some info := infos.find? pos | throwError m!"Could not find info for the expression {e.expr}."
+  let ctx := {
+    env           := (← getEnv)
+    mctx          := (← getMCtx)
+    options       := (← getOptions)
+    currNamespace := (← getCurrNamespace)
+    openDecls     := (← getOpenDecls)
+    fileMap       := default
+    ngen          := (← getNGen)
+  }
+  let subexprInfo : SubexprInfo := {
+    info := .mk {
+      ctx := ctx,
+      info := info,
+      children := .empty
+    },
+    subexprPos := e.pos
+  }
+  return .tag subexprInfo (.text txt)
+
+def annotateAsCurrentTree (txt : String) : DelabM CodeWithInfos := do
+  annotateAs txt (← readThe SubExpr) .root (delabTreeAux true)
+
+partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := do
+  match (← getExpr) with
   | forall_pattern n _u d b =>
     let n ← getUnusedName n b
+    let quantifierInfo ← annotateAsCurrentTree "∀"
+    let domainInfo ← ppTreeTagged d 
     Meta.withLocalDeclD n d fun fvar => do
-    let b := b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)
-    let d ← ppTreeTagged d
-    return .node (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
-
+      let fvarAnnotated := if pol then fvar else mkAnnotation `star fvar
+      let varInfo ← ppTreeTagged fvarAnnotated
+      descend (b.instantiate1 fvarAnnotated) 1 do
+        return .forall quantifierInfo varInfo domainInfo (← toDisplayTree pol)
+  
   | exists_pattern n _u d b =>
     let n ← getUnusedName n b
+    let quantifierInfo ← annotateAsCurrentTree "∃"
+    let domainInfo ← ppTreeTagged d 
     Meta.withLocalDeclD n d fun fvar => do
-    let b := b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)
-    let d ← ppTreeTagged d
-    return .node (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
-
+      let fvarAnnotated := if pol then fvar else mkAnnotation `bullet fvar
+      let varInfo ← ppTreeTagged fvarAnnotated
+      descend (b.instantiate1 fvarAnnotated) 1 do
+        return .exists quantifierInfo varInfo domainInfo (← toDisplayTree pol)
+  
   | instance_pattern n _u d b =>
     Meta.withLocalDeclD n d fun fvar => do
-    let n ← (do
-      if n.eraseMacroScopes == `inst then
-        return ""
-      else
-        return s! "{← getUnusedName n b} : ")
-    let b := b.instantiate1 fvar
-    let d ← ppTreeTagged d
-    return .node (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
-
+      let n ← (do
+        if n.eraseMacroScopes == `inst then
+          return ""
+        else
+          return s! "{← getUnusedName n b} : ")
+      descend (b.instantiate1 fvar) 1 do
+        return .instance (.append #[.text s! "[{n}", ← ppTreeTagged d, .text "]"]) (← toDisplayTree pol)
+  
   | imp_pattern p q =>
-    let p ← ppTreeTagged p
-    return .node p #[← toDisplayTree q pol]
+    let arrowInfo ← annotateAsCurrentTree "↓"
+    let antecedent ← descend p 0 (toDisplayTree !pol)
+    let consequent ← descend q 1 (toDisplayTree pol)
+    return .implication antecedent arrowInfo consequent
 
   | and_pattern p q =>
-    return .node (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
+    let andInfo ← annotateAsCurrentTree "∧"
+    let fstGoal ← descend p 0 (toDisplayTree pol)
+    let sndGoal ← descend q 1 (toDisplayTree pol)
+    return .and fstGoal andInfo sndGoal
 
   | not_pattern p =>
-    return .node (.text "Not") #[← toDisplayTree p !pol]
+    let notInfo ← annotateAsCurrentTree "¬"
+    let body ← descend p 1 (toDisplayTree !pol)
+    return .not notInfo body
 
-  | e => return .node (← ppTreeTagged e) #[]
+  | e => 
+    if root then 
+      failure 
+    else descend e 2 do
+      return .node (← ppTreeTagged e)
+
+
+#exit
 
 structure TreeDisplay extends PanelWidgetProps where 
   tree : DisplayTree
@@ -208,9 +260,8 @@ open Meta Elab Tactic in
 @[tactic tree_display]
 def treeDisplay : Tactic
   | stx@`(tactic| with_tree_display $tacs) => do
-    let tgt ← getMainTarget
-    let t ← Tree.toDisplayTree (← makeTree tgt)
-    Widget.savePanelWidgetInfo (hash OrdinaryTreeDisplay.javascript) (stx := stx) do
+    let t ← Tree.toDisplayTree <| ← makeTree <| ← getMainTarget
+    savePanelWidgetInfo stx ``OrdinaryTreeDisplay do
       return json% { tree : $(← rpcEncode t) }
     evalTacticSeq tacs
   | _ => throwUnsupportedSyntax
@@ -219,6 +270,11 @@ example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] �
   make_tree
   sorry
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
+  make_tree
+  with_tree_display
+  sorry
+
+example (a : Nat) : a + a + a + a + a + a = 6 * a := by
   make_tree
   with_tree_display
   sorry
