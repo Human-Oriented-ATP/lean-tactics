@@ -817,7 +817,39 @@ def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
     | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
     | e => e.replace (replacementRule (.fvar id) (.bvar depth))
 
-/-- Generate a term in a theorem to its type, adding in necessary identifiers along the way -/
+/-- Find the type of the new auto-generalized theorem -/
+def autogeneralizeType (genThmName : Name)  (thmType thmProof : Expr) (f : Expr)  (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
+
+  -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
+  let identifiersInProofType := getFreeIdentifiers thmType
+  let identifiersInProofTerm := getFreeIdentifiers thmProof
+  let identifiers := identifiersInProofTerm.removeAll identifiersInProofType
+
+  -- now get the types of those identifiers
+  let identifiersTypes ← liftMetaM (identifiers.mapM getTheoremStatement)
+
+  -- only keep the ones that contain the generalized term (multiplication *) in their type
+  let identifiersContainingF := identifiersTypes.filter f.occurs
+
+  -- Now we need to replace every occurence of * with f in those identifiers.
+  -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
+  let identifiersAbstracted := identifiersContainingF.map (Expr.replace (replacementRule f (.fvar fId)))
+
+  -- then we need to add those abstracted identifiers to the hypothesis
+  -- e.g. a proposition of type fType → identifiersAbstracted[0] → identifiersAbstracted[1] → hypAbstracted
+  let hypAbstracted ← getHypothesisType genThmName
+  let identifiersAbstracted := identifiersAbstracted --++ [hypAbstracted]
+
+  let genPropTypeBody ← identifiersAbstracted.foldrM (mkImplies) hypAbstracted
+
+  let genPropTypeBody := replaceFVarWithBVar fId genPropTypeBody
+
+  let genThmType := Expr.forallE fName fType genPropTypeBody .default
+  logInfo s!"The final type {← ppExpr genThmType}"
+
+  return genThmType
+
+/-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) : TacticM Unit := do
 
   -- Get details about the un-generalized proof we're going to generalize
@@ -825,51 +857,30 @@ def autogeneralize (thmName : Name) : TacticM Unit := do
   let thmProof ← getHypothesisProof thmName
 
   -- Put up scaffolding of the generalized proof
-  let thmNameGen := thmName.append `Gen
-  createHypothesis thmType thmProof thmNameGen
-  let hypFVarId ← getHypothesisFVarId thmNameGen -- the generalized hypothesis (without proof) is the one we'll modify
-
+  let genThmName := thmName.append `Gen
+  createHypothesis thmType thmProof genThmName
+  let genThmFVarId ← getHypothesisFVarId genThmName -- the generalized hypothesis (without proof) is the one we'll modify
 
   -- Get details about the term we're going to generalize
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
   let nat := .const ``Nat []
   let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
   let f := mkApp4 hmul nat nat nat inst
-  let (fName, fType, fFVarId) ← generalizeTermInHypothesis hypFVarId f `f
-  -- logInfo fName -- f
-  -- logInfo f     -- HMul.hMul
-  -- logInfo fType -- (ℕ → ℕ → ℕ)
 
-  -- get all free identifiers (that is, constants) in the proof term that don't already appear in the proof type
-  let freeIdentsInProofType := getFreeIdentifiers thmType
-  let freeIdentsInProofTerm := getFreeIdentifiers thmProof
-  let freeIdents := freeIdentsInProofTerm.removeAll freeIdentsInProofType
+  -- Do the first bit of generalization -- generalizing the variable "f" to its type
+  let (fName,   fType,      fId) ← generalizeTermInHypothesis genThmFVarId f `f
+  --   f       (ℕ → ℕ → ℕ)
 
-  -- now get the types of those identifiers
-  let freeIdentsTypes ← liftMetaM (freeIdents.mapM getTheoremStatement)
+  -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
+  -- Ultimately, get the statement (type) of the generalized theorem
+  let genThmType ← autogeneralizeType genThmName thmType thmProof f fName fType fId
 
-  -- only keep the ones that contain the generalized term (multiplication *) in their type
-  let freeIdentsContainingF := freeIdentsTypes.filter f.occurs
+  -- Then, prove those hypotheses are all you need.
+  -- Ultimatel, get the proof (term) of the generalized theorem
+  let genThmProof := toExpr 42
 
-  -- Now we need to replace every occurence of * with f in those identifiers.
-  -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
-  let freeIdentsAbstracted := freeIdentsContainingF.map (Expr.replace (replacementRule f (.fvar fFVarId)))
+  createHypothesis genThmType genThmProof `gen
 
-  -- then we need to add those abstracted identifiers to the hypothesis
-  -- so we create a proposition of type fType → freeIdentsAbstracted[0] → freeIdentsAbstracted[1] → hypAbstracted
-  let hypAbstracted ← getHypothesisType thmNameGen
-  let freeIdentsAbstracted := freeIdentsAbstracted --++ [hypAbstracted]
-
-  let genPropTypeBody ← freeIdentsAbstracted.foldrM (mkImplies) hypAbstracted
-
-  let genPropTypeBody := replaceFVarWithBVar fFVarId genPropTypeBody
-
-  let genPropType := Expr.forallE fName fType genPropTypeBody .default
-  logInfo s!"The final type {← ppExpr genPropType}"
-
-  let genPropProof := toExpr 42
-  createHypothesis genPropType genPropProof `gen
-```
 elab "autogeneralize" h:ident : tactic =>
   autogeneralize h.getId
 
