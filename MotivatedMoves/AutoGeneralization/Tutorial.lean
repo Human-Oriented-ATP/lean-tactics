@@ -806,43 +806,29 @@ def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr
   if e == original
     then some replacement
     else none
-    -- then do {dbg_trace s!"found a match! {e}"; some replacement}
-    -- else do {dbg_trace s!"no match! {e}"; none}
 
 def mkImplies (d b : Expr) : TacticM Expr :=
   return .forallE (← mkFreshUserName `x) d b .default
 
-def getAllBVars (e : Expr) : List Expr :=
-  (getSubexpressionsIn e).filter Expr.isBVar
-
-def countBVars (e : Expr) : Nat :=
-  let bvars := (getAllBVars e);
-  if bvars == []
-    then 0
-  else
-    let bvarIdxs := bvars.map (fun bvar => bvar.bvarIdx!);
-    let max := bvarIdxs.maximum?;
-    max.getD 0 -- return 0 if list is empty, or the maximum
-
-
 /- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
 def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
-  -- for the first forall, the total number of bvars there works.
-  -- otherwise, you need to count number of bvars in the sub expression, and so on.
+  -- each new forall statement introduces a new bound variable...so depending on how deep you go...you need more bound variables.
   match e with
     | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
-    | e =>
-      -- let lastBVarIndex := countBVars e;
-      dbg_trace s!"Depth: {depth}, \nExpr: {e}, \nnewExpr: {e.replaceFVarId id (.bvar depth)} \n otherExpr: {e.replace (replacementRule f (.fvar id))} \n\n "
-      -- e.replaceFVarId id (.bvar depth)
-      e.replace (replacementRule (.fvar id) (.bvar depth))
+    | e => e.replace (replacementRule (.fvar id) (.bvar depth))
 
-/-- Generalizing all natural numbers in a theorem  -/
-def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
-  -- Get details about the proof we're going to generalize
-  let hypType ← getHypothesisType hypName
-  let hypProof ← getHypothesisProof hypName
-  let hypFVarId ← getHypothesisFVarId genHypName -- the generalized hypothesis (without proof) is the one we'll modify
+/-- Generate a term in a theorem to its type, adding in necessary identifiers along the way -/
+def autogeneralize (thmName : Name) : TacticM Unit := do
+
+  -- Get details about the un-generalized proof we're going to generalize
+  let thmType ← getHypothesisType thmName
+  let thmProof ← getHypothesisProof thmName
+
+  -- Put up scaffolding of the generalized proof
+  let thmNameGen := thmName.append `Gen
+  createHypothesis thmType thmProof thmNameGen
+  let hypFVarId ← getHypothesisFVarId thmNameGen -- the generalized hypothesis (without proof) is the one we'll modify
+
 
   -- Get details about the term we're going to generalize
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
@@ -855,8 +841,8 @@ def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
   -- logInfo fType -- (ℕ → ℕ → ℕ)
 
   -- get all free identifiers (that is, constants) in the proof term that don't already appear in the proof type
-  let freeIdentsInProofType := getFreeIdentifiers hypType
-  let freeIdentsInProofTerm := getFreeIdentifiers hypProof
+  let freeIdentsInProofType := getFreeIdentifiers thmType
+  let freeIdentsInProofTerm := getFreeIdentifiers thmProof
   let freeIdents := freeIdentsInProofTerm.removeAll freeIdentsInProofType
 
   -- now get the types of those identifiers
@@ -871,39 +857,23 @@ def autogeneralize (hypName : Name) (genHypName : Name) : TacticM Unit := do
 
   -- then we need to add those abstracted identifiers to the hypothesis
   -- so we create a proposition of type fType → freeIdentsAbstracted[0] → freeIdentsAbstracted[1] → hypAbstracted
-  let hypAbstracted ← getHypothesisType genHypName
+  let hypAbstracted ← getHypothesisType thmNameGen
   let freeIdentsAbstracted := freeIdentsAbstracted --++ [hypAbstracted]
-  -- need to increment the bvar id in each hypothesis
-  -- because in first hypothesis, f is 4th bvar
-  -- in the second hypothesis, the first hypothesis is 4th bvar, and f is the 5th bvar
-  -- and so on.
 
   let genPropTypeBody ← freeIdentsAbstracted.foldrM (mkImplies) hypAbstracted
-  -- let genPropTypeBody ← mkImplies freeIdentsAbstracted[0]! hypAbstracted
-  -- let genPropTypeBody := hypAbstracted
-  logInfo s!"The type body {← ppExpr genPropTypeBody}"
 
-  -- let genPropTypeBody :=  genPropTypeBody.replace (replacementRule (.fvar fFVarId) (.bvar 5))
   let genPropTypeBody := replaceFVarWithBVar fFVarId genPropTypeBody
-  logInfo s!"The bvar-replaced body {← ppExpr genPropTypeBody}"
 
   let genPropType := Expr.forallE fName fType genPropTypeBody .default
-  -- let genPropType := replaceFVarWithBVar (fFVarId) genPropTypeBody -- replace all instances of fvarid with the correct bvar
   logInfo s!"The final type {← ppExpr genPropType}"
-
-  -- replace all occruences of the generalized "f" with the bound variable f in the beginnning of the for-all
-  -- let genPropType := replaceFVarWithBVar fFVarId genPropTypeBody
-  -- logInfo s!"The final type {← ppExpr genPropType}"
 
   let genPropProof := toExpr 42
   createHypothesis genPropType genPropProof `gen
-
-elab "autogeneralize" h1:ident h2:ident : tactic =>
-  autogeneralize h1.getId h2.getId
+```
+elab "autogeneralize" h:ident : tactic =>
+  autogeneralize h.getId
 
 example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  have multPermuteHypGen :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize multPermuteHyp multPermuteHypGen -- adds multPermuteGen to list of hypotheses
-
+  autogeneralize multPermuteHyp -- adds multPermuteGen to list of hypotheses
   simp [multPermuteHyp] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
