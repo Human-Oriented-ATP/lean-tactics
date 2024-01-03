@@ -570,7 +570,9 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
     | Expr.mvar _            => [e] ++ acc
     | Expr.bvar _            => [e] ++ acc
     | _                      => acc
-  getSubexpressionsInRec e []
+  let subexprs := getSubexpressionsInRec e [];
+  let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
+  subexprs
 
 #eval do {let e ← getTheoremStatement `multPermute;  logInfo (getSubexpressionsIn e)}
 
@@ -770,9 +772,9 @@ example : 2^4 % 5 = 1 := by
   generalizeAllNats
   rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
 
-def syntaxToExpr (e : TermElabM Syntax) : TermElabM Unit := do
+def syntaxToExpr (e : TermElabM Syntax) : TermElabM Expr := do
   let e ← elabTermAndSynthesize (← e) none
-  logExpression e
+  return e
 
 #eval syntaxToExpr `(@HMul.hMul Nat Nat Nat instHMul)
 
@@ -800,10 +802,30 @@ def replacedExpr : Expr := originalExpr.replace replacementFunction
 #eval ppExpr replacedExpr
 
 /-- Creating a replacementRule to replace "original" with "replacement" -/
-def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr := fun e =>
+def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr := fun e => do
   if e == original
     then some replacement
     else none
+
+/-- Creating replaces "original" with "replacement" in an expression -- as long as the subexpression found is definitionally equal to "original" -/
+def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr := fun e => do
+  logInfo $ "Checking " ++ toString e
+  -- if there's a loose bvar in the expression, don't try checking definitional equality
+  if !e.hasLooseBVars then
+    if (← isDefEq e original)  -- do the replacement if you find a match
+      then return replacement
+    else match e with -- otherwise recurse to find more matches
+    | Expr.forallE n d b bi  => return Expr.forallE n (← replaceCoarsely original replacement d) (← replaceCoarsely original replacement b) bi
+    | Expr.lam n d b bi      => return Expr.lam n (← replaceCoarsely original replacement d) (← replaceCoarsely original replacement b) bi
+    | Expr.app f a           => return Expr.app (← replaceCoarsely original replacement f) (← replaceCoarsely original replacement a)
+    | Expr.letE n t v b x    => return Expr.letE n (← replaceCoarsely original replacement t) (← replaceCoarsely original replacement v) (← replaceCoarsely original replacement b) x
+    | misc                     => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
+  else match e with -- otherwise recurse to find more matches
+  | Expr.forallE n d b bi  => return Expr.forallE n (← replaceCoarsely original replacement d) (← replaceCoarsely original replacement b) bi
+  | Expr.lam n d b bi      => return Expr.lam n (← replaceCoarsely original replacement d) (← replaceCoarsely original replacement b) bi
+  | Expr.app f a           => return Expr.app (← replaceCoarsely original replacement f) (← replaceCoarsely original replacement a)
+  | Expr.letE n t v b x    => return Expr.letE n (← replaceCoarsely original replacement t) (← replaceCoarsely original replacement v) (← replaceCoarsely original replacement b) x
+  | misc                     => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
 
 /-- Create the expression d → b -/
 def mkImplies (d b : Expr) : TacticM Expr :=
@@ -816,6 +838,12 @@ def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
     | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
     | e => e.replace (replacementRule (.fvar id) (.bvar depth))
 
+/-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
+def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
+  let e_subexprs := getSubexpressionsIn e
+  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
+  return firstExprContainingSubexpr.isSome
+
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Expr) := do
   -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
@@ -827,11 +855,14 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : E
   let identifiersTypes ← liftMetaM (identifiers.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
-  let identifiersContainingF := identifiersTypes.filter f.occurs
+  let identifiersContainingF ← identifiersTypes.filterM (containsExpr f)
+  for id in identifiersContainingF do
+    logInfo $ "identifier containing f: "++(←ppExpr id)
 
   -- Now we need to replace every occurence of * with f in those identifiers.
   -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
-  let identifiersAbstracted := identifiersContainingF.map (Expr.replace (replacementRule f (.fvar fId)))
+  let identifiersAbstracted ← identifiersContainingF.mapM (replaceCoarsely f (.fvar fId))
+  logInfo $ "identifiers abstracted"++(toString identifiersAbstracted)
 
   return identifiersAbstracted
 
@@ -849,8 +880,13 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
 
   return genThmType
 
+/-- Find the proof of the new auto-generalized theorem -/
+def autogeneralizeProof : TacticM Expr := do
+  return (toExpr 42)
+
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) : TacticM Unit := do
+def autogeneralize (thmName : Name) (newf : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
   let thmType ← getHypothesisType thmName
   let thmProof ← getHypothesisProof thmName
@@ -866,6 +902,9 @@ def autogeneralize (thmName : Name) : TacticM Unit := do
   let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
   let f := mkApp4 hmul nat nat nat inst
 
+  logInfo (toString (← isDefEq f newf))
+  let f := newf
+
   -- Do the first bit of generalization -- generalizing the variable "f" to its type
   let (fName,   fType,      fId) ← generalizeTermInHypothesis genThmFVarId f `f
   --   f       (ℕ → ℕ → ℕ)
@@ -876,19 +915,32 @@ def autogeneralize (thmName : Name) : TacticM Unit := do
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
   -- Get the proof of the generalized theorem
-  let genThmProof := toExpr 42
+  let genThmProof ← autogeneralizeProof
 
   -- clear the goals we don't need anymore
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
+  -- clear the proof of the original hypothesis (for simplicity)
+  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId thmName); setGoals [newGoal]
+  -- createHypothesis thmType thmProof thmName
+
   -- create the new hypothesis
   createHypothesis genThmType genThmProof genThmName
 
-elab "autogeneralize" h:ident : tactic =>
-  autogeneralize h.getId
+  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
 
-example : True := by
+/- Autogeneralize term "t" in hypothesis "h"-/
+elab "autogeneralize" h:ident f:term : tactic => do
+  let f ← (Lean.Elab.Term.elabTerm f none)
+  autogeneralize h.getId f
+
+example : 1 + (2 + 3) = 2 + (1 + 3) := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize multPermuteHyp -- adds multPermuteGen to list of hypotheses
-  simp [multPermuteHyp] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
+  autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
+
+  -- specialize it to addition
+  specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd)
+  specialize multPermuteHyp.Gen  Nat.add_assoc Nat.add_comm 1 2 3
+  assumption
+  -- simp [multPermuteHyp, multPermuteHyp.Gen] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
