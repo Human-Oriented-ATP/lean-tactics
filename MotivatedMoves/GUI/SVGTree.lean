@@ -1,11 +1,33 @@
-import MotivatedMoves.GUI.SVGTree
+import MotivatedMoves.GUI.DisplayTree
 import ProofWidgets
 
 namespace TreeRender
 
 open Lean Widget ProofWidgets Server
 
-private structure TextBubbleParams where
+-- deriving instance Repr for Svg.Color
+-- def RGB.toSVGColor : Nat × Nat × Nat → Svg.Color
+--   | (r, g, b) => (r.toFloat / 255, g.toFloat / 255, b.toFloat / 255)
+
+-- #eval RGB.toSVGColor (0, 153, 204)
+
+private structure TextBubbleColorParams where
+  /-- The `forall` nodes in the `DisplayTree` are colored `green`. -/
+  forallQuantifierColor : Svg.Color := (0.0, 0.8, 0.4)
+  /-- The `exists` nodes in the `DisplayTree` are colored `purple`. -/
+  existsQuantifierColor : Svg.Color := (0.4, 0.4, 1.0)
+  /-- The `instance` nodes in the `DisplayTree` are colored `gray`. -/
+  instanceColor : Svg.Color := (0.5, 0.5, 0.5)
+  /-- The `implication` nodes in the `DisplayTree` are colored `orange`. -/
+  implicationColor : Svg.Color := (1.0, 0.6, 0.2)
+  /-- The `conjunction` nodes in the `DisplayTree` are colored `blue`. -/
+  conjunctionColor : Svg.Color := (0.2, 0.6, 1.0)
+  /-- The `negation` nodes in the `DisplayTree` are colored `red`. -/
+  negationColor : Svg.Color := (0.8, 0.2, 0.0)
+  /-- The `nodes` in the `DisplayTree` are colored `light blue` -/
+  nodeColor : Svg.Color := (0.0, 0.6, 0.8)
+
+private structure TextBubbleParams extends TextBubbleColorParams where
   /-- The approximate width, in pixels, of a Unicode character in the chosen font. -/
   charWidth : Nat := 8
   /-- The amount of horizontal padding to add around text in text bubbles. -/
@@ -63,7 +85,7 @@ end LensNotation
 
 /-- Add a new SVG element. -/
 def draw (element : Html) : TreeRenderM Unit :=
-  modify fun σ ↦ { σ with elements := σ.elements.push element }
+  modify (elements %~ (·.push element))
 
 /-- Modify the current frame to start on the next row. -/
 def withNextRow (act : TreeRenderM α) : TreeRenderM α := do
@@ -111,7 +133,7 @@ def drawFrame : TreeRenderM Unit := do
   else #[]) #[]
 
 open scoped Jsx in
-/-- Draw a piece of interactive code at the centre of the top row of the current frame and go to the next row. -/
+/-- Draw a piece of interactive code at the centre of the top row of the current frame. -/
 def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
   let ρ ← read
   let codeLength := ρ.charWidth * code.pretty.length
@@ -130,4 +152,29 @@ def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
     ("y", y),
     ("width", codeLength),
     ("height", ρ.height)
-  ] #[<InteractiveCode fmt={code} />]
+  ] #[< InteractiveCode fmt={code} />]
+
+def Tree.DisplayTree.render (displayTree : Tree.DisplayTree) : TreeRenderM Unit := do
+  let ρ ← read
+  drawFrame
+  match displayTree with
+  | .forall quantifier name type body =>
+    drawCode (.append #[quantifier, name, type]) ρ.forallQuantifierColor
+    (withNextRow ∘ descend 1) (render body) 
+  | .exists quantifier name type body =>
+    drawCode (.append #[quantifier, name, type]) ρ.existsQuantifierColor
+    (withNextRow ∘ descend 1) (render body)
+  | .instance inst body =>
+    drawCode inst ρ.instanceColor
+    (withNextRow ∘ descend 1) (render body)
+  | .implication antecedent arrow consequent => _
+  | .and first wedge second =>
+    drawCode wedge ρ.conjunctionColor
+    withNextRow do
+      let (leftFrame, rightFrame) := splitFrameHorizontal (← read).frame
+      (withFrame leftFrame ∘ descend 0) (render first)
+      (withFrame rightFrame ∘ descend 1) (render second)
+  | .not neg body =>
+    drawCode neg ρ.negationColor
+    (withNextRow ∘ descend 1 ∘ withColor ρ.negationColor) (render body)
+  | .node val => drawCode val ρ.nodeColor
