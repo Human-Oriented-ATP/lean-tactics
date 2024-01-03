@@ -809,7 +809,6 @@ def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr
 
 /-- Creating replaces "original" with "replacement" in an expression -- as long as the subexpression found is definitionally equal to "original" -/
 def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr := fun e => do
-  logInfo $ "Checking " ++ toString e
   -- if there's a loose bvar in the expression, don't try checking definitional equality
   if !e.hasLooseBVars then
     if (← isDefEq e original)  -- do the replacement if you find a match
@@ -856,13 +855,10 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : E
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifiersContainingF ← identifiersTypes.filterM (containsExpr f)
-  for id in identifiersContainingF do
-    logInfo $ "identifier containing f: "++(←ppExpr id)
 
   -- Now we need to replace every occurence of * with f in those identifiers.
   -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
   let identifiersAbstracted ← identifiersContainingF.mapM (replaceCoarsely f (.fvar fId))
-  logInfo $ "identifiers abstracted"++(toString identifiersAbstracted)
 
   return identifiersAbstracted
 
@@ -886,7 +882,7 @@ def autogeneralizeProof : TacticM Expr := do
 
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (newf : Expr): TacticM Unit := do
+def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
   let thmType ← getHypothesisType thmName
   let thmProof ← getHypothesisProof thmName
@@ -895,15 +891,6 @@ def autogeneralize (thmName : Name) (newf : Expr): TacticM Unit := do
   let genThmName := thmName.append `Gen
   createHypothesis thmType thmProof genThmName
   let genThmFVarId ← getHypothesisFVarId genThmName -- the generalized hypothesis (without proof) is the one we'll modify
-
-  -- Get details about the term we're going to generalize
-  let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
-  let nat := .const ``Nat []
-  let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
-  let f := mkApp4 hmul nat nat nat inst
-
-  logInfo (toString (← isDefEq f newf))
-  let f := newf
 
   -- Do the first bit of generalization -- generalizing the variable "f" to its type
   let (fName,   fType,      fId) ← generalizeTermInHypothesis genThmFVarId f `f
