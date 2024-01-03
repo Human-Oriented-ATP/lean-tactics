@@ -418,11 +418,11 @@ example : True := by
   trivial
 
 /- Applications -/
-def f := Expr.const `Nat.succ []
+def func := Expr.const `Nat.succ []
 def x := Expr.const `Nat.zero []
-#eval (Expr.app f x) -- Nat.succ Nat.zero
+#eval (Expr.app func x) -- Nat.succ Nat.zero
 
-elab "fx" : term => return (Expr.app f x)
+elab "fx" : term => return (Expr.app func x)
 #eval (fx = Nat.succ Nat.zero) -- true
 
 def f' := Expr.const `Nat.add []
@@ -816,9 +816,8 @@ def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
     | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
     | e => e.replace (replacementRule (.fvar id) (.bvar depth))
 
-/-- Find the type of the new auto-generalized theorem -/
-def autogeneralizeType (genThmName : Name)  (thmType thmProof : Expr) (f : Expr)  (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
-
+/-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
+def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Expr) := do
   -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
@@ -834,10 +833,15 @@ def autogeneralizeType (genThmName : Name)  (thmType thmProof : Expr) (f : Expr)
   -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
   let identifiersAbstracted := identifiersContainingF.map (Expr.replace (replacementRule f (.fvar fId)))
 
+  return identifiersAbstracted
+
+/-- Find the type of the new auto-generalized theorem -/
+def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
+
   -- then we need to add those abstracted identifiers to the hypothesis
   -- e.g. a proposition of type identifiersAbstracted[0] → identifiersAbstracted[1] → ... → goal
   let goal ← getHypothesisType genThmName
-  let genThmTypeBody ← identifiersAbstracted.foldrM (mkImplies) goal
+  let genThmTypeBody ← modifiers.foldrM (mkImplies) goal
 
   -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
   let genThmTypeBody := replaceFVarWithBVar fId genThmTypeBody
@@ -867,9 +871,11 @@ def autogeneralize (thmName : Name) : TacticM Unit := do
   --   f       (ℕ → ℕ → ℕ)
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
-  let genThmType ← autogeneralizeType genThmName thmType thmProof f fName fType fId
+  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
 
-  -- Then, prove those hypotheses are all you need.
+  -- Get the type of the generalized theorem (with those additional hypotheses)
+  let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
+  -- Get the proof of the generalized theorem
   let genThmProof := toExpr 42
 
   -- clear the goals we don't need anymore
