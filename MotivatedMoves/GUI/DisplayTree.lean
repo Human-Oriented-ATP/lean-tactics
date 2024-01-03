@@ -162,6 +162,15 @@ inductive DisplayTree where
 | node (pos : SubExpr.Pos) (body : CodeWithInfos)
 deriving RpcEncodable
 
+def DisplayTree.depth : DisplayTree → Nat
+  | «forall» _ _ _ _ body => body.depth.succ
+  | «exists» _ _ _ _ body => body.depth.succ
+  | «instance» _ _ body => body.depth.succ
+  | implication _ antecedent _ consequent => (antecedent.depth + consequent.depth).succ -- layering vertically
+  | and _ first _ second => max first.depth second.depth -- displaying side-by-side
+  | not _ _ body => body.depth.succ
+  | node _ _ => 1
+
 open Lean PrettyPrinter
 def annotateAs (txt : String) (e : SubExpr) (pos : SubExpr.Pos := .root) (delab : Delab := delab) : MetaM CodeWithInfos := do
   let (_stx, infos) ← delabCore e.expr {} delab
