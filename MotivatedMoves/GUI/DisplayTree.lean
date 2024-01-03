@@ -167,8 +167,17 @@ def DisplayTree.depth : DisplayTree → Nat
   | «exists» _ _ _ _ body => body.depth.succ
   | «instance» _ _ body => body.depth.succ
   | implication _ antecedent _ consequent => (antecedent.depth + consequent.depth).succ -- layering vertically
-  | and _ first _ second => max first.depth second.depth -- displaying side-by-side
+  | and _ first _ second => (max first.depth second.depth).succ -- displaying side-by-side
   | not _ _ body => body.depth.succ
+  | node _ _ => 1
+
+def DisplayTree.width : DisplayTree → Nat
+  | «forall» _ _ _ _ body => body.width
+  | «exists» _ _ _ _ body => body.width
+  | «instance» _ _ body => body.width
+  | implication _ antecedent _ consequent => max antecedent.width consequent.width
+  | and _ first _ second => first.width + second.width
+  | not _ _ body => body.width
   | node _ _ => 1
 
 open Lean PrettyPrinter
