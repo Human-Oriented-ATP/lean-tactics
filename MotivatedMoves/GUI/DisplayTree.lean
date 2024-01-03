@@ -153,13 +153,13 @@ where
 open Widget ProofWidgets Server
 
 inductive DisplayTree where
-| forall (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
-| exists (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
-| «instance» (inst : CodeWithInfos) (body : DisplayTree)
-| implication (antecedent : DisplayTree) (arrow : CodeWithInfos) (consequent : DisplayTree)
-| and (first : DisplayTree) (wedge : CodeWithInfos) (second : DisplayTree)
-| not (not : CodeWithInfos) (body : DisplayTree)
-| node (body : CodeWithInfos)
+| forall (pos : SubExpr.Pos) (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
+| exists (pos : SubExpr.Pos) (quantifier : CodeWithInfos) (name : CodeWithInfos) (type : CodeWithInfos) (body : DisplayTree)
+| «instance» (pos : SubExpr.Pos) (inst : CodeWithInfos) (body : DisplayTree)
+| implication (pos : SubExpr.Pos) (antecedent : DisplayTree) (arrow : CodeWithInfos) (consequent : DisplayTree) 
+| and (pos : SubExpr.Pos) (first : DisplayTree) (wedge : CodeWithInfos) (second : DisplayTree)
+| not (pos : SubExpr.Pos) (not : CodeWithInfos) (body : DisplayTree)
+| node (pos : SubExpr.Pos) (body : CodeWithInfos)
 deriving RpcEncodable
 
 open Lean PrettyPrinter
@@ -191,6 +191,7 @@ def annotateAsCurrentTree (txt : String) : DelabM CodeWithInfos := do
 partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := do
   match (← getExpr) with
   | forall_pattern n _u d b =>
+    let pos ← getPos
     let n ← getUnusedName n b
     let quantifierInfo ← annotateAsCurrentTree "∀"
     let domainInfo ← ppTreeTagged d 
@@ -198,9 +199,10 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
       let fvarAnnotated := if pol then fvar else mkAnnotation `star fvar
       let varInfo ← ppTreeTagged fvarAnnotated
       descend (b.instantiate1 fvarAnnotated) 1 do
-        return .forall quantifierInfo varInfo domainInfo (← toDisplayTree pol)
+        return .forall pos quantifierInfo varInfo domainInfo (← toDisplayTree pol)
   
   | exists_pattern n _u d b =>
+    let pos ← getPos 
     let n ← getUnusedName n b
     let quantifierInfo ← annotateAsCurrentTree "∃"
     let domainInfo ← ppTreeTagged d 
@@ -208,9 +210,10 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
       let fvarAnnotated := if pol then fvar else mkAnnotation `bullet fvar
       let varInfo ← ppTreeTagged fvarAnnotated
       descend (b.instantiate1 fvarAnnotated) 1 do
-        return .exists quantifierInfo varInfo domainInfo (← toDisplayTree pol)
+        return .exists pos quantifierInfo varInfo domainInfo (← toDisplayTree pol)
   
   | instance_pattern n _u d b =>
+    let pos ← getPos
     Meta.withLocalDeclD n d fun fvar => do
       let n ← (do
         if n.eraseMacroScopes == `inst then
@@ -218,30 +221,34 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
         else
           return s! "{← getUnusedName n b} : ")
       descend (b.instantiate1 fvar) 1 do
-        return .instance (.append #[.text s! "[{n}", ← ppTreeTagged d, .text "]"]) (← toDisplayTree pol)
+        return .instance pos (.append #[.text s! "[{n}", ← ppTreeTagged d, .text "]"]) (← toDisplayTree pol)
   
   | imp_pattern p q =>
+    let pos ← getPos 
     let arrowInfo ← annotateAsCurrentTree "↓"
     let antecedent ← descend p 0 (toDisplayTree !pol)
     let consequent ← descend q 1 (toDisplayTree pol)
-    return .implication antecedent arrowInfo consequent
+    return .implication pos antecedent arrowInfo consequent
 
   | and_pattern p q =>
+    let pos ← getPos
     let andInfo ← annotateAsCurrentTree "∧"
     let fstGoal ← descend p 0 (toDisplayTree pol)
     let sndGoal ← descend q 1 (toDisplayTree pol)
-    return .and fstGoal andInfo sndGoal
+    return .and pos fstGoal andInfo sndGoal
 
   | not_pattern p =>
+    let pos ← getPos
     let notInfo ← annotateAsCurrentTree "¬"
     let body ← descend p 1 (toDisplayTree !pol)
-    return .not notInfo body
+    return .not pos notInfo body
 
   | e => 
+    let pos ← getPos 
     if root then 
       failure 
     else descend e 2 do
-      return .node (← ppTreeTagged e)
+      return .node pos (← ppTreeTagged e)
 
 
 #exit
