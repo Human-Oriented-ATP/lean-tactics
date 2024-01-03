@@ -537,7 +537,6 @@ def printConstantsIn (e : Expr) : MetaM Unit :=
 
 #eval do {let e ← getTheoremStatement `multPermute; printConstantsIn e}
 
-/-- Print all subexpressions that involve natural numbers --/
 def printIfNat (subexpr : Expr) : MetaM Unit := do
   try
     let isNatResult ← isNat subexpr
@@ -548,6 +547,7 @@ def printIfNat (subexpr : Expr) : MetaM Unit := do
   | Exception.error _ _ => return
   | _ => throwError "Something about 'isNat subexpr' is throwing an error."
 
+/-- Print all subexpressions that involve natural numbers --/
 def printNatsIn (e : Expr) : MetaM Unit := do
   e.forEach printIfNat
 
@@ -739,8 +739,6 @@ def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Optio
     let goal ← getGoalVar
     goal.withContext do
       let (_, new_hyps, new_goal) ← goal.generalizeHyp [genArg].toArray  [hypToGeneralize].toArray
-      -- for fvarid in new_hyps do
-      --   new_goal.withContext $ (Expr.fvar fvarid).addLocalVarInfoForBinderIdent (← `(binderIdent| _))
       setGoals [new_goal]
 
     return (x, ← getHypothesisType x, ← getHypothesisFVarId x) -- name and type of new generalized variable
@@ -807,6 +805,7 @@ def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr
     then some replacement
     else none
 
+/-- Create the expression d → b -/
 def mkImplies (d b : Expr) : TacticM Expr :=
   return .forallE (← mkFreshUserName `x) d b .default
 
@@ -828,7 +827,7 @@ def autogeneralizeType (genThmName : Name)  (thmType thmProof : Expr) (f : Expr)
   -- now get the types of those identifiers
   let identifiersTypes ← liftMetaM (identifiers.mapM getTheoremStatement)
 
-  -- only keep the ones that contain the generalized term (multiplication *) in their type
+  -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifiersContainingF := identifiersTypes.filter f.occurs
 
   -- Now we need to replace every occurence of * with f in those identifiers.
@@ -836,22 +835,18 @@ def autogeneralizeType (genThmName : Name)  (thmType thmProof : Expr) (f : Expr)
   let identifiersAbstracted := identifiersContainingF.map (Expr.replace (replacementRule f (.fvar fId)))
 
   -- then we need to add those abstracted identifiers to the hypothesis
-  -- e.g. a proposition of type fType → identifiersAbstracted[0] → identifiersAbstracted[1] → hypAbstracted
-  let hypAbstracted ← getHypothesisType genThmName
-  let identifiersAbstracted := identifiersAbstracted --++ [hypAbstracted]
+  -- e.g. a proposition of type identifiersAbstracted[0] → identifiersAbstracted[1] → ... → goal
+  let goal ← getHypothesisType genThmName
+  let genThmTypeBody ← identifiersAbstracted.foldrM (mkImplies) goal
 
-  let genPropTypeBody ← identifiersAbstracted.foldrM (mkImplies) hypAbstracted
-
-  let genPropTypeBody := replaceFVarWithBVar fId genPropTypeBody
-
-  let genThmType := Expr.forallE fName fType genPropTypeBody .default
-  logInfo s!"The final type {← ppExpr genThmType}"
+  -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
+  let genThmTypeBody := replaceFVarWithBVar fId genThmTypeBody
+  let genThmType := Expr.forallE fName fType genThmTypeBody .default
 
   return genThmType
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) : TacticM Unit := do
-
   -- Get details about the un-generalized proof we're going to generalize
   let thmType ← getHypothesisType thmName
   let thmProof ← getHypothesisProof thmName
@@ -872,14 +867,17 @@ def autogeneralize (thmName : Name) : TacticM Unit := do
   --   f       (ℕ → ℕ → ℕ)
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
-  -- Ultimately, get the statement (type) of the generalized theorem
   let genThmType ← autogeneralizeType genThmName thmType thmProof f fName fType fId
 
   -- Then, prove those hypotheses are all you need.
-  -- Ultimatel, get the proof (term) of the generalized theorem
   let genThmProof := toExpr 42
 
-  createHypothesis genThmType genThmProof `gen
+  -- clear the goals we don't need anymore
+  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
+  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
+
+  -- create the new hypothesis
+  createHypothesis genThmType genThmProof genThmName
 
 elab "autogeneralize" h:ident : tactic =>
   autogeneralize h.getId

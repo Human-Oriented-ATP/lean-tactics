@@ -70,7 +70,7 @@ by
 theorem multPermute''' : True :=
 by
   have multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  generalize @HMul.hMul Nat Nat Nat instHMul = f at multPermuteHyp
+  generalize hf : @HMul.hMul Nat Nat Nat instHMul = f at multPermuteHyp
   simp
 
 
