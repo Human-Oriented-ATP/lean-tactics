@@ -5,12 +5,7 @@ namespace TreeRender
 
 open Lean Widget ProofWidgets Server
 
--- deriving instance Repr for Svg.Color
--- def RGB.toSVGColor : Nat × Nat × Nat → Svg.Color
---   | (r, g, b) => (r.toFloat / 255, g.toFloat / 255, b.toFloat / 255)
-
--- #eval RGB.toSVGColor (0, 153, 204)
-
+-- TODO: Clean up color rendering
 private structure TextBubbleColorParams where
   /-- The `forall` nodes in the `DisplayTree` are colored `green`. -/
   forallQuantifierColor : Svg.Color := (0.0, 0.8, 0.4)
@@ -53,7 +48,7 @@ private structure BackgroundFrameParams where
 
 private structure TreeRenderParams extends TextBubbleParams, BackgroundFrameParams where
   /-- The number of pixels occupied by each row in the tree display. -/
-  rowSize : Nat := 30
+  rowHeight : Nat := 30
   /-- The list of selected locations in the rendered proof state. -/
   selectedLocations : Array SubExpr.Pos
   /-- The current frame in the SVG. -/
@@ -69,7 +64,6 @@ private structure TreeRenderState where
 
 /-- A monad for rendering a proof tree as an SVG. -/
 private abbrev TreeRenderM := StateT TreeRenderState (ReaderM TreeRenderParams)
-
 section LensNotation
 
 -- From Jovan's Zulip thread https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lens-like.20notation/near/409670188
@@ -87,11 +81,6 @@ end LensNotation
 def draw (element : Html) : TreeRenderM Unit :=
   modify (elements %~ (·.push element))
 
-/-- Modify the current frame to start on the next row. -/
-def withNextRow (act : TreeRenderM α) : TreeRenderM α := do
-  let ρ ← read
-  withReader (frame %~ height %~ (· - ρ.rowSize)) act
-
 /-- Modify the background color of the current frame. -/
 def withColor (c : Svg.Color) : TreeRenderM α → TreeRenderM α :=
   withReader ({ · with color := c })
@@ -104,10 +93,39 @@ def withFrame (f : Svg.Frame) : TreeRenderM α → TreeRenderM α :=
 def descend (childIdx : Nat) : TreeRenderM α → TreeRenderM α := 
   withReader (pos %~ (·.push childIdx))
 
-/-- Split a frame into left and right halves. -/
-def splitFrameHorizontal (f : Svg.Frame) : Svg.Frame × Svg.Frame := 
-  ( { f with xSize := f.xSize / 2, width := f.width / 2 }, 
-    { f with xSize := f.xSize / 2, width := f.width / 2, xmin := f.xmin + f.xSize / 2 })
+/-- Split the current frame into left and right parts and work on them individually. -/
+def withHorizontalSplit (width : Nat) 
+    (leftAct : TreeRenderM Unit) (rightAct : TreeRenderM Unit) : TreeRenderM Unit := do
+  let (leftFrame, rightFrame) := splitFrameHorizontal (← read).frame width
+  withFrame leftFrame leftAct
+  withFrame rightFrame rightAct
+where
+  /-- Split a frame into left and right parts. -/
+  splitFrameHorizontal (f : Svg.Frame) (width : Nat) : Svg.Frame × Svg.Frame :=
+    let size := f.pixelSize * width.toFloat 
+    ( { f with xSize := size, width := width }, 
+      { f with xSize := f.xSize - size, width := f.width - width, xmin := f.xmin + size } )
+
+/-- Split the current frame into equally sized left and right halves and work on them individually. -/
+abbrev withEvenHorizontalSplit (leftAct : TreeRenderM Unit) (rightAct : TreeRenderM Unit) : TreeRenderM Unit := do
+  withHorizontalSplit ((← read).frame.width / 2) leftAct rightAct
+
+/-- Split the current frame into top and bottom parts and work on them individually. -/
+def withVerticalSplit (height : Nat)
+    (topAct : TreeRenderM Unit) (bottomAct : TreeRenderM Unit) : TreeRenderM Unit := do
+  let (topFrame, bottomFrame) := splitFrameVertical (← read).frame height
+  withFrame topFrame topAct
+  withFrame bottomFrame bottomAct
+where
+  /-- Split a frame into top and bottom parts. -/
+  splitFrameVertical (f : Svg.Frame) (height : Nat) : Svg.Frame × Svg.Frame :=
+    let size := f.pixelSize * height.toFloat
+    ( { f with ymin := f.ymax - size, height := height }, 
+      { f with height := f.height / 2 } )
+
+/-- Work on the top row of the current frame and specify what to do on the rest. -/
+abbrev withTopRowSplit (rowAct : TreeRenderM Unit) (restAct : TreeRenderM Unit) : TreeRenderM Unit := do
+  withVerticalSplit (← read).rowHeight rowAct restAct
 
 /-- Checks if the current position is selected. -/
 def isSelected : TreeRenderM Bool := do
@@ -133,11 +151,11 @@ def drawFrame : TreeRenderM Unit := do
   else #[]) #[]
 
 open scoped Jsx in
-/-- Draw a piece of interactive code at the centre of the top row of the current frame. -/
+/-- Draw a piece of interactive code at the center of the current frame. -/
 def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
   let ρ ← read
   let codeLength := ρ.charWidth * code.pretty.length
-  let (x, y) := (ρ.frame.width / 2 - codeLength / 2, ρ.frame.height - (← read).rowSize / 2 + ρ.height / 2)
+  let (x, y) := (ρ.frame.width / 2 - codeLength / 2, ρ.frame.height / 2 + ρ.height / 2)
   draw <| .element "rect" #[
     ("x", x),
     ("y", y),
@@ -154,27 +172,48 @@ def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
     ("height", ρ.height)
   ] #[< InteractiveCode fmt={code} />]
 
-def Tree.DisplayTree.render (displayTree : Tree.DisplayTree) : TreeRenderM Unit := do
+/--
+
+Render a `DisplayTree` as an SVG image within the `TreeRenderM` monad.
+
+# TO-DO:
+- Coloring based on polarity
+- A button within each box to select the entire expression contained within
+
+-/
+def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM Unit := do
   let ρ ← read
   drawFrame
   match displayTree with
   | .forall quantifier name type body =>
-    drawCode (.append #[quantifier, name, type]) ρ.forallQuantifierColor
-    (withNextRow ∘ descend 1) (render body) 
+    withTopRowSplit
+      (drawCode (.append #[quantifier, name, type]) ρ.forallQuantifierColor)
+      (descend 1 <| renderCore body) 
   | .exists quantifier name type body =>
-    drawCode (.append #[quantifier, name, type]) ρ.existsQuantifierColor
-    (withNextRow ∘ descend 1) (render body)
+    withTopRowSplit
+      (drawCode (.append #[quantifier, name, type]) ρ.existsQuantifierColor)
+      (descend 1 <| renderCore body)
   | .instance inst body =>
-    drawCode inst ρ.instanceColor
-    (withNextRow ∘ descend 1) (render body)
-  | .implication antecedent arrow consequent => _
+    withTopRowSplit
+      (drawCode inst ρ.instanceColor)
+      (descend 1 <| renderCore body)
+  | .implication antecedent arrow consequent => 
+    withVerticalSplit (antecedent.depth * ρ.rowHeight)
+      (descend 0 <| withColor ρ.implicationColor <| renderCore antecedent)
+      (withTopRowSplit
+        (drawCode arrow ρ.implicationColor)
+        (descend 1 <| renderCore consequent))
   | .and first wedge second =>
-    drawCode wedge ρ.conjunctionColor
-    withNextRow do
-      let (leftFrame, rightFrame) := splitFrameHorizontal (← read).frame
-      (withFrame leftFrame ∘ descend 0) (render first)
-      (withFrame rightFrame ∘ descend 1) (render second)
+    withTopRowSplit
+      (drawCode wedge ρ.conjunctionColor)
+      (withEvenHorizontalSplit 
+        (descend 0 <| withColor ρ.conjunctionColor <| renderCore first)
+        (descend 1 <| withColor ρ.conjunctionColor <| renderCore second))
   | .not neg body =>
-    drawCode neg ρ.negationColor
-    (withNextRow ∘ descend 1 ∘ withColor ρ.negationColor) (render body)
-  | .node val => drawCode val ρ.nodeColor
+    withTopRowSplit
+      (drawCode neg ρ.negationColor)
+      (descend 1 <| withColor ρ.negationColor <| renderCore body)
+  | .node val => 
+    withTopRowSplit
+      (drawCode val ρ.nodeColor)
+      (pure ())
