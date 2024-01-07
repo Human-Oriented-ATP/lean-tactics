@@ -155,7 +155,7 @@ def drawFrame : TreeRenderM Unit := do
   ].append <|
   if (← isSelected) then
     -- highlighting when the associated position is selected
-    #[("stroke-width", toJson ρ.bgStrokeWidth), ("stroke", toJson ρ.bgStrokeColor)]
+    #[("stroke-width", toJson ρ.bgStrokeWidth), ("stroke", toJson ρ.bgStrokeColor.toStringRGB)]
   else #[]) #[]
 
 open scoped Jsx in
