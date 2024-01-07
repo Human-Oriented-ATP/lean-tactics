@@ -1,9 +1,9 @@
 import MotivatedMoves.GUI.DisplayTree
 import ProofWidgets
 
-namespace TreeRender
-
 open Lean Widget ProofWidgets Server
+
+namespace TreeRender
 
 -- TODO: Clean up color rendering
 private structure TextBubbleColorParams where
@@ -54,7 +54,7 @@ private structure TreeRenderParams extends TextBubbleParams, BackgroundFramePara
   /-- The current frame in the SVG. -/
   frame : Svg.Frame
   /-- The color of the current frame. -/
-  color : Svg.Color
+  color : Svg.Color := bgColor
   /-- The current position within the expression being rendered. -/
   pos : SubExpr.Pos := .root
 
@@ -132,6 +132,14 @@ def isSelected : TreeRenderM Bool := do
   let ρ ← read
   return ρ.selectedLocations.contains ρ.pos
 
+partial def Html.toString : Html → String
+  | .element tag attrs children => s!"Element {tag} {attrs} {children.map toString}"
+  | .text t => s!"Text {t}"
+  | .component _ name _ children => s!"Component {name} {children.map toString}"
+
+instance : ToString Html where
+  toString := Html.toString
+
 /-- Draw a rectangle bounding the current frame, set to highlight when 
     the current position is selected in the UI. -/
 def drawFrame : TreeRenderM Unit := do
@@ -172,6 +180,9 @@ def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
     ("height", ρ.height)
   ] #[< InteractiveCode fmt={code} />]
 
+end TreeRender
+
+open TreeRender in
 /--
 
 Render a `DisplayTree` as an SVG image within the `TreeRenderM` monad.
@@ -217,3 +228,52 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
     withTopRowSplit
       (drawCode val ρ.nodeColor)
       (pure ())
+
+section Rendering
+
+deriving instance TypeName for Tree.DisplayTree
+
+structure GoalSelectionProps where
+  pos : Lsp.Position
+  tree : WithRpcRef Tree.DisplayTree
+  locations : Array SubExpr.Pos
+deriving RpcEncodable
+
+open scoped Jsx in
+@[server_rpc_method]
+def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := RequestM.asTask do
+  let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := 50, width := 50, height := 50 }
+  let (_, ⟨elements⟩) := props.tree.val.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
+  return (
+    <div>
+      {.element "svg"
+      #[("xmlns", "http://www.w3.org/2000/svg"),
+        ("version", "1.1"),
+        ("width", 50),
+        ("height", 50)]
+      elements}
+      {<hr />}
+      {.element "div" #[] <| elements.map (fun e ↦ <div>{Html.text (toString e)}{<hr />}</div>)}
+    </ div>
+    )
+
+@[widget_module]
+def RenderTree : Component GoalSelectionProps where
+  javascript := include_str "../../build/js/svgTreeTest.js"
+
+open Elab Tactic Json in
+elab stx:"display_tree" : tactic => do
+  let e ← getMainTarget
+  let (t, _) ← Tree.toDisplayTree 
+            |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
+            |>.run {}
+  Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
+    return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
+
+#check Html
+
+example : ¬True  := by
+  make_tree
+  display_tree
+
+end Rendering
