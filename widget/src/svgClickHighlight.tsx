@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { LocationsContext, importWidgetModule, RpcSessionAtPos, RpcContext, useAsyncPersistent, mapRpcError, GoalsLocation, DocumentPosition, CodeWithInfos, SubexprPos } from '@leanprover/infoview';
-import { skeletonClasses } from '@mui/material';
 
 type HtmlAttribute = [string, any]
 
@@ -74,7 +73,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
     console.log(props);
     const rs = React.useContext(RpcContext)
     const pos = props.pos
-    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>([]);
+    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.locations.map (pos => {return {mvarId: '', loc: {target: pos}}}));
     React.useEffect(() => setSelectedLocs([]), [pos.uri, pos.line, pos.character]);
     const locs = React.useMemo(() => ({
         isSelected: (l : GoalsLocation) => selectedLocs.some(v => GoalsLocation.isEqual(v, l)),
