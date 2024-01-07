@@ -120,8 +120,8 @@ where
   /-- Split a frame into top and bottom parts. -/
   splitFrameVertical (f : Svg.Frame) (height : Nat) : Svg.Frame × Svg.Frame :=
     let size := f.pixelSize * height.toFloat
-    ( { f with ymin := f.ymax - size, height := height }, 
-      { f with height := f.height / 2 } )
+    ( { f with height := height }, 
+      { f with ymin := f.ymin + size, height := f.height - height } )
 
 /-- Work on the top row of the current frame and specify what to do on the rest. -/
 abbrev withTopRowSplit (rowAct : TreeRenderM Unit) (restAct : TreeRenderM Unit) : TreeRenderM Unit := do
@@ -163,10 +163,11 @@ open scoped Jsx in
 def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
   let ρ ← read
   let codeLength := ρ.charWidth * code.pretty.length
-  let (x, y) := (ρ.frame.width / 2 - codeLength / 2, ρ.frame.height / 2 + ρ.height / 2)
+  let (x, y) := (ρ.frame.xmin + (ρ.frame.width / 2 - codeLength / 2).toFloat * ρ.frame.pixelSize, 
+                 ρ.frame.ymin + (ρ.frame.height / 2 - ρ.height / 2).toFloat * ρ.frame.pixelSize)
   draw <| .element "rect" #[
-    ("x", x),
-    ("y", y),
+    ("x", toJson x),
+    ("y", toJson y),
     ("width", codeLength + 2 * ρ.padding),
     ("height", ρ.height),
     ("rx", ρ.rounding),
@@ -174,8 +175,8 @@ def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
     ("opacity", toJson ρ.opacity)
   ] #[]
   draw <| .element "foreignObject" #[
-    ("x", x + ρ.padding),
-    ("y", y),
+    ("x", toJson <| x + ρ.padding.toFloat * ρ.frame.pixelSize),
+    ("y", toJson y),
     ("width", codeLength),
     ("height", ρ.height)
   ] #[< InteractiveCode fmt={code} />]
@@ -198,11 +199,11 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
   match displayTree with
   | .forall quantifier name type body =>
     withTopRowSplit
-      (drawCode (.append #[quantifier, name, type]) ρ.forallQuantifierColor)
+      (drawCode (.append #[quantifier, name, .text " : ", type]) ρ.forallQuantifierColor)
       (descend 1 <| renderCore body) 
   | .exists quantifier name type body =>
     withTopRowSplit
-      (drawCode (.append #[quantifier, name, type]) ρ.existsQuantifierColor)
+      (drawCode (.append #[quantifier, name, .text " : ", type]) ρ.existsQuantifierColor)
       (descend 1 <| renderCore body)
   | .instance inst body =>
     withTopRowSplit
@@ -242,15 +243,15 @@ deriving RpcEncodable
 open scoped Jsx in
 @[server_rpc_method]
 def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := RequestM.asTask do
-  let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := 50, width := 50, height := 50 }
+  let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := 250, width := 250, height := 250 }
   let (_, ⟨elements⟩) := props.tree.val.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
   return (
     <div>
       {.element "svg"
       #[("xmlns", "http://www.w3.org/2000/svg"),
         ("version", "1.1"),
-        ("width", 50),
-        ("height", 50)]
+        ("width", 250),
+        ("height", 250)]
       elements}
       {<hr />}
       {.element "div" #[] <| elements.map (fun e ↦ <div>{Html.text (toString e)}{<hr />}</div>)}
@@ -270,9 +271,7 @@ elab stx:"display_tree" : tactic => do
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
     return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
 
-#check Html
-
-example : ¬True  := by
+example : ∀ x : Nat, True ∧ False → True := by
   make_tree
   display_tree
 
