@@ -828,6 +828,7 @@ def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr 
   | Expr.letE n t v b x    => return Expr.letE n (← replaceCoarsely original replacement t) (← replaceCoarsely original replacement v) (← replaceCoarsely original replacement b) x
   | misc                     => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
 
+
 /-- Create the expression d → b -/
 def mkImplies (d b : Expr) : TacticM Expr :=
   return .forallE (← mkFreshUserName `f_assoc) d b .default
@@ -839,11 +840,15 @@ def mkAbstractedName (n : Name) : Name :=
     | _ => `unknown
 
 /- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
-def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
+def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
   -- each new forall statement introduces a new bound variable...so depending on how deep you go...you need more bound variables.
   match e with
-    | .forallE n a b bi => .forallE n (replaceFVarWithBVar id a (depth)) (replaceFVarWithBVar id b (depth+1)) bi
-    | e => e.replace (replacementRule (.fvar id) (.bvar depth))
+    | .forallE n a b bi => return .forallE n (← replaceFVarWithBVar fid a (depth)) (← replaceFVarWithBVar fid b (depth+1)) bi
+    | e =>  replaceCoarsely (.fvar fid) (.bvar depth) e
+
+-- def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
+--   return e
+--   -- e.traverseChildren (replaceCoarsely (.fvar fid) (.bvar depth))
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
@@ -883,10 +888,11 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
   let genThmTypeBody ← modifiers.foldrM (mkImplies) goal
 
   -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
-  let genThmTypeBody := replaceFVarWithBVar fId genThmTypeBody
-  let genThmType := Expr.forallE fName fType genThmTypeBody .default
+  (←getGoalVar).withContext do
+    let genThmTypeBody ← replaceFVarWithBVar fId genThmTypeBody
+    let genThmType := Expr.forallE fName fType genThmTypeBody .default
 
-  return genThmType
+    return genThmType
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (oldModifierNames newModifierNames  : List Name) (thmProof : Expr): TacticM Expr := do
@@ -918,22 +924,18 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
-  -- Get the proof of the generalized theorem
+  -- -- Get the proof of the generalized theorem
   let genThmProof ← autogeneralizeProof oldModifierNames newModifierNames thmProof
-  logInfo genThmProof
+  -- logInfo genThmProof
 
-  -- clear the goals we don't need anymore
-  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
-  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
+  -- -- clear the goals we don't need anymore
+  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
+  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
-  -- clear the proof of the original hypothesis (for simplicity)
-  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId thmName); setGoals [newGoal]
-  -- createHypothesis thmType thmProof thmName
-
-  -- create the new hypothesis
+  -- -- create the new hypothesis
   createHypothesis genThmType genThmProof genThmName
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
+  -- logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
 
 /- Autogeneralize term "t" in hypothesis "h"-/
 elab "autogeneralize" h:ident f:term : tactic => do
@@ -945,6 +947,7 @@ set_option pp.proofs.withType false
 example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
+  -- autogeneralize multPermuteHyp (.*. : ℕ → ℕ → ℕ) -- adds multPermuteGen to list of hypotheses
 
   -- specialize it to addition
   specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd)
@@ -953,5 +956,5 @@ example : True := by
   -- simp [multPermuteHyp, multPermuteHyp.Gen] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
 
 example : True := by
-  let sqrt_2_irrational : Irrational (Real.sqrt 2) := Nat.prime_two.irrational_sqrt
-  -- autogeneralize sqrt_2_irrational 2
+  let sqrt2Irrational : Irrational (Real.sqrt 2) := Nat.prime_two.irrational_sqrt
+  autogeneralize sqrt2Irrational 2
