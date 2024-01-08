@@ -929,8 +929,8 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
   -- logInfo genThmProof
 
   -- -- clear the goals we don't need anymore
-  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
-  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
+  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
+  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
   -- -- create the new hypothesis
   createHypothesis genThmType genThmProof genThmName
