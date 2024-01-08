@@ -1,6 +1,8 @@
 import Lean
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
 import MotivatedMoves.AutoGeneralization.mulPermuteProof
+import Mathlib.Data.Real.Irrational
+import Qq open Qq Lean
 
 open Lean Elab Tactic Meta Term
 
@@ -828,7 +830,13 @@ def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr 
 
 /-- Create the expression d → b -/
 def mkImplies (d b : Expr) : TacticM Expr :=
-  return .forallE (← mkFreshUserName `x) d b .default
+  return .forallE (← mkFreshUserName `f_assoc) d b .default
+
+/-- Create a reasonable name for an expression -/
+def mkAbstractedName (n : Name) : Name :=
+    match n with
+    | (.str _ s) => s!"gen_{s}"
+    | _ => `unknown
 
 /- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
 def replaceFVarWithBVar (id : FVarId) (e : Expr) (depth : Nat := 0) : Expr :=
@@ -844,8 +852,8 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   return firstExprContainingSubexpr.isSome
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
-def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Expr) := do
-  -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
+def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Name × List Name × List Expr) := do
+  -- get names of all identifiers (that is, constants) in the proof term that don't already appear in the proof type
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
   let identifiers := identifiersInProofTerm.removeAll identifiersInProofType
@@ -854,13 +862,17 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : E
   let identifiersTypes ← liftMetaM (identifiers.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
-  let identifiersContainingF ← identifiersTypes.filterM (containsExpr f)
+  let identifiers ← identifiers.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f s})
+  let identifiersTypes ← identifiersTypes.filterM (containsExpr f)
 
   -- Now we need to replace every occurence of * with f in those identifiers.
   -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
-  let identifiersAbstracted ← identifiersContainingF.mapM (replaceCoarsely f (.fvar fId))
+  let abstractedIdentifierNames := identifiers.map (mkAbstractedName)
+  let abstractedIdentifierTypes ← identifiersTypes.mapM (replaceCoarsely f (.fvar fId))
 
-  return identifiersAbstracted
+  -- return old name,   new name,   new type
+  -- e.g.   mul_assoc,  f_assoc,    ∀ n m p : ℕ, f n (f m p) = (f (f n m) p)
+  return (identifiers, abstractedIdentifierNames, abstractedIdentifierTypes)
 
 /-- Find the type of the new auto-generalized theorem -/
 def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
@@ -877,9 +889,14 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
   return genThmType
 
 /-- Find the proof of the new auto-generalized theorem -/
-def autogeneralizeProof : TacticM Expr := do
-  return (toExpr 42)
+def autogeneralizeProof (oldModifierNames newModifierNames  : List Name) (thmProof : Expr): TacticM Expr := do
+  for (old, new) in (oldModifierNames, newModifierNames) do
+      let thmProof := thmProof.replace (replacementRule (.const oldModifierNames[0]! []) (.const newModifierNames[0]! []) )
+  -- let thmProof := (oldModifierNames, newModifierNames).toList.foldlM (replace replacementRule)
+  return thmProof
 
+
+-- def mapConsts (map : List Name ⨯List Name )
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
@@ -897,12 +914,13 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
   --   f       (ℕ → ℕ → ℕ)
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
-  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
+  let (oldModifierNames, newModifierNames, modifiers) ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
   -- Get the proof of the generalized theorem
-  let genThmProof ← autogeneralizeProof
+  let genThmProof ← autogeneralizeProof oldModifierNames newModifierNames thmProof
+  logInfo genThmProof
 
   -- clear the goals we don't need anymore
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
@@ -922,7 +940,9 @@ elab "autogeneralize" h:ident f:term : tactic => do
   let f ← (Lean.Elab.Term.elabTerm f none)
   autogeneralize h.getId f
 
-example : 1 + (2 + 3) = 2 + (1 + 3) := by
+set_option pp.proofs false
+set_option pp.proofs.withType false
+example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
 
@@ -931,3 +951,7 @@ example : 1 + (2 + 3) = 2 + (1 + 3) := by
   specialize multPermuteHyp.Gen  Nat.add_assoc Nat.add_comm 1 2 3
   assumption
   -- simp [multPermuteHyp, multPermuteHyp.Gen] -- to make sure the linter doesn't complain that multPermute wasn't used in proving "True"
+
+example : True := by
+  let sqrt_2_irrational : Irrational (Real.sqrt 2) := Nat.prime_two.irrational_sqrt
+  -- autogeneralize sqrt_2_irrational 2
