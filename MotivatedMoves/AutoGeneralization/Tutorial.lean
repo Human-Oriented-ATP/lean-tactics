@@ -960,9 +960,8 @@ elab "autogeneralize" h:ident f:term : tactic => do
 set_option pp.showLetValues false
 
 example : True := by
-  let sqrt2Irrational : Irrational (Real.sqrt 2) := by apply Nat.prime_two.irrational_sqrt
-  autogeneralize sqrt2Irrational (2: ℕ)
-
+  let sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  autogeneralize sqrt2Irrational (2 : ℕ)
 
 example : True := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
