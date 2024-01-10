@@ -154,20 +154,64 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
     The tactic state is converted into the tree representation in the process. -/
 @[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
 | stx@`(tactic| motivated_proof $seq) => do
+  -- the start and end positions of the syntax block
   let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
-  -- the leading and trailing whitespaces around the `motivated_proof` syntax node
-  let some (.original leading _ trailing _) := stx.getHeadInfo? | panic! s!"Could not extract head information from {stx}."
-  let extractIndentation (s : Substring) : Nat :=
-    s.toString |>.split (· = '\n') |>.tail! |>.length -- compute the indentation of the last line in the string
-  let indent : Nat := -- compute the appropriate indentation for the next tactic
-    extractIndentation trailing
+  -- the indentation of the `motivated_proof` block
+  let indent := getBlockIndentation stx stxStart
+  -- the position for the next tactic insertion
   let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
+  -- the range in the text document supplied to the motivated proof panel for tactic insertion
+  -- the tactic is inserted at `stxEnd` rather than at `pos` to avoid complications when the block is at the end of the file
+  -- the logic for handling the whitespace insertion is in `EditParams.ofReplaceWhitespace`
+  -- this function is invoked by default in `DynamicEditButton`s with `onWhitespace` set to true
   let range : Lsp.Range := ⟨stxEnd, pos⟩
+  -- save the widget for the motivated proof panel to the syntax `stx`
   Widget.savePanelWidgetInfo (hash MotivatedProofPanel.javascript) (stx := stx) do
     return json% { range : $(range) }
-  Tree.workOnTreeDefEq pure -- this turns the goal into a tree initially
+  -- this turns the goal into a tree initially
+  Tree.workOnTreeDefEq pure
+  -- evaluate the tactic sequence
   evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
+where
+  /--
+  If `stx` is a tactic block of the form
+  
+  ```
+  <main_tactic>
+      <tac₁>
+      <tac₂>
+      ...
+      ...
+      ...
+      <tacₙ>
+  ```
+
+  `getBlockIndentation` calculates the indentation of the tactic block
+    `tac₁; tac₂; ...; tacₙ` (measured in terms of number of characters from the left margin).
+
+  This is done by extracting the trailing `SourceInfo` of the `main_tactic`
+  and calculating the length of its last line.
+
+  If this fails, the indentation defaults to that of the `main_tactic` with an additional two spaces.
+
+  The argument `start` is the start position of the `stx` syntax block in the editor.
+  -/
+  getBlockIndentation (stx : Syntax) (start : Lsp.Position) : Nat :=
+    let indent? : Option Nat := do
+      -- the leading and trailing whitespaces around the head of the syntax tree
+      let (.original _leading _ trailing _) ← stx.getHeadInfo? | none
+      -- the lines in the trailing whitespace
+      let trailingLines := trailing.toString |>.split (· = '\n')
+      -- the last line of the trailing whitespace
+      let lastLine ← trailingLines.getLast?
+      -- the length of the last line
+      return lastLine.length
+    -- the indentation of the start of the full syntax block
+    let stxIndent := start.character
+    -- return the calculated indentation,
+    -- defaulting to adding two spaces to the existing indentation if it is undefined
+    indent?.getD (stxIndent + 2)
 
 /-- A code action that offers to start a motivated proof within a tactic proof. -/
 @[tactic_code_action *]
