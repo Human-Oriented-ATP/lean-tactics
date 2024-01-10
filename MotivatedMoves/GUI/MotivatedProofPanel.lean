@@ -156,8 +156,10 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 | stx@`(tactic| motivated_proof $seq) => do
   -- the start and end positions of the syntax block
   let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
+  -- the start and end positions of the tactic sequence
+  let some ⟨seqStart, seqEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
   -- the indentation of the `motivated_proof` block
-  let indent := getBlockIndentation stx stxStart
+  let indent := getBlockIndentation stx stxStart (hasEmptySeq := seqStart == seqEnd)
   -- the position for the next tactic insertion
   let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
   -- the range in the text document supplied to the motivated proof panel for tactic insertion
@@ -196,9 +198,14 @@ where
   If this fails, the indentation defaults to that of the `main_tactic` with an additional two spaces.
 
   The argument `start` is the start position of the `stx` syntax block in the editor.
+
+  The `hasEmptySeq` argument whether the tactic sequence `tac₁; tac₂; ...; tacₙ` is empty.
+  This case must be treated differently since it affects the trailing whitespace calculation.
   -/
-  getBlockIndentation (stx : Syntax) (start : Lsp.Position) : Nat :=
+  getBlockIndentation (stx : Syntax) (start : Lsp.Position) (hasEmptySeq : Bool) : Nat :=
     let indent? : Option Nat := do
+      -- ensure that the tactic sequence is of non-trivial length
+      guard !hasEmptySeq
       -- the leading and trailing whitespaces around the head of the syntax tree
       let (.original _leading _ trailing _) ← stx.getHeadInfo? | none
       -- the lines in the trailing whitespace
