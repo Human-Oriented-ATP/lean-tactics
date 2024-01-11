@@ -119,7 +119,7 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
       return .pure <|
         <details «open»={true}>
           <summary className="mv2 pointer">Motivated proof moves</summary>
-          { .element "div" #[("class", "grid-container"), ("align", "center")] <|
+          { .element "div" #[("class", "grid-container"), ("align", "center"), ("style", json% {display:"grid", gap:"1em"})] <|
               motivatedProofMoves.map (<div «class»={"grid-item"}>{·}</div>) }
         </details>
 
