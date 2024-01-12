@@ -4,7 +4,7 @@ import MotivatedMoves.AutoGeneralization.mulPermuteProof
 import Mathlib.Data.Real.Irrational
 import Qq open Qq Lean
 
-open Lean Elab Tactic Meta Term
+open Lean Elab Tactic Meta Term PrettyPrinter.Delaborator
 
 #eval Lean.versionString -- 4.3.0-rc1
 
@@ -853,6 +853,24 @@ def replaceAll (original : List Name) (replacement : List Name) (e : Expr): Meta
   | .letE n t v b x    => return .letE n (← replaceAll original replacement t) (← replaceAll original replacement v) (← replaceAll original replacement b) x
   | misc               => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
 
+/-
+Replaces all instances of an expression with the outermost bound variable (to help build a lambda or for-all)
+Do this to the expression BEFORE wrapping it in a lambda.
+-/
+def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
+  match e with
+    | .lam n a b bi => return .lam n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
+    | .forallE n a b bi => return .forallE n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
+    | e =>  replaceCoarsely (original) (.bvar depth) e
+
+#eval do {
+  let e := sumExpr 2 3;
+  let e ← replaceWithBVar (toExpr 2) e;
+  dbg_trace e; -- Nat.add #0 (Nat.succ #0)
+  let lamb_e := Expr.lam `x (.const `Nat []) e .default;
+  dbg_trace lamb_e -- fun (x : Nat) => Nat.add x (Nat.succ x)
+  }
+
 /- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
 def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
   -- each new forall statement introduces a new bound variable...so depending on how deep you go...you need more bound variables.
@@ -909,13 +927,26 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
     return genThmType
 
 /-- Find the proof of the new auto-generalized theorem -/
-def autogeneralizeProof (f : Expr) (fId : FVarId) (oldModifierNames newModifierNames : List Name) (thmProof : Expr): TacticM Expr := do
+def autogeneralizeProof (f : Expr)(fName : Name) (fType : Expr) (fId : FVarId) (oldModifierNames newModifierNames : List Name) (modifierTypes : List Expr) (thmProof : Expr): TacticM Expr := do
   -- replace "f" with its type
   (← getGoalVar).withContext do
-    let thmProof ← replaceCoarsely f (.fvar fId) thmProof
-    let thmProof ← replaceFVarWithBVar fId thmProof
+    -- intro the other hypotheses
+    let zipped := oldModifierNames.zip (newModifierNames.zip modifierTypes)
+    let thmProof ← zipped.foldrM
+      (fun pair acc => do
+        let (oldName, newName, typ) := pair
+        let acc ← replaceWithBVar (.const oldName []) acc
+        return .lam newName typ acc .default
+      ) thmProof
     -- replace hypotheses with generalized hypothesis e.g. replace "mul_assoc" with "gen_mul_assoc"
-    let thmProof ←  replaceAll oldModifierNames newModifierNames thmProof
+    -- let thmProof ←  replaceAll oldModifierNames newModifierNames thmProof
+    -- TODO and then replace those with their appropriate bound variables
+
+    -- replace "f" with its generalized bound variable
+    let thmProof ← replaceWithBVar f thmProof
+    -- intro "f"
+    let thmProof := Expr.lam fName fType thmProof .default
+
     return thmProof
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
@@ -939,8 +970,10 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
-  -- -- Get the proof of the generalized theorem
-  let genThmProof ← autogeneralizeProof f fId oldModifierNames newModifierNames thmProof
+  -- Get the proof of the generalized theorem
+  let genThmProof ← autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
+  -- logInfo (repr genThmProof)
+  logInfo ( genThmProof)
 
   -- -- clear the goals we don't need anymore
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
@@ -959,10 +992,34 @@ elab "autogeneralize" h:ident f:term : tactic => do
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 
-example : True := by
+theorem fPermute :
+∀ (f : Nat → Nat → Nat)
+-- (f_assoc : ∀ (n m p : Nat),  f n (f m p) = f (f n m) p ) -- n (m p) = (n m) p
+(f_assoc : ∀ (n m p : Nat),  f (f n m) p = f n (f m p)) -- n (m p) = (n m) p
+(f_comm : ∀ (n m : Nat), f n m = f m n)
+(n m p : Nat), f n (f m p) = f m (f n p) -- n (m p) = m (n p)
+:= by
+  intros f f_assoc f_comm n m p
+  -- generalize f = fgen
+  rw [← f_assoc]
+  rw [f_comm n m]
+  rw [f_assoc]
+#print fPermute
+#eval do {let e ← getTheoremProof `fPermute; logPrettyExpression e}
+#eval do {let e ← getTheoremProof `fPermute; logExpression e}
+
+
+example :  1 + (2 + 3) = 2 + (1 + 3) := by
+  let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
+
+  specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd)
+  specialize multPermuteHyp.Gen  Nat.add_assoc Nat.add_comm 1 2 3
+  assumption
+
+example : Irrational (Real.sqrt 3) := by
   let sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
   autogeneralize sqrt2Irrational (2 : ℕ)
 
-example : True := by
-  let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
+  specialize sqrt2Irrational.Gen 3 (Nat.prime_three)
+  assumption
