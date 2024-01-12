@@ -26,7 +26,7 @@ def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : RefinedD
 
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let .some (lhs, rhs) ← matchEqn? eqn | return discrTree
+  let some (lhs, rhs) := eqn.eqOrIff? | return discrTree
   let eqnPos : SubExpr.Pos := vars.foldl (init := .root) (fun pos _ ↦ pos.pushAppArg)
   let lhsPos := eqnPos.pushAppFn.pushAppArg
   let rhsPos := eqnPos.pushAppArg
@@ -43,8 +43,8 @@ def RewriteCache := DeclCache (RefinedDiscrTree RewriteLemma × RefinedDiscrTree
 
 def RewriteCache.mk (profilingName : String)
   (init : Option (RefinedDiscrTree RewriteLemma) := none) :
-    IO RewriteCache := 
-  DeclCache.mk profilingName (pre := pre) ({}, {}) 
+    IO RewriteCache :=
+  DeclCache.mk profilingName (pre := pre) ({}, {})
     addDecl addLibraryDecl (post := post)
 where
   pre := do

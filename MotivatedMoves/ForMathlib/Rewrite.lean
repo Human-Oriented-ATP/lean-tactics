@@ -41,12 +41,6 @@ instance : ToString Rewrite.Config where
   toString cfg :=
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
-/-- Extract the left and right hand sides of an equality or iff statement. -/
-def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
-  match ← matchEq? e with
-  | some (_, lhs, rhs) => return (lhs, rhs)
-  | none => return e.iff?
-
 end
 
 /-- Specialises the theorem to match the sub-expression at the given position
@@ -55,7 +49,7 @@ def findRewriteOccurrence (thm : Expr) (symm : Bool)
     (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let .some (lhs, rhs) ← matchEqn? eqn |
+  let some (lhs, rhs) := eqn.eqOrIff? |
     panic! s!"Received {stmt}; equality or iff proof expected."
   let hs := if symm then rhs else lhs
   let occurrence ← findMatchingOccurrence position target hs
