@@ -936,6 +936,7 @@ def autogeneralizeProof (f : Expr)(fName : Name) (fType : Expr) (fId : FVarId) (
       (fun pair acc => do
         let (oldName, newName, typ) := pair
         let acc ← replaceWithBVar (.const oldName []) acc
+        let typ ← replaceWithBVar (.fvar fId) typ
         return .lam newName typ acc .default
       ) thmProof
     -- replace hypotheses with generalized hypothesis e.g. replace "mul_assoc" with "gen_mul_assoc"
@@ -967,19 +968,21 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
   let (oldModifierNames, newModifierNames, modifiers) ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
+  logInfo ("modifiers"++modifiers)
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
   -- Get the proof of the generalized theorem
   let genThmProof ← autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
   -- logInfo (repr genThmProof)
-  logInfo ( genThmProof)
 
   -- -- clear the goals we don't need anymore
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
   let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
   -- -- create the new hypothesis
+  logInfo ( genThmType)
+  logInfo ( genThmProof)
   createHypothesis genThmType genThmProof genThmName
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
@@ -992,23 +995,6 @@ elab "autogeneralize" h:ident f:term : tactic => do
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 
-theorem fPermute :
-∀ (f : Nat → Nat → Nat)
--- (f_assoc : ∀ (n m p : Nat),  f n (f m p) = f (f n m) p ) -- n (m p) = (n m) p
-(f_assoc : ∀ (n m p : Nat),  f (f n m) p = f n (f m p)) -- n (m p) = (n m) p
-(f_comm : ∀ (n m : Nat), f n m = f m n)
-(n m p : Nat), f n (f m p) = f m (f n p) -- n (m p) = m (n p)
-:= by
-  intros f f_assoc f_comm n m p
-  -- generalize f = fgen
-  rw [← f_assoc]
-  rw [f_comm n m]
-  rw [f_assoc]
-#print fPermute
-#eval do {let e ← getTheoremProof `fPermute; logPrettyExpression e}
-#eval do {let e ← getTheoremProof `fPermute; logExpression e}
-
-
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
@@ -1016,6 +1002,13 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
   specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd)
   specialize multPermuteHyp.Gen  Nat.add_assoc Nat.add_comm 1 2 3
   assumption
+
+-- example : ∀ (f : ℕ), Nat.Prime f → Irrational (Real.sqrt ↑f) :=
+--   fun f gen_prime_two => Nat.Prime.irrational_sqrt gen_prime_two
+
+example : ∀ (f : ℕ), Nat.Prime f → Irrational (Real.sqrt ↑f) :=
+  fun f gen_prime_two => @Nat.Prime.irrational_sqrt f gen_prime_two
+
 
 example : Irrational (Real.sqrt 3) := by
   let sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
