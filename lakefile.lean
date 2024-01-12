@@ -189,7 +189,6 @@ target widgetJsAll (pkg : NPackage _package.name) : Array FilePath := do
 target widgetJsAllDev (pkg : NPackage _package.name) : Array FilePath := do
   widgetJsAllTarget pkg (isDev := true)
 
-@[default_target]
 target all (pkg : NPackage _package.name) : Unit := do
   let some lib := pkg.findLeanLib? ``MotivatedMoves |
     error "Cannot find lean_lib target {MotivatedMoves}."
