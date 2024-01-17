@@ -917,7 +917,7 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
   -- then we need to add those abstracted identifiers to the hypothesis
   -- e.g. a proposition of type identifiersAbstracted[0] → identifiersAbstracted[1] → ... → goal
   let goal ← getHypothesisType genThmName
-  let genThmTypeBody ← modifiers.foldrM (mkImplies `gen_mul_assoc) goal
+  let genThmTypeBody ← modifiers.foldrM (mkImplies `myForAllNameHere) goal
 
   -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
   (←getGoalVar).withContext do
@@ -968,7 +968,6 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
   let (oldModifierNames, newModifierNames, modifiers) ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
-  logInfo ("modifiers"++modifiers)
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
@@ -995,19 +994,89 @@ elab "autogeneralize" h:ident f:term : tactic => do
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 
+set_option pp.explicit true
+
+-- to debug -- make arguments EXPLICIT (like for sqrt example) -- so i'm not accidntally passing in fvarids.
+theorem fPermute :
+∀ (f : Nat → Nat → Nat)
+-- (f_assoc : ∀ (n m p : Nat),  f n (f m p) = f (f n m) p ) -- n (m p) = (n m) p
+(gen_mul_assoc : ∀ (n m p : Nat),  f (f n m) p = f n (f m p)) -- n (m p) = (n m) p
+(gen_mul_comm : ∀ (n m : Nat), f n m = f m n)
+(n m p : Nat), f n (f m p) = f m (f n p) -- n (m p) = m (n p)
+:= by
+  intros f gen_mul_assoc gen_mul_comm n m p
+  -- generalize f = fgen
+  rw [← gen_mul_assoc]
+  rw [gen_mul_comm n m]
+  rw [gen_mul_assoc]
+#print fPermute
+#eval do {let e ← getTheoremProof `fPermute; logPrettyExpression e}
+
+example : ∀ (f : ℕ → ℕ → ℕ),
+ (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
+ (∀ (n m : ℕ), f n m = f m n) →
+ ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
+ fun f gen_mul_assoc gen_mul_comm n m p =>
+  Eq.mpr (id ((gen_mul_assoc n m p).symm ▸ Eq.refl (f n (f m p) = f m (f n p))))
+    (Eq.mpr (id (gen_mul_comm n m ▸ Eq.refl (f (f n m) p = f m (f n p))))
+      (Eq.mpr (id (gen_mul_assoc m n p ▸ Eq.refl (f (f m n) p = f m (f n p)))) (Eq.refl (f m (f n p)))))
+
+example : ∀ (f : ℕ → ℕ → ℕ),
+ (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
+ (∀ (n m : ℕ), f n m = f m n) →
+ ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
+fun f gen_mul_assoc gen_mul_comm n m p =>
+  @Eq.mpr (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p)))
+    (@id (@Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p))))
+      (@Eq.ndrec ℕ (f n (f m p)) (fun _a => @Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ _a (f m (f n p))))
+        (@Eq.refl Prop (@Eq ℕ (f n (f m p)) (f m (f n p)))) (f (f n m) p)
+        (@Eq.symm ℕ (f (f n m) p) (f n (f m p)) (gen_mul_assoc n m p))))
+    (@Eq.mpr (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p)))
+      (@id (@Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p))))
+        (@Eq.ndrec ℕ (f n m) (fun _a => @Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f _a p) (f m (f n p))))
+          (@Eq.refl Prop (@Eq ℕ (f (f n m) p) (f m (f n p)))) (f m n) (gen_mul_comm n m)))
+      (@Eq.mpr (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p)))
+        (@id (@Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p))))
+          (@Eq.ndrec ℕ (f (f m n) p) (fun _a => @Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ _a (f m (f n p))))
+            (@Eq.refl Prop (@Eq ℕ (f (f m n) p) (f m (f n p)))) (f m (f n p)) (gen_mul_assoc m n p)))
+        (@Eq.refl ℕ (f m (f n p)))))
+
+example : ∀ (f : ℕ → ℕ → ℕ),
+ (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
+ (∀ (n m : ℕ), f n m = f m n) →
+ ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
+fun f gen_mul_assoc gen_mul_comm n m p =>
+  @Eq.mpr (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p)))
+    (@id (@Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p))))
+      (@Eq.ndrec ℕ (f n (f m p))
+        (fun _a =>
+          @Eq Prop (@Eq ℕ (gen_mul_assoc n (gen_mul_assoc m p)) (gen_mul_assoc m (gen_mul_assoc n p)))
+            (@Eq ℕ _a (gen_mul_assoc m (gen_mul_assoc n p))))
+        (@Eq.refl Prop (@Eq ℕ (f n (f m p)) (f m (f n p)))) (f (f n m) p)
+        (@Eq.symm ℕ (f (f n m) p) (f n (f m p)) (gen_mul_assoc n m p))))
+    (@Eq.mpr (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p)))
+      (@id (@Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p))))
+        (@Eq.ndrec ℕ (f n m)
+          (fun _a =>
+            @Eq Prop (@Eq ℕ (gen_mul_assoc (gen_mul_assoc n m) p) (gen_mul_assoc m (gen_mul_assoc n p)))
+              (@Eq ℕ (gen_mul_assoc _a p) (gen_mul_assoc m (gen_mul_assoc n p))))
+          (@Eq.refl Prop (@Eq ℕ (f (f n m) p) (f m (f n p)))) (f m n) (gen_mul_comm n m)))
+      (@Eq.mpr (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p)))
+        (@id (@Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p))))
+          (@Eq.ndrec ℕ (f (f m n) p)
+            (fun _a =>
+              @Eq Prop (@Eq ℕ (gen_mul_assoc (gen_mul_assoc m n) p) (gen_mul_assoc m (gen_mul_assoc n p)))
+                (@Eq ℕ _a (gen_mul_assoc m (gen_mul_assoc n p))))
+            (@Eq.refl Prop (@Eq ℕ (f (f m n) p) (f m (f n p)))) (f m (f n p)) (gen_mul_assoc m n p)))
+        (@Eq.refl ℕ (f m (f n p)))))
+
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize multPermuteHyp (@HMul.hMul Nat Nat Nat instHMul) -- adds multPermuteGen to list of hypotheses
 
-  specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd)
-  specialize multPermuteHyp.Gen  Nat.add_assoc Nat.add_comm 1 2 3
+  specialize multPermuteHyp.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
+  specialize multPermuteHyp.Gen 1 2 3
   assumption
-
--- example : ∀ (f : ℕ), Nat.Prime f → Irrational (Real.sqrt ↑f) :=
---   fun f gen_prime_two => Nat.Prime.irrational_sqrt gen_prime_two
-
-example : ∀ (f : ℕ), Nat.Prime f → Irrational (Real.sqrt ↑f) :=
-  fun f gen_prime_two => @Nat.Prime.irrational_sqrt f gen_prime_two
 
 
 example : Irrational (Real.sqrt 3) := by
