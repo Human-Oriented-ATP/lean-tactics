@@ -140,23 +140,40 @@ partial def Html.toString : Html → String
 instance : ToString Html where
   toString := Html.toString
 
+structure InteractiveRectangleProps where
+  width : Nat
+  height : Nat
+  color : String
+  borderRadius : Nat := 10
+  loc : SubExpr.Pos
+  opacity : Float := 0.4
+  borderWidth : Nat := 3
+  highlightColor : String := "blue"
+deriving Server.RpcEncodable
+
+@[widget_module]
+def InteractiveRectangle : Component InteractiveRectangleProps where
+  javascript := include_str "../../build/js/interactiveRectangle.js"
+
+open scoped Jsx in
 /-- Draw a rectangle bounding the current frame, set to highlight when 
     the current position is selected in the UI. -/
 def drawFrame : TreeRenderM Unit := do
   let ρ ← read
-  draw <| .element "rect" (#[
-    ("x", toJson ρ.frame.xmin),
-    ("y", toJson ρ.frame.ymin),
-    ("width", toJson ρ.frame.width),
-    ("height", toJson ρ.frame.height),
-    ("fill", ρ.color.toStringRGB),
-    ("opacity", toJson ρ.bgOpacity),
-    ("rx", toJson ρ.bgRounding)
-  ].append <|
-  if (← isSelected) then
-    -- highlighting when the associated position is selected
-    #[("stroke-width", toJson ρ.bgStrokeWidth), ("stroke", toJson ρ.bgStrokeColor.toStringRGB)]
-  else #[]) #[]
+  draw <| .element "foreignObject" #[
+      ("x", toJson ρ.frame.xmin),
+      ("y", toJson ρ.frame.ymin),
+      ("width", toJson ρ.frame.width),
+      ("height", toJson ρ.frame.height)
+    ] #[<InteractiveRectangle
+          width={ρ.frame.width}
+          height={ρ.frame.height}
+          color={ρ.color.toStringRGB}
+          loc={ρ.pos}
+          opacity={ρ.bgOpacity}
+          borderRadius={ρ.bgRounding}
+          borderWidth={ρ.bgStrokeWidth}
+          highlightColor={ρ.bgStrokeColor.toStringRGB} />]
 
 open scoped Jsx in
 /-- Draw a piece of interactive code at the center of the current frame. -/
@@ -246,7 +263,7 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
   let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := 250, width := 250, height := 250 }
   let (_, ⟨elements⟩) := props.tree.val.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
   return (
-    <div>
+    <div align="center">
       {.element "svg"
       #[("xmlns", "http://www.w3.org/2000/svg"),
         ("version", "1.1"),
@@ -274,5 +291,6 @@ elab stx:"display_tree" : tactic => do
 example : ∀ x : Nat, True ∧ False → True := by
   make_tree
   display_tree
+  sorry
 
 end Rendering
