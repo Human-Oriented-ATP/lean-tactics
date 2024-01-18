@@ -25,7 +25,8 @@ export default function Rectangle(props:InteractiveRectangleProps) : JSX.Element
             borderRadius: props.borderRadius,
             opacity: opacity, 
             borderWidth: props.borderWidth, 
-            borderColor: locs?.isSelected(currentLoc) ? props.highlightColor : "transparent" }}
+            borderColor: locs?.isSelected(currentLoc) ? props.highlightColor : "transparent",
+            borderStyle: "solid" }}
         onMouseOver={() => { setOpacity(1.0) }}
         onMouseOut={() => { setOpacity(props.opacity) }}
         onClick={(e) => { if (e.shiftKey) { locs?.setSelected(currentLoc, on => !on) } }} />
