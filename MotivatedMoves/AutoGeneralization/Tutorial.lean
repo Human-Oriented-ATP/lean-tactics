@@ -980,13 +980,15 @@ def autogeneralizeType (thmType : Expr) (modifiers : Array Modifier) (f : Genera
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : MetaM Expr := do
+  -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
+  let modifiers := modifiers.reverse
+
   -- add in the hypotheses, replacing old hypotheses names
   let genThmProof ← (modifiers.size).foldM
     (fun i acc => do
       let mod := modifiers.get! i
       let body ← replaceWithBVar (.const mod.oldName []) acc
-      -- return .lam mod.newName mod.newType body .default
-      return .lam mod.newName (Expr.const ``Nat []) body .default
+      return .lam mod.newName mod.newType body .default
 
     ) thmProof ;
 
