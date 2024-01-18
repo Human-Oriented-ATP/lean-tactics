@@ -158,10 +158,10 @@ lemma imp_exists_iff [inst : Nonempty α] {p : Prop} {q : α → Prop} : Imp p (
   apply Iff.intro
   by_cases p
   · intro g
-    have ⟨a, g⟩ := g h
+    have ⟨a, g⟩ := g ‹p›
     exact ⟨a, fun _ => g⟩
   · intro _
-    exact ⟨Classical.choice inst, (absurd · h)⟩
+    exact ⟨Classical.choice inst, (absurd · ‹¬p›)⟩
   · intro ⟨a, h⟩ g
     exact ⟨a, h g⟩
 

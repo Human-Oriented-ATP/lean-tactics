@@ -8,12 +8,16 @@ package «leanTactics» {
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
 
+require webeditor from git
+  "https://github.com/hhu-adam/lean4web-tools.git" @ "main"
+
 @[default_target]
 lean_lib MotivatedMoves
 
 @[default_target]
 lean_exe discrTrees where
   root := `MotivatedMoves.LibrarySearch.DiscrTreesData
+  supportInterpreter := true
 
 lean_lib Tests {
   globs := #[.submodules "Tests"]
@@ -185,7 +189,6 @@ target widgetJsAll (pkg : NPackage _package.name) : Array FilePath := do
 target widgetJsAllDev (pkg : NPackage _package.name) : Array FilePath := do
   widgetJsAllTarget pkg (isDev := true)
 
-@[default_target]
 target all (pkg : NPackage _package.name) : Unit := do
   let some lib := pkg.findLeanLib? ``MotivatedMoves |
     error "Cannot find lean_lib target {MotivatedMoves}."

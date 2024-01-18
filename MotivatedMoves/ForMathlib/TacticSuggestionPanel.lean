@@ -3,19 +3,18 @@ import ProofWidgets.Data.Html
 import Std.Lean.Position
 import Std.Util.TermUnsafe
 import Std.CodeAction.Attr
-import MotivatedMoves.ProofState.Tree
 import MotivatedMoves.GUI.DynamicEditButton
 
 /-!
 
-# The motivated proof panel
+# The tactic suggestion panel
 
 This file contains code for
-- The `motivated_proof_move` attribute for
-  tagging and registering new motivated proof moves
-- The `motivated_proof` tactic which
-  displays the panel of motivated proof moves 
-  alongside the problem state.
+- The `tactic_suggestion` attribute for
+  tagging and registering new tactic suggestions
+- The `with_suggestions` tactic which
+  displays the panel of suggestions 
+  alongside the proofs state.
 
 -/
 
@@ -29,19 +28,19 @@ section InfoviewAction
 
 ## Infoview actions
 
-The motivated proof panel is customised according to the 
+The suggestion panel is customised according to the 
 pattern of selections made by the user in the goal state.
 
 The `InfoviewActionProps` structure contains most of the information
 about these selections, along with other relevant details.
 
 `InfoviewAction`s are the main abstraction used to decide 
-the contents of the motivated proof panel.
+the contents of the suggestion panel.
 An `InfoviewAction` is defined as a function that takes in
 `InfoviewActionProps` and optionally returns a piece of HTML code
 (which is usually just a button).
 The `InfoviewAction`s are registered and stored through the
-`motivated_proof_move` attribute. 
+`tactic_suggestion` attribute. 
 
 The panel is rendered by reading in the current `InfoviewActionProps`,
 applying it to all the `InfoviewAction`s registered in the environment
@@ -66,7 +65,7 @@ deriving RpcEncodable
 /-- An `InfoviewAction` is a procedure to optionally compute a piece of HTML
     based on the pattern of selections in the tactic state (which is roughly the infomation in `InfoActionProps`).
     
-    This is used in the motivated proof panel to display a suggestion (usually in the form of an HTML button)
+    This is used in the tactic suggestion panel to display a suggestion (usually in the form of an HTML button)
     based on the selections made. -/
 abbrev InfoviewAction := InfoviewActionProps → OptionT TacticM Html
 
@@ -85,10 +84,10 @@ initialize infoviewActionExt :
     exportEntriesFn := .map Prod.fst
   }
 
-/-- An attribute for defining motivated proof moves out of `InfoviewAction`s. -/
+/-- An attribute for defining tactic suggestions out of `InfoviewAction`s. -/
 initialize registerBuiltinAttribute {
-  name := `motivated_proof_move
-  descr := "Declare a new motivated proof move to appear in the point-and-click tactic panel."
+  name := `tactic_suggestion
+  descr := "Declare a new tactic suggestion move to appear in the tactic suggestion panel."
   applicationTime := .afterCompilation
   add := fun decl stx _ => do
     Attribute.Builtin.ensureNoArgs stx
@@ -97,9 +96,9 @@ initialize registerBuiltinAttribute {
 }
 
 open scoped Jsx in
-/-- Shortlist the applicable motivated proof moves and display them in a grid. -/
+/-- Shortlist the applicable tactic suggestions and display them in a grid. -/
 @[server_rpc_method]
-def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
+def TacticSuggestionPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
   let goal? : Option Widget.InteractiveGoal := do
     if props.selectedLocations.isEmpty then
       props.goals[0]?
@@ -112,64 +111,61 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
       let infoviewActions := infoviewActionExt.getState (← getEnv)
-      let motivatedProofMoves ← infoviewActions.filterMapM 
+      let tacticSuggestions ← infoviewActions.filterMapM 
         fun (_, action) ↦ TermElabM.run' do
           Prod.fst <$> ( (action props).run { elaborator := .anonymous } 
                           |>.run { goals := [goal.mvarId] } )
       return .pure <|
         <details «open»={true}>
-          <summary className="mv2 pointer">Motivated proof moves</summary>
+          <summary className="mv2 pointer">Tactic suggestions</summary>
           { .element "div" #[("class", "grid-container"), ("align", "center"), ("style", json% {display:"grid", gap:"1em"})] <|
-              motivatedProofMoves.map (<div «class»={"grid-item"}>{·}</div>) }
+              tacticSuggestions.map (<div «class»={"grid-item"}>{·}</div>) }
         </details>
 
-/-- The React component for the motivated proof panel. -/
-@[widget_module] def MotivatedProofPanel : Component InfoviewActionProps :=
-  mk_rpc_widget% MotivatedProofPanel.rpc
+/-- The React component for the tactic suggestion panel. -/
+@[widget_module] def TacticSuggestionPanel : Component InfoviewActionProps :=
+  mk_rpc_widget% TacticSuggestionPanel.rpc
 
 end InfoviewAction
 
 
-section MotivatedProofMode
+section WithSuggestions
 
 /-!
 
-## The `motivated_proof` tactic
+## The `with_suggestions` tactic
 
-The user finally interacts with the motivated proof panel
-using the `motivated_proof` tactic, which renders the
-panel of motivated proof moves alongside the goal state in the infoview.
+The user finally interacts with the tactic suggestion panel
+using the `with_suggestions` tactic, which renders the
+panel of tactic suggestions alongside the goal state in the infoview.
 
 -/
 
 open Elab Tactic
 open scoped Json
 
-/-- The syntax for the `motivated_proof` mode. 
-    Typing this brings up the panel of motivated proof moves. -/
-syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
+/-- The syntax for the `with_suggestions` mode. 
+    Typing this brings up the panel of tactic suggestions. -/
+syntax (name := withSuggestionsMode) "with_suggestions" tacticSeq : tactic
 
-/-- The implementation of the `motivated_proof` tactic.
-    This invokes the `MotivatedProofPanel` widget with the appropriate position data.
-    The tactic state is converted into the tree representation in the process. -/
-@[tactic motivatedProofMode] def motivatedProofModeImpl : Tactic
-| stx@`(tactic| motivated_proof $seq) => do
+/-- The implementation of the `with_suggestions` tactic.
+    This invokes the `TacticSuggestionPanel` widget with the appropriate position data. -/
+@[tactic withSuggestionsMode] def withSuggestionsModeImpl : Tactic
+| stx@`(tactic| with_suggestions $seq) => do
   -- the start and end positions of the syntax block
   let some ⟨stxStart, stxEnd⟩ := (← getFileMap).rangeOfStx? stx | return ()
-  -- the indentation of the `motivated_proof` block
+  -- the indentation of the `with_suggestions` block
   let indent := getBlockIndentation stx stxStart
   -- the position for the next tactic insertion
   let pos : Lsp.Position := { line := stxEnd.line + 1, character := indent }
-  -- the range in the text document supplied to the motivated proof panel for tactic insertion
+  -- the range in the text document supplied to the tactic suggestion panel for tactic insertion
   -- the tactic is inserted at `stxEnd` rather than at `pos` to avoid complications when the block is at the end of the file
   -- the logic for handling the whitespace insertion is in `EditParams.ofReplaceWhitespace`
   -- this function is invoked by default in `DynamicEditButton`s with `onWhitespace` set to true
   let range : Lsp.Range := ⟨stxEnd, pos⟩
-  -- save the widget for the motivated proof panel to the syntax `stx`
-  Widget.savePanelWidgetInfo (hash MotivatedProofPanel.javascript) (stx := stx) do
+  -- save the widget for the tactic suggestion panel to the syntax `stx`
+  Widget.savePanelWidgetInfo (hash TacticSuggestionPanel.javascript) (stx := stx) do
     return json% { range : $(range) }
-  -- this turns the goal into a tree initially
-  Tree.workOnTreeDefEq pure
   -- evaluate the tactic sequence
   evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
@@ -216,17 +212,17 @@ where
     -- defaulting to adding two spaces to the existing indentation if it is undefined
     indent?.getD (stxIndent + 2)
 
-/-- A code action that offers to start a motivated proof within a tactic proof. -/
+/-- A code action that offers to start a `with_suggestions` block within a tactic proof. -/
 @[tactic_code_action *]
-def startMotivatedProof : Std.CodeAction.TacticCodeAction :=
+def startSuggestionsPanel : Std.CodeAction.TacticCodeAction :=
   fun _ _ _ stk node ↦ do
     let .node (.ofTacticInfo _) _ := node | return #[]
     let _ :: (seq, _) :: _ := stk | return #[]
-    if seq.findStack? (·.isOfKind ``motivatedProofMode) (accept := fun _ ↦ true) |>.isSome then
-      return #[] -- the cursor is already within a `motivated_proof` block in this situation
+    if seq.findStack? (·.isOfKind ``withSuggestionsMode) (accept := fun _ ↦ true) |>.isSome then
+      return #[] -- the cursor is already within a `with_suggestions` block in this situation
     let doc ← RequestM.readDoc
     let eager : Lsp.CodeAction := {
-      title := "Start a motivated proof."
+      title := "Start the panel of tactic suggestions."
       kind? := "quickfix",
       isPreferred? := some .true
     }
@@ -237,8 +233,8 @@ def startMotivatedProof : Std.CodeAction.TacticCodeAction :=
         let indent := seqStart.character
         let ⟨edit, _⟩ := EditParams.ofReplaceWhitespace doc.meta 
           { start := seqEnd, «end» := { line := seqEnd.line + 1, character := indent } } 
-          ("motivated_proof\n".pushn ' ' (indent + 2) )
+          ("with_suggestions\n".pushn ' ' (indent + 2) )
         return { eager with
           edit? := some <| .ofTextDocumentEdit edit } }]
 
-end MotivatedProofMode
+end WithSuggestions

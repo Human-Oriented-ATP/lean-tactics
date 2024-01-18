@@ -36,23 +36,20 @@ def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : RefinedD
 
 section
 
-open Mathlib Tactic
+open Std Tactic
 
 @[reducible]
 def RewriteCache := DeclCache (RefinedDiscrTree RewriteLemma × RefinedDiscrTree RewriteLemma)
 
 def RewriteCache.mk (profilingName : String)
   (init : Option (RefinedDiscrTree RewriteLemma) := none) :
-    IO RewriteCache := do
-  match init with
-    | some libraryTree => do return {
-        cache := ← Cache.mk <| pure ({}, libraryTree),
-        addDecl := addDecl,
-        addLibraryDecl := addLibraryDecl }
-    | none => DeclCache.mk profilingName
-                ({}, {})
-                addDecl addLibraryDecl (post := post)
+    IO RewriteCache := 
+  DeclCache.mk profilingName (pre := pre) ({}, {}) 
+    addDecl addLibraryDecl (post := post)
 where
+  pre := do
+    let .some libraryTree := init | failure
+    return ({}, libraryTree)
   addDecl (name : Name) (cinfo : ConstantInfo)
     | (currentTree, libraryTree) => do
     return (← updateRewriteTree name cinfo currentTree, libraryTree)
@@ -64,9 +61,6 @@ where
   post
     | (currentTree, libraryTree) => do
     return (currentTree, libraryTree.mapArrays sortRewriteLemmas)
-
-def buildRewriteCache : IO RewriteCache :=
-  RewriteCache.mk "rewrite lemmas : init cache"
 
 def cachePath : IO System.FilePath := do
   try
@@ -81,7 +75,7 @@ initialize cachedData : RewriteCache ← unsafe do
     -- We can drop the `CompactedRegion` value; we do not plan to free it
     RewriteCache.mk "rewrite lemmas : using cache" (init := some d)
   else
-    buildRewriteCache
+    RewriteCache.mk "rewrite lemmas : init cache"
 
 def getRewriteLemmas : MetaM (RefinedDiscrTree RewriteLemma × RefinedDiscrTree RewriteLemma) :=
   cachedData.get
@@ -125,6 +119,7 @@ def renderResult
           insertion?={tacticCall}
           variant={"text"}
           color={"info"}
+          onWhitespace={false}
           size={"small"} />]
     #[("display", "flex"), ("justifyContent", "space-between")]
 
@@ -133,8 +128,8 @@ end
 def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
   let (localLemmas, libraryLemmas) ← getRewriteLemmas
   viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars s ↦ do
-    let localResults ← localLemmas.getMatchWithScore s
-    let libraryResults ← libraryLemmas.getMatchWithScore s
+    let localResults ← localLemmas.getMatchWithScore s (unify := true) (config := {})
+    let libraryResults ← libraryLemmas.getMatchWithScore s (unify := true) (config := {})
     let allResults := localResults ++ libraryResults -- TODO: filtering
     return allResults.concatMap Prod.fst
 
@@ -164,5 +159,5 @@ def LibraryRewrite : Component InteractiveTacticProps :=
 
 elab stx:"lib_rw?" : tactic => do
   let range := (← getFileMap).rangeOfStx? stx
-  savePanelWidgetInfo stx ``LibraryRewrite do
+  Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }

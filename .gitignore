@@ -11,3 +11,4 @@ lake-packages/*
 /widget/package-lock.json.hash
 /widget/package-lock.json.trace
 *.olean
+/.lake/

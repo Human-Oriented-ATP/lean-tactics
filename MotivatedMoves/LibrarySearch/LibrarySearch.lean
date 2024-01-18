@@ -18,6 +18,9 @@ structure LibraryLemma where
   pos : InnerPosition
   diffs : AssocList SubExpr.Pos Widget.DiffTag
 
+def LibraryLemma.length (lem : LibraryLemma) : Nat :=
+  lem.name.toString.length
+
 instance : BEq LibraryLemma where
   beq := fun {name, pos, ..} {name := name', pos := pos', ..} => name == name' && pos == pos'
 instance : ToFormat LibraryLemma where
@@ -125,7 +128,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
     else ds))
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
-open Mathlib.Tactic
+open Std.Tactic
 
 @[reducible] def DiscrTreesCache : Type :=
   DeclCache (DiscrTrees × DiscrTrees)
@@ -134,19 +137,18 @@ open Mathlib.Tactic
 def DiscrTreesCache.mk (profilingName : String)
     (init : Option DiscrTrees := none) :
     IO DiscrTreesCache :=
-  let updateTree := processLemma
-  let addDecl := fun name constInfo (tree₁, tree₂) => do
+  DeclCache.mk profilingName (pre := pre) ({}, {}) addDecl addLibraryDecl (post := post)
+where
+  pre := do
+    let .some libraryTrees := init | failure
+    return ({}, libraryTrees)
+  updateTree := processLemma
+  addDecl := fun name constInfo (tree₁, tree₂) => do
     return (← updateTree name constInfo tree₁, tree₂)
-  let addLibraryDecl := fun name constInfo (tree₁, tree₂) => do
+  addLibraryDecl := fun name constInfo (tree₁, tree₂) => do
     return (tree₁, ← updateTree name constInfo tree₂)
-  let s := fun A => A.map (fun lem => (lem.name.toString.length, lem)) |>.qsort (fun p q => p.1 < q.1) |>.map (·.2)
-  let post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays s, b.mapArrays s,c.mapArrays s, d.mapArrays s, e.mapArrays s⟩)
-  match init with
-  | some t => return ⟨← Cache.mk (pure ({}, t)), addDecl, addLibraryDecl⟩
-  | none => DeclCache.mk profilingName ({}, {}) addDecl addLibraryDecl (post := post)
-
-
-def buildDiscrTrees : IO (DiscrTreesCache) := DiscrTreesCache.mk "library search: init cache"
+  sort := Array.qsort (lt := (·.length < ·.length))
+  post := fun (T₁, ⟨a, b, c, d, e⟩) => return (T₁, ⟨a.mapArrays sort, b.mapArrays sort,c.mapArrays sort, d.mapArrays sort, e.mapArrays sort⟩)
 
 def cachePath : IO System.FilePath := do
   try
@@ -161,38 +163,6 @@ initialize cachedData : DiscrTreesCache ← unsafe do
     -- We can drop the `CompactedRegion` value; we do not plan to free it
     DiscrTreesCache.mk "library search: using cache" (init := some d)
   else
-    buildDiscrTrees
+    DiscrTreesCache.mk "library search: init cache"
 
 def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
-
-
-
-
--- open Lean Meta
-
--- def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
---   let numHeartbeats ← IO.getNumHeartbeats
---   _ ← x
---   return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
--- set_option profiler true
--- elab "hiii" : tactic => do
---   -- let x ← mkFreshExprMVar none
---   -- let y := (.lam `_  (.const `Nat []) (.app x $ x) .default)
---   -- logInfo m! "{← mkDTExprs y {}}, {makeInsertionPath.starEtaExpanded y 0}"
---   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
---     fun name constInfo (tree₁, tree₂) => do
---       return (tree₁, ← processLemma name constInfo tree₂)
-
---   let x ← (countingHeartbeats $ do (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => addLibraryDecl n c a)
---   logInfo m! "{x}"
--- set_option maxHeartbeats 1000000 in
--- example : True := by
---   hiii
---   trivial
-
--- set_option pp.explicit true
--- set_option pp.explicit false
-
-
--- #check MeasureTheory.withDensitySMulLI_apply
--- #check CategoryTheory.HomOrthogonal.matrixDecompositionLinearEquiv_symm_apply
