@@ -833,7 +833,7 @@ def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr 
 
 
 /-- Create the expression d → b with name n-/
-def mkImplies (n : Name) (d b : Expr) : TacticM Expr :=
+def mkImplies (n : Name := `h) (d b : Expr) : TacticM Expr :=
   return .forallE (← mkFreshUserName n) d b .default
 
 /-- Create a reasonable name for an expression -/
@@ -876,7 +876,7 @@ def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr
   match e with
     | .lam n a b bi => return .lam n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
     | .forallE n a b bi => return .forallE n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
-    | e =>  replaceCoarsely (original) (.bvar depth) e
+    | x =>  replaceCoarsely (original) (.bvar depth) x
 
 #eval do {
   let e := sumExpr 2 3;
@@ -905,60 +905,69 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
   return firstExprContainingSubexpr.isSome
 
-structure Modifier where
-  oldName : Name  -- name that exists in the context
-  newName : Name := oldName ++ `gen  -- usually oldName ++ `gen
-  oldType : Expr -- the type that has the ungeneralized constant
+/--This is the term that we are generalizing to an arbitrary term of that type -/
+structure GeneralizedTerm where
+  oldValue : Expr                 -- e.g. Hmul.hmul
+  name : Name         := `f       -- e.g. f
+  type : Expr                     -- e.g. ℕ → ℕ → ℕ
+  placeholder : Expr              -- e.g. .mvar #2383...to uniquely identify where it is
+deriving Repr
 
-def makeModifiers (oldNames : List Name) (newNames : List Name) (oldTypes: List Expr) : Array Modifier :=
+/--These are the properties the generalized term needs to adhere to in order for the proof to still hold -/
+structure Modifier where
+  oldName : Name                    -- name that exists in the context e.g. Nat.mul_assoc
+  newName : Name := mkAbstractedName oldName -- usually something like gen_mul_assoc
+  oldType : Expr                    -- the type that has the ungeneralized "f"
+  newType : Expr                    -- the type that has the placeholder of "f"
+
+def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List Expr) : Array Modifier :=
   let modifiers : Array Modifier := oldNames.length.fold (fun i (modifiers : Array Modifier) =>
     let modifier : Modifier := {
       oldName := oldNames.get! i,
-      newName := newNames.get! i,
       oldType := oldTypes.get! i
+      newType := newTypes.get! i
     };
     modifiers.push modifier
   ) #[] ;
   modifiers
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
-def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (Array Modifier) := do
-  -- get names of all identifiers (that is, constants) in the proof term that don't already appear in the proof type
+def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
-  let identifiers := identifiersInProofTerm.removeAll identifiersInProofType
 
-  -- now get the types of those identifiers
-  let identifiersTypes ← liftMetaM (identifiers.mapM getTheoremStatement)
+  -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
+  let identifierNames := identifiersInProofTerm.removeAll identifiersInProofType
+  let identifiersTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
-  let identifiers ← identifiers.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f s})
-  let identifiersTypes ← identifiersTypes.filterM (containsExpr f)
+  let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
+  let identifiersTypes ← identifiersTypes.filterM (containsExpr f.oldValue)
 
-  -- Now we need to replace every occurence of * with f in those identifiers.
-  -- More generally, we need to replace every occurence of the expression f with the free variable in the hypothesis
-  let abstractedIdentifierNames := identifiers.map (mkAbstractedName)
-  let abstractedIdentifierTypes ← identifiersTypes.mapM (replaceCoarsely f (.fvar fId))
+  -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
+  let generalizedIdentifierTypes ← identifiersTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
 
-  -- return old name,   new name,   new type
-  -- e.g.   mul_assoc,  f_assoc,    ∀ n m p : ℕ, f n (f m p) = (f (f n m) p)
-  return makeModifiers identifiers abstractedIdentifierNames abstractedIdentifierTypes
+  logInfo m!"{identifierNames.length}"
+  logInfo m!"{identifiersTypes.length}"
+  logInfo m!"{generalizedIdentifierTypes.length}"
+
+  -- return             old names     old types                  new types
+  -- e.g.               mul_comm      ∀ n m : ℕ, n⬝m = m⬝n        ∀ n m : ℕ, f n m = f m n
+  return makeModifiers identifierNames identifiersTypes generalizedIdentifierTypes
 
 /-- Find the type of the new auto-generalized theorem -/
-def autogeneralizeType (modifiers : Array Modifier) (genThmName : Name)   (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
-  let modifierTypes := modifiers.map (·.oldType)
+def autogeneralizeType (thmType : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : TacticM Expr := do
+  let hypotheses := modifiers.map (·.newType)
+  let goal := thmType
 
-  -- then we need to add those abstracted identifiers to the hypothesis
-  -- e.g. a proposition of type identifiersAbstracted[0] → identifiersAbstracted[1] → ... → goal
-  let goal ← getHypothesisType genThmName
-  let genThmTypeBody ← modifierTypes.foldrM (mkImplies `myForAllNameHere) goal
+  -- Conglomerate hypotheses and goal, i.e. create  modifierTypes[0] → modifierTypes[1] → ... → goalType
+  let body ← hypotheses.foldrM mkImplies goal
 
-  -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
-  (←getGoalVar).withContext do
-    let genThmTypeBody ← replaceFVarWithBVar fId genThmTypeBody
-    let genThmType := Expr.forallE fName fType genThmTypeBody .default
+  -- now create the proposition ∀ f : fType, (the generalized theorem about f)
+  let body ← replaceWithBVar (f.placeholder) body
+  let genThmType := Expr.forallE f.name f.type body .default
 
-    return genThmType
+  return genThmType
 
 
 /-- Find the proof of the new auto-generalized theorem -/
@@ -994,42 +1003,35 @@ def autogeneralizeProof (f : Expr)(fName : Name) (fType : Expr) (fId : FVarId) (
     return thmProof
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
+def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
-  let thmType ← getHypothesisType thmName
-  let thmProof ← getHypothesisProof thmName
+  let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
-  -- Put up scaffolding of the generalized proof
-  -- withLocalDecls
-  --   _
-  --   _
-  let genThmName := thmName.append `Gen
-  createHypothesis thmType thmProof genThmName
-  let genThmFVarId ← getHypothesisFVarId genThmName -- the generalized hypothesis (without proof) is the one we'll modify
+  -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
+  let f : GeneralizedTerm := {oldValue := fExpr, name := `f, type := ← inferType fExpr, placeholder := ← mkFreshExprMVar (some (← inferType fExpr))}
 
-  -- Do the first bit of generalization -- generalizing the variable "f" to its type
-  let (fName,   fType,      fId) ← generalizeTermInHypothesis genThmFVarId f `f
-  --   f       (ℕ → ℕ → ℕ)
+  -- Do the next bit of generalization -- figure out which hypotheses we need to add to make the generalization true
+  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
 
-  -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
-  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
+  -- Get the generalized theorem (with those additional hypotheses)
+  let genThmType ← autogeneralizeType thmType modifiers f
+  logInfo genThmType
+    -- let genThmProof ← autogeneralizeProof thmProof modifiers f
 
-  -- Get the type of the generalized theorem (with those additional hypotheses)
-  let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
-  -- Get the proof of the generalized theorem
-  let genThmProof := toExpr 0 -- autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
-  -- logInfo (repr genThmProof)
+  -- -- Get the proof of the generalized theorem
+  -- let genThmProof := toExpr 0 -- autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
+  -- -- logInfo (repr genThmProof)
 
-  -- -- clear the goals we don't need anymore
+  -- -- -- clear the goals we don't need anymore
   -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
   -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
-  -- -- create the new hypothesis
-  logInfo ( genThmType)
-  logInfo ( genThmProof)
-  createHypothesis genThmType genThmProof genThmName
+  -- -- -- create the new hypothesis
+  -- logInfo ( genThmType)
+  -- logInfo ( genThmProof)
+  -- createHypothesis genThmType genThmProof genThmName
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
+  -- logInfo s!"Successfully generalized \n  {thmName} \nto \n  {genThmName} \nby abstracting \n  {← ppExpr f}."
 
 /- Autogeneralize term "t" in hypothesis "h"-/
 elab "autogeneralize" h:ident f:term : tactic => do
