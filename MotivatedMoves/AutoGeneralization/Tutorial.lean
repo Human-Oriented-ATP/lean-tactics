@@ -1,10 +1,9 @@
 import Lean
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
-import MotivatedMoves.AutoGeneralization.mulPermuteProof
 import Mathlib.Data.Real.Irrational
 import Qq open Qq Lean
 
-open Lean Elab Tactic Meta Term PrettyPrinter.Delaborator
+open Lean Elab Tactic Meta Term Parser PrettyPrinter.Delaborator
 
 #eval Lean.versionString -- 4.3.0-rc1
 
@@ -744,10 +743,11 @@ def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Optio
 
     let goal ← getGoalVar
     goal.withContext do
-      let (_, new_hyps, new_goal) ← goal.generalizeHyp [genArg].toArray  [hypToGeneralize].toArray
+      let (_, _, new_goal) ← goal.generalizeHyp [genArg].toArray  [hypToGeneralize].toArray
       setGoals [new_goal]
 
     return (x, ← getHypothesisType x, ← getHypothesisFVarId x) -- name and type of new generalized variable
+
 
 
 elab "generalize2" : tactic => do
@@ -811,6 +811,7 @@ def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr
     then some replacement
     else none
 
+-- TO DO: use traverseExpr to do this instead
 /-- Creating replaces "original" with "replacement" in an expression -- as long as the subexpression found is definitionally equal to "original" -/
 def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr := fun e => do
   -- if there's a loose bvar in the expression, don't try checking definitional equality
@@ -853,9 +854,23 @@ def replaceAll (original : List Name) (replacement : List Name) (e : Expr): Meta
   | .letE n t v b x    => return .letE n (← replaceAll original replacement t) (← replaceAll original replacement v) (← replaceAll original replacement b) x
   | misc               => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
 
+/-- Replaces every occurence in e of the name "original" with the name "replacement" -/
+def replace (original :  Name) (replacement : Name) (e : Expr): MetaM Expr := do
+  replaceAll [original] [replacement] e
+
+/-- Replaces every occurence in e of the name "original" with the name of the FVar "replacementFVar" -/
+def replaceWithFVar (original :  Name) (replacementFVar : Expr) (e : Expr): MetaM Expr := do
+  let replacement := replacementFVar.fvarId!.name
+  replace original replacement e
+
+/-- Replaces every occurence in e of the name "original" with the name of the FVar "replacementFVar" -/
+def replaceWithNthFVar (n : Nat) (original :  Name) (replacementFVars : Array Expr) (e : Expr): MetaM Expr := do
+  let replacement := replacementFVars[n]!.fvarId!.name
+  replace original replacement e
+
 /-
 Replaces all instances of an expression with the outermost bound variable (to help build a lambda or for-all)
-Do this to the expression BEFORE wrapping it in a lambda.
+Do this to the expression BEFORE wrapping it in a lambda or for-all.
 -/
 def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
   match e with
@@ -871,7 +886,9 @@ def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr
   dbg_trace lamb_e -- fun (x : Nat) => Nat.add x (Nat.succ x)
   }
 
-/- Replaces all instances of a free variable with a bound variable (to help build a for-all)-/
+/- Replaces all instances of a free variable with a bound variable (to help build a for-all).
+Use this function on the statement BEFORE wrapping the statement in a lambda/forall
+-/
 def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
   -- each new forall statement introduces a new bound variable...so depending on how deep you go...you need more bound variables.
   match e with
@@ -887,6 +904,11 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let e_subexprs := getSubexpressionsIn e
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
   return firstExprContainingSubexpr.isSome
+
+structure Modifier where
+  oldName : Name  -- name that exists in the context
+  newName : Name := oldName ++ `gen  -- usually oldName ++ `gen
+  oldType : Expr -- the type that has the ungeneralized constant
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Name × List Name × List Expr) := do
@@ -926,38 +948,49 @@ def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Na
 
     return genThmType
 
+
 /-- Find the proof of the new auto-generalized theorem -/
-def autogeneralizeProof (f : Expr)(fName : Name) (fType : Expr) (fId : FVarId) (oldModifierNames newModifierNames : List Name) (modifierTypes : List Expr) (thmProof : Expr): TacticM Expr := do
+def autogeneralizeProof (f : Expr)(fName : Name) (fType : Expr) (fId : FVarId) (oldModifierNames newModifierNames : List Name) (modifierTypes : List Expr) (thmProof : Expr) : TacticM Expr := do
   -- replace "f" with its type
-  (← getGoalVar).withContext do
+  -- (← getGoalVar).withContext do
+    -- let fDecl := #[fName, .default, fun _ => fType] -- creates a decl "fName : fType"
+    -- let modifierDecls := oldModifierNames.map fun (oldnm, typ) => (oldnm ++ `gen, .default, fun prevDecls => replace  prevDecls[0]!) -- creates hypotheses decls (with instructions to replace occurences of "f" with the fvarid of the above "f")
+    -- withLocalDecls -- temporarily put some declarations in the context
+    --   fDecl ++  modifierDecls -- the declarations we want to put in the context
+    --   _
     -- intro the other hypotheses
-    let zipped := oldModifierNames.zip (newModifierNames.zip modifierTypes)
-    let thmProof ← zipped.foldrM
-      (fun pair acc => do
-        let (oldName, newName, typ) := pair
-        let acc ← replaceWithBVar (.const oldName []) acc
-        let typ ← replaceWithBVar (.fvar fId) typ
-        return .lam newName typ acc .default
-      ) thmProof
+    -- let zipped := oldModifierNames.zip (newModifierNames.zip modifierTypes)
+    -- let thmProof ← zipped.foldrM
+    --   (fun triple acc => do
+    --     let (oldName, newName, typ) := triple
+    --     -- let acc ← replaceWithBVar (.const oldName []) acc
+    --     -- let typ ← replaceWithBVar (.fvar fId) typ
+    --     -- let (_, typ) ← (← getGoalVar).revert #[fId]--replaceWithBVar (.fvar fId) typ
+    --     return .lam newName typ acc .default
+    --   ) thmProof
     -- replace hypotheses with generalized hypothesis e.g. replace "mul_assoc" with "gen_mul_assoc"
     -- let thmProof ←  replaceAll oldModifierNames newModifierNames thmProof
     -- TODO and then replace those with their appropriate bound variables
 
     -- replace "f" with its generalized bound variable
-    let thmProof ← replaceWithBVar f thmProof
+    -- let thmProof ← replaceWithBVar (.fvar fId) thmProof
     -- intro "f"
-    let thmProof := Expr.lam fName fType thmProof .default
+    -- let thmProof := Expr.lam fName fType thmProof .default
+    -- let thmProof ← replaceWithBVar f thmProof
+
 
     return thmProof
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
-  -- (← getGoalVar).withContext do
   -- Get details about the un-generalized proof we're going to generalize
   let thmType ← getHypothesisType thmName
   let thmProof ← getHypothesisProof thmName
 
   -- Put up scaffolding of the generalized proof
+  -- withLocalDecls
+  --   _
+  --   _
   let genThmName := thmName.append `Gen
   createHypothesis thmType thmProof genThmName
   let genThmFVarId ← getHypothesisFVarId genThmName -- the generalized hypothesis (without proof) is the one we'll modify
@@ -972,12 +1005,12 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
   -- Get the proof of the generalized theorem
-  let genThmProof ← autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
+  let genThmProof := toExpr 0 -- autogeneralizeProof f fName fType fId oldModifierNames newModifierNames modifiers thmProof
   -- logInfo (repr genThmProof)
 
   -- -- clear the goals we don't need anymore
-  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
-  let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
+  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId genThmName); setGoals [newGoal]
+  -- let newGoal ← (← getMainGoal).clear (← getHypothesisFVarId `f); setGoals [newGoal]
 
   -- -- create the new hypothesis
   logInfo ( genThmType)
@@ -994,81 +1027,8 @@ elab "autogeneralize" h:ident f:term : tactic => do
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 
-set_option pp.explicit true
+-- set_option pp.explicit true
 
--- to debug -- make arguments EXPLICIT (like for sqrt example) -- so i'm not accidntally passing in fvarids.
-theorem fPermute :
-∀ (f : Nat → Nat → Nat)
--- (f_assoc : ∀ (n m p : Nat),  f n (f m p) = f (f n m) p ) -- n (m p) = (n m) p
-(gen_mul_assoc : ∀ (n m p : Nat),  f (f n m) p = f n (f m p)) -- n (m p) = (n m) p
-(gen_mul_comm : ∀ (n m : Nat), f n m = f m n)
-(n m p : Nat), f n (f m p) = f m (f n p) -- n (m p) = m (n p)
-:= by
-  intros f gen_mul_assoc gen_mul_comm n m p
-  -- generalize f = fgen
-  rw [← gen_mul_assoc]
-  rw [gen_mul_comm n m]
-  rw [gen_mul_assoc]
-#print fPermute
-#eval do {let e ← getTheoremProof `fPermute; logPrettyExpression e}
-
-example : ∀ (f : ℕ → ℕ → ℕ),
- (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
- (∀ (n m : ℕ), f n m = f m n) →
- ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
- fun f gen_mul_assoc gen_mul_comm n m p =>
-  Eq.mpr (id ((gen_mul_assoc n m p).symm ▸ Eq.refl (f n (f m p) = f m (f n p))))
-    (Eq.mpr (id (gen_mul_comm n m ▸ Eq.refl (f (f n m) p = f m (f n p))))
-      (Eq.mpr (id (gen_mul_assoc m n p ▸ Eq.refl (f (f m n) p = f m (f n p)))) (Eq.refl (f m (f n p)))))
-
-example : ∀ (f : ℕ → ℕ → ℕ),
- (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
- (∀ (n m : ℕ), f n m = f m n) →
- ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
-fun f gen_mul_assoc gen_mul_comm n m p =>
-  @Eq.mpr (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p)))
-    (@id (@Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p))))
-      (@Eq.ndrec ℕ (f n (f m p)) (fun _a => @Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ _a (f m (f n p))))
-        (@Eq.refl Prop (@Eq ℕ (f n (f m p)) (f m (f n p)))) (f (f n m) p)
-        (@Eq.symm ℕ (f (f n m) p) (f n (f m p)) (gen_mul_assoc n m p))))
-    (@Eq.mpr (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p)))
-      (@id (@Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p))))
-        (@Eq.ndrec ℕ (f n m) (fun _a => @Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f _a p) (f m (f n p))))
-          (@Eq.refl Prop (@Eq ℕ (f (f n m) p) (f m (f n p)))) (f m n) (gen_mul_comm n m)))
-      (@Eq.mpr (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p)))
-        (@id (@Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p))))
-          (@Eq.ndrec ℕ (f (f m n) p) (fun _a => @Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ _a (f m (f n p))))
-            (@Eq.refl Prop (@Eq ℕ (f (f m n) p) (f m (f n p)))) (f m (f n p)) (gen_mul_assoc m n p)))
-        (@Eq.refl ℕ (f m (f n p)))))
-
-example : ∀ (f : ℕ → ℕ → ℕ),
- (∀ (n m k : ℕ), f (f n m) k = f n (f m k)) →
- (∀ (n m : ℕ), f n m = f m n) →
- ∀ (n m p : ℕ), f n (f m p) = f m (f n p) :=
-fun f gen_mul_assoc gen_mul_comm n m p =>
-  @Eq.mpr (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p)))
-    (@id (@Eq Prop (@Eq ℕ (f n (f m p)) (f m (f n p))) (@Eq ℕ (f (f n m) p) (f m (f n p))))
-      (@Eq.ndrec ℕ (f n (f m p))
-        (fun _a =>
-          @Eq Prop (@Eq ℕ (gen_mul_assoc n (gen_mul_assoc m p)) (gen_mul_assoc m (gen_mul_assoc n p)))
-            (@Eq ℕ _a (gen_mul_assoc m (gen_mul_assoc n p))))
-        (@Eq.refl Prop (@Eq ℕ (f n (f m p)) (f m (f n p)))) (f (f n m) p)
-        (@Eq.symm ℕ (f (f n m) p) (f n (f m p)) (gen_mul_assoc n m p))))
-    (@Eq.mpr (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p)))
-      (@id (@Eq Prop (@Eq ℕ (f (f n m) p) (f m (f n p))) (@Eq ℕ (f (f m n) p) (f m (f n p))))
-        (@Eq.ndrec ℕ (f n m)
-          (fun _a =>
-            @Eq Prop (@Eq ℕ (gen_mul_assoc (gen_mul_assoc n m) p) (gen_mul_assoc m (gen_mul_assoc n p)))
-              (@Eq ℕ (gen_mul_assoc _a p) (gen_mul_assoc m (gen_mul_assoc n p))))
-          (@Eq.refl Prop (@Eq ℕ (f (f n m) p) (f m (f n p)))) (f m n) (gen_mul_comm n m)))
-      (@Eq.mpr (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p)))
-        (@id (@Eq Prop (@Eq ℕ (f (f m n) p) (f m (f n p))) (@Eq ℕ (f m (f n p)) (f m (f n p))))
-          (@Eq.ndrec ℕ (f (f m n) p)
-            (fun _a =>
-              @Eq Prop (@Eq ℕ (gen_mul_assoc (gen_mul_assoc m n) p) (gen_mul_assoc m (gen_mul_assoc n p)))
-                (@Eq ℕ _a (gen_mul_assoc m (gen_mul_assoc n p))))
-            (@Eq.refl Prop (@Eq ℕ (f (f m n) p) (f m (f n p)))) (f m (f n p)) (gen_mul_assoc m n p)))
-        (@Eq.refl ℕ (f m (f n p)))))
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let multPermuteHyp :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
