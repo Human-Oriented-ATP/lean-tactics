@@ -57,7 +57,7 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
       if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
       then
         let result := addBinderKind [1] 1 result
-        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain) }
+        return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain {}) }
       else
         return addBinderKind [1] 1 result
 
@@ -73,15 +73,15 @@ partial def processTree (name : Name): Expr → MetaM ProcessResult
     match e with
     | .app (.app (.app (.const ``Eq _) _) lhs) rhs
     | .app (.app (.const ``Iff _) lhs) rhs =>
-      result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [0,1], ← mkDTExprs lhs)
-                                                     |>.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [1]  , ← mkDTExprs rhs) }
+      result := { result with rewrite := result.rewrite.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [0,1], ← mkDTExprs lhs {})
+                                                     |>.push (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [1]  , ← mkDTExprs rhs {}) }
     | .app (.app _ lhs) rhs =>
       if ← withNewMCtxDepth $ withReducible $ isDefEq (← inferType lhs) (← inferType rhs) then
-        result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExprs rhs)
-                                rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExprs lhs) }
+        result := { result with rewrite_ord     := result.rewrite_ord.push     (AssocList.nil.cons [0,1] .wasChanged |>.cons [1] .willChange, [], [], ← mkDTExprs rhs {})
+                                rewrite_ord_rev := result.rewrite_ord_rev.push (AssocList.nil.cons [0,1] .willChange |>.cons [1] .wasChanged, [], [], ← mkDTExprs lhs {}) }
     | _ => pure ()
 
-    result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExprs e) }
+    result := { result with apply := result.apply.push (AssocList.nil.cons [] .willChange, [], [], ← mkDTExprs e {}) }
     return result
 
 where
@@ -178,7 +178,7 @@ def getLibraryLemmas : MetaM (DiscrTrees × DiscrTrees) := cachedData.get
 -- elab "hiii" : tactic => do
 --   -- let x ← mkFreshExprMVar none
 --   -- let y := (.lam `_  (.const `Nat []) (.app x $ x) .default)
---   -- logInfo m! "{← mkDTExprs y}, {makeInsertionPath.starEtaExpanded y 0}"
+--   -- logInfo m! "{← mkDTExprs y {}}, {makeInsertionPath.starEtaExpanded y 0}"
 --   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
 --     fun name constInfo (tree₁, tree₂) => do
 --       return (tree₁, ← processLemma name constInfo tree₂)

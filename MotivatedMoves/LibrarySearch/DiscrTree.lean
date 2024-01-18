@@ -29,15 +29,12 @@ I document here what is not in the original.
   which is indexed by `[⟨Finset.sum, 5⟩, ⟨Nat, 0⟩, ⟨Nat, 0⟩, *0, ⟨Finset.Range, 1⟩, *1, λ, ⟨#0, 0⟩]`
 
 - We keep track of the matching score of a unification.
-  This score represent the number of keys that had to be the same for the unification to succeed.
-  For example, matching `(1 + 2) + 3` with `add_comm` gives a score of 3,
+  This score represents the number of keys that had to be the same for the unification to succeed.
+  For example, matching `(1 + 2) + 3` with `add_comm` gives a score of 2,
   since the pattern of commutativity is [⟨Hadd.hadd, 6⟩, *0, *0, *0, *1, *2, *3],
   so matching `⟨Hadd.hadd, 6⟩` gives 1 point,
-  and matching `*0` two times after its first appearence gives another 2 points.
-  Similarly, matching it with `add_assoc` gives a score of 7.
-
-  TODO?: the third type parameter of `Hadd.hadd` is an outparam,
-  so its matching should not be counted in the score.
+  and matching `*0` after its first appearence gives another point, but the third argument is an
+  outParam, so this gets ignored. Similarly, matching it with `add_assoc` gives a score of 5.
 
 - Patterns that have the potential to be η-reduced are put into the `RefinedDiscrTree` under all
   possible reduced key sequences. This is for terms of the form `fun x => f (?m x₁ .. xₙ)`, where
@@ -58,14 +55,14 @@ TODO:
   representations, that should really be represented in the same way. e.g.
   - `fun x => x` and `id`.
   - `(f ∘ g) x` and `f (g x)`.
-  - `fun x => f x + g x` and `f + g`. Similarly all of
+  - `fun x => f x + g x` and `f + g`. Similar to `+`, all of
     `1`, `0`, `*`, `+ᵥ`, `•`, `^`, `-`, `⁻¹`, and `/` are defined point-wise on Pi-types.
   - Any combination of `Nat.zero`, `Nat.succ` and `+` that reduces to an explicit numeral. This
     one is already implemented.
 
   This can either be programmed on a case by case basis,
   or it can be designed to be extended dynamically.
-  And the normalization can happen on either the `Expr` or `DTExpr` level.
+  And the normalization could happen on either the `Expr` or `DTExpr` level.
 
   Note that for each of these equivalences, they should not apply at the root, so that
   for example `Nat.add_one : ∀ n, n + 1 = Nat.succ n` can still be used for rewriting between
@@ -187,7 +184,7 @@ instance : Inhabited (Trie α) := ⟨.node #[]⟩
 def Trie.mkPath (keys : Array Key) (child : Trie α) :=
   if keys.isEmpty then child else Trie.path keys child
 
-/-- `Trie` constructor for a single value. -/
+/-- `Trie` constructor for a single value, taking the keys starting at index `i`. -/
 def Trie.singleton (keys : Array Key) (value : α) (i : Nat) : Trie α :=
   mkPath keys[i:] (values #[value])
 
@@ -242,7 +239,7 @@ It is intermediate step in converting from `Expr` to `Array Key`. -/
 inductive DTExpr where
   /-- A metavariable. -/
   | star : Option MVarId → DTExpr
-  /-- An opaque variable. -/
+  /-- An opaque variable or a let-expression in the case `WhnfCoreConfig.zeta := false`. -/
   | opaque : DTExpr
   /-- A constant. -/
   | const : Name → Array DTExpr → DTExpr
@@ -433,30 +430,30 @@ private structure Context where
   config : WhnfCoreConfig
   fvarInContext : FVarId → Bool
 
-/-- Map `f` over `args` with a boolean flag for whether the argument should be ingored . -/
-private def mapArgsIgnore [Monad m] [MonadError m] [MonadControlT MetaM m] [MonadLiftT MetaM m]
-    (fn : Expr) (args : Array Expr) (f : Expr → Bool → m α) : m (Array α) := do
+/-- Return whether the argument should be ignored in the `RefinedDiscrTree`,
+based on the type/domain and the `BinderInfo`, as produced by `getIgnores`. -/
+def isIgnoredArg (arg domain : Expr) (binderInfo : BinderInfo) : MetaM Bool := do
+  if domain.isOutParam then
+    return true
+  match binderInfo with
+  | .instImplicit => return true
+  | .implicit
+  | .strictImplicit => return !(← isType arg)
+  | .default => isProof arg
+
+/-- Return for each argument whether it should be ignored. -/
+def getIgnores (fn : Expr) (args : Array Expr) : MetaM (Array Bool) := do
   let mut fnType ← inferType fn
   let mut result := Array.mkEmpty args.size
   let mut j := 0
-  for h : i in [:args.size] do
-    let arg := args[i]'h.2
-    if !(fnType matches .forallE ..) then
+  for i in [:args.size] do
+    unless fnType matches .forallE .. do
       fnType ← whnfD (fnType.instantiateRevRange j i args)
       j := i
-    let (.forallE _ d b binderInfo) := fnType | throwError m! "expected function type {indentExpr fnType}"
-    let ignore ← (do
-      if d.isOutParam then
-        return true
-      else
-        match binderInfo with
-        | .instImplicit => return true
-        | .default => isProof arg
-        | _ => return !(← isType arg))
+    let .forallE _ d b bi := fnType | throwError m! "expected function type {indentExpr fnType}"
     fnType := b
-    result := result.push (← f arg ignore)
+    result := result.push (← isIgnoredArg args[i]! d bi)
   return result
-
 
 /-- Return the encoding of `e` as a `DTExpr`.
 If `root = false`, then `e` is a strict sub expression of the original expression. -/
@@ -467,8 +464,10 @@ partial def mkDTExprAux (root : Bool) (e : Expr) : ReaderT Context MetaM DTExpr 
   let argDTExpr (arg : Expr) (ignore : Bool) : ReaderT Context MetaM DTExpr :=
     if ignore then pure (.star none) else mkDTExprAux false arg
 
-  let argDTExprs : ReaderT Context MetaM (Array DTExpr) :=
-    mapArgsIgnore fn args argDTExpr
+  let argDTExprs : ReaderT Context MetaM (Array DTExpr) := do
+    let ignores ← getIgnores fn args
+    args.mapIdxM fun i arg =>
+      argDTExpr arg ignores[i]!
 
   match fn with
   | .const c _ =>
@@ -500,6 +499,7 @@ partial def mkDTExprAux (root : Bool) (e : Expr) : ReaderT Context MetaM DTExpr 
   | .forallE _ d b _ => return .forall (← mkDTExprAux false d) (← mkDTExprBinder d b)
   | .lit v      => return .lit v
   | .sort _     => return .sort
+  | .letE ..    => return .opaque
   | _           => unreachable!
 
 where
@@ -546,8 +546,10 @@ partial def mkDTExprsAux (root : Bool) (e : Expr) : M DTExpr := do
   let argDTExpr (arg : Expr) (ignore : Bool) : M DTExpr :=
     if ignore then pure (.star none) else mkDTExprsAux false arg
 
-  let argDTExprs : M (Array DTExpr) :=
-    mapArgsIgnore fn args argDTExpr
+  let argDTExprs : M (Array DTExpr) := do
+    let ignores ← getIgnores fn args
+    args.mapIdxM fun i arg =>
+      argDTExpr arg ignores[i]!
 
   match fn with
   | .const c _ =>
@@ -584,6 +586,7 @@ partial def mkDTExprsAux (root : Bool) (e : Expr) : M DTExpr := do
   | .forallE _ d b _ => return .forall (← mkDTExprsAux false d) (← mkDTExprsBinder d b)
   | .lit v      => return .lit v
   | .sort _     => return .sort
+  | .letE ..    => return .opaque
   | _           => unreachable!
 
 where
@@ -600,13 +603,13 @@ end MkDTExpr
 The argument `fvarInContext` allows you to specify which free variables in `e` will still be
 in the context when the `RefinedDiscrTree` is being used for lookup.
 It should return true only if the `RefinedDiscrTree` is build and used locally. -/
-def mkDTExpr (e : Expr) (config : WhnfCoreConfig := {})
+def mkDTExpr (e : Expr) (config : WhnfCoreConfig)
     (fvarInContext : FVarId → Bool := fun _ => false) : MetaM DTExpr :=
   withReducible do (MkDTExpr.mkDTExprAux true e |>.run {config, fvarInContext})
 
 /-- Similar to `mkDTExpr`.
-Return all encodings of `e` as a `DTExpr`, taking possible η-reductions into account. -/
-def mkDTExprs (e : Expr) (config : WhnfCoreConfig := {})
+Return all encodings of `e` as a `DTExpr`, taking potential further η-reductions into account. -/
+def mkDTExprs (e : Expr) (config : WhnfCoreConfig)
     (fvarInContext : FVarId → Bool := fun _ => false) : MetaM (List DTExpr) :=
   withReducible do (MkDTExpr.mkDTExprsAux true e |>.run {config, fvarInContext}).run' {}
 
@@ -655,7 +658,10 @@ partial def insertInTrie [BEq α] (keys : Array Key) (v : α) (i : Nat) : Trie �
         return .mkPath shared (.mkNode2 k1 (.singleton keys v (i+n+1)) k2 (.mkPath rest c))
     return .path ks (insertInTrie keys v (i + ks.size) c)
 
-/-- Insert the value `v` at index `keys : Array Key` in a `RefinedDiscrTree`. -/
+/-- Insert the value `v` at index `keys : Array Key` in a `RefinedDiscrTree`.
+
+Warning: to accound for η-reduction, an entry may need to be added at multiple indexes,
+so it is recommended to use `RefinedDiscrTree.insert` for insertion. -/
 def insertInRefinedDiscrTree [BEq α] (d : RefinedDiscrTree α) (keys : Array Key) (v : α)
   : RefinedDiscrTree α :=
   let k := keys[0]!
@@ -667,14 +673,17 @@ def insertInRefinedDiscrTree [BEq α] (d : RefinedDiscrTree α) (keys : Array Ke
     let c := insertInTrie keys v 1 c
     { root := d.root.insert k c }
 
-/-- Insert the value `v` at index `e : DTExpr` in a `RefinedDiscrTree`. -/
+/-- Insert the value `v` at index `e : DTExpr` in a `RefinedDiscrTree`.
+
+Warning: to accound for η-reduction, an entry may need to be added at multiple indexes,
+so it is recommended to use `RefinedDiscrTree.insert` for insertion. -/
 def insertDTExpr [BEq α] (d : RefinedDiscrTree α) (e : DTExpr) (v : α) : RefinedDiscrTree α :=
   insertInRefinedDiscrTree d e.flatten v
 
 /-- Insert the value `v` at index `e : Expr` in a `RefinedDiscrTree`.
 The argument `fvarInContext` allows you to specify which free variables in `e` will still be
 in the context when the `RefinedDiscrTree` is being used for lookup.
-It should return true only if the RefinedDiscrTree is build and used locally. -/
+It should return true only if the RefinedDiscrTree is built and used locally. -/
 def insert [BEq α] (d : RefinedDiscrTree α) (e : Expr) (v : α) (config : WhnfCoreConfig := {})
   (fvarInContext : FVarId → Bool := fun _ => false) : MetaM (RefinedDiscrTree α) := do
   let keys ← mkDTExprs e config fvarInContext
@@ -818,7 +827,7 @@ If `allowRootStar := false`, then we don't allow `e` or the matched key in `d`
 to be a star pattern. -/
 partial def getMatchWithScore (d : RefinedDiscrTree α) (e : Expr) (unify : Bool)
     (config : WhnfCoreConfig) (allowRootStar : Bool := false) : MetaM (Array (Array α × Nat)) := do
-  let e ← mkDTExpr e
+  let e ← mkDTExpr e config
   return (·.qsort (·.2 > ·.2)) <| (do
     match ← GetUnify.exactMatch e d.root.find? with
     | .inr _ =>
