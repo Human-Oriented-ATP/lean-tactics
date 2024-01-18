@@ -29,7 +29,7 @@ def elabHtmlCmd : CommandElab := fun
       let trm ← Term.elabTerm t none
       let e ← Widget.ppExprTagged trm
       let ht := <ExprsDisplay exprs={#[{expr := e, subexprPos := "", description := "Test"}]} />
-      savePanelWidgetInfo stx ``HtmlDisplay do
+      Widget.savePanelWidgetInfo (hash HtmlDisplay.javascript) (stx := stx) do
         return json% { html: $(← rpcEncode ht) }
   | stx => throwError "Unexpected syntax {stx}."
 

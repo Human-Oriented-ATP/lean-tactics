@@ -6,11 +6,11 @@ import MotivatedMoves.GUI.DynamicEditButton
 
 # Point-and-click rewriting
 
-This file defines a widget for making targeted rewrites by 
+This file defines a widget for making targeted rewrites by
 pointing and clicking sub-expressions in the infoview.
 
 Once a sub-expression is selected, a `rw` tactic call with
-a configuration targeting the selected location is generated. 
+a configuration targeting the selected location is generated.
 
 -/
 
@@ -38,7 +38,7 @@ instance : ToString Occurrences where
 /-- Convert a `Rewrite.Config` to a `String`.
     This instance is restricted to printing just the information about the occurrences. -/
 instance : ToString Rewrite.Config where
-  toString cfg := 
+  toString cfg :=
     "{ " ++ s!"occs := {cfg.occs}" ++ " }"
 
 /-- Extract the left and right hand sides of an equality or iff statement. -/
@@ -47,31 +47,31 @@ def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
   | some (_, lhs, rhs) => return (lhs, rhs)
   | none => return e.iff?
 
-end  
+end
 
 /-- Specialises the theorem to match the sub-expression at the given position
     and calculates its occurrence number in the whole expression. -/
-def findRewriteOccurrence (thm : Expr) (symm : Bool) 
+def findRewriteOccurrence (thm : Expr) (symm : Bool)
     (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let .some (lhs, rhs) ← matchEqn? eqn | 
+  let .some (lhs, rhs) ← matchEqn? eqn |
     panic! s!"Received {stmt}; equality or iff proof expected."
   let hs := if symm then rhs else lhs
   let occurrence ← findMatchingOccurrence position target hs
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
-  return (occurrence, ← reduce (skipTypes := false) (skipProofs := false) pattern)
+  return (occurrence, pattern)
 
 /-- Generates a rewrite tactic call with configuration from the arguments. -/
-def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal) 
+def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
     (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM String := do
   let subExpr ← loc.toSubExpr
   let us ← thmAbst.paramNames.mapM <| fun _ ↦ mkFreshLevelMVar
   let thm := thmAbst.expr.instantiateLevelParamsArray thmAbst.paramNames us
   let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
   let cfg : Rewrite.Config := { occs := .pos [occurrence] }
-  let arg : String := Format.pretty <| ← ppExpr pattern
-  return s!"rw (config := {cfg}) [{if symm then "← " else "" ++ arg}]{loc.loc.render goal}"
+  let arg := Format.pretty <| ← ppExpr pattern
+  return s!"rw (config := {cfg}) [{(if symm then "← " else "") ++ arg}]{loc.loc.render goal}"
 
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
@@ -83,11 +83,11 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     Meta.withLCtx lctx md.localInstances do
       rewriteTacticCall loc goal props.rwRule.val props.symm
   return .pure (
-        <DynamicEditButton 
-          label={"Rewrite sub-term"} 
-          range?={props.replaceRange} 
-          insertion?={some tacticStr} 
-          variant={"contained"} 
+        <DynamicEditButton
+          label={"Rewrite sub-term"}
+          range?={props.replaceRange}
+          insertion?={some tacticStr}
+          variant={"contained"}
           size={"small"} />
       )
 
@@ -108,11 +108,11 @@ def rewriteAt : Tactic
       -- | `(rwRule| <- $arg:term) => (true, arg)
       |       _            => panic! s!"Failed to process {rule}."
   let argAbst ← abstractMVars <| ← elabTerm arg none
-  savePanelWidgetInfo stx ``Rewrite do
-    return json% { 
-      replaceRange : $(range), 
-      symm : $(symm), 
-      rwRule : $(← rpcEncode (WithRpcRef.mk argAbst)) 
+  Widget.savePanelWidgetInfo (hash Rewrite.javascript) (stx := stx) do
+    return json% {
+      replaceRange : $(range),
+      symm : $(symm),
+      rwRule : $(← rpcEncode (WithRpcRef.mk argAbst))
       }
 | _ => throwUnsupportedSyntax
 

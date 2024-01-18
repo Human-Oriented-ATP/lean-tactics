@@ -1,4 +1,5 @@
 import MotivatedMoves.ProofState.Tree
+import ProofWidgets
 
 namespace Tree
 open Lean Parser
@@ -21,9 +22,6 @@ syntax (name := hypothesis) term newLineTermParser : tree
 syntax (name := dotHypothesis) "·" ppHardSpace term newLineTermParser : tree
 syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
 
-def newLine := ppDedent (ppLine >> categoryParser `term 0)
-syntax (name := firstLine) newLine : tree
-
 syntax ident "•" : term
 syntax ident "⋆" : term
 
@@ -32,7 +30,7 @@ open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
 /--
 For each node in the tree, specify hoe the syntax should be and which part of the syntax gets annotated with term info,
-so that it can be clicked on. The SubExpr.Pos encoding is using 0 or 1 within the tree, and uses a 2 to denote the transition to 
+so that it can be clicked on. The SubExpr.Pos encoding is using 0 or 1 within the tree, and uses a 2 to denote the transition to
 a regular expression. -/
 partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   match ← getExpr with
@@ -64,14 +62,14 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
 
   | instance_pattern n _u d b =>
     let stxD ← withAppFn $ withAppArg delab
-    let stxND ← annotateTermInfo <| ← do 
+    let stxND ← annotateTermInfo <| ← do
       if n.eraseMacroScopes == `inst then `(binder| [$stxD:term])
       else do
       let n ← getUnusedName n b
       let stxN := mkIdent n
       `(binder| [$stxN:ident : $stxD])
     Meta.withLocalDeclD n d fun fvar =>
-    descend (b.instantiate1 (mkAnnotation `bullet fvar)) 1 do
+    descend (b.instantiate1 fvar) 1 do
     match ← (delabTreeAux pol) with
       | `(tree|$[$b:symbol_binder],*⠀ $stx) => `(tree|$stxND:binder, $[$b:symbol_binder],*⠀ $stx)
       | `(tree|$stx)                        => `(tree|$stxND:binder⠀ $stx)
@@ -89,9 +87,9 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
     let stxP ← descend p 0 (delabTreeAux pol)
     let stxQ ← descend q 1 (delabTreeAux pol)
     annotateTermInfo =<< `(sidegoal|⊢ $stxP⠀$stxQ)
-  
+
   | not_pattern p =>
-    let stx ← descend p 0 (delabTreeAux !pol)
+    let stx ← descend p 1 (delabTreeAux !pol)
     annotateTermInfo =<< `(¬ $stx)
 
   | e => if root then failure else descend e 2 delab
@@ -130,11 +128,97 @@ def ppTreeTagged (e : Expr) : MetaM CodeWithInfos := do
   return tagCodeInfos ctx infos tt
 
 
+private def getUnusedName (suggestion : Name) (body : Expr) : MetaM Name := do
+  -- Use a nicer binder name than `[anonymous]`. We probably shouldn't do this in all LocalContext use cases, so do it here.
+  let suggestion := if suggestion.isAnonymous then `a else suggestion
+  -- We use this small hack to convert identifiers created using `mkAuxFunDiscr` to simple names
+  let suggestion := suggestion.eraseMacroScopes
+  let lctx ← getLCtx
+  if !lctx.usesUserName suggestion then
+    return suggestion
+  else if !bodyUsesSuggestion lctx suggestion then
+    return suggestion
+  else
+    return lctx.getUnusedName suggestion
+where
+  bodyUsesSuggestion (lctx : LocalContext) (suggestion' : Name) : Bool :=
+    Option.isSome <| body.find? fun
+      | Expr.fvar fvarId =>
+        match lctx.find? fvarId with
+        | none      => false
+        | some decl => decl.userName == suggestion'
+      | _ => false
+
+open Widget ProofWidgets Server
+
+inductive DisplayTree where
+| node : (label : CodeWithInfos) → (children : Array DisplayTree) → DisplayTree
+deriving RpcEncodable
+
+partial def toDisplayTree (e : Expr) (pol : Bool := true) : MetaM DisplayTree := do
+  match e with
+  | forall_pattern n _u d b =>
+    let n ← getUnusedName n b
+    Meta.withLocalDeclD n d fun fvar => do
+    let b := b.instantiate1 (if pol then fvar else mkAnnotation `star fvar)
+    let d ← ppTreeTagged d
+    return .node (.append #[.text s! "∀ {n}{if pol then "" else "⋆"} : ", d]) #[← toDisplayTree b pol]
+
+  | exists_pattern n _u d b =>
+    let n ← getUnusedName n b
+    Meta.withLocalDeclD n d fun fvar => do
+    let b := b.instantiate1 (if pol then mkAnnotation `bullet fvar else fvar)
+    let d ← ppTreeTagged d
+    return .node (.append #[.text s! "∃ {n}{if pol then "•" else ""} : ", d]) #[← toDisplayTree b pol]
+
+  | instance_pattern n _u d b =>
+    Meta.withLocalDeclD n d fun fvar => do
+    let n ← (do
+      if n.eraseMacroScopes == `inst then
+        return ""
+      else
+        return s! "{← getUnusedName n b} : ")
+    let b := b.instantiate1 fvar
+    let d ← ppTreeTagged d
+    return .node (.append #[.text s! "[{n}", d, .text "]"]) #[← toDisplayTree b pol]
+
+  | imp_pattern p q =>
+    let p ← ppTreeTagged p
+    return .node p #[← toDisplayTree q pol]
+
+  | and_pattern p q =>
+    return .node (.text "And") #[← toDisplayTree p pol, ← toDisplayTree q pol]
+
+  | not_pattern p =>
+    return .node (.text "Not") #[← toDisplayTree p !pol]
+
+  | e => return .node (← ppTreeTagged e) #[]
+
+structure TreeDisplay extends PanelWidgetProps where 
+  tree : DisplayTree
+deriving Server.RpcEncodable
+
+@[widget_module]
+def OrdinaryTreeDisplay : Component TreeDisplay where
+  javascript := include_str ".." / ".." / "build" / "js" / "interactiveTreeDisplay.js"
+
+syntax (name := tree_display) "with_tree_display" tacticSeq : tactic
+
+open Meta Elab Tactic in
+@[tactic tree_display]
+def treeDisplay : Tactic
+  | stx@`(tactic| with_tree_display $tacs) => do
+    let tgt ← getMainTarget
+    let t ← Tree.toDisplayTree (← makeTree tgt)
+    Widget.savePanelWidgetInfo (hash OrdinaryTreeDisplay.javascript) (stx := stx) do
+      return json% { tree : $(← rpcEncode t) }
+    evalTacticSeq tacs
+  | _ => throwUnsupportedSyntax
 
 example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ¬ ∃ g n : Int, ∃ m:Nat, Nat → q a) → p → ¬ (p → p) → ∃ m h : Nat, q m := by
   make_tree
   sorry
 example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
   make_tree
+  with_tree_display
   sorry
-

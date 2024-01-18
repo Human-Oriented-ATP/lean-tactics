@@ -320,7 +320,7 @@ elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic 
   let hypPos := getOuterInnerPosition <$> hypPos
   workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalOuterPosition goalPos treeRewriteOrd)
 
-open Std.DiscrTree in 
+open RefinedDiscrTree in 
 def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
   let pol ← try getOrdPolarity goalOuterPosition goalPos tree catch _ => return #[]

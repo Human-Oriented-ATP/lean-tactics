@@ -23,8 +23,22 @@ def ofReplaceRange (meta : Server.DocumentMeta) (range : Lsp.Range)
   }
   { edit, newCursorPos? }
 
+/-- Add `newText` with correct indentation at the end of `range`, which is assumed to be entirely whitespace. -/
+def ofReplaceWhitespace (meta : Server.DocumentMeta) (range : Lsp.Range)
+    (newText : String) : EditParams :=
+  let newLines := range.end.line - range.start.line
+  let indent := range.end.character
+  let newPaddedText := "" |>.pushn '\n' newLines |>.pushn ' ' indent |>.append newText
+  let edit := { textDocument := { uri := meta.uri, version? := meta.version }
+                edits        := #[{ range := ⟨range.start, range.start⟩, newText := newPaddedText }] }
+  let newCursorPos? := some {
+    line := range.end.line
+    character := range.end.character + newText.codepointPosToUtf16Pos newText.length
+  }
+  { edit, newCursorPos? }
+
 /-- Insert a line with the given text, a useful special case of replacing a range. -/
-def insertLine (meta : Server.DocumentMeta) (line : Nat) 
+def insertLine (meta : Server.DocumentMeta) (line : Nat)
     (indent : Nat) (text : String) : EditParams :=
   let newText := "".pushn ' ' indent ++ text
   let pos := { line := line, character := 0 }
@@ -74,6 +88,7 @@ structure DynamicEditButtonProps extends DynamicButtonStylingProps where
   range? : Option Lsp.Range := none
   insertion? : Option String := none
   html? : Option Html := none
+  onWhitespace : Bool := true
   vanish : Bool := false
 deriving RpcEncodable
 
@@ -82,10 +97,13 @@ deriving RpcEncodable
 def DynamicEditButton.rpc (props : DynamicEditButtonProps) : RequestM (RequestTask Html) := do
   RequestM.asTask do
     let doc ← RequestM.readDoc
-    let editParams? : Option EditParams := do 
+    let editParams? : Option EditParams := do
       let range ← props.range?
       let insertion ← props.insertion?
-      return .ofReplaceRange doc.meta range insertion
+      if props.onWhitespace then
+        return .ofReplaceWhitespace doc.meta range insertion
+      else
+        return .ofReplaceRange doc.meta range insertion
     return .ofComponent DynamicButton (children := #[])
       { label := props.label
         edit? := editParams?

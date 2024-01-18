@@ -12,3 +12,4 @@ lake-packages/*
 /widget/package-lock.json.trace
 *.olean
 */.DS_Store
+/.lake/

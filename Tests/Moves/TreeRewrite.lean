@@ -18,12 +18,12 @@ example : (∀ n l : Nat, n = l+n) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} 
   tree_rewrite [0,1,1,2] [1,1,2,0,1,1,1,0,1]
   sorry
 
-elab "hii" e:term : tactic => do
-  let e ← Lean.Elab.Tactic.elabTerm e none
-  let e ← Tree.DiscrTree.mkDTExpr e
-  Lean.logInfo m! "{e}, {e.etaFlatten}"
-example := by
-  hii (fun x a c => (a:Nat) + ?y)
+-- elab "hii" e:term : tactic => do
+--   let e ← Lean.Elab.Tactic.elabTerm e none
+--   let e ← Tree.DiscrTree.mkDTExpr e
+--   Lean.logInfo m! "{e}, {e.etaFlatten}"
+-- example := by
+--   hii (fun x a c => (a:Nat) + ?y)
 #check OfNat.ofNat
 #exit
 example : 1 + (3:ℤ) = a + a + a := by

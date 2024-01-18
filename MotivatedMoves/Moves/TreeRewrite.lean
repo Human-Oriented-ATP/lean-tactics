@@ -135,7 +135,7 @@ elab "lib_rewrite_rev" hypName:ident goalPos:treePos : tactic => do
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   workOnTree (applyUnbound hypName (getRewritePos (.inr true)) goalOuterPosition goalPos treeRewrite)
 
-open Std.DiscrTree in
+open RefinedDiscrTree in
 def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
@@ -158,10 +158,10 @@ lemma imp_exists_iff [inst : Nonempty α] {p : Prop} {q : α → Prop} : Imp p (
   apply Iff.intro
   by_cases p
   · intro g
-    have ⟨a, g⟩ := g h
+    have ⟨a, g⟩ := g ‹p›
     exact ⟨a, fun _ => g⟩
   · intro _
-    exact ⟨Classical.choice inst, (absurd · h)⟩
+    exact ⟨Classical.choice inst, (absurd · ‹¬p›)⟩
   · intro ⟨a, h⟩ g
     exact ⟨a, h g⟩
 
