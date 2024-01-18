@@ -910,8 +910,19 @@ structure Modifier where
   newName : Name := oldName ++ `gen  -- usually oldName ++ `gen
   oldType : Expr -- the type that has the ungeneralized constant
 
+def makeModifiers (oldNames : List Name) (newNames : List Name) (oldTypes: List Expr) : Array Modifier :=
+  let modifiers : Array Modifier := oldNames.length.fold (fun i (modifiers : Array Modifier) =>
+    let modifier : Modifier := {
+      oldName := oldNames.get! i,
+      newName := newNames.get! i,
+      oldType := oldTypes.get! i
+    };
+    modifiers.push modifier
+  ) #[] ;
+  modifiers
+
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
-def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (List Name × List Name × List Expr) := do
+def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : Expr) (fId : FVarId) : MetaM (Array Modifier) := do
   -- get names of all identifiers (that is, constants) in the proof term that don't already appear in the proof type
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
@@ -931,15 +942,16 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : E
 
   -- return old name,   new name,   new type
   -- e.g.   mul_assoc,  f_assoc,    ∀ n m p : ℕ, f n (f m p) = (f (f n m) p)
-  return (identifiers, abstractedIdentifierNames, abstractedIdentifierTypes)
+  return makeModifiers identifiers abstractedIdentifierNames abstractedIdentifierTypes
 
 /-- Find the type of the new auto-generalized theorem -/
-def autogeneralizeType (modifiers : List Expr) (genThmName : Name)   (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
+def autogeneralizeType (modifiers : Array Modifier) (genThmName : Name)   (fName : Name) ( fType : Expr) (fId : FVarId): TacticM Expr := do
+  let modifierTypes := modifiers.map (·.oldType)
 
   -- then we need to add those abstracted identifiers to the hypothesis
   -- e.g. a proposition of type identifiersAbstracted[0] → identifiersAbstracted[1] → ... → goal
   let goal ← getHypothesisType genThmName
-  let genThmTypeBody ← modifiers.foldrM (mkImplies `myForAllNameHere) goal
+  let genThmTypeBody ← modifierTypes.foldrM (mkImplies `myForAllNameHere) goal
 
   -- now create the proposition ∀ f : fType ... (the generalized theorem about f)
   (←getGoalVar).withContext do
@@ -1000,7 +1012,7 @@ def autogeneralize (thmName : Name) (f : Expr): TacticM Unit := do
   --   f       (ℕ → ℕ → ℕ)
 
   -- Do the next bit of generalization -- figure out which all hypotheses we need to add to make the generalization true
-  let (oldModifierNames, newModifierNames, modifiers) ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
+  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f fId
 
   -- Get the type of the generalized theorem (with those additional hypotheses)
   let genThmType ← autogeneralizeType modifiers genThmName fName fType fId
