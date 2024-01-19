@@ -176,9 +176,9 @@ def DisplayTree.width : DisplayTree → Nat
   | «exists» _ _ _ body => body.width
   | «instance» _ body => body.width
   | implication antecedent _ consequent => max antecedent.width consequent.width
-  | and first _ second => first.width + second.width
-  | not _ body => body.width
-  | node _ => 1
+  | and first _ second => first.width + 30 + second.width -- 30 = the row height
+  | not _ body => 30 + body.width -- 30 = the row height
+  | node e => e.stripTags.length * 8 -- 8 = charWidth
 
 open Lean PrettyPrinter
 def annotateAs (txt : String) (e : SubExpr) (pos : SubExpr.Pos := .root) (delab : Delab := delab) : MetaM CodeWithInfos := do

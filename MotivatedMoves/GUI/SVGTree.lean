@@ -260,15 +260,19 @@ deriving RpcEncodable
 open scoped Jsx in
 @[server_rpc_method]
 def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := RequestM.asTask do
-  let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := 250, width := 250, height := 250 }
-  let (_, ⟨elements⟩) := props.tree.val.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
+  let tree := props.tree.val
+  let yScale := 30 -- TreeRender.TreeRenderParams.rowHeight {}
+  let width := tree.width
+  let height := tree.depth * yScale
+  let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := width.toFloat, width := width, height := height }
+  let (_, ⟨elements⟩) := tree.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
   return (
     <div align="center">
       {.element "svg"
       #[("xmlns", "http://www.w3.org/2000/svg"),
         ("version", "1.1"),
-        ("width", 250),
-        ("height", 250)]
+        ("width", width),
+        ("height", height)]
       elements}
       {<hr />}
       {.element "div" #[] <| elements.map (fun e ↦ <div>{Html.text (toString e)}{<hr />}</div>)}
