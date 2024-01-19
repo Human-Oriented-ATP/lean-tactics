@@ -38,7 +38,7 @@ private structure BackgroundFrameParams where
   /-- The default background color. -/
   bgColor : Svg.Color := (0.75, 0.75, 0.75)
   /-- The default opacity of the background of a frame. -/
-  bgOpacity : Float := 0.7
+  bgOpacity : Float := 0.1
   /-- The default rounding of the background rectangle. -/
   bgRounding : Nat := 10
   /-- The highlight stroke width of the background rectangle border. -/
@@ -233,18 +233,18 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
         (drawCode arrow ρ.implicationColor)
         (descend 1 <| renderCore consequent))
   | .and first wedge second =>
-    withTopRowSplit
-      (drawCode wedge ρ.conjunctionColor)
-      (withEvenHorizontalSplit 
+      withHorizontalSplit ((ρ.frame.width - ρ.rowHeight) / 2)
         (descend 0 <| withColor ρ.conjunctionColor <| renderCore first)
-        (descend 1 <| withColor ρ.conjunctionColor <| renderCore second))
+        (withHorizontalSplit ρ.rowHeight
+          (drawCode wedge ρ.conjunctionColor)
+          (descend 1 <| withColor ρ.conjunctionColor <| renderCore second))
   | .not neg body =>
-    withTopRowSplit
+    withHorizontalSplit ρ.rowHeight
       (drawCode neg ρ.negationColor)
       (descend 1 <| withColor ρ.negationColor <| renderCore body)
   | .node val => 
     withTopRowSplit
-      (drawCode val ρ.nodeColor)
+      (descend 2 <| drawCode val ρ.nodeColor)
       (pure ())
 
 section Rendering
@@ -288,7 +288,7 @@ elab stx:"display_tree" : tactic => do
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
     return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
 
-example : ∀ x : Nat, True ∧ False → True := by
+example : ∀ x : Nat, True ∧ False → ¬True := by
   make_tree
   display_tree
   sorry

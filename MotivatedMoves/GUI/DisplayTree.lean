@@ -167,8 +167,8 @@ def DisplayTree.depth : DisplayTree → Nat
   | «exists» _ _ _ body => body.depth.succ
   | «instance» _ body => body.depth.succ
   | implication antecedent _ consequent => (antecedent.depth + consequent.depth).succ -- layering vertically
-  | and first _ second => (max first.depth second.depth).succ -- displaying side-by-side
-  | not _ body => body.depth.succ
+  | and first _ second => (max first.depth second.depth) -- displaying side-by-side
+  | not _ body => body.depth
   | node _ => 1
 
 def DisplayTree.width : DisplayTree → Nat
