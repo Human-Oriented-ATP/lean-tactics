@@ -162,7 +162,7 @@ def tree_induction : InfoviewAction :=
       let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
       pure
         <DynamicEditButton
-          label={"Perform Induction"}
+          label={"Definitional induction/elimination"}
           range?={props.range}
           insertion?={tac.raw.reprint.get!}
           html?={<p> Performing induction... </p>}
@@ -216,6 +216,21 @@ where
       #[("display", "flex"), ("justifyContent", "space-between")]
 
 end LibraryPanelRendering
+
+open Jsx in
+@[motivated_proof_move]
+def libInduct : InfoviewAction := fun props ↦ do
+  if (props.selectedLocations.size == 1) then
+    let some subexpr := props.selectedLocations[0]? | failure
+    let ⟨goal, .target pos⟩ := subexpr | failure
+    let libSuggestions ← Tree.librarySearchInduction (pos.toArray.toList) (← goal.getType)
+    if libSuggestions.isEmpty then failure
+    pure
+      <DynamicEditButton
+          label={"Custom induction/elimination"}
+          html?={← renderLibrarySearchResults props.range "Induction search results" #[(libSuggestions, 0)]}
+          vanish={true} />
+  else failure
 
 open Jsx in
 @[motivated_proof_move]
@@ -359,7 +374,7 @@ def contrapose_button : InfoviewAction := fun props ↦ do
     let ⟨_, .target pos2⟩ := subexprPos2 | failure
     let tac ← `(tactic| tree_contrapose $(quote pos1) $(quote pos2))
     let tac' ← `(tactic| tree_contrapose' $(quote pos1) $(quote pos2))
-    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac 
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
     pure
       <DynamicEditButton
           label={"Contrapose"}
@@ -387,7 +402,7 @@ def swap_hyps : InfoviewAction := fun props ↦ do
     let some subexprPos := props.selectedLocations[0]? | failure
     let ⟨_, .target pos⟩ := subexprPos | failure
     let tac ← `(tactic| lib_rewrite Imp.swap $(quote pos))
-    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac 
+    let _ ← OptionT.mk <| withoutModifyingState <| try? <| evalTactic tac
     pure
       <DynamicEditButton
           label={"Swap the hypotheses"}

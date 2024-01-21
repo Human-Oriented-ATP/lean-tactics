@@ -47,7 +47,7 @@ instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
 -- might want to add some whnf applications with reducible transparency?
-partial def processTree (name : Name): Expr → MetaM ProcessResult
+partial def processTree (name : Name) : Expr → MetaM ProcessResult
   | .forallE _n domain body bi => do
     let mvar ← mkFreshExprMVar domain
     let result ← processTree name (body.instantiate1 mvar)
