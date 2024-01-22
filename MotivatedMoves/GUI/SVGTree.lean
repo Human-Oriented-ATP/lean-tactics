@@ -180,12 +180,12 @@ open scoped Jsx in
 def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
   let ρ ← read
   let codeLength := ρ.charWidth * code.pretty.length
-  let (x, y) := (ρ.frame.xmin + (ρ.frame.width / 2 - codeLength / 2).toFloat * ρ.frame.pixelSize, 
+  let (x, y) := (ρ.frame.xmin + (ρ.frame.width / 2 - ρ.padding - codeLength / 2).toFloat * ρ.frame.pixelSize, 
                  ρ.frame.ymin + (ρ.frame.height / 2 - ρ.height / 2).toFloat * ρ.frame.pixelSize)
   draw <| .element "rect" #[
     ("x", toJson x),
     ("y", toJson y),
-    ("width", codeLength + 2 * ρ.padding),
+    ("width", toJson <| codeLength.toFloat + 2 * ρ.padding.toFloat * ρ.frame.pixelSize),
     ("height", ρ.height),
     ("rx", ρ.rounding),
     ("fill", color.toStringRGB),
@@ -207,7 +207,6 @@ Render a `DisplayTree` as an SVG image within the `TreeRenderM` monad.
 
 # TO-DO:
 - Coloring based on polarity
-- A button within each box to select the entire expression contained within
 
 -/
 def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM Unit := do
@@ -274,8 +273,6 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
         ("width", width),
         ("height", height)]
       elements}
-      {<hr />}
-      {.element "div" #[] <| elements.map (fun e ↦ <div>{Html.text (toString e)}{<hr />}</div>)}
     </ div>
     )
 
@@ -292,7 +289,7 @@ elab stx:"display_tree" : tactic => do
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
     return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
 
-example : ∀ x : Nat, True ∧ False → ¬True := by
+example : True := by
   make_tree
   display_tree
   sorry
