@@ -7,6 +7,7 @@ import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.Data.Real.Irrational
 import Mathlib.Data.Nat.Prime
 import Mathlib.RingTheory.Coprime.Lemmas
+
 open Real
 
 /---------------------------------------------------------------------------
@@ -111,7 +112,30 @@ theorem bothPrimeMeansGCDIs1 : ∀ (a b : Nat), a ≠ b → Nat.Prime a → Nat.
 
 #print multPermute -- the proof term
 
+theorem gcdof5and7 : gcd 5 7 = 1 := by
+  have neq5and7 : 5 ≠ 7 := by simp
+  have p5 : Nat.Prime 5 := by simp
+  have p7 : Nat.Prime 7 := by simp
+  have copr := Nat.coprime_primes p5 p7
+  apply Iff.mpr at copr
+  exact copr (neq5and7)
+#print gcdof5and7
 
+theorem gcdofpand7 : Nat.Prime p → p ≠ 7 →  gcd p 7 = 1 := by
+  intros pp neq
+  have p7 : Nat.Prime 7 := by simp
+  have copr := Nat.coprime_primes pp p7
+  apply Iff.mpr at copr
+  exact copr neq
+#print gcdof5and7
+
+theorem gcdofpand3 : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1 := by
+  intros p neq pp
+  exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq
+#print gcdofpand3
+
+-- will gneralize saying, you need f (the generalized 3) to be prime
+-- but really, you just need f (the generalized 3) to be coprime to p
 
 /---------------------------------------------------------------------------
 A theorem that uses FLT
@@ -145,3 +169,28 @@ theorem flt_example'' : 2^4 % (5 : ℤ) = (1 : ℤ) % (5 : ℤ):= by
 
 theorem flt_general (hp : Nat.Prime p) (hpn : IsCoprime a p) : a ^ (p - 1) % p = 1 := by
   sorry
+
+
+/---------------------------------------------------------------------------
+Given integers a and b, you can write their gcd as a linear combination of a and b
+---------------------------------------------------------------------------/
+theorem gcd_as_lin_comb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by
+  intros a b
+  exact exists_gcd_eq_mul_add_mul a b
+
+/---------------------------------------------------------------------------
+GCD of polynomials
+---------------------------------------------------------------------------/
+theorem gcd_as_lin_comb' : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by
+  intros a b
+  exact exists_gcd_eq_mul_add_mul a b
+#check Polynomial.degree_gcd_le_right
+
+/---------------------------------------------------------------------------
+Generalizing the theorem about GCDs from integers to polynomials
+---------------------------------------------------------------------------/
+-- example : True := by
+--   let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
+--   autogeneralize _gcdlincomb a  -- adds _gcdlincomb.Gen to list of hypotheses
+--   specialize _gcdlincomb.Gen ℝ 1 (0.5 : ℝ)
+--   simp at _gcdlincomb.Gen

@@ -246,9 +246,9 @@ elab "assump'" : tactic => do
 example {P : Prop} (p : P): P := by
   assump' -- works
 
-example {P : Prop} : P := by
-  assump' -- throws error "No matching assumptions."
-  sorry
+-- example {P : Prop} : P := by
+--   assump' -- throws error "No matching assumptions."
+--   sorry
 
 /--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
 elab "assump''" : tactic => do
@@ -578,13 +578,13 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
     | Expr.proj _ _ b        => [e] ++ (getSubexpressionsInRec b acc)
     | Expr.mvar _            => [e] ++ acc
     | Expr.bvar _            => [e] ++ acc
-    | _                      => acc
+    | e                      => [e] ++ acc
   let subexprs := getSubexpressionsInRec e [];
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   subexprs
 
 #eval do {let e ← getTheoremStatement `multPermute;  logInfo (getSubexpressionsIn e)}
-
+#eval getSubexpressionsIn (Lean.Expr.app (Lean.Expr.const `CommRing [Lean.Level.zero]) (Lean.Expr.const `Int []))
 /- Get (in a list) all subexpressions that involve natural numbers -/
 def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
   try
@@ -738,12 +738,6 @@ elab "generalizeAllNats" : tactic => do
 example : 2^4 % 5 = 1 := by
   generalizeAllNats
   rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
-
-def syntaxToExpr (e : TermElabM Syntax) : TermElabM Expr := do
-  let e ← elabTermAndSynthesize (← e) none
-  return e
-
-#eval syntaxToExpr `(@HMul.hMul Nat Nat Nat instHMul)
 
 elab "generalizef" : tactic => do
   let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
@@ -913,18 +907,18 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
 
   -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
   let identifierNames := identifiersInProofTerm.removeAll identifiersInProofType
-  let identifiersTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
+  let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
-  let identifiersTypes ← identifiersTypes.filterM (containsExpr f.oldValue)
+  let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
-  let generalizedIdentifierTypes ← identifiersTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
+  let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
 
   -- return             old names     old types                  new types
   -- e.g.               mul_comm      ∀ n m : ℕ, n⬝m = m⬝n        ∀ n m : ℕ, f n m = f m n
-  return makeModifiers identifierNames identifiersTypes generalizedIdentifierTypes
+  return makeModifiers identifierNames identifierTypes generalizedIdentifierTypes
 
 /-- Find the type of the new auto-generalized theorem -/
 def autogeneralizeType (thmType : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : MetaM Expr := do
@@ -1046,3 +1040,12 @@ example : True := by
   simp
   -- you should be able to tell that the proof doesn't need Prime f and Prime p
   -- it only needs Coprime f p
+
+/---------------------------------------------------------------------------
+Generalizing the theorem about GCDs from integers to polynomials
+---------------------------------------------------------------------------/
+example : True := by
+  let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
+  autogeneralize _gcdlincomb ℤ  -- adds _gcdlincomb.Gen to list of hypotheses
+  specialize _gcdlincomb.Gen ℝ 1 (0.5 : ℝ)
+  simp at _gcdlincomb.Gen
