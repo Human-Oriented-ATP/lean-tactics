@@ -5,22 +5,24 @@ open Lean Widget ProofWidgets Server
 
 namespace TreeRender
 
+deriving instance BEq for Svg.Color
+
 -- TODO: Clean up color rendering
 private structure TextBubbleColorParams where
-  /-- The `forall` nodes in the `DisplayTree` are colored `green`. -/
-  forallQuantifierColor : Svg.Color := (0.0, 0.8, 0.4)
+  /-- The `forall` nodes in the `DisplayTree` are colored `yellow`. -/
+  forallQuantifierColor : Svg.Color := (0.6, 0.6, 0.0)
   /-- The `exists` nodes in the `DisplayTree` are colored `purple`. -/
   existsQuantifierColor : Svg.Color := (0.4, 0.4, 1.0)
   /-- The `instance` nodes in the `DisplayTree` are colored `gray`. -/
   instanceColor : Svg.Color := (0.5, 0.5, 0.5)
-  /-- The `implication` nodes in the `DisplayTree` are colored `orange`. -/
-  implicationColor : Svg.Color := (1.0, 0.6, 0.2)
-  /-- The `conjunction` nodes in the `DisplayTree` are colored `blue`. -/
-  conjunctionColor : Svg.Color := (0.2, 0.6, 1.0)
+  /-- The `conjunction` nodes in the `DisplayTree` are colored `green`. -/
+  conjunctionColor : Svg.Color := (0.0, 0.6, 0.0)
   /-- The `negation` nodes in the `DisplayTree` are colored `red`. -/
   negationColor : Svg.Color := (0.8, 0.2, 0.0)
-  /-- The `nodes` in the `DisplayTree` are colored `light blue` -/
-  nodeColor : Svg.Color := (0.0, 0.6, 0.8)
+  /-- The nodes of the `DisplayTree` that are in "hypothesis position" are colored `orange`. -/
+  hypothesisColor : Svg.Color := (1.0, 0.6, 0.2)
+  /-- The `nodes` of the `DisplayTree` that are in "goal position" are colored `light blue` -/
+  goalColor : Svg.Color := (0.0, 0.4, 1.0)
 
 private structure TextBubbleParams extends TextBubbleColorParams where
   /-- The approximate width, in pixels, of a Unicode character in the chosen font. -/
@@ -36,7 +38,7 @@ private structure TextBubbleParams extends TextBubbleColorParams where
 
 private structure BackgroundFrameParams where
   /-- The default background color. -/
-  bgColor : Svg.Color := (0.75, 0.75, 0.75)
+  bgColor : Svg.Color := (0.0, 0.4, 1.0)
   /-- The default opacity of the background of a frame. -/
   bgOpacity : Float := 0.1
   /-- The default rounding of the background rectangle. -/
@@ -94,6 +96,18 @@ def withFrame (f : Svg.Frame) : TreeRenderM α → TreeRenderM α :=
 /-- Change to the opposite polarity. -/
 def withOppositePolarity : TreeRenderM α → TreeRenderM α :=
   withReader (polarity %~ Bool.not)
+
+/-- Switch to the opposite color (goal/hypothesis color) before running the action. -/
+def withOppositeColor (act : TreeRenderM α) : TreeRenderM α := do
+  let ρ ← read
+  if ρ.color == ρ.goalColor then
+    withReader ({ · with color := ρ.hypothesisColor}) 
+      act
+  else if ρ.color == ρ.hypothesisColor then
+    withReader ({ · with color := ρ.goalColor}) 
+      act
+  else
+    act
 
 /-- Move down the expression tree. -/
 def descend (childIdx : Nat) : TreeRenderM α → TreeRenderM α := 
@@ -221,35 +235,35 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
   match displayTree with
   | .forall quantifier name type body =>
     withTopRowSplit
-      (drawCode (.append #[quantifier, name, .text " : ", type]) ρ.forallQuantifierColor)
+      (drawCode (.append #[quantifier, name, .text " : ", type]) (if ρ.polarity then ρ.forallQuantifierColor else ρ.existsQuantifierColor))
       (descend 1 <| renderCore body) 
   | .exists quantifier name type body =>
     withTopRowSplit
-      (drawCode (.append #[quantifier, name, .text " : ", type]) ρ.existsQuantifierColor)
-      (descend 1 <| renderCore body)
+      (drawCode (.append #[quantifier, name, .text " : ", type]) (if ρ.polarity then ρ.existsQuantifierColor else ρ.forallQuantifierColor))
+      (descend 1 <| withOppositePolarity <| withOppositeColor <| renderCore body)
   | .instance inst body =>
     withTopRowSplit
       (drawCode inst ρ.instanceColor)
       (descend 1 <| renderCore body)
   | .implication antecedent arrow consequent => 
     withVerticalSplit (antecedent.depth * ρ.rowHeight)
-      (descend 0 <| withColor ρ.implicationColor <| renderCore antecedent)
+      (descend 0 <| withOppositePolarity <| withOppositeColor <| renderCore antecedent)
       (withTopRowSplit
-        (drawCode arrow ρ.implicationColor)
+        (drawCode arrow ρ.hypothesisColor)
         (descend 1 <| renderCore consequent))
   | .and first wedge second =>
       withHorizontalSplit ((ρ.frame.width - ρ.rowHeight) / 2)
-        (descend 0 <| withColor ρ.conjunctionColor <| renderCore first)
+        (descend 0 <| renderCore first)
         (withHorizontalSplit ρ.rowHeight
           (drawCode wedge ρ.conjunctionColor)
-          (descend 1 <| withColor ρ.conjunctionColor <| renderCore second))
+          (descend 1 <| renderCore second))
   | .not neg body =>
     withHorizontalSplit ρ.rowHeight
       (drawCode neg ρ.negationColor)
-      (descend 1 <| withColor ρ.negationColor <| renderCore body)
+      (descend 1 <| withOppositePolarity <| withOppositeColor <| renderCore body)
   | .node val => 
     withTopRowSplit
-      (descend 2 <| drawCode val ρ.nodeColor)
+      (descend 2 <| drawCode val ρ.color)
       (pure ())
 
 section Rendering
