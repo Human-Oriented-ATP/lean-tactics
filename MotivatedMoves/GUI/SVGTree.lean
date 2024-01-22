@@ -24,9 +24,9 @@ private structure TextBubbleColorParams where
 
 private structure TextBubbleParams extends TextBubbleColorParams where
   /-- The approximate width, in pixels, of a Unicode character in the chosen font. -/
-  charWidth : Nat := 8
+  charWidth : Nat := Tree.charWidth
   /-- The amount of horizontal padding to add around text in text bubbles. -/
-  padding : Nat := 4
+  padding : Nat := Tree.padding
   /-- The height of the background bubble surrounding a textbox in pixels. -/
   height : Nat := 20
   /-- The rounding of the text bubble (i.e., the value of the parameters `rx` and `ry` of `rect`). -/
@@ -48,7 +48,7 @@ private structure BackgroundFrameParams where
 
 private structure TreeRenderParams extends TextBubbleParams, BackgroundFrameParams where
   /-- The number of pixels occupied by each row in the tree display. -/
-  rowHeight : Nat := 30
+  rowHeight : Nat := Tree.rowSize
   /-- The list of selected locations in the rendered proof state. -/
   selectedLocations : Array SubExpr.Pos
   /-- The current frame in the SVG. -/
@@ -260,7 +260,7 @@ open scoped Jsx in
 @[server_rpc_method]
 def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := RequestM.asTask do
   let tree := props.tree.val
-  let yScale := 30 -- TreeRender.TreeRenderParams.rowHeight {}
+  let yScale := Tree.rowSize
   let width := tree.width
   let height := tree.depth * yScale
   let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := width.toFloat, width := width, height := height }
@@ -289,7 +289,7 @@ elab stx:"display_tree" : tactic => do
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
     return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
 
-example : True := by
+example : ∀ x : Nat, True ∧ False → ¬ True := by
   make_tree
   display_tree
   sorry

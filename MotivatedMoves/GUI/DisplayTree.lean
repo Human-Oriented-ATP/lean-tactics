@@ -162,6 +162,13 @@ inductive DisplayTree where
 | node (body : CodeWithInfos)
 deriving RpcEncodable
 
+/-- The number of pixels occupied by each row in the tree display. -/
+def rowSize := 30
+/-- The approximate width, in pixels, of a Unicode character in the chosen font. -/
+def charWidth := 8
+/-- The amount of horizontal padding to add around text in text bubbles. -/
+def padding := 4
+
 def DisplayTree.depth : DisplayTree → Nat
   | «forall» _ _ _ body => body.depth.succ
   | «exists» _ _ _ body => body.depth.succ
@@ -176,9 +183,9 @@ def DisplayTree.width : DisplayTree → Nat
   | «exists» _ _ _ body => body.width
   | «instance» _ body => body.width
   | implication antecedent _ consequent => max antecedent.width consequent.width
-  | and first _ second => first.width + 30 + second.width -- 30 = the row height
-  | not _ body => 30 + body.width -- 30 = the row height
-  | node e => e.stripTags.length * 8 -- 8 = charWidth
+  | and first _ second => rowSize + 2 * max first.width second.width
+  | not _ body => rowSize + body.width
+  | node e => e.stripTags.length * charWidth + padding * 2 * 2
 
 open Lean PrettyPrinter
 def annotateAs (txt : String) (e : SubExpr) (pos : SubExpr.Pos := .root) (delab : Delab := delab) : MetaM CodeWithInfos := do
