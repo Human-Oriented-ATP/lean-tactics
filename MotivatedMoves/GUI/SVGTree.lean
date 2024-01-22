@@ -55,6 +55,8 @@ private structure TreeRenderParams extends TextBubbleParams, BackgroundFramePara
   frame : Svg.Frame
   /-- The color of the current frame. -/
   color : Svg.Color := bgColor
+  /-- The polarity of the current sub-expression, which indicates whether it is in positive or negative position. -/
+  polarity : Bool := true
   /-- The current position within the expression being rendered. -/
   pos : SubExpr.Pos := .root
 
@@ -88,6 +90,10 @@ def withColor (c : Svg.Color) : TreeRenderM α → TreeRenderM α :=
 /-- Use a different frame. -/
 def withFrame (f : Svg.Frame) : TreeRenderM α → TreeRenderM α :=
   withReader ({ · with frame := f })
+
+/-- Change to the opposite polarity. -/
+def withOppositePolarity : TreeRenderM α → TreeRenderM α :=
+  withReader (polarity %~ Bool.not)
 
 /-- Move down the expression tree. -/
 def descend (childIdx : Nat) : TreeRenderM α → TreeRenderM α := 
@@ -273,6 +279,8 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
         ("width", width),
         ("height", height)]
       elements}
+      <hr />
+      -- {.element "div" #[] (props.locations.map (<p>{.text ·.toString}</p>))}
     </ div>
     )
 
