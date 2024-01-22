@@ -1,77 +1,58 @@
 import Lean
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
 import Mathlib.Data.Real.Irrational
-import Qq open Qq Lean
 
-open Lean Elab Tactic Meta Term Parser PrettyPrinter.Delaborator
-
-#eval Lean.versionString -- 4.3.0-rc1
+open Lean Elab Tactic Meta Term Command
 
 /-- Tactic that does nothing. -/
-elab "doNothing" : tactic => do
+elab "do_nothing" : tactic => do
   return
 
 example : True := by
-  doNothing
+  do_nothing
   trivial
 
 /-- Tactic that prints the goal -/
-elab "printGoal" : tactic => do
+elab "print_goal" : tactic => do
   let goal ← getMainGoal
   logInfo goal
 
 example : True := by
-  printGoal -- True
-  trivial
-
-theorem reflExample : 0 = 0 := by
-  rfl
-#print reflExample
-
-example : 1+1=2 := by
-  printGoal -- 1+1=2
+  print_goal -- True
   trivial
 
 /-- Tactic that still prints the goal-/
-elab "printGoalType" : tactic => do
+elab "print_goal_type" : tactic => do
   let goal ← getMainGoal
   let goalType ← goal.getType
   logInfo goalType
 
 example : True := by
-  printGoalType -- True
-  trivial
-
-example : 1+1=2 := by
-  printGoalType -- 1+1=2
+  print_goal_type -- True
   trivial
 
 /-- Tactic that prints the type of the type of the goal (e.g. Prop) --/
-elab "printGoalTypeType" : tactic => do
+elab "print_goal_type_type" : tactic => do
   let goal ← getMainGoal
   let goalType ← goal.getType
   let goalTypeType ← inferType goalType
   logInfo goalTypeType
 
 example : True := by
-  printGoalTypeType -- Prop
+  print_goal_type_type -- Prop
   trivial
 
 example : 1+1=2 := by
-  printGoalTypeType -- Prop
+  print_goal_type_type -- Prop
   trivial
 
-/-- Prove that taking the contrapositive is logically valid --/
+/-- Theorem stating that taking the contrapositive is logically valid --/
 theorem ctrp {P Q : Prop} : (¬ Q → ¬ P) → (P → Q) := by
   intros h p; by_contra nq; apply h nq p
 
 example {P : Prop} : P → True := by
   apply ctrp
   simp
-
-
--- elab "contrap" : tactic => do
---   apply ctrp -- THROWS ERROR
 
 /-- Change the proof state with contrapositive -/
 macro "contrapos" : tactic =>
@@ -82,16 +63,20 @@ example : P → True := by
   simp
 
 /-- A sorry elab -/
-elab "mySorry" : tactic => do
+elab "my_sorry_elab" : tactic => do
   let goal ← getMainGoal
   admitGoal goal
 
+example : True := by my_sorry_elab
+
 /- A sorry macro -/
--- macro "mySorry" : tactic =>
---   `(tactic| sorry)
+macro "my_sorry_macro" : tactic =>
+  `(tactic| sorry)
+
+example : True := by my_sorry_macro
 
 /--  Tactic that takes a hypothesis as an argument -/
-macro "contraposWith" h:ident : tactic => `(tactic|
+macro "contrapos_with" h:ident : tactic => `(tactic|
   (revert $h; contrapose)
 )
 
@@ -108,11 +93,16 @@ example {P Q : Prop} :  P → Q → True  := by
 
 example {P Q : Prop} :  P → Q → True  := by
   intro p q
-  contraposWith p
+  contrapos_with p
+  simp
+
+example {P Q : Prop} :  P → Q → True  := by
+  intro p q
+  contrapos_with q
   simp
 
 /-- Tactic that takes two tactics as arguments -/
-macro "andThen" a:tactic b:tactic : tactic => `(tactic|
+macro "and_then" a:tactic b:tactic : tactic => `(tactic|
   ($a:tactic; all_goals $b:tactic))
 
 /-- Without and_then -/
@@ -122,55 +112,37 @@ example: 1=1 ∧ 2=2 := by
 
 /-- With and_then -/
 example: 1=1 ∧ 2=2 := by
-  andThen constructor rfl
+  and_then constructor rfl
 
 /--  More intuitive syntax for the above tactic  -/
-syntax tactic " andThen " tactic : tactic
+syntax tactic " and_then " tactic : tactic
 macro_rules
-| `(tactic| $a:tactic andThen $b:tactic) =>
-    `(tactic| andThen $a $b)
+| `(tactic| $a:tactic and_then $b:tactic) =>
+    `(tactic| and_then $a $b)
 
 example: 1 = 1 ∧ 2 = 2 := by
-  constructor andThen rfl
+  constructor and_then rfl
 
 /--  Tactic to print all non-implementation-detail hypotheses -/
-def printHypotheses : MetaM Unit :=
-  for ldecl in ← getLCtx do
-    if ldecl.isImplementationDetail then continue
-    let hypName := ldecl.userName
-    let hypType := ldecl.type
-    let hypExpr := ldecl.toExpr
-    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
-    logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
-
-def printAllHypotheses : TacticM Unit := do
+def printHypotheses : TacticM Unit := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
   for ldecl in (← goal.getDecl).lctx do
     if ldecl.isImplementationDetail then continue
     let hypName := ldecl.userName
     let hypType := ldecl.type
-    let hypExpr := ldecl.toExpr
-    -- logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
-    logInfo m!"Name: '{hypName}'  Type: '{hypType}'   Expr: '{hypExpr}'"
+    logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
 
+elab "print_hypotheses" : tactic => do
+  printHypotheses
 
-elab "printAllHypotheses" : tactic => do
-  printAllHypotheses
-
-theorem testPrintHyp {P Q : Prop} (p : P) (q: Q): P := by
-  printAllHypotheses
-  assumption
-
-/--  Tactic to return hypotheses declarations-/
-def getHypotheses : MetaM (List LocalDecl) := do
-  let mut hypotheses : List LocalDecl := []
-  for ldecl in ← getLCtx do
-    if ldecl.isImplementationDetail then continue
-    hypotheses := ldecl :: hypotheses
-  return hypotheses
+example (a b : ℕ) (h1 : a = 2) (h2: b = 3) : a+b=5 := by
+  print_hypotheses
+  have h3 : b-a = 1 := by {rw [h1, h2]}
+  print_hypotheses
+  simp [h1, h2, h3]
 
 /--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
-def getAllHypotheses : TacticM (List LocalDecl) := do
+def getHypotheses : TacticM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
   for ldecl in (← goal.getDecl).lctx do
@@ -179,41 +151,27 @@ def getAllHypotheses : TacticM (List LocalDecl) := do
   return hypotheses
 
 /--  Tactic to return hypotheses expressions (the types)-/
-def getHypothesesTypes : MetaM (List Expr) := do
-  let mut hypotheses_types : List Expr := []
-  for hypothesis in ← getHypotheses do
-    hypotheses_types := hypothesis.type :: hypotheses_types
-  return hypotheses_types
+def getHypothesesTypes : TacticM (List Expr) := do
+  return (← getHypotheses).map (fun hypothesis => hypothesis.type)
 
-def getAllHypothesesTypes : TacticM (List Expr) := do
-  let mut hypotheses_types : List Expr := []
-  for hypothesis in ← getAllHypotheses do
-    hypotheses_types := hypothesis.type :: hypotheses_types
-  return hypotheses_types
+elab "print_hypotheses_types" : tactic => do
+  let types ← getHypothesesTypes
+  logInfo ("Hyp types:" ++ types)
+
+example (a b : ℕ) (h1 : a = 2) (h2: b = 3) : a+b=5 := by
+  print_hypotheses_types
+  simp [h1, h2]
 
 /--  Tactic to return hypotheses names-/
-def getHypothesesNames : MetaM (List Name) := do
-  let mut hypotheses_names : List Name := []
-  for hypothesis in ← getHypotheses do
-    hypotheses_names := hypothesis.userName :: hypotheses_names
-  return hypotheses_names
-elab "getHypothesesNames" : tactic => do
+def getHypothesesNames : TacticM (List Name) := do
+    return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
+
+elab "print_hypotheses_names" : tactic => do
   let names ← getHypothesesNames
   logInfo ("Hyp names:" ++ toString names)
 
-def getAllHypothesesNames : TacticM (List Name) := do
-  let mut hypotheses_names : List Name := []
-  for hypothesis in ← getAllHypotheses do
-    hypotheses_names := hypothesis.userName :: hypotheses_names
-  return hypotheses_names
-elab "getAllHypothesesNames" : tactic => do
-  let names ← getAllHypothesesNames
-  logInfo ("Hyp names:" ++ toString names)
-
-
-
 example {P Q : Prop} (p : P) (q: Q): P := by
-  getHypothesesNames
+  print_hypotheses_names
   assumption
 
 /--  Tactic get a hypothesis by its name -/
@@ -241,11 +199,10 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
     let hyp ← getHypothesisByName h
     if hyp.hasValue
       then
-        -- return hyp.value
-        let val ← getExprMVarAssignment? hyp.value.mvarId!
+        -- return hyp.value -- works if proved directly with a proof term
+        let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode using {...}
         return ← liftOption val
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
-
 
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
@@ -258,13 +215,6 @@ def getGoalDecl : TacticM MetavarDecl := do
 /--  Tactic to return goal expression (the type) -/
 def getGoalType : TacticM Expr := do
   return ← getMainTarget -- (← getGoalDecl).type or (← getGoalVar).getType
-
-/--  Tactic to experiment with MetaM vs TacticM -/
-def lookIntoEnvironment  : MetaM Unit := do
-  let env ← getEnv
-  dbg_trace (env.contains `multPermute)
-
-#eval lookIntoEnvironment
 
 /--  Tactic that closes goal with a matching hypothesis if available-/
 elab "assump" : tactic => do
@@ -279,15 +229,6 @@ example {P : Prop} (p : P): P := by
 -- example {P : Prop} : P := by
 --   assump -- does nothing
 --   sorry
-
-/-- Demonstrate the difference between dbg_trace and logInfo -/
-elab "printMessages" : tactic =>
-  dbg_trace "The dbg_trace message"
-  logInfo "The logInfo message"
-
-example : True := by
-  printMessages
-  simp
 
 /--  Tactic that closes goal with a matching hypothesis if available, throws error if not-/
 elab "assump'" : tactic => do
@@ -305,9 +246,9 @@ elab "assump'" : tactic => do
 example {P : Prop} (p : P): P := by
   assump' -- works
 
--- example {P : Prop} : P := by
---   assump' -- throws error "No matching assumptions."
---   sorry
+example {P : Prop} : P := by
+  assump' -- throws error "No matching assumptions."
+  sorry
 
 /--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
 elab "assump''" : tactic => do
@@ -326,12 +267,54 @@ elab "assump''" : tactic => do
   | some hypDecl => closeMainGoal hypDecl.toExpr
   | none => throwError "No matching assumptions."
 
-theorem testAssumpSuccess {P : Prop} (p : P): P := by
+example {P : Prop} (p : P): P := by
   assump''
 
--- theorem testAssumpFails {P Q : Prop} (p : P): Q := by
+-- example {P Q : Prop} (p : P): Q := by
 --   assump''
 --   sorry
+
+/-- Create new goals -/
+def createGoal (goalType : Expr) : TacticM Unit := do
+  let goal ← mkFreshExprMVar goalType
+  appendGoals [goal.mvarId!]
+
+elab "create_nat_goal" : tactic => do
+  let goalType := (Expr.const ``Nat []) -- make the goal to find an instance of type "Nat"
+  createGoal goalType
+example : 1 + 2 = 3 := by
+  create_nat_goal
+  simp; use 5
+
+elab "create_reflexivity_goal" : tactic => do
+  let goalType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
+  createGoal goalType
+example : 1 + 2 = 3 := by
+  create_reflexivity_goal
+  simp; simp
+
+/-- Create a new hypothesis -/
+def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
+  let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
+  let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
+  setGoals [new_goal]
+
+elab "create_nat_hypothesis" : tactic => do
+  let hypType := Expr.const ``Nat []
+  let hypProof :=  (toExpr 0) -- use 0 as a term of type Nat
+  createHypothesis hypType hypProof `x
+example : 1 + 2 = 3 := by
+  create_nat_hypothesis
+  simp
+
+elab "create_reflexivity_hypothesis" : tactic => do
+  let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
+  let hypProof := Lean.mkAppN (.const ``Eq []) #[(toExpr 0), (toExpr 0)] -- proof that Eq 0 0
+  createHypothesis hypType hypProof
+example : 1 + 2 = 3 := by
+  create_reflexivity_hypothesis
+  simp
 
 /-- Create 0, 1, and π -/
 def zero := Expr.const ``Nat.zero []
@@ -343,38 +326,61 @@ def one := Expr.app (.const ``Nat.succ []) zero
 def two := Expr.app (.const ``Nat.succ []) one
 #eval two
 
-#check Real.pi
 def pi := Expr.const ``Real.pi []
 #eval pi
 
 /-- Elaborate it -/
--- elab "zero" : term => return zero
--- #eval zero -- 0
-
 elab "one" : term => return one
 #eval one -- 1
 
 /-- Turn lean Nats into Expressions -/
-def natExpr: Nat → Expr
+def natExpr (n : Nat): Expr :=
+match n with
 | 0 => .const ``Nat.zero []
 | n + 1 => .app (.const ``Nat.succ []) (natExpr n)
 #eval natExpr 2
+#eval toExpr 2
+#eval isDefEq (toExpr 2) (natExpr 2)
 
-#check Nat.add
-
-def sumExpr: Nat → Nat → Expr
-| m, n =>  Expr.app (.app (.const `Nat.add []) (natExpr m)) (natExpr n)
+/-- Create an expression that sums two nats -/
+def sumExpr (n : Nat) (m : Nat) : Expr :=
+  Expr.app (.app (.const `Nat.add []) (natExpr m)) (natExpr n)
 #eval sumExpr 1 2
 
--- Check if you got the right answer by making sure the below line evaluates to "true"
-#eval isDefEq (sumExpr 1 2) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.const `Nat.zero []))))
+/-- Print out an expression in a human-readable way  --/
+def printPrettyExpression (e : Expr) : MetaM Unit := do
+  dbg_trace "{←ppExpr e}"
 
-/- Turn Lean Expressions back into Nats with evalExpr -/
+/-- Turn syntax into fully elaborated expressions --/
+def syntaxToExpr (e : TermElabM Syntax) : TermElabM Expr := do
+  let e ← elabTermAndSynthesize (← e) none
+  return e
+#eval syntaxToExpr `(2+3=5)
+
+/-- Turn code into fully elaborated expressions --/
+elab "#term_to_expr" t:term : command => do
+  let e ← liftTermElabM (Term.elabTerm t none)
+  logInfo m!"The expression corresponding to {t} is:\n\n{repr e}"
+#term_to_expr (2+3=5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+/- Turn expressions back into code -/
 def expectedType := Expr.const ``Nat []
 def value := (sumExpr 1 2)
 #eval evalExpr Nat expectedType value
 
-/- Turn Lean Expressions back into Nats with elab -/
+/- Turn expressions back into code another way -/
 elab "sumExpr12" : term => return (sumExpr 1 2)
 #eval sumExpr12
 
@@ -637,25 +643,6 @@ def getAtomicNatsIn (e : Expr) : MetaM (List Expr) := do
 #eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
 #eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getAtomicNatsIn e; natsInE.forM logPrettyExpression}
 
-/-- Create new goals -/
-def createGoal (goalType : Expr) : TacticM Unit := do
-  let goal ← mkFreshExprMVar goalType
-  appendGoals [goal.mvarId!]
-
-elab "createNatGoal" : tactic => do
-  let goalType := (Expr.const ``Nat []) -- make the goal to find an instance of type "Nat"
-  createGoal goalType
-example : 1 + 2 = 3 := by
-  createNatGoal
-  simp; use 5
-
-elab "createReflexivityGoal" : tactic => do
-  let goalType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
-  createGoal goalType
-example : 1 + 2 = 3 := by
-  createReflexivityGoal; swap
-  simp; simp
-
 elab "createReflexivityGoal'" : tactic => do
   let goalType ← mkEq (Expr.const ``Nat.zero []) (Expr.const ``Nat.zero [])
   createGoal goalType
@@ -679,31 +666,7 @@ example (P Q : Prop) : P → Q → P := by
   introductor
   assumption
 
-/-- Create a new hypothesis -/
 
-def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
-  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
-  let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
-  let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
-  setGoals [new_goal]
-
-elab "createNatHypothesis" : tactic => do
-  let hypType := Expr.const ``Nat []
-  let hypProof :=  (toExpr 0) -- use 0 as a term of type Nat
-  createHypothesis hypType hypProof `x
-
-example : 1 + 2 = 3 := by
-  createNatHypothesis
-  simp
-
-elab "createReflHypothesis" : tactic => do
-  let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
-  let hypProof := Lean.mkAppN (.const ``Eq []) #[(toExpr 0), (toExpr 0)] -- proof that Eq 0 0
-  createHypothesis hypType hypProof
-
-example : 1 + 2 = 3 := by
-  createReflHypothesis
-  simp
 
 /-- Helper for incrementing idx when creating pretty names-/
 partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
@@ -715,7 +678,7 @@ partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : N
 
 /-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
 def mkPrettyName (baseName : Name) (idx : Nat) : TacticM Name := do
-  return mkPrettyNameHelper (← getAllHypothesesNames) baseName idx
+  return mkPrettyNameHelper (← getHypothesesNames) baseName idx
 
 /-- Generalizing a term in a theorem  -/
 def generalizeTerm (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM Unit := do
@@ -1016,6 +979,9 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   let genThmType ← autogeneralizeType thmType modifiers f; logInfo ("Generalized Type: " ++ genThmType)
   let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
 
+  if !(← isDefEq (genThmType) (← inferType genThmProof))
+    then throwError "The generalized theorem proof doesn't match its type."
+
   createHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
@@ -1070,3 +1036,13 @@ example : Irrational (Real.sqrt 3) := by
 
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
   assumption
+
+/---------------------------------------------------------------------------
+Generalizing the theorem any prime has GCD 1 with 3
+---------------------------------------------------------------------------/
+example : True := by
+  let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1:= by {intros p neq pp; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
+  autogeneralize _coprimality 3 -- adds _coprimality.Gen to list of hypotheses
+  simp
+  -- you should be able to tell that the proof doesn't need Prime f and Prime p
+  -- it only needs Coprime f p

@@ -1,11 +1,12 @@
+/- Helper functions that make Lean 4 Metaprogramming a bit more intuitive. -/
+
 import Lean
-import Mathlib.Tactic.Contrapose
-open Lean Elab Tactic Meta Term
+import Mathlib.Tactic
+open Lean Elab Tactic Meta Term Command
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Helper functions that make Lean 4 Metaprogramming a bit more intuitive.
+Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
 /-- Return goal variable -/
 def getGoalVar : TacticM MVarId := do
   return ← getMainGoal
@@ -18,43 +19,70 @@ def getGoalDecl : TacticM MetavarDecl := do
 def getGoalType : TacticM Expr := do
   return ← getMainTarget -- (← getGoalDecl).type or (← getGoalVar).getType
 
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Creating a goal
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 /-- Create a new goal -/
 def createGoal (goalType : Expr) : TacticM Unit := do
   let goal ← mkFreshExprMVar goalType
   appendGoals [goal.mvarId!]
 
-/--  Return hypotheses declarations-/
-def getHypotheses : MetaM (List LocalDecl) := do
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Retrieving hypotheses
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/--  Return hypotheses declarations associated to the main goal -/
+def getHypotheses : TacticM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
-  for ldecl in ← getLCtx do
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
     if ldecl.isImplementationDetail then continue
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
-/-- Create a new hypothesis -/
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Creating hypotheses
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/-- Create a new hypothesis associated to the main goal -/
 def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
   let hypName := `h
   let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
   let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
   setGoals [new_goal]
 
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Converting code to expressions
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+elab "#term_to_expr" t:term : command => do
+  let e ← liftTermElabM (Term.elabTerm t none)
+  logInfo m!"The expression corresponding to {t} is:\n\n{repr e}"
+#term_to_expr (2+3=5)
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Checking types of expressions
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
 /--  Tactic to return T/F depending on the type of an expression -/
 def isNat (e: Expr): MetaM Bool := do
   let type_expr ← inferType e
   return type_expr.isConstOf `Nat
 
-/-- Given the compiled code in the goal, _print_ the full raw format of an expression  --/
-elab "print_goal_as_expression" : tactic => do
-  let goal ← getGoalType
-  logInfo (repr goal)
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Printing expressions in varying degrees of detail
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/-- What the expression looks like --/
+/-- What the expression fully looks like --/
 def logExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{repr e}"
 
-/-- What the expression looks like, but prettier  --/
+/-- What the expression looks like, but with details hidden, so its prettier --/
 def logPrettyExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{←ppExpr e}"
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Getting theorems in the context
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 /-- Getting theorem statement from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
@@ -78,10 +106,3 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
     | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
     | _                      => return acc
   getSubexpressionsInRec e []
-
-/- Convert more typical Lean Syntax to an Expression -/
-def syntaxToExpr (e : TermElabM Syntax) : TermElabM Expr := do
-  let e ← elabTermAndSynthesize (← e) none
-  return e
-
-#eval syntaxToExpr `(@HMul.hMul Nat Nat Nat instHMul)
