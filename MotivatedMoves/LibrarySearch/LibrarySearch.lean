@@ -47,29 +47,22 @@ instance : Append ProcessResult where
   append := (fun ⟨a, b, c, d, e⟩ ⟨a',b',c',d',e'⟩ => ⟨a++a',b++b',c++c',d++d',e++e'⟩)
 
 -- might want to add some whnf applications with reducible transparency?
-partial def processTree (name : Name) : Expr → MetaM ProcessResult
+partial def processTree : Expr → MetaM ProcessResult
   | .forallE _n domain body bi => do
     let mvar ← mkFreshExprMVar domain
-    let result ← processTree name (body.instantiate1 mvar)
-
-    if bi.isInstImplicit
-    then
-      return addBinderKind [1] 1 result
-    else
-      let u ← getLevel domain
-      if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
-      then
-        let result := addBinderKind [1] 1 result
+    let result ← processTree (body.instantiate1 mvar)
+    let result := addBinderKind [1] 1 result
+    if bi.isExplicit && !body.hasLooseBVars then
+      if ← isProp domain then
         return { result with apply_rev := result.apply_rev.push (AssocList.nil.cons [0] .willChange |>.cons [1] .wasChanged, [0], [], ← mkDTExprs domain {}) }
-      else
-        return addBinderKind [1] 1 result
+    return result
 
   | regular_exists_pattern n _u d body _ =>
     withLocalDeclD n d fun fvar =>
-    addBinderKind [1,1] 1 <$> processTree name (body.instantiate1 fvar)
+    addBinderKind [1,1] 1 <$> processTree (body.instantiate1 fvar)
 
   | regular_and_pattern p q =>
-    return (← addBinderKind [0,1] 0 <$> processTree name p) ++ (← addBinderKind [1] 1 <$> processTree name q)
+    return (← addBinderKind [0,1] 0 <$> processTree p) ++ (← addBinderKind [1] 1 <$> processTree q)
 
   | e => do
     let mut result : ProcessResult := {}
@@ -119,7 +112,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
   if isBadDecl name cinfo (← getEnv) then
     return ds
 
-  let ⟨a, b, c, d, e⟩ ← processTree name cinfo.type
+  let ⟨a, b, c, d, e⟩ ← processTree cinfo.type
   let ⟨a',b',c',d',e'⟩ := ds
   let f := Array.foldl (fun ds (diffs, treePos, pos, es) => es.foldl (init := ds) (fun ds e =>
     if isSpecific e
