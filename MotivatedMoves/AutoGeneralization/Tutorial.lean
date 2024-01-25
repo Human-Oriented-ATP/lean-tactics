@@ -199,9 +199,11 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
     let hyp ← getHypothesisByName h
     if hyp.hasValue
       then
-        -- return hyp.value -- works if proved directly with a proof term
-        let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode using {...}
-        return ← liftOption val
+        if hyp.value.isMVar
+          then
+            let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
+            return ← liftOption val
+          else return hyp.value -- works if proved directly with a proof term like `:= fun ...`
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 /--  Tactic to return goal variable -/
@@ -293,11 +295,19 @@ example : 1 + 2 = 3 := by
   create_reflexivity_goal
   simp; simp
 
-/-- Create a new hypothesis -/
+/-- Create a new hypothesis using a "have" statement -/
 def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
   let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
   let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
   let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
+  setGoals [new_goal]
+
+/-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
+def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+  -- (←getGoalVar).withContext do
+  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
+  let new_goal ← (←getGoalVar).define hypName hypType hypProof
+  let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
 
 elab "create_nat_hypothesis" : tactic => do
@@ -308,13 +318,18 @@ example : 1 + 2 = 3 := by
   create_nat_hypothesis
   simp
 
-elab "create_reflexivity_hypothesis" : tactic => do
-  let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
-  let hypProof := Lean.mkAppN (.const ``Eq []) #[(toExpr 0), (toExpr 0)] -- proof that Eq 0 0
-  createHypothesis hypType hypProof
-example : 1 + 2 = 3 := by
-  create_reflexivity_hypothesis
-  simp
+theorem rf : 0 = 0 := by rfl
+#print rf
+
+
+-- elab "create_reflexivity_hypothesis" : tactic => do
+--   let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
+--   let l ← mkFreshLevelMVar
+--   let hypProof := .app (.const ``Eq.refl [l]) (toExpr 0) -- proof that 0 = 0 by reflexivity
+--   createHypothesis hypType hypProof
+-- example : 1 + 2 = 3 := by
+--   create_reflexivity_hypothesis
+--   simp
 
 /-- Create 0, 1, and π -/
 def zero := Expr.const ``Nat.zero []
@@ -362,9 +377,7 @@ elab "#term_to_expr" t:term : command => do
   let e ← liftTermElabM (Term.elabTerm t none)
   logInfo m!"The expression corresponding to {t} is:\n\n{repr e}"
 #term_to_expr (2+3=5)
-
-
-
+#term_to_expr (Eq.refl 0)
 
 
 
@@ -788,7 +801,6 @@ def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr 
   | Expr.letE n t v b x    => return Expr.letE n (← replaceCoarsely original replacement t) (← replaceCoarsely original replacement v) (← replaceCoarsely original replacement b) x
   | misc                     => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
 
-
 /-- Create the expression d → b with name n-/
 def mkImplies (n : Name := `h) (d b : Expr) : MetaM Expr :=
   return .forallE (← mkFreshUserName n) d b .default
@@ -796,7 +808,7 @@ def mkImplies (n : Name := `h) (d b : Expr) : MetaM Expr :=
 /-- Create a reasonable name for an expression -/
 def mkAbstractedName (n : Name) : Name :=
     match n with
-    | (.str _ s) => s!"gen_{s}"
+    | (.str _ s) => s!"f_{s.take 7}" -- truncate to first 7 chars of string
     | _ => `unknown
 
 
@@ -820,22 +832,6 @@ def replaceWithFVar (original :  Name) (replacementFVar : Expr) (e : Expr): Meta
   let replacement := replacementFVar.fvarId!.name
   replace original replacement e
 
-/-- Replaces every occurence in e of the name "original" with the name of the FVar "replacementFVar" -/
-def replaceWithNthFVar (n : Nat) (original :  Name) (replacementFVars : Array Expr) (e : Expr): MetaM Expr := do
-  let replacement := replacementFVars[n]!.fvarId!.name
-  replace original replacement e
-
-#check Vector
-
-def zeros (n : Nat) : Vector Nat n :=
-  match n with
-  | 0 => ⟨[], rfl⟩
-  | n+1 =>
-    let ⟨v, prf⟩ := zeros n
-    ⟨0 :: v, by simp [prf]⟩
-
-#print zeros
-
 /-
 Replaces all instances of an expression with the outermost bound variable (to help build a lambda or for-all)
 Do this to the expression BEFORE wrapping it in a lambda or for-all.
@@ -853,19 +849,6 @@ def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr
   let lamb_e := Expr.lam `x (.const `Nat []) e .default;
   dbg_trace lamb_e -- fun (x : Nat) => Nat.add x (Nat.succ x)
   }
-
-/- Replaces all instances of a free variable with a bound variable (to help build a for-all).
-Use this function on the statement BEFORE wrapping the statement in a lambda/forall
--/
-def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
-  -- each new forall statement introduces a new bound variable...so depending on how deep you go...you need more bound variables.
-  match e with
-    | .forallE n a b bi => return .forallE n (← replaceFVarWithBVar fid a (depth)) (← replaceFVarWithBVar fid b (depth+1)) bi
-    | e =>  replaceCoarsely (.fvar fid) (.bvar depth) e
-
--- def replaceFVarWithBVar (fid : FVarId) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
---   return e
---   -- e.traverseChildren (replaceCoarsely (.fvar fid) (.bvar depth))
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
@@ -887,6 +870,7 @@ structure Modifier where
   newName : Name := mkAbstractedName oldName -- usually something like gen_mul_assoc
   oldType : Expr                    -- the type that has the ungeneralized "f"
   newType : Expr                    -- the type that has the placeholder of "f"
+  isInstance: Bool := false       -- whether the hypothesis should be instantiated as an instance / typeclass or regular hypothesis
 deriving Inhabited
 
 def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List Expr) : Array Modifier :=
@@ -904,14 +888,19 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
+  let identifierTypes ← liftMetaM (identifiersInProofType.mapM getTheoremStatement)
+  logInfo m!"all the identifiers in proof type {identifierTypes}"
 
-  -- get all identifiers (that is, constants) in the proof term that don't already appear in the proof type
-  let identifierNames := identifiersInProofTerm.removeAll identifiersInProofType
+  -- get all identifiers (that is, constants) in the proof term
+  let identifierNames := identifiersInProofTerm--.removeAll identifiersInProofType
+  -- let identifierNames := identifiersInProofTerm ++ identifiersInProofType
   let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
+  logInfo m!"all the identifiers in proof term {identifierTypes}"
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
   let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
+  logInfo m!"all the identifiers that contain 'f' {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
   let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
@@ -919,21 +908,6 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
   -- return             old names     old types                  new types
   -- e.g.               mul_comm      ∀ n m : ℕ, n⬝m = m⬝n        ∀ n m : ℕ, f n m = f m n
   return makeModifiers identifierNames identifierTypes generalizedIdentifierTypes
-
-/-- Find the type of the new auto-generalized theorem -/
-def autogeneralizeType (thmType : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : MetaM Expr := do
-  let hypotheses := modifiers.map (·.newType)
-  let goal := thmType
-
-  -- Conglomerate hypotheses and goal, i.e. create  modifierTypes[0] → modifierTypes[1] → ... → goalType
-  let body ← hypotheses.foldrM mkImplies goal
-
-  -- now create the proposition ∀ f : fType, (the generalized theorem about f)
-  let body ← replaceWithBVar (f.placeholder) body
-  let genThmType := Expr.forallE f.name f.type body .default
-
-  return genThmType
-
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : MetaM Expr := do
@@ -970,11 +944,8 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
 
   -- Get the generalized theorem (with those additional hypotheses)
-  let genThmType ← autogeneralizeType thmType modifiers f; logInfo ("Generalized Type: " ++ genThmType)
   let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
-
-  if !(← isDefEq (genThmType) (← inferType genThmProof))
-    then throwError "The generalized theorem proof doesn't match its type."
+  let genThmType ← inferType genThmProof
 
   createHypothesis genThmType genThmProof (thmName++`Gen)
 
@@ -987,6 +958,10 @@ elab "autogeneralize" h:ident f:term : tactic => do
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
+-- set_option pp.proofs true
+-- set_option pp.proofs.withType true
+-- set_option pp.explicit true
+-- set_option pp.instanceTypes true
 -- set_option pp.explicit true
 
 /---------------------------------------------------------------------------
@@ -1022,7 +997,7 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
   assumption
 
 /---------------------------------------------------------------------------
-Analogizing the theorem that sqrt(2) is irrational
+Analogizing the theorem that sqrt(2) is irrational (to the theorem that sqrt(3) is irrational)
 ---------------------------------------------------------------------------/
 example : Irrational (Real.sqrt 3) := by
   let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
@@ -1032,20 +1007,35 @@ example : Irrational (Real.sqrt 3) := by
   assumption
 
 /---------------------------------------------------------------------------
-Generalizing the theorem any prime has GCD 1 with 3
+Analogizing the theorem that any prime has GCD 1 with 3 (to the theorem that any prime has GCD 1 with 2)
 ---------------------------------------------------------------------------/
 example : True := by
   let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1:= by {intros p neq pp; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
   autogeneralize _coprimality 3 -- adds _coprimality.Gen to list of hypotheses
+
+  specialize _coprimality.Gen 2 Nat.prime_two
   simp
   -- you should be able to tell that the proof doesn't need Prime f and Prime p
   -- it only needs Coprime f p
 
 /---------------------------------------------------------------------------
-Generalizing the theorem about GCDs from integers to polynomials
+Analogizing the theorem that integers commute (to the theorem that reals commute)
+---------------------------------------------------------------------------/
+example : (0.5 : ℝ) + 0.7 = 0.7 + 0.5 := by
+  let _comm_nums : ∀ (a b : ℤ), a + b = b + a := by {apply add_comm}
+  autogeneralize _comm_nums ℤ
+
+  specialize _comm_nums.Gen ℝ inferInstance
+  specialize _comm_nums.Gen 0.5 0.7
+  assumption
+
+/---------------------------------------------------------------------------
+Analogizing the theorem about GCDs of integers (to GCDs of polynomials)
 ---------------------------------------------------------------------------/
 example : True := by
   let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
   autogeneralize _gcdlincomb ℤ  -- adds _gcdlincomb.Gen to list of hypotheses
-  specialize _gcdlincomb.Gen ℝ 1 (0.5 : ℝ)
-  simp at _gcdlincomb.Gen
+  -- autogeneralize _gcdlincomb.Gen LinearOrderedCommRing
+  -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
+  -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
+  simp
