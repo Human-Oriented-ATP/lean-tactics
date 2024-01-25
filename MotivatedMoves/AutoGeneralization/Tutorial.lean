@@ -870,7 +870,6 @@ structure Modifier where
   newName : Name := mkAbstractedName oldName -- usually something like gen_mul_assoc
   oldType : Expr                    -- the type that has the ungeneralized "f"
   newType : Expr                    -- the type that has the placeholder of "f"
-  isInstance: Bool := false       -- whether the hypothesis should be instantiated as an instance / typeclass or regular hypothesis
 deriving Inhabited
 
 def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List Expr) : Array Modifier :=
@@ -888,19 +887,14 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
-  let identifierTypes ← liftMetaM (identifiersInProofType.mapM getTheoremStatement)
-  logInfo m!"all the identifiers in proof type {identifierTypes}"
 
   -- get all identifiers (that is, constants) in the proof term
   let identifierNames := identifiersInProofTerm--.removeAll identifiersInProofType
-  -- let identifierNames := identifiersInProofTerm ++ identifiersInProofType
   let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
-  logInfo m!"all the identifiers in proof term {identifierTypes}"
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
   let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
-  logInfo m!"all the identifiers that contain 'f' {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
   let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
@@ -945,7 +939,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
 
   -- Get the generalized theorem (with those additional hypotheses)
   let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof
+  let genThmType ← inferType genThmProof; logInfo ("Generalized Type: " ++ genThmType)
 
   createHypothesis genThmType genThmProof (thmName++`Gen)
 
