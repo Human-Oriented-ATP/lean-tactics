@@ -44,15 +44,26 @@ def getHypotheses : TacticM (List LocalDecl) := do
 Creating hypotheses
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/-- Create a new hypothesis associated to the main goal -/
-def createHypothesis (hypType : Expr) (hypProof : Expr) : TacticM Unit := do
-  let hypName := `h
+/-- Create a new hypothesis using a "have" statement -/
+def createHaveHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
   let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
   let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
   setGoals [new_goal]
 
+/-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
+def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
+  let new_goal ← (←getGoalVar).define hypName hypType hypProof
+  let (_, new_goal) ← new_goal.intro1
+  setGoals [new_goal]
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Converting code to expressions
+Converting expressions to code (evaluation)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Converting code to expressions (elaboration)
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 elab "#term_to_expr" t:term : command => do
   let e ← liftTermElabM (Term.elabTerm t none)
@@ -81,18 +92,8 @@ def logPrettyExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{←ppExpr e}"
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Getting theorems in the context
+Getting subexpressions
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-/-- Getting theorem statement from context --/
-def getTheoremStatement (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
-  return thm.type -- return the theorem statement
-
-/-- Getting theorem proof from context --/
-def getTheoremProof (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
-  return thm.value! -- return the theorem statement
 
 /- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
@@ -106,3 +107,17 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
     | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
     | _                      => return acc
   getSubexpressionsInRec e []
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Getting theorems declared in the context
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/-- Getting theorem statement from context --/
+def getTheoremStatement (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.type -- return the theorem statement
+
+/-- Getting theorem proof from context --/
+def getTheoremProof (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.value! -- return the theorem statement
