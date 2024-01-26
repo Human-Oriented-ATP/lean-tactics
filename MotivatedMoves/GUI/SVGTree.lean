@@ -68,18 +68,6 @@ private structure TreeRenderState where
 
 /-- A monad for rendering a proof tree as an SVG. -/
 private abbrev TreeRenderM := StateT TreeRenderState (ReaderM TreeRenderParams)
-section LensNotation
-
--- From Jovan's Zulip thread https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lens-like.20notation/near/409670188
-
-syntax ident "%~" : term
-syntax ident "%~" term : term
-macro_rules
-| `($n:ident %~ $f $x) => `({ $x with $n:ident := $f $x.$n })
-| `($n:ident %~ $f) => `(fun x => { x with $n:ident := $f x.$n })
-| `($n:ident %~) => `(fun f x => { x with $n:ident := f x.$n })
-
-end LensNotation
 
 /-- Add a new SVG element. -/
 def draw (element : Html) : TreeRenderM Unit :=
@@ -166,7 +154,7 @@ structure InteractiveRectangleProps where
   color : String
   borderRadius : Nat := 10
   loc : SubExpr.Pos
-  opacity : Float := 0.4
+  opacity : Float := 0.9
   borderWidth : Nat := 3
   highlightColor : String := "blue"
 deriving Server.RpcEncodable
@@ -294,7 +282,7 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
         ("height", height)]
       elements}
       <hr />
-      -- {.element "div" #[] (props.locations.map (<p>{.text ·.toString}</p>))}
+      {.element "div" #[] (props.locations.map (<p>{.text ·.toString}</p>))}
     </ div>
     )
 
@@ -311,9 +299,15 @@ elab stx:"display_tree" : tactic => do
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
     return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
 
-example : ∀ x : Nat, True ∧ False → ¬ True := by
+example : ∀ x : Nat, (False → True) → True ∧ ¬ False := by
   make_tree
   display_tree
   sorry
+
+/-
+
+- Make the goal color more neutral, for example, gray
+
+-/
 
 end Rendering

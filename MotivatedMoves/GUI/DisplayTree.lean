@@ -1,6 +1,23 @@
 import MotivatedMoves.ProofState.Tree
 import ProofWidgets
 
+section LensNotation
+
+-- From Jovan's Zulip thread https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Lens-like.20notation/near/409670188
+
+syntax ident "%~" : term
+syntax ident "%~" term : term
+macro_rules
+| `($n:ident %~ $f $x) => `({ $x with $n:ident := $f $x.$n })
+| `($n:ident %~ $f) => `(fun x => { x with $n:ident := $f x.$n })
+| `($n:ident %~) => `(fun f x => { x with $n:ident := f x.$n })
+
+end LensNotation
+
+open Lean.Widget in
+def Lean.Widget.CodeWithInfos.withRelativePos (codeWithInfos : CodeWithInfos) (pos : SubExpr.Pos) : CodeWithInfos :=
+  codeWithInfos.map <| subexprPos %~ (SubExpr.Pos.append pos)
+
 namespace Tree
 open Lean Parser
 
@@ -24,7 +41,6 @@ syntax (name := sidegoal) "⊢" ppHardSpace term newLineTermParser : tree
 
 syntax ident "•" : term
 syntax ident "⋆" : term
-
 
 open PrettyPrinter.Delaborator SubExpr TSyntax.Compat
 
@@ -265,5 +281,7 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
   | e => 
     if root then 
       failure 
-    else descend e 2 do
-      return .node (← ppTreeTagged e)
+    else do descend e 2 do
+      return .node <| 
+        (← ppExprTaggedWith e delab) 
+          |>.withRelativePos (← getPos)
