@@ -19,7 +19,10 @@ protected def pure (a : α) : ListT m α := ListT.mk do
 
 @[always_inline, inline]
 protected def bind (x : ListT m α) (f : α → ListT m β) : ListT m β := ListT.mk do
-  (← x).foldrM (fun a bs => (· ++ bs) <$> f a) []
+  match ← x with
+    | [] => return []
+    | [a] => f a
+    | x => x.foldrM (fun a bs => (· ++ bs) <$> f a) []
 
 @[always_inline, inline]
 protected def map (f : α → β) (x : ListT m α) : ListT m β := ListT.mk do
