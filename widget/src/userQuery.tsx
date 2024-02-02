@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
-import { Html } from '@react-three/drei';
+// import { Html } from '@react-three/drei';
 
 type EmptyQ = { kind:"empty", }
 type FormQ = { kind:"form", elems:Html[] }
@@ -90,7 +90,7 @@ type Props = {code: MessageData, pos:DocumentPosition}
 
 const dummyQuestion : EmptyQ = {kind:"empty"}
 
-export default function (props: Props) {
+export default function InteractiveWidget(props: Props) {
   const [question, setQuestion] = React.useState<Question>(dummyQuestion)
   const rs = React.useContext(RpcContext)
 
