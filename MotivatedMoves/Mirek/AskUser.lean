@@ -62,6 +62,19 @@ unsafe def InteractiveT.bind (code : InteractiveT Q A m α) (f : α → Interact
       return .interact question <| fun a ↦ do
         (bind (continuation a) f)
 
+private
+unsafe def InteractiveT.tryCatch {α : Type} (t : InteractiveT Q A m α) (c : E → InteractiveT Q A m α)
+: (InteractiveT Q A m α) := show m _ from do
+  try
+    let out ← t
+    match out with
+    | .terminate _ => return out
+    | .interact question continuation =>
+      return .interact question fun answer =>
+        InteractiveT.tryCatch (continuation answer) c
+  catch e =>
+    c e
+
 unsafe instance : Monad (InteractiveT Q A m) where
   pure := InteractiveT.pure m Q A
   bind := InteractiveT.bind m Q A
