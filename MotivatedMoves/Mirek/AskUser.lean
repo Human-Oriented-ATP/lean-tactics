@@ -78,10 +78,16 @@ instance : Inhabited (InteractiveT Q A m α) :=
 
 def askQuestion (q : Q) : InteractiveT Q A m A := interact q pure
 
-def giveAnswer (a : A) (x : InteractiveT Q A m α) : m (Option (InteractiveT Q A m α)) :=
+def giveAnswer (a : A) (x : InteractiveT Q A m α) : OptionT m (InteractiveT Q A m α) :=
   x.elim
     (fun _ => return none)
     (fun _ cont => return some (cont a))
+
+def runWithAnswers (as : Array A) (x : InteractiveT Q A m α) : OptionT m α := do
+  let x ← as.foldlM (fun x a => giveAnswer a x) x
+  x.elim
+    (fun x => return some x)
+    (fun _ _ => return none)
 
 private partial def bind (x : InteractiveT Q A m α) (f : α → InteractiveT Q A m β) : InteractiveT Q A m β :=
   squash do
@@ -141,7 +147,7 @@ instance : RpcEncodable UserQuestion where
     | "form" => do
       let elems ← json.getObjVal? "elems"
       let elems ← elems.getArr?
-      let elems : Array Html ← elems.mapM (λ elem ↦ rpcDecode elem)
+      let elems : Array Html ← elems.mapM rpcDecode
       return .form elems
     | "select" =>
       let question ← json.getObjVal? "question"
@@ -171,7 +177,7 @@ def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
 
 instance : RpcEncodable (InteractiveM Unit) where
-  rpcEncode x := rpcEncode (WithRpcRef.mk x : WithRpcRef InteractiveMUnit)
+  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
   rpcDecode json := do
     let out : WithRpcRef InteractiveMUnit ← rpcDecode json
     return out.val
