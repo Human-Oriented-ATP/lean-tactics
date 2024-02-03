@@ -193,32 +193,35 @@ abbrev InteractiveM := InteractiveT UserQuestion Json Exception IO
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
 --       |_|
 
+def throwWidgetError (e : String) : InteractiveM α :=
+  .squash (throw (IO.userError e))
+
 def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
 def askUserForm (form : Html) : InteractiveM Json := do
-  let .element "form" _ elems := form | .squash <| throw <| IO.userError "Not an Html form"
+  let .element "form" _ elems := form | throwWidgetError "Not an Html form"
   askUser (.form elems)
 open ProofWidgets.Jsx in
 def askUserInput (title input : Html) : InteractiveM String := do
-  let .element "input" inputAttrs inputElems := input | .squash <| throw <| IO.userError "Not an Html input"
+  let .element "input" inputAttrs inputElems := input | throwWidgetError "Not an Html input"
   let inputAttrs := inputAttrs.push ("name", "query")
   let input := Html.element "input" inputAttrs inputElems
   let submit := <input type="submit"/>
   let answer ← askUser (.form #[title, input, submit])
   match answer.getObjValAs? String "query" with
-  | .error err => .squash <| throw <| IO.userError err
+  | .error err => throwWidgetError err
   | .ok answer => return answer
 
 def askUserString (question : Html) : InteractiveM String :=
   askUserInput question <input type="string"/>
 def askUserInt (question : Html) : InteractiveM Int := do
   let answer ← askUserInput question <input type="number" defaultValue="0"/>
-  let some answer := answer.toInt? | .squash <| throw <| IO.userError "not an integer"
+  let some answer := answer.toInt? | throwWidgetError "not an integer"
   return answer
 def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
   : InteractiveM α := do
   match fromJson? (← askUser (.select question (options.map Prod.snd).toArray)) with
-  | .error err => .squash <| throw <| IO.userError err
+  | .error err => throwWidgetError err
   | .ok (answer : Nat) => do
     let some (answer,_) := options.get? answer | .squash <| throw <| (IO.userError "Index out of bounds")
     return answer

@@ -28,7 +28,7 @@ def ProgramableWidget : Component InteractiveWidgetProps where
   let i ← askUserInt <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
   let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
   -- throw $ Exception.internal ⟨4⟩
-  .squash $ throw  $ IO.userError "Sorry, I played with exceptions"
+  throwWidgetError "Sorry, I played with exceptions"
   let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
 #html <ProgramableWidget code={do
