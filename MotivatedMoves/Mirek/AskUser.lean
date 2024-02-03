@@ -176,13 +176,9 @@ instance : RpcEncodable UserQuestion where
       return .select question options
     | _ => .error s!"Invalid kind: {kind}"
 
-abbrev InteractiveM := InteractiveT UserQuestion Json (Exception ⊕ IO.Error) IO
+abbrev InteractiveM := InteractiveT UserQuestion Json Exception IO
 
-instance : MonadExceptOf IO.Error InteractiveM where
-  throw e := throw (.inr e)
-  tryCatch body handler := tryCatch body fun
-    | .inr e => handler e
-    | e => throw e
+
 
 --    ____                  _  __ _
 --   / ___| _ __   ___  ___(_)/ _(_) ___
@@ -200,31 +196,31 @@ instance : MonadExceptOf IO.Error InteractiveM where
 def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
 def askUserForm (form : Html) : InteractiveM Json := do
-  let .element "form" _ elems := form | throwThe _ <| IO.userError "Not an Html form"
+  let .element "form" _ elems := form | .squash <| throw <| IO.userError "Not an Html form"
   askUser (.form elems)
 open ProofWidgets.Jsx in
 def askUserInput (title input : Html) : InteractiveM String := do
-  let .element "input" inputAttrs inputElems := input | throwThe _ <| IO.userError "Not an Html input"
+  let .element "input" inputAttrs inputElems := input | .squash <| throw <| IO.userError "Not an Html input"
   let inputAttrs := inputAttrs.push ("name", "query")
   let input := Html.element "input" inputAttrs inputElems
   let submit := <input type="submit"/>
   let answer ← askUser (.form #[title, input, submit])
   match answer.getObjValAs? String "query" with
-  | .error err => throwThe _ <| IO.userError err
+  | .error err => .squash <| throw <| IO.userError err
   | .ok answer => return answer
 
 def askUserString (question : Html) : InteractiveM String :=
   askUserInput question <input type="string"/>
 def askUserInt (question : Html) : InteractiveM Int := do
   let answer ← askUserInput question <input type="number" defaultValue="0"/>
-  let some answer := answer.toInt? | throwThe _ <| IO.userError "not an integer"
+  let some answer := answer.toInt? | .squash <| throw <| IO.userError "not an integer"
   return answer
 def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
   : InteractiveM α := do
   match fromJson? (← askUser (.select question (options.map Prod.snd).toArray)) with
-  | .error err => throwThe _ <| IO.userError err
+  | .error err => .squash <| throw <| IO.userError err
   | .ok (answer : Nat) => do
-    let some (answer,_) := options.get? answer | throwThe _ <| (IO.userError "Index out of bounds")
+    let some (answer,_) := options.get? answer | .squash <| throw <| (IO.userError "Index out of bounds")
     return answer
 def askUserBool (question : Html) : InteractiveM Bool
   := askUserSelect question [
@@ -244,18 +240,21 @@ def askUserConfirm (message : Html) : InteractiveM Unit
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
 def runWidget (x : InteractiveM Unit) : IO (UserQuestion) :=
-  x.elim
-    (fun _ => do
-      continuationRef.set (fun _ => pure ())
-      return .empty)
-    (fun q cont => do
-      continuationRef.set cont
-      return q)
-    (fun e => do
-      continuationRef.set (fun _ => pure ())
-      match e with
-      | .inr _ => return .empty
-      | .inl _ => return .empty)
+  try
+    x.elim
+      (fun _ => do
+        continuationRef.set (fun _ => pure ())
+        return .empty)
+      (fun q cont => do
+        continuationRef.set cont
+        return q)
+      (fun e => do
+        continuationRef.set (fun _ => pure ())
+        let msg := e.toMessageData
+        let str ← msg.toString
+        return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>])
+  catch e =>
+    return .select <p><b>Widget Error: </b>{.text e.toString}</p> #[<button>OK</button>]
 
 def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
@@ -273,12 +272,7 @@ deriving RpcEncodable
 @[server_rpc_method]
 def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) :=
   RequestM.asTask do
-    liftM <| runWidget do
-      try
-        args.code
-      catch
-        | .inr e => askUserConfirm <p><b>Error: </b>{.text e.toString}</p>
-        |  e => throw e
+    runWidget args.code
 
 @[server_rpc_method]
 def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
@@ -294,21 +288,23 @@ def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
 --     |_|\__,_|\___|\__|_|\___|___|_|  |_|
 --
 
-abbrev CoreIM := ReaderT Core.Context <| StateRefT Core.State InteractiveM
-abbrev MetaIM := ReaderT Meta.Context <| StateRefT Meta.State CoreIM
-abbrev TermElabIM := ReaderT Elab.Term.Context <| StateRefT Elab.Term.State MetaIM
-abbrev TacticIM := ReaderT Elab.Tactic.Context <| StateRefT Elab.Tactic.State TermElabIM
+open Elab Tactic
+
+abbrev CoreIM     := ReaderT Core.Context <| StateRefT Core.State InteractiveM
+abbrev MetaIM     := ReaderT Meta.Context <| StateRefT Meta.State CoreIM
+abbrev TermElabIM := ReaderT Term.Context <| StateRefT Term.State MetaIM
+abbrev TacticIM   := ReaderT Tactic.Context <| StateRefT Tactic.State TermElabIM
 
 instance : MonadLift (EIO Exception) InteractiveM where
   monadLift x := InteractiveT.squash fun world =>
     match x world with
-    | .ok a world => .ok (pure a) world
-    | .error e world => .ok (throw (.inl e)) world
+    | .ok    a world => .ok (pure a) world
+    | .error e world => .ok (throw e) world
 
 private def liftReaderState [MonadLift m n] : MonadLift (ReaderT ρ (StateRefT' ω σ m)) (ReaderT ρ (StateRefT' ω σ n)) where
   monadLift x := fun c s => liftM (x c s)
 
 instance : MonadLift CoreM CoreIM := liftReaderState
 instance : MonadLift MetaM MetaIM := liftReaderState
-instance : MonadLift Elab.TermElabM TermElabIM := liftReaderState
-instance : MonadLift Elab.Tactic.TacticM TacticIM := liftReaderState
+instance : MonadLift TermElabM TermElabIM := liftReaderState
+instance : MonadLift TacticM TacticIM := liftReaderState
