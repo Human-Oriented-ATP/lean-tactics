@@ -5,127 +5,105 @@ import Mathlib.Tactic
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server
 
-namespace Interactive
+namespace InteractiveT
 
-variable (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A]
+private structure Spec (Q A : Type u) (m : Type u → Type u) where
+  interactM : Type u → Type u
+  pure      : α → interactM α
+  interact  : Q → (A → (interactM α)) → interactM α
+  squash    : m (interactM α) → interactM α
+  run       : [Inhabited Q] → [Monad m] → interactM α → m (α ⊕ (Q × (A → interactM α)))
+  inhabited : [Inhabited Q] → Inhabited (interactM α)
 
-structure Spec [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] where
-  InteractiveOutput : Type → Type
-  instMonad : Monad (m ∘ InteractiveOutput)
-  instMonadExcept : MonadExcept E (m ∘ InteractiveOutput)
-  terminate {α : Type} (out : α) : InteractiveOutput α
-  interact {α : Type} (question : Q) (continuation : A → m (InteractiveOutput α)) : InteractiveOutput α
-  cases {α : Type} {out : Type}
-    (t : InteractiveOutput α)
-    (terminate : α → out)
-    (interact : (question : Q) → (continuation : A → m (InteractiveOutput α)) → out)
-    : out
-
-instance (m : Type _ → Type _) [Monad m] : Monad (m ∘ m) where
-  pure a := show m (m _) from do
-    return return a
-  bind a f := show m (m _) from do
-    (← a) >>= f
-
-instance (m : Type _ → Type _) [Monad m] [MonadExcept ε m] : MonadExcept ε (m ∘ m) where
-  throw err := show m (m _) from do
-    return throw err
-  tryCatch t c := show m (m _) from do
-    try
-      t
-    catch e =>
-      c e
-
-instance : Inhabited (Spec m Q A E) where
+instance : Inhabited (Spec Q A m) where
   default := {
-    InteractiveOutput := m
-    instMonad := inferInstance
-    instMonadExcept := inferInstance
-    terminate := λ out => pure out
-    interact := fun _ c => Monad.join (c default)
-    cases := λ α {out} t m question ↦ question default (λ _ ↦ pure t)
+    interactM := fun _ => PUnit
+    pure := fun _ => ⟨⟩
+    interact := fun _ _ => ⟨⟩
+    squash := fun _ => ⟨⟩
+    run := fun _ => return .inr (default, fun _ => ⟨⟩)
+    inhabited := ⟨⟨⟩⟩
   }
 
-unsafe inductive InteractiveOutput' (Q A : Type) (m : Type → Type) (α : Type) where
-  | terminate (out : α)
-  | interact (question : Q) (continuation : A → m (InteractiveOutput' Q A m α))
+private unsafe inductive InteractiveTImpl (Q A : Type u) (m : Type u → Type u) (α : Type u)
+  | pure : α → InteractiveTImpl Q A m α
+  | squash : m (InteractiveTImpl Q A m α) → InteractiveTImpl Q A m α
+  | interact : Q → (A → InteractiveTImpl Q A m α) → InteractiveTImpl Q A m α
 
-unsafe abbrev InteractiveT (Q A : Type) (m : Type → Type) := m ∘ (InteractiveOutput' Q A m)
+private unsafe def runImpl {m : Type u → Type u} [Monad m] (x : InteractiveTImpl Q A m α) : m (α ⊕ (Q × (A → (InteractiveTImpl Q A m α)))) := do
+  match x with
+  | .pure a => return .inl a
+  | .squash x => runImpl (← x)
+  | .interact q cont => return .inr (q, cont)
 
-unsafe def InteractiveT.pure (a : α) : InteractiveT Q A m α :=
-  Pure.pure (f := m) (InteractiveOutput'.terminate a)
+private unsafe def inhabitedImpl [Inhabited Q] : InteractiveTImpl Q A m α :=
+  .interact default fun _ => inhabitedImpl
 
-unsafe def InteractiveT.bind (code : InteractiveT Q A m α) (f : α → InteractiveT Q A m β) : InteractiveT Q A m β := show m (InteractiveOutput' Q A m _) from do
-  match ← code with
-    | .terminate a => f a
-    | .interact question continuation =>
-      return .interact question <| fun a ↦ do
-        (bind (continuation a) f)
-
-private
-unsafe def InteractiveT.tryCatch {α : Type} (t : InteractiveT Q A m α) (c : E → InteractiveT Q A m α)
-: (InteractiveT Q A m α) := show m _ from do
-  try
-    let out ← t
-    match out with
-    | .terminate _ => return out
-    | .interact question continuation =>
-      return .interact question fun answer =>
-        InteractiveT.tryCatch (continuation answer) c
-  catch e =>
-    c e
-
-unsafe instance : Monad (InteractiveT Q A m) where
-  pure := InteractiveT.pure m Q A
-  bind := InteractiveT.bind m Q A
-
-unsafe instance : MonadExcept E (InteractiveT Q A m) where
-  throw e := throw (m := m) e
-  tryCatch t c := tryCatch (m := m) t c
-
-private unsafe def specImpl (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] : Spec m Q A E where
-  InteractiveOutput := InteractiveOutput' Q A m
-  instMonad := inferInstanceAs (Monad <| InteractiveT Q A m)
-  instMonadExcept := inferInstanceAs (MonadExcept E <| InteractiveT Q A m)
-  terminate := InteractiveOutput'.terminate
-  interact := InteractiveOutput'.interact
-  cases t terminate interact := match t with
-  | .terminate a => terminate a
-  | .interact q c => interact q c
+@[inline] private unsafe def specImpl (Q A : Type u) (m : Type u → Type u) : Spec Q A m where
+  interactM := InteractiveTImpl Q A m
+  pure := .pure
+  interact := .interact
+  squash := .squash
+  run := runImpl
+  inhabited := ⟨inhabitedImpl⟩
 
 @[implemented_by specImpl]
-private opaque spec (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] : Spec m Q A E
+private opaque spec (Q A : Type u) (m : Type u → Type u) : Spec Q A m
 
-end Interactive
+end InteractiveT
 
-def InteractiveT (m : Type → Type) (Q A E : Type)
-  [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A]
-  : Type → Type
-  := (λ α ↦ m ((Interactive.spec m Q A E).InteractiveOutput α))
+def InteractiveT (Q A : Type u) (m : Type u → Type u) : Type u → Type u := (InteractiveT.spec Q A m).interactM
 
-def InteractiveT.core {m : Type → Type} {Q A E : Type} [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] {α : Type}
-  : (InteractiveT m Q A E α) → m ((Interactive.spec m Q A E).InteractiveOutput α) := id
-def InteractiveT.asCore {m : Type → Type} {Q A E : Type} [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] {α : Type}
-  : m ((Interactive.spec m Q A E).InteractiveOutput α) → (InteractiveT m Q A E α) := id
+namespace InteractiveT
 
-instance (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A]
-  : Monad (InteractiveT m Q A E) := (Interactive.spec m Q A E).instMonad
+variable {Q A : Type u} {m : Type u → Type u} [Inhabited Q] [Monad m]
 
-instance (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A]
-  : MonadExcept E (InteractiveT m Q A E) := (Interactive.spec m Q A E).instMonadExcept
+@[inline] def pure : α → InteractiveT Q A m α := (InteractiveT.spec Q A m).pure
 
-instance (m : Type → Type) (Q A E : Type) [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A] : MonadLift m (InteractiveT m Q A E) where
-   monadLift {α : Type} (im : m α) : m ((Interactive.spec m Q A E).InteractiveOutput α) := do
-    let out ← im
-    return (Interactive.Spec.terminate _ out)
+@[inline] def interact : Q → (A → InteractiveT Q A m α) → InteractiveT Q A m α := (InteractiveT.spec Q A m).interact
 
-unsafe def runPair {m : Type → Type} {Q A E α : Type} [Monad m] [MonadExcept E m] [Inhabited Q] [Inhabited A]
-  (agent1 : InteractiveT m Q A E α) (agent2 : Q → InteractiveT m A Q E α)
-  : m α := do
-  (Interactive.spec m Q A E).cases (← agent1)
-    ( λ out2 ↦ return out2 )
-    ( λ question continuation ↦
-      runPair (agent2 question) continuation )
+@[inline] def squash : m (InteractiveT Q A m α) → InteractiveT Q A m α := (InteractiveT.spec Q A m).squash
+
+@[inline] def run : InteractiveT Q A m α → m (α ⊕ (Q × (A → InteractiveT Q A m α))) := (InteractiveT.spec Q A m).run
+
+instance : Inhabited (InteractiveT Q A m α) := (InteractiveT.spec Q A m).inhabited
+
+
+def askQuestion (q : Q) : InteractiveT Q A m A := interact q pure
+
+def giveAnswer (a : A) (x : InteractiveT Q A m α) : m (Option (InteractiveT Q A m α)) := do
+  match ← x.run with
+  | .inl _ => return none
+  | .inr (_, cont) => return some (cont a)
+
+private partial def bind (x : InteractiveT Q A m α) (f : α → InteractiveT Q A m β) : InteractiveT Q A m β :=
+  squash do
+    match ← x.run with
+    | .inl a => return f a
+    | .inr (q, cont) => return interact q fun ans => bind (cont ans) f
+
+private partial def InteractiveT.tryCatch [MonadExcept ε m] (x : InteractiveT Q A m α) (handle : ε → InteractiveT Q A m α) : (InteractiveT Q A m α) :=
+  squash do
+  try
+    match ← x.run with
+    | .inl a => return pure a
+    | .inr (q, cont) =>
+      return interact q fun answer => tryCatch (cont answer) handle
+  catch e =>
+    return handle e
+
+instance : Monad (InteractiveT Q A m) where
+  pure := InteractiveT.pure
+  bind := InteractiveT.bind
+
+instance : MonadLift m (InteractiveT Q A m) where
+  monadLift x := squash do return pure (← x)
+
+instance [MonadExcept ε m] : MonadExcept ε (InteractiveT Q A m) where
+  throw e := .squash (throw e)
+  tryCatch := InteractiveT.tryCatch
+
+end InteractiveT
 
 -- Question / Answer instance
 
@@ -167,26 +145,20 @@ instance : RpcEncodable UserQuestion where
       return .select question options
     | _ => .error s!"Invalid kind: {kind}"
 
-#check Json.getObjVal?
-
-def InteractiveM := InteractiveT IO UserQuestion Json IO.Error
-deriving Monad, MonadExcept
-
-instance : MonadLift IO InteractiveM where
-  monadLift {α : Type} := (monadLift : IO α → InteractiveT IO UserQuestion Json IO.Error α)
+abbrev InteractiveM := InteractiveT UserQuestion Json IO
 
 -- Reference / Widget
 
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
 def runWidget (m : InteractiveM Unit) : IO UserQuestion := do
-  (Interactive.spec _ _ _ _).cases (← m)
-    ( λ out ↦ do
-      continuationRef.set (λ _ ↦ return default)
-      return default )
-    ( λ question continuation ↦ do
-      continuationRef.set (λ answer ↦ (continuation answer))
-      return question )
+  match ← m.run with
+  | .inl _ => do
+      continuationRef.set fun _ => return
+      return .empty
+  | .inr (q, cont) => do
+      continuationRef.set cont
+      return q
 
 def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
@@ -213,9 +185,7 @@ def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) := d
 
 -- Specific Questions
 
-def askUser (question : UserQuestion) : InteractiveM Json := InteractiveT.asCore do
-  return ((Interactive.spec _ _ _ _).interact question (λ answer ↦
-    return ((Interactive.spec _ _ _ _).terminate answer)))
+def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
 def askUserForm (form : Html) : InteractiveM Json := do
   let .element "form" _ elems := form | throw <| IO.userError "Not an Html form"

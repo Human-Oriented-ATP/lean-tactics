@@ -12,8 +12,6 @@ deriving Server.RpcEncodable
 def ProgramableWidget : Component InteractiveWidgetProps where
   javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
-#check Html
-
 #html <ProgramableWidget code={do
   let name ← askUserString <p>What is your name?</p>
   let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
@@ -29,7 +27,7 @@ def ProgramableWidget : Component InteractiveWidgetProps where
   let response ← askUserString <p>{.text s!"OMG, how can you like the color of {teletubie}, the most annoying of all Teletubbies??"}</p>
   let i ← askUserInt <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
   let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
-  let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
+  let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
 #html <ProgramableWidget code={do
   let ans ← askUserSelect <div/> [
