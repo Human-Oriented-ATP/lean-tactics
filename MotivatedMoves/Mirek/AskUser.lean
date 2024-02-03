@@ -12,7 +12,7 @@ private structure Spec (Q A : Type u) (m : Type u → Type u) where
   pure      : α → interactM α
   interact  : Q → (A → (interactM α)) → interactM α
   squash    : m (interactM α) → interactM α
-  run       : [Inhabited Q] → [Monad m] → interactM α → m (α ⊕ (Q × (A → interactM α)))
+  elim      : [Inhabited Q] → [Monad m] → interactM α → (α → m β) → (Q → (A → interactM α) → m β) → m β
   inhabited : [Inhabited Q] → Inhabited (interactM α)
 
 instance : Inhabited (Spec Q A m) where
@@ -21,7 +21,7 @@ instance : Inhabited (Spec Q A m) where
     pure := fun _ => ⟨⟩
     interact := fun _ _ => ⟨⟩
     squash := fun _ => ⟨⟩
-    run := fun _ => return .inr (default, fun _ => ⟨⟩)
+    elim := fun _ _ f => f default (fun _ => ⟨⟩)
     inhabited := ⟨⟨⟩⟩
   }
 
@@ -30,11 +30,12 @@ private unsafe inductive InteractiveTImpl (Q A : Type u) (m : Type u → Type u)
   | squash : m (InteractiveTImpl Q A m α) → InteractiveTImpl Q A m α
   | interact : Q → (A → InteractiveTImpl Q A m α) → InteractiveTImpl Q A m α
 
-private unsafe def runImpl {m : Type u → Type u} [Monad m] (x : InteractiveTImpl Q A m α) : m (α ⊕ (Q × (A → (InteractiveTImpl Q A m α)))) := do
+private unsafe def elimImpl {m : Type u → Type u} [Monad m] (x : InteractiveTImpl Q A m α)
+    (hPure : α → m β) (hInter : Q → (A → InteractiveTImpl Q A m α) → m β) : m β :=
   match x with
-  | .pure a => return .inl a
-  | .squash x => runImpl (← x)
-  | .interact q cont => return .inr (q, cont)
+  | .pure a => hPure a
+  | .squash x => do elimImpl (← x) hPure hInter
+  | .interact q cont => hInter q cont
 
 private unsafe def inhabitedImpl [Inhabited Q] : InteractiveTImpl Q A m α :=
   .interact default fun _ => inhabitedImpl
@@ -44,7 +45,7 @@ private unsafe def inhabitedImpl [Inhabited Q] : InteractiveTImpl Q A m α :=
   pure := .pure
   interact := .interact
   squash := .squash
-  run := runImpl
+  elim := elimImpl
   inhabited := ⟨inhabitedImpl⟩
 
 @[implemented_by specImpl]
@@ -52,43 +53,49 @@ private opaque spec (Q A : Type u) (m : Type u → Type u) : Spec Q A m
 
 end InteractiveT
 
-def InteractiveT (Q A : Type u) (m : Type u → Type u) : Type u → Type u := (InteractiveT.spec Q A m).interactM
+def InteractiveT (Q A : Type u) (m : Type u → Type u) : Type u → Type u :=
+  (InteractiveT.spec Q A m).interactM
 
 namespace InteractiveT
 
 variable {Q A : Type u} {m : Type u → Type u} [Inhabited Q] [Monad m]
 
-@[inline] def pure : α → InteractiveT Q A m α := (InteractiveT.spec Q A m).pure
+@[inline] def pure : α → InteractiveT Q A m α :=
+  (InteractiveT.spec Q A m).pure
 
-@[inline] def interact : Q → (A → InteractiveT Q A m α) → InteractiveT Q A m α := (InteractiveT.spec Q A m).interact
+@[inline] def interact : Q → (A → InteractiveT Q A m α) → InteractiveT Q A m α :=
+  (InteractiveT.spec Q A m).interact
 
-@[inline] def squash : m (InteractiveT Q A m α) → InteractiveT Q A m α := (InteractiveT.spec Q A m).squash
+@[inline] def squash : m (InteractiveT Q A m α) → InteractiveT Q A m α :=
+  (InteractiveT.spec Q A m).squash
 
-@[inline] def run : InteractiveT Q A m α → m (α ⊕ (Q × (A → InteractiveT Q A m α))) := (InteractiveT.spec Q A m).run
+@[inline] def elim : InteractiveT Q A m α → (α → m β) → (Q → (A → InteractiveT Q A m α) → m β) → m β :=
+  (InteractiveT.spec Q A m).elim
 
-instance : Inhabited (InteractiveT Q A m α) := (InteractiveT.spec Q A m).inhabited
+instance : Inhabited (InteractiveT Q A m α) :=
+  (InteractiveT.spec Q A m).inhabited
 
 
 def askQuestion (q : Q) : InteractiveT Q A m A := interact q pure
 
-def giveAnswer (a : A) (x : InteractiveT Q A m α) : m (Option (InteractiveT Q A m α)) := do
-  match ← x.run with
-  | .inl _ => return none
-  | .inr (_, cont) => return some (cont a)
+def giveAnswer (a : A) (x : InteractiveT Q A m α) : m (Option (InteractiveT Q A m α)) :=
+  x.elim
+    (fun _ => return none)
+    (fun _ cont => return some (cont a))
 
 private partial def bind (x : InteractiveT Q A m α) (f : α → InteractiveT Q A m β) : InteractiveT Q A m β :=
   squash do
-    match ← x.run with
-    | .inl a => return f a
-    | .inr (q, cont) => return interact q fun ans => bind (cont ans) f
+    x.elim
+      (fun a => return f a)
+      (fun q cont => return interact q fun ans => bind (cont ans) f)
 
 private partial def InteractiveT.tryCatch [MonadExcept ε m] (x : InteractiveT Q A m α) (handle : ε → InteractiveT Q A m α) : (InteractiveT Q A m α) :=
   squash do
   try
-    match ← x.run with
-    | .inl a => return pure a
-    | .inr (q, cont) =>
-      return interact q fun answer => tryCatch (cont answer) handle
+    x.elim
+      (fun a => return pure a)
+      (fun q cont =>
+        return interact q fun answer => tryCatch (cont answer) handle)
   catch e =>
     return handle e
 
@@ -151,14 +158,14 @@ abbrev InteractiveM := InteractiveT UserQuestion Json IO
 
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
-def runWidget (m : InteractiveM Unit) : IO UserQuestion := do
-  match ← m.run with
-  | .inl _ => do
-      continuationRef.set fun _ => return
-      return .empty
-  | .inr (q, cont) => do
+def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
+  x.elim
+    (fun _ => do
+      continuationRef.set (fun _ => pure ())
+      return .empty)
+    (fun q cont => do
       continuationRef.set cont
-      return q
+      return q)
 
 def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
@@ -174,11 +181,11 @@ structure initArgs where
 deriving RpcEncodable
 
 @[server_rpc_method]
-def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) := do
+def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) :=
   RequestM.asTask do
     liftM (runWidget args.code)
 @[server_rpc_method]
-def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) := do
+def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
   RequestM.asTask do
     let continuation ← continuationRef.get
     runWidget (continuation answer)
