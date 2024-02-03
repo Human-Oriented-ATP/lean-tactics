@@ -5,6 +5,13 @@ import Mathlib.Tactic
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server
 
+--    __  __                       _ 
+--   |  \/  | ___  _ __   __ _  __| |
+--   | |\/| |/ _ \| '_ \ / _` |/ _` |
+--   | |  | | (_) | | | | (_| | (_| |
+--   |_|  |_|\___/|_| |_|\__,_|\__,_|
+--                                   
+
 namespace InteractiveT
 
 private structure Spec (Q A : Type u) (m : Type u → Type u) where
@@ -112,7 +119,12 @@ instance [MonadExcept ε m] : MonadExcept ε (InteractiveT Q A m) where
 
 end InteractiveT
 
--- Question / Answer instance
+--     ___                  _   _               _           _                       
+--    / _ \ _   _  ___  ___| |_(_) ___  _ __   (_)_ __  ___| |_ __ _ _ __   ___ ___ 
+--   | | | | | | |/ _ \/ __| __| |/ _ \| '_ \  | | '_ \/ __| __/ _` | '_ \ / __/ _ \
+--   | |_| | |_| |  __/\__ \ |_| | (_) | | | | | | | | \__ \ || (_| | | | | (_|  __/
+--    \__\_\\__,_|\___||___/\__|_|\___/|_| |_| |_|_| |_|___/\__\__,_|_| |_|\___\___|
+--                                                                                  
 
 inductive UserQuestion : Type where
 | empty
@@ -154,7 +166,12 @@ instance : RpcEncodable UserQuestion where
 
 abbrev InteractiveM := InteractiveT UserQuestion Json IO
 
--- Reference / Widget
+--   __        ___     _            _   
+--   \ \      / (_) __| | __ _  ___| |_ 
+--    \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
+--     \ V  V / | | (_| | (_| |  __/ |_ 
+--      \_/\_/  |_|\__,_|\__, |\___|\__|
+--                       |___/          
 
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
@@ -190,7 +207,18 @@ def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
     let continuation ← continuationRef.get
     runWidget (continuation answer)
 
--- Specific Questions
+--    ____                  _  __ _      
+--   / ___| _ __   ___  ___(_)/ _(_) ___ 
+--   \___ \| '_ \ / _ \/ __| | |_| |/ __|
+--    ___) | |_) |  __/ (__| |  _| | (__ 
+--   |____/| .__/ \___|\___|_|_| |_|\___|
+--         |_|                           
+--                          _   _                 
+--     __ _ _   _  ___  ___| |_(_) ___  _ __  ___ 
+--    / _` | | | |/ _ \/ __| __| |/ _ \| '_ \/ __|
+--   | (_| | |_| |  __/\__ \ |_| | (_) | | | \__ \
+--    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
+--       |_|                                      
 
 def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
