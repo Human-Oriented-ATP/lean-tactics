@@ -5,12 +5,12 @@ import Mathlib.Tactic
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server
 
---    __  __                       _ 
+--    __  __                       _
 --   |  \/  | ___  _ __   __ _  __| |
 --   | |\/| |/ _ \| '_ \ / _` |/ _` |
 --   | |  | | (_) | | | | (_| | (_| |
 --   |_|  |_|\___/|_| |_|\__,_|\__,_|
---                                   
+--
 
 namespace InteractiveT
 
@@ -125,12 +125,12 @@ instance [MonadExcept ε m] : MonadExcept ε (InteractiveT Q A m) where
 
 end InteractiveT
 
---     ___                  _   _               _           _                       
---    / _ \ _   _  ___  ___| |_(_) ___  _ __   (_)_ __  ___| |_ __ _ _ __   ___ ___ 
+--     ___                  _   _               _           _
+--    / _ \ _   _  ___  ___| |_(_) ___  _ __   (_)_ __  ___| |_ __ _ _ __   ___ ___
 --   | | | | | | |/ _ \/ __| __| |/ _ \| '_ \  | | '_ \/ __| __/ _` | '_ \ / __/ _ \
 --   | |_| | |_| |  __/\__ \ |_| | (_) | | | | | | | | \__ \ || (_| | | | | (_|  __/
 --    \__\_\\__,_|\___||___/\__|_|\___/|_| |_| |_|_| |_|___/\__\__,_|_| |_|\___\___|
---                                                                                  
+--
 
 inductive UserQuestion : Type where
 | empty
@@ -172,59 +172,18 @@ instance : RpcEncodable UserQuestion where
 
 abbrev InteractiveM := InteractiveT UserQuestion Json IO
 
---   __        ___     _            _   
---   \ \      / (_) __| | __ _  ___| |_ 
---    \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
---     \ V  V / | | (_| | (_| |  __/ |_ 
---      \_/\_/  |_|\__,_|\__, |\___|\__|
---                       |___/          
-
-initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
-
-def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
-  x.elim
-    (fun _ => do
-      continuationRef.set (fun _ => pure ())
-      return .empty)
-    (fun q cont => do
-      continuationRef.set cont
-      return q)
-
-def InteractiveMUnit := InteractiveM Unit
-deriving instance TypeName for InteractiveMUnit
-
-instance : RpcEncodable (InteractiveM Unit) where
-  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
-  rpcDecode json := do
-    let out : WithRpcRef InteractiveMUnit ← rpcDecode json
-    return out.val
-
-structure initArgs where
-  code : InteractiveM Unit
-deriving RpcEncodable
-
-@[server_rpc_method]
-def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) :=
-  RequestM.asTask do
-    liftM (runWidget args.code)
-@[server_rpc_method]
-def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
-  RequestM.asTask do
-    let continuation ← continuationRef.get
-    runWidget (continuation answer)
-
---    ____                  _  __ _      
---   / ___| _ __   ___  ___(_)/ _(_) ___ 
+--    ____                  _  __ _
+--   / ___| _ __   ___  ___(_)/ _(_) ___
 --   \___ \| '_ \ / _ \/ __| | |_| |/ __|
---    ___) | |_) |  __/ (__| |  _| | (__ 
+--    ___) | |_) |  __/ (__| |  _| | (__
 --   |____/| .__/ \___|\___|_|_| |_|\___|
---         |_|                           
---                          _   _                 
---     __ _ _   _  ___  ___| |_(_) ___  _ __  ___ 
+--         |_|
+--                          _   _
+--     __ _ _   _  ___  ___| |_(_) ___  _ __  ___
 --    / _` | | | |/ _ \/ __| __| |/ _ \| '_ \/ __|
 --   | (_| | |_| |  __/\__ \ |_| | (_) | | | \__ \
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
---       |_|                                      
+--       |_|
 
 def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
@@ -263,3 +222,57 @@ def askUserBool (question : Html) : InteractiveM Bool
   ]
 def askUserConfirm (message : Html) : InteractiveM Unit
   := askUserSelect message [((), <button>OK</button>)]
+
+--   __        ___     _            _
+--   \ \      / (_) __| | __ _  ___| |_
+--    \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
+--     \ V  V / | | (_| | (_| |  __/ |_
+--      \_/\_/  |_|\__,_|\__, |\___|\__|
+--                       |___/
+
+initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
+
+def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
+  x.elim
+    (fun _ => do
+      continuationRef.set (fun _ => pure ())
+      return .empty)
+    (fun q cont => do
+      continuationRef.set cont
+      return q)
+
+def InteractiveMUnit := InteractiveM Unit
+deriving instance TypeName for InteractiveMUnit
+
+instance : RpcEncodable (InteractiveM Unit) where
+  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
+  rpcDecode json := do
+    let out : WithRpcRef InteractiveMUnit ← rpcDecode json
+    return out.val
+
+structure initArgs where
+  code : InteractiveM Unit
+deriving RpcEncodable
+
+@[server_rpc_method]
+def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) :=
+  RequestM.asTask do
+    liftM (runWidget (
+      try
+        args.code
+      catch e =>
+        askUserConfirm <p><b>Error: </b>{.text e.toString}</p>
+    ))
+@[server_rpc_method]
+def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
+  RequestM.asTask do
+    let continuation ← continuationRef.get
+    runWidget (continuation answer)
+
+
+--    _____          _   _      ___ __  __
+--   |_   _|_ _  ___| |_(_) ___|_ _|  \/  |
+--     | |/ _` |/ __| __| |/ __|| || |\/| |
+--     | | (_| | (__| |_| | (__ | || |  | |
+--     |_|\__,_|\___|\__|_|\___|___|_|  |_|
+--
