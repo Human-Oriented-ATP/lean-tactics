@@ -11,6 +11,7 @@ open Lean ProofWidgets Server
 --   | |  | | (_) | | | | (_| | (_| |
 --   |_|  |_|\___/|_| |_|\__,_|\__,_|
 --
+
 inductive IStateM.Result (Q A ε σ α : Type u)
   | terminate : α → σ → IStateM.Result Q A ε σ α
   | throw     : ε → σ → IStateM.Result Q A ε σ α
@@ -26,14 +27,14 @@ namespace IStateM
 variable {α β Q A : Type u} [Inhabited ε]
 
 @[always_inline, inline]
-protected partial def bind [Inhabited ε] (x : IStateM Q A ε  σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
+protected partial def bind [Inhabited ε] (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
   match x s with
   | .terminate a s => f a s
   | .throw     e s => .throw e s
   | .interact q s cont => .interact q s fun ans => IStateM.bind (cont ans) f
 
 @[always_inline]
-instance : Monad (IStateM Q A ε  σ)  where
+instance : Monad (IStateM Q A ε σ)  where
   pure     := .terminate
   bind     := IStateM.bind
 
@@ -54,7 +55,7 @@ instance [Backtrackable δ σ] : MonadExceptOf ε (IStateM Q A ε σ) where
 
 def askQuestion (q : Q) : IStateM Q A ε σ A := (.interact q · .terminate)
 
-def giveAnswer (a : A) (x : IStateM Q A ε σ α) : OptionT (StateM σ) (IStateM Q A ε  σ α) := fun s =>
+def giveAnswer (a : A) (x : IStateM Q A ε σ α) : OptionT (StateM σ) (IStateM Q A ε σ α) := fun s =>
   match x s with
   | .interact _ s cont => (some (cont a), s)
   | .terminate _ s
@@ -64,7 +65,7 @@ def runWithAnswers (as : Array A) (x : IStateM Q A ε σ α) : OptionT (StateM �
   let result ← as.foldlM (fun x a => giveAnswer a x) x
   fun s => match result s with
   | .terminate a s => (some a, s)
-  | .throw     _ s
+  | .throw    _ s
   | .interact _ s _ => (none, s)
 
 end IStateM
@@ -142,7 +143,6 @@ abbrev InteractiveM := ReaderT RequestContext <| IStateM UserQuestion Json (Exce
 
 def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 
-
 --    ____                  _  __ _
 --   / ___| _ __   ___  ___(_)/ _(_) ___
 --   \___ \| '_ \ / _ \/ __| | |_| |/ __|
@@ -216,18 +216,22 @@ def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
 
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
-def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := fun ctx s =>
-  match x ctx s with
-  | .interact q s cont => (EStateM.run · s) do
+def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := fun ctx => do
+  match x ctx (← EStateM.get) with
+  | .interact q s cont =>
+    EStateM.set s
     return (q, fun answer _ => cont answer)
 
-  | .terminate () s => (EStateM.run · s) do
+  | .terminate () s =>
+    EStateM.set s
     return (.empty, fun _ _ => pure ())
 
-  | .throw (.inl e) s => (EStateM.run · s) do
+  | .throw (.inl e) s =>
+    EStateM.set s
     return (.error <| WithRpcRef.mk e.toMessageData, fun _ _ => pure ())
 
-  | .throw (.inr e) s => (EStateM.run · s) do
+  | .throw (.inr e) s =>
+    EStateM.set s
     return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], fun _ _ => pure ())
 
 def InteractiveMUnit := InteractiveM Unit
@@ -263,8 +267,6 @@ def processUserAnswer
 --     | | (_| | (__| |_| | (__ | || |  | |
 --     |_|\__,_|\___|\__|_|\___|___|_|  |_|
 --
-
-
 
 instance : STWorld IO.RealWorld InteractiveM where
 
