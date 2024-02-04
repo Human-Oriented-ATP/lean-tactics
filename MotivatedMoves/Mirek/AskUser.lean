@@ -78,7 +78,10 @@ variable {Q A E : Type u} {m : Type u → Type u} [Inhabited E] [Monad m]
 @[inline] def squash : m (InteractiveT Q A E m α) → InteractiveT Q A E m α :=
   (InteractiveT.spec Q A E m).squash
 
-@[inline] def elim : InteractiveT Q A E m α → (α → m β) → (Q → (A → InteractiveT Q A E m α) → m β) → (E → m β) → m β :=
+@[inline] def elim : InteractiveT Q A E m α →   
+    (output : α → m β) → 
+    (continuation : Q → (A → InteractiveT Q A E m α) → m β) → 
+    (error : E → m β) → m β :=
   (InteractiveT.spec Q A E m).elim
 
 instance : Inhabited (InteractiveT Q A E m α) := ⟨throw default⟩
