@@ -78,9 +78,9 @@ variable {Q A E : Type u} {m : Type u → Type u} [Inhabited E] [Monad m]
 @[inline] def squash : m (InteractiveT Q A E m α) → InteractiveT Q A E m α :=
   (InteractiveT.spec Q A E m).squash
 
-@[inline] def elim : InteractiveT Q A E m α →   
-    (output : α → m β) → 
-    (continuation : Q → (A → InteractiveT Q A E m α) → m β) → 
+@[inline] def elim : InteractiveT Q A E m α →
+    (output : α → m β) →
+    (continuation : Q → (A → InteractiveT Q A E m α) → m β) →
     (error : E → m β) → m β :=
   (InteractiveT.spec Q A E m).elim
 
@@ -140,6 +140,7 @@ inductive UserQuestion : Type where
 | empty
 | form (elems : Array Html)
 | select (question : Html) (array : Array Html)
+| error (data : WithRpcRef MessageData)
 instance UserQuestion.Inhabited : Inhabited UserQuestion where
   default := .empty
 
@@ -154,6 +155,9 @@ instance : RpcEncodable UserQuestion where
     let options ← options.mapM rpcEncode
     return Json.mkObj [("kind", "select"), ("question",question),
     ("options", Json.arr options)]
+  | .error data => do
+    let data ← rpcEncode data
+    return Json.mkObj [("kind", "error"), ("data",data)]
   rpcDecode json := do
     let kind ← json.getObjVal? "kind"
     let kind ← kind.getStr?
@@ -172,6 +176,10 @@ instance : RpcEncodable UserQuestion where
       let options ← options.getArr?
       let options : Array Html ← options.mapM rpcDecode
       return .select question options
+    | "error" => do
+      let data ← json.getObjVal? "data"
+      let data : WithRpcRef MessageData ← rpcDecode data
+      return .error data
     | _ => .error s!"Invalid kind: {kind}"
 
 abbrev InteractiveM := InteractiveT UserQuestion Json Exception IO
@@ -250,9 +258,7 @@ def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
         return q
       fun e => do
         continuationRef.set (fun _ => pure ())
-        let msg := e.toMessageData
-        let str ← msg.toString
-        return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>]
+        return .error <| WithRpcRef.mk e.toMessageData
   catch e =>
     continuationRef.set (fun _ => pure ())
     return .select <p><b>Widget Error: </b>{.text e.toString}</p> #[<button>OK</button>]

@@ -53,8 +53,8 @@ example : True → False → True := by
   let response ← askUserString <p>{.text s!"OMG, how can you like the color of {teletubie}, the most annoying of all Teletubbies??"}</p>
   let i ← askUserInt <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
   let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
-  -- throw $ Exception.internal ⟨4⟩
-  throwWidgetError "Sorry, I played with exceptions"
+  throw $ Exception.internal ⟨4⟩
+  -- throwWidgetError "Sorry, I played with exceptions"
   let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
 #html <ProgramableWidget code={do
