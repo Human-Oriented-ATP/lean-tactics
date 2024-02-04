@@ -7,6 +7,7 @@ import HtmlDisplay, { Html } from './htmlDisplay';
 type EmptyQ = { kind:"empty", }
 type FormQ = { kind:"form", elems:Html[] }
 type SelectQ = { kind:"select", question:Html, options:Html[] }
+type CustomQ = { kind: "custom", code:Html}
 type ErrorQ = { kind:"error", data:MessageData }
 
 interface WidgetProps<Q> {
@@ -87,7 +88,11 @@ function SelectWidget (props : WidgetProps<SelectQ>) {
   </div>
 }
 
-type Question = EmptyQ | FormQ | SelectQ | ErrorQ
+function CustomWidget (props : WidgetProps<CustomQ>) {
+  return <HtmlDisplay pos={props.pos} html={props.q.code} />;
+}
+
+type Question = EmptyQ | FormQ | SelectQ | CustomQ | ErrorQ
 type Props = {code: MessageData, pos:DocumentPosition}
 
 const dummyQuestion : EmptyQ = {kind:"empty"}
@@ -112,6 +117,7 @@ export default function InteractiveWidget(props: Props) {
     case "empty": return <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
     case "form": return <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
     case "select": return <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
+    case "custom": return <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
     case "error": return <InteractiveMessageData msg={question.data} />
   }
 }

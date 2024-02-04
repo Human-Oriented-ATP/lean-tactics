@@ -57,6 +57,7 @@ inductive UserQuestion : Type where
 | empty
 | form (elems : Array Html)
 | select (question : Html) (array : Array Html)
+| custom (code : Html)
 | error (data : WithRpcRef MessageData)
 instance UserQuestion.Inhabited : Inhabited UserQuestion where
   default := .empty
@@ -72,6 +73,9 @@ instance : RpcEncodable UserQuestion where
     let options ← options.mapM rpcEncode
     return Json.mkObj [("kind", "select"), ("question",question),
     ("options", Json.arr options)]
+  | .custom code => do
+    let code ← rpcEncode code
+    return Json.mkObj [("kind", "custom"), ("code", code)]
   | .error data => do
     let data ← rpcEncode data
     return Json.mkObj [("kind", "error"), ("data",data)]
