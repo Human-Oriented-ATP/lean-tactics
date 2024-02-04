@@ -46,12 +46,12 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
       showIGoal
   )
   let raw_code ← current_code.run
-    let current_code2 : Elab.Tactic.TacticM Unit := (do
+  let current_code2 : Elab.Tactic.TacticM Unit := (do
+    showGoal
+    for tac in tacs do
+      logInfo tac
+      Lean.Elab.Tactic.evalTactic tac
       showGoal
-      for tac in tacs do
-        logInfo tac
-        Lean.Elab.Tactic.evalTactic tac
-        showGoal
   )
   current_code2
 
