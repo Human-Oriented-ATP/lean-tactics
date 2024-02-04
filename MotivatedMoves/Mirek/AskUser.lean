@@ -24,7 +24,7 @@ def IStateM (Q A ε σ α) := σ → IStateM.Result Q A ε σ α
 instance [Inhabited ε] : Inhabited (IStateM Q A ε σ α) := ⟨fun s => .throw default s⟩
 namespace IStateM
 
-variable {α β Q A : Type u} [Inhabited ε]
+variable {α β Q A ε σ : Type u} [Inhabited ε]
 
 @[always_inline, inline]
 protected partial def bind [Inhabited ε] (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
@@ -37,7 +37,6 @@ protected partial def bind [Inhabited ε] (x : IStateM Q A ε σ α) (f : α →
 instance : Monad (IStateM Q A ε σ)  where
   pure     := .terminate
   bind     := IStateM.bind
-
 
 open EStateM Backtrackable in
 @[always_inline, inline]
@@ -52,6 +51,7 @@ open EStateM in
 instance [Backtrackable δ σ] : MonadExceptOf ε (IStateM Q A ε σ) where
   throw := .throw
   tryCatch := IStateM.tryCatch
+
 
 def askQuestion (q : Q) : IStateM Q A ε σ A := (.interact q · .terminate)
 
@@ -156,7 +156,7 @@ def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
 --       |_|
 
-def askUser (q : UserQuestion) : InteractiveM Json := liftM (IStateM.askQuestion q : IStateM _ _ (Exception ⊕ String) IO.RealWorld _)
+def askUser (q : UserQuestion) : InteractiveM Json := fun _ => IStateM.askQuestion q
 
 def askUserForm (form : Html) : InteractiveM Json := do
   let .element "form" _ elems := form | throwWidgetError "Not an Html form"
@@ -214,8 +214,6 @@ def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
 --      \_/\_/  |_|\__,_|\__, |\___|\__|
 --                       |___/
 
-initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
-
 def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := fun ctx => do
   match x ctx (← EStateM.get) with
   | .interact q s cont =>
@@ -228,7 +226,7 @@ def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → Inte
 
   | .throw (.inl e) s =>
     EStateM.set s
-    return (.error <| WithRpcRef.mk e.toMessageData, fun _ _ => pure ())
+    return (.error (WithRpcRef.mk e.toMessageData), fun _ _ => pure ())
 
   | .throw (.inr e) s =>
     EStateM.set s
