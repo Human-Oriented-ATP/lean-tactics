@@ -2,6 +2,7 @@ import * as React from 'react';
 import { TextDocumentEdit } from 'vscode-languageserver-protocol';
 import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
+import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
 
 // import { Html } from '@react-three/drei';
 
@@ -101,6 +102,7 @@ const dummyQuestion : EmptyQ = {kind:"empty"}
 
 export default function InteractiveWidget(props: Props) {
   const [state, setState] = React.useState<[Question, any]>([dummyQuestion, null])
+  const history = React.useRef<[Question,any][]>([])
   const [question, continuation] = state
   const rs = React.useContext(RpcContext)
   const ec = React.useContext(EditorContext)
@@ -108,27 +110,48 @@ export default function InteractiveWidget(props: Props) {
   async function initForm() {
     const [nextQuestion, nextCont] = await rs.call<MessageData, [Question,any]>(
       'initializeInteraction', props.code)
+    history.current = []
     setState([nextQuestion, nextCont])
   }
   async function sendAnswer(answer : any) {
     const [nextQuestion, nextCont] = await rs.call<any, [Question,any]>(
       'processUserAnswer', [answer, continuation])
-    setState([nextQuestion, nextCont])
+      history.current.push(state)
+      setState([nextQuestion, nextCont])
   }
   async function applyEdit(edit : TextDocumentEdit) {
     await ec.api.applyEdit({ documentChanges: [edit] })
     sendAnswer(null)
   }
+  function undo() {
+    const nextState = history.current.pop()
+    if (nextState !== undefined) setState(nextState)
+  }
 
   React.useEffect(() => {initForm()}, [props.pos.line])
+  var widget : ReactJSXElement = <div/>
   switch (question.kind) {
-    case "empty": return <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
-    case "form": return <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
-    case "select": return <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
-    case "custom": return <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
+    case "empty":
+      widget = <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
+      break
+    case "form":
+      widget = <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
+      break
+    case "select":
+      widget = <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
+      break
+    case "custom":
+      widget = <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
+      break
     case "editDocument":
       applyEdit(question.edit)
-      return <div/>
-    case "error": return <InteractiveMessageData msg={question.data} />
+      break
+    case "error":
+      widget = <InteractiveMessageData msg={question.data} />
+      break
   }
+  return <div>
+    <button onClick={undo}>Undo</button>
+    {widget}
+  </div>
 }
