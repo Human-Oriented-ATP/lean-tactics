@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { TextDocumentEdit } from 'vscode-languageserver-protocol';
+import { TextEdit, TextDocumentEdit } from 'vscode-languageserver-protocol';
 import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
 import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
@@ -95,37 +95,99 @@ function CustomWidget (props : WidgetProps<CustomQ>) {
   return <HtmlDisplay pos={props.pos} html={props.q.code} />;
 }
 
-type Question = EmptyQ | FormQ | SelectQ | CustomQ | EditDocumentQ | ErrorQ
+type Question = EmptyQ | FormQ | SelectQ | CustomQ | ErrorQ
+type QuestionE = Question | EditDocumentQ
 type Props = {code: MessageData, pos:DocumentPosition}
 
 const dummyQuestion : EmptyQ = {kind:"empty"}
 
+interface History {
+  state : [Question,any]
+  edits : TextDocumentEdit[]
+}
+
 export default function InteractiveWidget(props: Props) {
-  const [state, setState] = React.useState<[Question, any]>([dummyQuestion, null])
-  const history = React.useRef<[Question,any][]>([])
+  const [state, setStateRaw] = React.useState<[Question, any]>([dummyQuestion, null])
+  const history = React.useRef<History[]>([])
   const [question, continuation] = state
   const rs = React.useContext(RpcContext)
   const ec = React.useContext(EditorContext)
 
+  async function setState(nextState : [QuestionE, any]) {
+    while (true) {
+      const [question, cont] = nextState
+      if (question.kind == "editDocument") {
+        const edit : TextDocumentEdit = question.edit
+        if (history.current.length > 0) {
+          const last = history.current[history.current.length-1]
+          last.edits.push(edit)
+        }
+        await ec.api.applyEdit({ documentChanges: [edit] })
+
+        nextState = await rs.call<any, [QuestionE,any]>(
+          'processUserAnswer', [null, cont])
+      }
+      else {
+        setStateRaw([question, cont])
+        break
+      }
+    }
+  }
+
   async function initForm() {
-    const [nextQuestion, nextCont] = await rs.call<MessageData, [Question,any]>(
+    const nextState = await rs.call<MessageData, [QuestionE,any]>(
       'initializeInteraction', props.code)
     history.current = []
-    setState([nextQuestion, nextCont])
+    setState(nextState)
   }
   async function sendAnswer(answer : any) {
-    const [nextQuestion, nextCont] = await rs.call<any, [Question,any]>(
+    const nextState = await rs.call<any, [QuestionE,any]>(
       'processUserAnswer', [answer, continuation])
-      history.current.push(state)
-      setState([nextQuestion, nextCont])
+      history.current.push({ state: state, edits:[] })
+      setState(nextState)
   }
-  async function applyEdit(edit : TextDocumentEdit) {
-    await ec.api.applyEdit({ documentChanges: [edit] })
-    sendAnswer(null)
+
+  function reverseBasicEdit(e : TextEdit) : TextEdit {
+    // calculate pasted range
+    const lines = e.newText.split("\n")
+    const endLine = e.range.start.line + (lines.length-1)
+    var endCharacter = lines[lines.length-1].length
+    if (lines.length == 1) endCharacter += e.range.start.character
+    
+    // we cannot recover the original text, so we fill it with spaces
+    var dummyText = ""
+    if (e.range.start.line == e.range.end.line)
+      dummyText = " ".repeat(e.range.end.character - e.range.start.character)
+    else
+      dummyText = "\n".repeat(e.range.end.line - e.range.start.line) + " ".repeat(e.range.end.character)
+
+    const res = {
+      range: {
+        start: e.range.start,
+        end:{ line: endLine, character: endCharacter }
+      },
+      newText: dummyText
+    }
+    console.log(res)
+    return res
+  }
+  async function unapplyEdits(edits : TextDocumentEdit[]) {
+    for (var i=edits.length-1; i >= 0; i--) {
+      const edit = edits[i]
+      const revedit : TextDocumentEdit = {
+        textDocument: edit.textDocument,
+        edits: edit.edits.map(reverseBasicEdit)
+      }
+      await ec.api.applyEdit({ documentChanges: [revedit] })
+    }
   }
   function undo() {
-    const nextState = history.current.pop()
-    if (nextState !== undefined) setState(nextState)
+    console.log(history)
+    const last = history.current.pop()
+    if (last !== undefined) {
+      setState(last.state)
+      unapplyEdits(last.edits)
+    }
   }
 
   React.useEffect(() => {initForm()}, [props.pos.line])
@@ -143,15 +205,13 @@ export default function InteractiveWidget(props: Props) {
     case "custom":
       widget = <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
       break
-    case "editDocument":
-      applyEdit(question.edit)
-      break
     case "error":
       widget = <InteractiveMessageData msg={question.data} />
       break
   }
   return <div>
     <button onClick={undo}>Undo</button>
+    <hr/>
     {widget}
   </div>
 }

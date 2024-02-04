@@ -4,6 +4,8 @@ import ProofWidgets
 open Lean ProofWidgets Server
 open ProofWidgets.Jsx
 
+#check IO
+
 structure InteractiveWidgetProps where
   code : InteractiveM Unit
 deriving Server.RpcEncodable
@@ -101,5 +103,11 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
     ("Hello", <button>Hello</button>),
     ("World", <button>World</button>),
   ]
-  insertLine 90 ("-- "++str)
+  insertLine 115 ("-- "++str)
+  let str ← askUserSelect <p>What would you like to insert?</p> [
+    ("Hello2", <button>Hello</button>),
+    ("World2", <button>World</button>),
+  ]
+  askUserConfirm <p>You are now inserting {.text str}</p>
+  insertLine 116 ("-- "++str)
 }/>
