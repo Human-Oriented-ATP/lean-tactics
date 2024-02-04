@@ -21,17 +21,15 @@ private structure Spec (Q A E : Type u) (m : Type u → Type u) where
   throw     : E → interactM α
   squash    : m (interactM α) → interactM α
   elim      : [Inhabited E] → [Monad m] → interactM α → (α → m β) → (Q → (A → interactM α) → m β) → (E → m β) → m β
-  inhabited : [Inhabited E] → Inhabited (interactM α)
 
 instance : Inhabited (Spec Q A E m) where
   default := {
-    interactM := fun _     => PUnit
-    pure      := fun _     => ⟨⟩
-    interact  := fun _ _   => ⟨⟩
-    throw     := fun _     => ⟨⟩
-    squash    := fun _     => ⟨⟩
+    interactM := fun _       => PUnit
+    pure      := fun _       => ⟨⟩
+    interact  := fun _ _     => ⟨⟩
+    throw     := fun _       => ⟨⟩
+    squash    := fun _       => ⟨⟩
     elim      := fun _ _ _ f => f default
-    inhabited := ⟨⟨⟩⟩
   }
 
 private unsafe inductive InteractiveTImpl (Q A E : Type u) (m : Type u → Type u) (α : Type u)
@@ -55,7 +53,6 @@ private unsafe def elimImpl {m : Type u → Type u} [Monad m] (x : InteractiveTI
   throw     := .throw
   squash    := .squash
   elim      := elimImpl
-  inhabited := ⟨.throw default⟩
 
 @[implemented_by specImpl]
 private opaque spec (Q A E : Type u) (m : Type u → Type u) : Spec Q A E m
@@ -84,49 +81,47 @@ variable {Q A E : Type u} {m : Type u → Type u} [Inhabited E] [Monad m]
 @[inline] def elim : InteractiveT Q A E m α → (α → m β) → (Q → (A → InteractiveT Q A E m α) → m β) → (E → m β) → m β :=
   (InteractiveT.spec Q A E m).elim
 
-instance : Inhabited (InteractiveT Q A E m α) :=
-  (InteractiveT.spec Q A E m).inhabited
+instance : Inhabited (InteractiveT Q A E m α) := ⟨throw default⟩
 
 
 def askQuestion (q : Q) : InteractiveT Q A E m A := interact q pure
 
 def giveAnswer (a : A) (x : InteractiveT Q A E m α) : OptionT m (InteractiveT Q A E m α) :=
   x.elim
-    (fun _ => return none)
-    (fun _ cont => return some (cont a))
-    (fun _ => return none)
+    fun _      => return none
+    fun _ cont => return some (cont a)
+    fun _      => return none
 
 def runWithAnswers (as : Array A) (x : InteractiveT Q A E m α) : OptionT m α := do
   let x ← as.foldlM (fun x a => giveAnswer a x) x
   x.elim
-    (fun x => return some x)
-    (fun _ _ => return none)
-    (fun _ => return none)
+    fun x   => return some x
+    fun _ _ => return none
+    fun _   => return none
 
 private partial def bind (x : InteractiveT Q A E m α) (f : α → InteractiveT Q A E m β) : InteractiveT Q A E m β :=
   squash do
     x.elim
-      (fun a => return f a)
-      (fun q cont => return interact q fun ans => bind (cont ans) f)
-      (fun e => return throw e)
+      fun a      => return f a
+      fun q cont => return interact q fun ans => bind (cont ans) f
+      fun e      => return throw e
 
 private partial def InteractiveT.tryCatch (x : InteractiveT Q A E m α) (handle : E → InteractiveT Q A E m α) : (InteractiveT Q A E m α) :=
   squash do
-  x.elim
-    (fun a => return pure a)
-    (fun q cont =>
-      return interact q fun answer => tryCatch (cont answer) handle)
-    (fun e => return handle e)
+    x.elim
+      fun a      => return pure a
+      fun q cont => return interact q fun answer => tryCatch (cont answer) handle
+      fun e      => return handle e
 
 instance : Monad (InteractiveT Q A E m) where
   pure := InteractiveT.pure
   bind := InteractiveT.bind
 
 instance : MonadLift m (InteractiveT Q A E m) where
-  monadLift x := squash do return pure (← x)
+  monadLift x := squash do return InteractiveT.pure (← x)
 
 instance : MonadExcept E (InteractiveT Q A E m) where
-  throw e := throw e
+  throw := InteractiveT.throw
   tryCatch := InteractiveT.tryCatch
 
 end InteractiveT
@@ -149,7 +144,7 @@ instance : RpcEncodable UserQuestion where
   rpcEncode q := match q with
   | .empty => return Json.mkObj [("kind", "empty")]
   | .form elems => do
-    let elems ← elems.mapM (λ elem ↦ rpcEncode elem)
+    let elems ← elems.mapM rpcEncode
     return Json.mkObj [("kind", "form"), ("elems", Json.arr elems)]
   | .select question options => do
     let question ← rpcEncode question
@@ -178,6 +173,8 @@ instance : RpcEncodable UserQuestion where
 
 abbrev InteractiveM := InteractiveT UserQuestion Json Exception IO
 
+def throwWidgetError (e : String) : InteractiveM α :=
+  .squash (throw (IO.userError e))
 
 
 --    ____                  _  __ _
@@ -192,9 +189,6 @@ abbrev InteractiveM := InteractiveT UserQuestion Json Exception IO
 --   | (_| | |_| |  __/\__ \ |_| | (_) | | | \__ \
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
 --       |_|
-
-def throwWidgetError (e : String) : InteractiveM α :=
-  .squash (throw (IO.userError e))
 
 def askUser : UserQuestion → InteractiveM Json := InteractiveT.askQuestion
 
@@ -223,7 +217,7 @@ def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
   match fromJson? (← askUser (.select question (options.map Prod.snd).toArray)) with
   | .error err => throwWidgetError err
   | .ok (answer : Nat) => do
-    let some (answer,_) := options.get? answer | .squash <| throw <| (IO.userError "Index out of bounds")
+    let some (answer,_) := options.get? answer | throwWidgetError "Index out of bounds"
     return answer
 def askUserBool (question : Html) : InteractiveM Bool
   := askUserSelect question [
@@ -242,20 +236,20 @@ def askUserConfirm (message : Html) : InteractiveM Unit
 
 initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
 
-def runWidget (x : InteractiveM Unit) : IO (UserQuestion) :=
+def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
   try
     x.elim
-      (fun _ => do
+      fun _ => do
         continuationRef.set (fun _ => pure ())
-        return .empty)
-      (fun q cont => do
+        return .empty
+      fun q cont => do
         continuationRef.set cont
-        return q)
-      (fun e => do
+        return q
+      fun e => do
         continuationRef.set (fun _ => pure ())
         let msg := e.toMessageData
         let str ← msg.toString
-        return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>])
+        return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>]
   catch e =>
     return .select <p><b>Widget Error: </b>{.text e.toString}</p> #[<button>OK</button>]
 
