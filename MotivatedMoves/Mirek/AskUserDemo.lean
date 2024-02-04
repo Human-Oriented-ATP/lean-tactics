@@ -75,3 +75,14 @@ example : True → False → True := by
   let ans ← askUserInput <p>Now a <b>real </b> favorite color</p> <input type="color" defaultValue="#00ffff"/>
   askUserConfirm <| <p>{.text s!"Good choice, I like {ans} too."}</p>
 } />
+
+#html <ProgramableWidget code={do
+  let str ← askUserSelect <p>What would you like to insert?</p> [
+    ("Hello", <p>Hello</p>),
+    ("World", <p>World</p>),
+  ]
+  let edit : Lsp.TextDocumentEdit
+    := { textDocument := { uri := meta.uri, version? := meta.version }
+         edits        := #[{ range, newText }] }
+  editDocument edit
+}/>

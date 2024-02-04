@@ -58,6 +58,7 @@ inductive UserQuestion : Type where
 | form (elems : Array Html)
 | select (question : Html) (array : Array Html)
 | custom (code : Html)
+| editDocument (edit : Lsp.TextDocumentEdit)
 | error (data : WithRpcRef MessageData)
 instance UserQuestion.Inhabited : Inhabited UserQuestion where
   default := .empty
@@ -76,6 +77,9 @@ instance : RpcEncodable UserQuestion where
   | .custom code => do
     let code ← rpcEncode code
     return Json.mkObj [("kind", "custom"), ("code", code)]
+  | .editDocument edit => do
+    let edit ← rpcEncode edit
+    return Json.mkObj [("kind", "editDocument"), ("edit", edit)]
   | .error data => do
     let data ← rpcEncode data
     return Json.mkObj [("kind", "error"), ("data",data)]
@@ -97,13 +101,22 @@ instance : RpcEncodable UserQuestion where
       let options ← options.getArr?
       let options : Array Html ← options.mapM rpcDecode
       return .select question options
+    | "custom" => do
+      let msg ← json.getObjVal? "msg"
+      let msg : Html ← rpcDecode msg
+      return .custom msg
+    | "editDocument" => do
+      let edit ← json.getObjVal? "edit"
+      let edit : Lsp.TextDocumentEdit ← rpcDecode edit
+      return .editDocument edit
     | "error" => do
       let data ← json.getObjVal? "data"
       let data : WithRpcRef MessageData ← rpcDecode data
       return .error data
     | _ => .error s!"Invalid kind: {kind}"
 
-abbrev InteractiveM := ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
+-- abbrev InteractiveM := ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
+abbrev InteractiveM := ReaderT RequestContext <| ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
 
 def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 
@@ -158,6 +171,20 @@ def askUserBool (question : Html) : InteractiveM Bool
 def askUserConfirm (message : Html) : InteractiveM Unit
   := askUserSelect message [((), <button>OK</button>)]
 
+def editDocument (edits : Array Lsp.TextEdit) : InteractiveM Unit
+  := do
+    let ctx : RequestContext ← read
+    let meta := ctx.doc.meta
+    _ ← askUser (.editDocument {
+      textDocument := { uri := meta.uri, version? := meta.version }
+      edits := edits
+    })
+    return
+
+def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
+  let pos : Lsp.Position := { line := lineNo, character := 0 }
+  editDocument #[{ range := { start := pos, «end» := pos }, newText := line++"\n" }]
+
 --   __        ___     _            _
 --   \ \      / (_) __| | __ _  ___| |_
 --    \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
@@ -165,25 +192,20 @@ def askUserConfirm (message : Html) : InteractiveM Unit
 --      \_/\_/  |_|\__,_|\__, |\___|\__|
 --                       |___/
 
-initialize continuationRef : IO.Ref (Json → InteractiveM Unit) ← IO.mkRef default
-
-def runWidget (x : InteractiveM Unit) : IO UserQuestion := do
-  match x with
+def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := do
+  let ctx : RequestContext ← read
+  match x ctx with
   | .interact q cont =>
-    continuationRef.set cont
-    return q
+    return (q, λ answer _ => cont answer)
 
   | .terminate (.ok ()) =>
-    continuationRef.set (fun _ => pure ())
-    return .empty
+    return (.empty, (fun _ => pure ()))
 
   | .terminate (.error (.inl e)) =>
-    continuationRef.set (fun _ => pure ())
-    return .error <| WithRpcRef.mk e.toMessageData
+    return (.error <| WithRpcRef.mk e.toMessageData, fun _ => pure ())
 
   | .terminate (.error (.inr e)) =>
-    continuationRef.set (fun _ => pure ())
-    return .select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>]
+    return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], (fun _ => pure ()))
 
 def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
@@ -194,21 +216,23 @@ instance : RpcEncodable (InteractiveM Unit) where
     let out : WithRpcRef InteractiveMUnit ← rpcDecode json
     return out.val
 
-structure initArgs where
-  code : InteractiveM Unit
-deriving RpcEncodable
+def JsonToInteractiveMUnit := Json → InteractiveM Unit
+deriving instance TypeName for JsonToInteractiveMUnit
 
 @[server_rpc_method]
-def initializeInteraction (args : initArgs) : RequestM (RequestTask UserQuestion) :=
+def initializeInteraction (code : InteractiveM Unit) : RequestM (RequestTask (UserQuestion × WithRpcRef JsonToInteractiveMUnit)) :=
   RequestM.asTask do
-    runWidget args.code
+    let (question, cont) ← runWidget code
+    return (question, WithRpcRef.mk cont)
 
 @[server_rpc_method]
-def processUserAnswer (answer : Json) : RequestM (RequestTask UserQuestion) :=
+def processUserAnswer
+  (args : Json × (WithRpcRef JsonToInteractiveMUnit))
+  : RequestM (RequestTask (UserQuestion × (WithRpcRef JsonToInteractiveMUnit))) :=
   RequestM.asTask do
-    let continuation ← continuationRef.get
-    runWidget (continuation answer)
-
+    let (answer, cont) := args
+    let (question, cont2) ← runWidget (cont.val answer)
+    return (question, WithRpcRef.mk cont2)
 
 --    _____          _   _      ___ __  __
 --   |_   _|_ _  ___| |_(_) ___|_ _|  \/  |
