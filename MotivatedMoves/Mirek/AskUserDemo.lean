@@ -12,20 +12,49 @@ deriving Server.RpcEncodable
 def ProgramableWidget : Component InteractiveWidgetProps where
   javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
-def tactic_code : TacticIM Unit := do
-  let name ← askUserString <p>What is your name?</p>
-  let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
-  let goal : Expr ← Lean.Elab.Tactic.withMainContext do
-    let goal ← Elab.Tactic.getMainGoal
-    goal.getType
-  askUserConfirm <p>{.text s!"Hi {name} {surname}, the goal is {goal}"}</p>
+#check Elab.Term.TermElabM
 
-syntax (name:=InteractiveTac) "interactive_tac" : tactic
+def showIGoal : TacticIM Unit := do
+  let goal : Format ← Lean.Elab.Tactic.withMainContext do
+    let goal ← Elab.Tactic.getMainGoal
+    Elab.Term.ppGoal goal
+  askUserConfirm <p>{.text s!"The goal is {goal}"}</p>
+
+def showGoal : Elab.Tactic.TacticM Unit := do
+  let goal : Format ← Lean.Elab.Tactic.withMainContext do
+    let goal ← Elab.Tactic.getMainGoal
+    Elab.Term.ppGoal goal
+  logInfo m!"The goal is {goal}"
+
+syntax (name:=InteractiveTac) "interactive_tac" tacticSeq : tactic
 
 @[tactic InteractiveTac]
 def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
-| stx@`(tactic|interactive_tac) => do
-  let raw_code : InteractiveM Unit ← tactic_code.run
+| stx@`(tactic|interactive_tac $seq) => do
+  let tacs ← (match seq with
+    | `(Lean.Parser.Tactic.tacticSeq| $[$tacs]*)
+    | `(Lean.Parser.Tactic.tacticSeq| { $[$tacs]* }) =>
+      return tacs
+    | _ => Lean.Elab.throwUnsupportedSyntax
+  )
+  let some ⟨stxStart, _⟩ := (←getFileMap).rangeOfStx? stx | return
+  let current_code : TacticIM Unit := (do
+    showIGoal
+    for tac in tacs do
+      askUserConfirm (.text <| toString tac)
+      Lean.Elab.Tactic.evalTactic tac
+      showIGoal
+  )
+  let raw_code ← current_code.run
+    let current_code2 : Elab.Tactic.TacticM Unit := (do
+      showGoal
+      for tac in tacs do
+        logInfo tac
+        Lean.Elab.Tactic.evalTactic tac
+        showGoal
+  )
+  current_code2
+
   Widget.savePanelWidgetInfo (hash ProgramableWidget.javascript) (do
     let jsonCode ← rpcEncode raw_code
     return json%{
@@ -34,8 +63,10 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
   ) stx
 | _ => Lean.Elab.throwUnsupportedSyntax
 
-example : True → False → True := by
+example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
+    rw [Nat.mul_comm]
+    rw [Nat.add_comm]
 
 #html <ProgramableWidget code={do
   let name ← askUserString <p>What is your name?</p>
@@ -78,11 +109,8 @@ example : True → False → True := by
 
 #html <ProgramableWidget code={do
   let str ← askUserSelect <p>What would you like to insert?</p> [
-    ("Hello", <p>Hello</p>),
-    ("World", <p>World</p>),
+    ("Hello", <button>Hello</button>),
+    ("World", <button>World</button>),
   ]
-  let edit : Lsp.TextDocumentEdit
-    := { textDocument := { uri := meta.uri, version? := meta.version }
-         edits        := #[{ range, newText }] }
-  editDocument edit
+  insertLine 90 ("-- "++str)
 }/>

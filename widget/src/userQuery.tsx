@@ -106,7 +106,6 @@ export default function InteractiveWidget(props: Props) {
   const ec = React.useContext(EditorContext)
 
   async function initForm() {
-    console.log("Initialize")
     const [nextQuestion, nextCont] = await rs.call<MessageData, [Question,any]>(
       'initializeInteraction', props.code)
     setState([nextQuestion, nextCont])
