@@ -101,7 +101,7 @@ instance : RpcEncodable UserQuestion where
 
 abbrev InteractiveM := ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
 
-def throwWidgetError (e : String) : InteractiveM α := throw (.inr e) --show IO _ from throw (IO.userError e)
+def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 
 
 --    ____                  _  __ _
@@ -247,7 +247,6 @@ private def separateReaderState  (finalize : m α → n (InteractiveM α)) (x : 
 
 def IIO.run : IIO α → EIO Exception (InteractiveM α) := fun x s =>
   match x s with
-  | .terminate (.error (.inl e)) => .error e s
   | .terminate a => .ok (.terminate a) s
   | .interact q cont => .ok (.interact q cont) s
 
