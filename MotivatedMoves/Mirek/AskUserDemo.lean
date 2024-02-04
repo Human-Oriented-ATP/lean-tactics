@@ -12,6 +12,32 @@ deriving Server.RpcEncodable
 def ProgramableWidget : Component InteractiveWidgetProps where
   javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
+def tactic_code : TacticIM Unit := do
+  let name ← askUserString <p>What is your name?</p>
+  let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
+  let goal : Expr ← Lean.Elab.Tactic.withMainContext do
+    let goal ← Elab.Tactic.getMainGoal
+    goal.getType
+  askUserConfirm <p>{.text s!"Hi {name} {surname}, the goal is {goal}"}</p>
+
+syntax (name:=InteractiveTac) "interactive_tac" : tactic
+
+@[tactic InteractiveTac]
+def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
+| stx@`(tactic|interactive_tac) => do
+  let raw_code : InteractiveM Unit ← tactic_code.splitIM
+  Widget.savePanelWidgetInfo (hash ProgramableWidget.javascript) (do
+    let jsonCode ←rpcEncode raw_code
+    return json%{
+      code : $jsonCode
+    }
+  ) stx
+  return
+| _ => Lean.Elab.throwUnsupportedSyntax
+
+example : True → False → True := by
+  interactive_tac
+
 #html <ProgramableWidget code={do
   let name ← askUserString <p>What is your name?</p>
   let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
@@ -27,6 +53,8 @@ def ProgramableWidget : Component InteractiveWidgetProps where
   let response ← askUserString <p>{.text s!"OMG, how can you like the color of {teletubie}, the most annoying of all Teletubbies??"}</p>
   let i ← askUserInt <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
   let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
+  -- throw $ Exception.internal ⟨4⟩
+  throwWidgetError "Sorry, I played with exceptions"
   let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
 #html <ProgramableWidget code={do
