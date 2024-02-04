@@ -88,6 +88,7 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
           range?={props.replaceRange}
           insertion?={some tacticStr}
           variant={"contained"}
+          onWhitespace={false}
           size={"small"} />
       )
 
@@ -122,6 +123,6 @@ section Demo
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
   rw (config := { occs := .all }) [Nat.add_comm 1 2]
   rw [Nat.add_comm] at? -- select the sub-expression `5 + 6`
-  sorry
-
+  sorry                         
+                         
 end Demo

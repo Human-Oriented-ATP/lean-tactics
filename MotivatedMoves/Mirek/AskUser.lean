@@ -53,10 +53,11 @@ end Interaction
 --    \__\_\\__,_|\___||___/\__|_|\___/|_| |_| |_|_| |_|___/\__\__,_|_| |_|\___\___|
 --
 
-inductive UserQuestion where
-  | empty
-  | form (elems : Array Html)
-  | select (question : Html) (array : Array Html)
+inductive UserQuestion : Type where
+| empty
+| form (elems : Array Html)
+| select (question : Html) (array : Array Html)
+| error (data : WithRpcRef MessageData)
 instance UserQuestion.Inhabited : Inhabited UserQuestion where
   default := .empty
 
@@ -71,6 +72,9 @@ instance : RpcEncodable UserQuestion where
     let options ← options.mapM rpcEncode
     return Json.mkObj [("kind", "select"), ("question",question),
     ("options", Json.arr options)]
+  | .error data => do
+    let data ← rpcEncode data
+    return Json.mkObj [("kind", "error"), ("data",data)]
   rpcDecode json := do
     let kind ← json.getObjVal? "kind"
     let kind ← kind.getStr?
@@ -89,6 +93,10 @@ instance : RpcEncodable UserQuestion where
       let options ← options.getArr?
       let options : Array Html ← options.mapM rpcDecode
       return .select question options
+    | "error" => do
+      let data ← json.getObjVal? "data"
+      let data : WithRpcRef MessageData ← rpcDecode data
+      return .error data
     | _ => .error s!"Invalid kind: {kind}"
 
 abbrev InteractiveM := ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
@@ -167,9 +175,7 @@ def runWidget (x : InteractiveM Unit) : IO UserQuestion := do
 
   | .terminate (.error (.inl e)) =>
     continuationRef.set (fun _ => pure ())
-    let msg := e.toMessageData
-    let str ← msg.toString
-    return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>]
+    return .error <| WithRpcRef.mk e.toMessageData
 
   | .terminate (.error (.inr e)) =>
     continuationRef.set (fun _ => pure ())

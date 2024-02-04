@@ -1,11 +1,13 @@
 import * as React from 'react';
 import { DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
+
 // import { Html } from '@react-three/drei';
 
 type EmptyQ = { kind:"empty", }
 type FormQ = { kind:"form", elems:Html[] }
 type SelectQ = { kind:"select", question:Html, options:Html[] }
+type ErrorQ = { kind:"error", data:MessageData }
 
 interface WidgetProps<Q> {
   q : Q
@@ -85,7 +87,7 @@ function SelectWidget (props : WidgetProps<SelectQ>) {
   </div>
 }
 
-type Question = EmptyQ | FormQ | SelectQ
+type Question = EmptyQ | FormQ | SelectQ | ErrorQ
 type Props = {code: MessageData, pos:DocumentPosition}
 
 const dummyQuestion : EmptyQ = {kind:"empty"}
@@ -110,5 +112,6 @@ export default function InteractiveWidget(props: Props) {
     case "empty": return <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
     case "form": return <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
     case "select": return <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
+    case "error": return <InteractiveMessageData msg={question.data} />
   }
 }
