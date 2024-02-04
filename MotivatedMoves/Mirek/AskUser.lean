@@ -251,6 +251,7 @@ def runWidget (x : InteractiveM Unit) : IO UserQuestion :=
         let str ← msg.toString
         return .select <p><b>Lean Exception: </b>{.text str}</p> #[<button>OK</button>]
   catch e =>
+    continuationRef.set (fun _ => pure ())
     return .select <p><b>Widget Error: </b>{.text e.toString}</p> #[<button>OK</button>]
 
 def InteractiveMUnit := InteractiveM Unit
