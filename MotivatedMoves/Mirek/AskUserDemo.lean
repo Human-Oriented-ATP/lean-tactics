@@ -12,19 +12,18 @@ deriving Server.RpcEncodable
 def ProgramableWidget : Component InteractiveWidgetProps where
   javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
-#check Elab.Term.TermElabM
-
-def showIGoal : TacticIM Unit := do
+def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
   let goal : Format ← Lean.Elab.Tactic.withMainContext do
     let goal ← Elab.Tactic.getMainGoal
     Elab.Term.ppGoal goal
   askUserConfirm <p>{.text s!"The goal is {goal}"}</p>
+  -- TODO: ask user which tactic to apply, apply it, and insert line
 
-def showGoal : Elab.Tactic.TacticM Unit := do
-  let goal : Format ← Lean.Elab.Tactic.withMainContext do
-    let goal ← Elab.Tactic.getMainGoal
-    Elab.Term.ppGoal goal
-  logInfo m!"The goal is {goal}"
+def tactic_code (lineNo : Nat) : TacticIM Unit := do
+  tactic_code_step lineNo
+  tactic_code_step (lineNo+1)
+  tactic_code_step (lineNo+2)
+  tactic_code_step (lineNo+3)
 
 syntax (name:=InteractiveTac) "interactive_tac" tacticSeq : tactic
 
@@ -39,27 +38,11 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
   )
   let some ⟨stxStart, _⟩ := (←getFileMap).rangeOfStx? stx | return
   let current_code : TacticIM Unit := (do
-    showIGoal
     for tac in tacs do
-      askUserConfirm (.text <| toString tac)
-      let goalFmt ← ((do
-        Lean.Elab.Tactic.evalTactic tac
-        Lean.Elab.Tactic.withMainContext do
-          let goal ← Elab.Tactic.getMainGoal
-          Elab.Term.ppGoal goal
-      ) : Elab.Tactic.TacticM Format)
-      askUserConfirm <p>{.text <| toString goalFmt}</p>
-      showIGoal
+      Lean.Elab.Tactic.evalTactic tac
+    tactic_code (stxStart.line + tacs.size + 1)
   )
   let raw_code ← current_code.run
-  let current_code2 : Elab.Tactic.TacticM Unit := (do
-    showGoal
-    for tac in tacs do
-      logInfo tac
-      Lean.Elab.Tactic.evalTactic tac
-      showGoal
-  )
-  current_code2
 
   Widget.savePanelWidgetInfo (hash ProgramableWidget.javascript) (do
     let jsonCode ← rpcEncode raw_code
@@ -68,12 +51,6 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
     }
   ) stx
 | _ => Lean.Elab.throwUnsupportedSyntax
-
-example (a b c d : Prop) (h1 : a → b) (h2 : b → c) (h3 : c → d) : d := by
-  interactive_tac
-    apply h3
-    apply h2
-    apply h1
 
 example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
