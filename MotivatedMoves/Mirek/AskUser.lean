@@ -306,3 +306,23 @@ instance : MonadLift CoreM CoreIM := liftReaderState
 instance : MonadLift MetaM MetaIM := liftReaderState
 instance : MonadLift TermElabM TermElabIM := liftReaderState
 instance : MonadLift TacticM TacticIM := liftReaderState
+
+def separateReaderState
+  {ρ ω σ: Type} (im m : Type → Type)
+  (finalize : ∀ {α}, im α → m (InteractiveM α) )
+  [Monad im] [Monad m] [MonadLiftT (ST ω) im] [MonadLiftT (ST ω) m]
+  {α : Type}
+  (code : ReaderT ρ (StateRefT' ω σ im) α)
+: ReaderT ρ (StateRefT' ω σ m) (InteractiveM α) := do
+  let ctx ← read
+  let state : σ ← liftM (m := StateRefT' ω σ m) get
+  finalize ((code.run ctx).run' state)
+
+def CoreIM.splitIM {α : Type} : CoreIM α → CoreM (InteractiveM α)
+  := separateReaderState InteractiveM (EIO Exception) (λ x ↦ return x)
+def MetaIM.splitIM {α : Type} : MetaIM α → MetaM (InteractiveM α)
+  := separateReaderState _ _ CoreIM.splitIM
+def TermElabIM.splitIM {α : Type} : TermElabIM α → TermElabM (InteractiveM α)
+  := separateReaderState _ _ MetaIM.splitIM
+def TacticIM.splitIM {α : Type} : TacticIM α → TacticM (InteractiveM α)
+  := separateReaderState _ _ TermElabIM.splitIM
