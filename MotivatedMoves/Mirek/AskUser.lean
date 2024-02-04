@@ -245,10 +245,7 @@ instance : MonadLift TacticM TacticIM := liftReaderState
 private def separateReaderState  (finalize : m α → n (InteractiveM α)) (x : ReaderT ρ (StateRefT' ω σ m) α) : ReaderT ρ (StateRefT' ω σ n) (InteractiveM α) :=
   fun c => do finalize ((x c).run' (← get))
 
-def IIO.run : IIO α → EIO Exception (InteractiveM α) := fun x s =>
-  match x s with
-  | .terminate a => .ok (.terminate a) s
-  | .interact q cont => .ok (.interact q cont) s
+def IIO.run : IIO α → EIO Exception (InteractiveM α) := fun x s => .ok (x s) s
 
 def CoreIM.run     : CoreIM α     → CoreM     (InteractiveM α) := separateReaderState IIO.run
 def MetaIM.run     : MetaIM α     → MetaM     (InteractiveM α) := separateReaderState CoreIM.run
