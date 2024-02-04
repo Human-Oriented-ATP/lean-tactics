@@ -42,7 +42,13 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
     showIGoal
     for tac in tacs do
       askUserConfirm (.text <| toString tac)
-      Lean.Elab.Tactic.evalTactic tac
+      let goalFmt ← ((do
+        Lean.Elab.Tactic.evalTactic tac
+        Lean.Elab.Tactic.withMainContext do
+          let goal ← Elab.Tactic.getMainGoal
+          Elab.Term.ppGoal goal
+      ) : Elab.Tactic.TacticM Format)
+      askUserConfirm <p>{.text <| toString goalFmt}</p>
       showIGoal
   )
   let raw_code ← current_code.run
@@ -63,10 +69,16 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
   ) stx
 | _ => Lean.Elab.throwUnsupportedSyntax
 
+example (a b c d : Prop) (h1 : a → b) (h2 : b → c) (h3 : c → d) : d := by
+  interactive_tac
+    apply h3
+    apply h2
+    apply h1
+
 example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
-    rw [Nat.mul_comm]
-    rw [Nat.add_comm]
+    rewrite [Nat.mul_comm]
+    rewrite [Nat.add_comm]
 
 #html <ProgramableWidget code={do
   let name ← askUserString <p>What is your name?</p>

@@ -263,7 +263,11 @@ abbrev TacticIM   := ReaderT Tactic.Context <| StateRefT Tactic.State TermElabIM
 variable [Monad n] [Monad m] [MonadLiftT (ST ω) m] [MonadLiftT (ST ω) n]
 
 private def liftReaderState [MonadLift m n] : MonadLift (ReaderT ρ (StateRefT' ω σ m)) (ReaderT ρ (StateRefT' ω σ n)) where
-  monadLift x := fun c => do liftM ((x c).run' (← get))
+  monadLift x := fun c => do
+    let state1 ← get
+    let (out, state2) ← (x c).run state1
+    set state2
+    return out
 
 instance : MonadLift CoreM CoreIM := liftReaderState
 instance : MonadLift MetaM MetaIM := liftReaderState
