@@ -12,20 +12,38 @@ deriving Server.RpcEncodable
 def ProgramableWidget : Component InteractiveWidgetProps where
   javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
-def tactic_code : TacticIM Unit := do
-  let name ← askUserString <p>What is your name?</p>
-  let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
-  let goal : Expr ← Lean.Elab.Tactic.withMainContext do
+def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
+  let goal : Format ← Lean.Elab.Tactic.withMainContext do
     let goal ← Elab.Tactic.getMainGoal
-    goal.getType
-  askUserConfirm <p>{.text s!"Hi {name} {surname}, the goal is {goal}"}</p>
+    Elab.Term.ppGoal goal
+  askUserConfirm <p>{.text s!"The goal is {goal}"}</p>
+  -- TODO: ask user which tactic to apply, apply it, and insert line
 
-syntax (name:=InteractiveTac) "interactive_tac" : tactic
+def tactic_code (lineNo : Nat) : TacticIM Unit := do
+  tactic_code_step lineNo
+  tactic_code_step (lineNo+1)
+  tactic_code_step (lineNo+2)
+  tactic_code_step (lineNo+3)
+
+syntax (name:=InteractiveTac) "interactive_tac" tacticSeq : tactic
 
 @[tactic InteractiveTac]
 def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
-| stx@`(tactic|interactive_tac) => do
-  let raw_code : InteractiveM Unit ← tactic_code.run
+| stx@`(tactic|interactive_tac $seq) => do
+  let tacs ← (match seq with
+    | `(Lean.Parser.Tactic.tacticSeq| $[$tacs]*)
+    | `(Lean.Parser.Tactic.tacticSeq| { $[$tacs]* }) =>
+      return tacs
+    | _ => Lean.Elab.throwUnsupportedSyntax
+  )
+  let some ⟨stxStart, _⟩ := (←getFileMap).rangeOfStx? stx | return
+  let current_code : TacticIM Unit := (do
+    for tac in tacs do
+      Lean.Elab.Tactic.evalTactic tac
+    tactic_code (stxStart.line + tacs.size + 1)
+  )
+  let raw_code ← current_code.run
+
   Widget.savePanelWidgetInfo (hash ProgramableWidget.javascript) (do
     let jsonCode ← rpcEncode raw_code
     return json%{
@@ -34,8 +52,10 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
   ) stx
 | _ => Lean.Elab.throwUnsupportedSyntax
 
-example : True → False → True := by
+example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
+    rewrite [Nat.mul_comm]
+    rewrite [Nat.add_comm]
 
 #html <ProgramableWidget code={do
   let name ← askUserString <p>What is your name?</p>
@@ -75,3 +95,11 @@ example : True → False → True := by
   let ans ← askUserInput <p>Now a <b>real </b> favorite color</p> <input type="color" defaultValue="#00ffff"/>
   askUserConfirm <| <p>{.text s!"Good choice, I like {ans} too."}</p>
 } />
+
+#html <ProgramableWidget code={do
+  let str ← askUserSelect <p>What would you like to insert?</p> [
+    ("Hello", <button>Hello</button>),
+    ("World", <button>World</button>),
+  ]
+  insertLine 90 ("-- "++str)
+}/>

@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
+import { TextDocumentEdit } from 'vscode-languageserver-protocol';
+import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
 
 // import { Html } from '@react-three/drei';
@@ -7,6 +8,8 @@ import HtmlDisplay, { Html } from './htmlDisplay';
 type EmptyQ = { kind:"empty", }
 type FormQ = { kind:"form", elems:Html[] }
 type SelectQ = { kind:"select", question:Html, options:Html[] }
+type CustomQ = { kind: "custom", code:Html }
+type EditDocumentQ = { kind: "editDocument", edit:TextDocumentEdit }
 type ErrorQ = { kind:"error", data:MessageData }
 
 interface WidgetProps<Q> {
@@ -87,31 +90,45 @@ function SelectWidget (props : WidgetProps<SelectQ>) {
   </div>
 }
 
-type Question = EmptyQ | FormQ | SelectQ | ErrorQ
+function CustomWidget (props : WidgetProps<CustomQ>) {
+  return <HtmlDisplay pos={props.pos} html={props.q.code} />;
+}
+
+type Question = EmptyQ | FormQ | SelectQ | CustomQ | EditDocumentQ | ErrorQ
 type Props = {code: MessageData, pos:DocumentPosition}
 
 const dummyQuestion : EmptyQ = {kind:"empty"}
 
 export default function InteractiveWidget(props: Props) {
-  const [question, setQuestion] = React.useState<Question>(dummyQuestion)
+  const [state, setState] = React.useState<[Question, any]>([dummyQuestion, null])
+  const [question, continuation] = state
   const rs = React.useContext(RpcContext)
+  const ec = React.useContext(EditorContext)
 
   async function initForm() {
-    const nextQuestion = await rs.call<Props, Question>(
-      'initializeInteraction', props)
-    setQuestion(nextQuestion)
+    const [nextQuestion, nextCont] = await rs.call<MessageData, [Question,any]>(
+      'initializeInteraction', props.code)
+    setState([nextQuestion, nextCont])
   }
-  async function sendAnswer(answer : any){
-    const nextQuestion = await rs.call<any, Question>(
-      'processUserAnswer', answer)
-    setQuestion(nextQuestion)
+  async function sendAnswer(answer : any) {
+    const [nextQuestion, nextCont] = await rs.call<any, [Question,any]>(
+      'processUserAnswer', [answer, continuation])
+    setState([nextQuestion, nextCont])
+  }
+  async function applyEdit(edit : TextDocumentEdit) {
+    await ec.api.applyEdit({ documentChanges: [edit] })
+    sendAnswer(null)
   }
 
-  React.useEffect(() => {initForm()}, [props.code])
+  React.useEffect(() => {initForm()}, [props.pos.line])
   switch (question.kind) {
     case "empty": return <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
     case "form": return <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
     case "select": return <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
+    case "custom": return <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
+    case "editDocument":
+      applyEdit(question.edit)
+      return <div/>
     case "error": return <InteractiveMessageData msg={question.data} />
   }
 }
