@@ -97,6 +97,10 @@ instance : RpcEncodable UserQuestion where
       let data ← json.getObjVal? "data"
       let data : WithRpcRef MessageData ← rpcDecode data
       return .error data
+    | "error" => do
+      let data ← json.getObjVal? "data"
+      let data : WithRpcRef MessageData ← rpcDecode data
+      return .error data
     | _ => .error s!"Invalid kind: {kind}"
 
 abbrev InteractiveM := ExceptT (Exception ⊕ String) $ Interaction UserQuestion Json
