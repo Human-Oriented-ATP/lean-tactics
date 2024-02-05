@@ -26,12 +26,18 @@ namespace IStateM
 
 variable {α β Q A ε σ : Type u} [Inhabited ε]
 
-@[always_inline, inline]
-protected partial def bind [Inhabited ε] (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
+private partial def bind' [Inhabited ε] (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
   match x s with
   | .terminate a s => f a s
   | .throw     e s => .throw e s
-  | .interact q s cont => .interact q s fun ans => IStateM.bind (cont ans) f
+  | .interact q s cont => .interact q s fun ans => IStateM.bind' (cont ans) f
+
+@[always_inline, inline]
+protected def bind (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) : IStateM Q A ε σ β := fun s =>
+  match x s with
+  | .terminate a s => f a s
+  | .throw     e s => .throw e s
+  | .interact q s cont => .interact q s fun ans => IStateM.bind' (cont ans) f
 
 @[always_inline]
 instance : Monad (IStateM Q A ε σ)  where
@@ -40,7 +46,8 @@ instance : Monad (IStateM Q A ε σ)  where
 
 open EStateM Backtrackable in
 @[always_inline, inline]
-protected partial def tryCatch {δ} [Backtrackable δ σ] {α} (x : IStateM Q A ε σ α) (handle : ε → IStateM Q A ε σ α) : IStateM Q A ε σ α := fun s =>
+protected partial def tryCatch {δ} [Backtrackable δ σ] {α} (x : IStateM Q A ε σ α) (handle : ε → IStateM Q A ε σ α)
+    : IStateM Q A ε σ α := fun s =>
   let d := save s
   match x s with
   | .throw e s => handle e (restore s d)
@@ -61,12 +68,17 @@ def giveAnswer (a : A) (x : IStateM Q A ε σ α) : OptionT (StateM σ) (IStateM
   | .terminate _ s
   | .throw     _ s => (none, s)
 
-def runWithAnswers (as : Array A) (x : IStateM Q A ε σ α) : OptionT (StateM σ) α := do
-  let result ← as.foldlM (fun x a => giveAnswer a x) x
+def runWithAnswers (as : Array A) (x : IStateM Q A ε σ α) : StateM σ (Option α) := OptionT.run do
+  let result ← as.foldlM (fun x a => x.giveAnswer a) x
   fun s => match result s with
   | .terminate a s => (some a, s)
   | .throw    _ s
   | .interact _ s _ => (none, s)
+
+def runWithAnswersIO {Q A ε α : Type} (as : Array A) (x : IStateM Q A ε IO.RealWorld α) : BaseIO (Option α) := fun s =>
+  let (a, s) := x.runWithAnswers as s
+  .ok a s
+
 
 end IStateM
 
@@ -218,19 +230,19 @@ def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → Inte
   match x ctx (← EStateM.get) with
   | .interact q s cont =>
     EStateM.set s
-    return (q, fun answer _ => cont answer)
+    return (q, fun json _ => cont json)
 
   | .terminate () s =>
     EStateM.set s
-    return (.empty, fun _ _ => pure ())
+    return (.empty, fun _ => pure ())
 
   | .throw (.inl e) s =>
     EStateM.set s
-    return (.error (WithRpcRef.mk e.toMessageData), fun _ _ => pure ())
+    return (.error (WithRpcRef.mk e.toMessageData), fun _ => pure ())
 
   | .throw (.inr e) s =>
     EStateM.set s
-    return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], fun _ _ => pure ())
+    return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], fun _ => pure ())
 
 def InteractiveMUnit := InteractiveM Unit
 deriving instance TypeName for InteractiveMUnit
@@ -295,10 +307,26 @@ instance : MonadLift MetaM MetaIM := liftReaderState
 instance : MonadLift TermElabM TermElabIM := liftReaderState
 instance : MonadLift TacticM TacticIM := liftReaderState
 
-private def separateReaderState  (finalize : m α → n (InteractiveM α)) (x : ReaderT ρ (StateRefT' ω σ m) α) : ReaderT ρ (StateRefT' ω σ n) (InteractiveM α) :=
+private def separateReaderState (finalize : m α → n (InteractiveM α)) (x : ReaderT ρ (StateRefT' ω σ m) α)
+    : ReaderT ρ (StateRefT' ω σ n) (InteractiveM α) :=
   fun c => do finalize ((x c).run' (← get))
 
 def CoreIM.run     : CoreIM α     → CoreM     (InteractiveM α) := separateReaderState pure
 def MetaIM.run     : MetaIM α     → MetaM     (InteractiveM α) := separateReaderState CoreIM.run
 def TermElabIM.run : TermElabIM α → TermElabM (InteractiveM α) := separateReaderState MetaIM.run
 def TacticIM.run   : TacticIM α   → TacticM   (InteractiveM α) := separateReaderState TermElabIM.run
+
+/-
+This example shows that it is important to inline bind.
+
+def g (n : Nat) : InteractiveM Nat := do
+  for _ in [:n] do
+    if true then
+      continue
+  return 4
+
+#eval show TermElabM _ from do
+  let x ← pure (g 1000000)
+  let y := IStateM.runWithAnswersIO #[] x
+  timeit "" y
+-/
