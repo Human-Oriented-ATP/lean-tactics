@@ -85,8 +85,6 @@ lemma card_of_𝔽₃' (n : ℕ) : Fintype.card (Vector (ZMod 3) n) = 3 ^ n := b
 
 lemma card_of_𝔽₃ (n : ℕ) : Fintype.card { x // x ∈ 𝔽₃ n } = 3^n := sorry
 
--- def f {n : ℕ} : Vector (ZMod 3) (n) → Vector (ZMod 3) (n+1) := fun v => (Vector.append v (Vector.ofFn ![3-sum v]))
-
 def f (n : ℕ) : { x // x ∈ A₀ (n + 1) } → { x // x ∈ 𝔽₃ n } := sorry--fun v => (Vector.append v (Vector.ofFn ![3-sum v]))
 
 theorem f_bij (n : ℕ): Function.Bijective (f n) := by sorry
@@ -95,52 +93,35 @@ theorem f_bij (n : ℕ): Function.Bijective (f n) := by sorry
 lemma card_of_A₀_is_card_of_full_smaller_vec_space (n : ℕ) :  Fintype.card (A₀ (n+1)) = Fintype.card (𝔽₃ n) := by
   apply Fintype.card_of_bijective (f_bij n)
 
+/- The fintype version: the number of elements of 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
 lemma card_of_A₀' (n : ℕ) :  Fintype.card (A₀ (n+1)) = 3^n := by
-  -- have card := @card_of_A₀_is_card_of_full_smaller_vec_space n
   rw [← card_of_𝔽₃ n]
   apply (card_of_A₀_is_card_of_full_smaller_vec_space n)
 
-def hasSum0 {n : ℕ} : { x // x ∈ A₀ (n + 1) } → Prop := fun v => sum v == 0
+/- The finset version: the number of elements of 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
+lemma card_of_A₀ (n : ℕ) :  Finset.card (A₀ (n+1)) = 3^n := by
+  have h := card_of_A₀' n
+  simp [Fintype.card] at h
+  assumption
 
--- theorem subtype_card {p : α → Prop} (s : Finset α) (H : ∀ x : α, x ∈ s ↔ p x) :
---     @card { x // p x } (Fintype.subtype s H) = s.card :=
---   Multiset.card_pmap _ _ _
-
--- theorem pf :  ∀ v : { x // x ∈ A₀ (n + 1) }, v ∈ (A₀ (n+1)) ↔ hasSum0 v := by
-  -- sorry
-
-example (n : ℕ) : n ≥ 1 → n - 1 + 1 = n := by
-  intros h
-  refine Nat.sub_add_cancel h
-
-lemma card_of_A₀ (n : ℕ) :  Finset.card (A₀ (n+1)) = 3^n := by sorry
-
-  -- have := Fintype.subtype_card (A₀ (n+1)) _
-  -- have := subtype_card (A₀ (n+1))
-  -- apply (card_of_A₀_is_card_of_full_smaller_vec_space n)
-
-
-example (n : ℕ ) : n ≥ 1 → n - (n - 1) = 1 := by exact fun a => Nat.sub_sub_self a
-
+/- A third of the vectors in 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
 lemma partition_has_density_one_third : ∀ n : ℕ, n ≥ 1 → density (A₀ n) = 1/3 := by
   intro n h
   rw [density]
   induction' n
   · contradiction
   · rw [card_of_A₀]
-    field_simp
-    rw [← @pow_succ']
-    norm_cast
+    field_simp; rw [← @pow_succ']; norm_cast
 
-/- Lemma: if you have a vector x and a vector y, then sum(x+y) = sum(x) + sum(y) -/
+/- If you have a vector x and a vector y, then sum(x+y) = sum(x) + sum(y) -/
 lemma sum_of_vector_sum_is_sum_of_sum_of_vectors {n : ℕ} {x : Vector (ZMod 3) n} {y : Vector (ZMod 3) n} :
  sum x + sum y = sum (x+y):=
 by
   simp only [sum, finset_sum_is_list_sum]
   apply Vector.sum_add_sum_eq_sum_zipWith x
 
-/- Lemma: if you have a vector x ∈ A₀, then x + e i ∉ A₀ -/
-lemma adding_basis_vector_changes_slice' {n : ℕ} {x : Vector (ZMod 3) n} :
+/- If you have a vector x ∈ A₀ (coordinate-sum 0), then x + e i ∈ A₁ (coordinate-sum 1) -/
+lemma adding_basis_vector_puts_in_higher_slice {n : ℕ} {x : Vector (ZMod 3) n} :
   x ∈ A₀ n →  (∀ i : Fin n, x + e i ∈ A₁ n) :=
 by
   intros h i
@@ -148,18 +129,23 @@ by
   simp [← sum_of_vector_sum_is_sum_of_sum_of_vectors, h]
   apply sum_of_basis_vec_is_one i
 
+/- Weaker lemma: if you have a vector x ∈ A₀ (coordinate-sum 0), then x + e i ∉ A₀ -/
 lemma adding_basis_vector_changes_slice {n : ℕ} {x : Vector (ZMod 3) n} :
   x ∈ A₀ n →  (∀ i : Fin n, x + e i ∉ A₀ n) :=
 by
   intros h i
-  have sum1 := @adding_basis_vector_changes_slice' n x h i
+  have sum1 := @adding_basis_vector_puts_in_higher_slice n x h i
   simp [A₀, A₁] at *
   by_contra sum0
   rw [sum1] at sum0
   simp at sum0
 
-
-/- A conjecture that you can create a particular line by varying only one coordinate -/
+/-
+A conjecture that you can create a particular line by varying only one coordinate
+This disproof says that
+  there's some density where some subset A can have that density,
+  but A contains no such line.
+-/
 theorem cap_set_basis_size_1_disproof :
   ∃ (δ : ℝ), δ > 0 →
   ∀ (n : ℕ), n ≥ 1 →
