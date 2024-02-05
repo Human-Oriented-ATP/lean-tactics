@@ -19,6 +19,10 @@ interface WidgetProps<Q> {
   pos : DocumentPosition
 }
 
+// vscode.workspace.openTextDocument(uri).then((document) => {
+//   let text = document.getText();
+// });
+
 function EmptyWidget (props : WidgetProps<{}>) {
   return <div>
     <p>No questions...</p>
