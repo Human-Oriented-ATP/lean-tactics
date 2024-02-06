@@ -41,8 +41,8 @@ protected def bind (x : IStateM Q A ε σ α) (f : α → IStateM Q A ε σ β) 
 
 @[always_inline]
 instance : Monad (IStateM Q A ε σ)  where
-  pure     := .terminate
-  bind     := IStateM.bind
+  pure := .terminate
+  bind := IStateM.bind
 
 open EStateM Backtrackable in
 @[always_inline, inline]
