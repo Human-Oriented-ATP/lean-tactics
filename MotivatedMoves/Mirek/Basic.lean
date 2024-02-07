@@ -12,6 +12,68 @@ def hello := "world"
 #eval let x : Nat := 4; x*x
 
 /-
+
+Theorem: ∑ i ∈ ι, f(i) < ω → |{i ∈ ι : f(i) > 0}| ≤ ℵ₀
+Theorem: ∑ i ∈ ι, f(i) = 0 ↔ ∀ i ∈ ι, f(i) = 0
+
+m : measure on α⁺
+m(α⁺) > 0
+m({x}) = 0
+m is α⁺-additive
+
+-- unfold α⁺-additive
+
+m : measure on α⁺
+m(α⁺) > 0
+m({x}) = 0
+∀ S* ⊆ 𝒫(α⁺), (|S*| ≤ α ∧ S* is pairwise disjoint)
+  → m(⋃ S*) = ∑ a ∈ S*, m(a)
+
+-- try S containing singletons
+
+m : measure on α⁺
+m(α⁺) > 0
+m({x}) = 0
+∀ S* ⊆ 𝒫(α⁺), (|S*| ≤ α ∧ S* is pairwise disjoint)
+  → m(⋃ S*) = ∑ a ∈ S*, m(a)
+this: ∀ X ⊆ α⁺, let S = {{x} : x ∈ X}, (|S| ≤ α ∧ S is pairwise disjoint)
+  → m(⋃ S) = ∑ a ∈ S, m(a)
+
+-- simplify this
+
+m : measure on α⁺
+m(α⁺) > 0
+m({x}) = 0
+∀ S* ⊆ 𝒫(α⁺), (|S*| ≤ α ∧ S* is pairwise disjoint)
+  → m(⋃ S*) = ∑ a ∈ S*, m(a)
+∀ X ⊆ α⁺, let S = {{x} : x ∈ X}, |X| ≤ α
+  → m(X) = ∑ a ∈ X, m(0) = 0 (by Theorem)
+
+-- how can we apply the same theorem in general in the original assumption?
+
+if ∀ x ∈ S, m(x) = 0,
+so we get a more general result:
+
+m : measure on α⁺
+m(α⁺) > 0
+m({x}) = 0
+∀ S ⊆ 𝒫(α⁺), (|S| ≤ α ∧ S is pairwise disjoint)
+  → m(⋃ S) = ∑ a ∈ S, m(a)
+∀ X ⊆ α⁺, let S = {{x} : x ∈ X}, |X| ≤ α
+  → m(X) = ∑ a ∈ X, m(0) = 0 (by Theorem)
+∀ S ⊆ 𝒫(α⁺), (|S| ≤ α ∧ S is pairwise disjoint ∧ ∀ x ∈ S, m(x) = 0)
+  → m(⋃ S*) = 0
+
+-- notice that this conclusion interacts with m(α⁺) > 0. So for each of these, we can conclude respectively X ≠ α⁺ and ⋂ S ≠ α⁺.
+
+
+
+-- get rid of ∑, what to we know about ∑ ?
+
+
+-/
+
+/-
 example : 1=1 := by
   refine (let x : ?A := ?B; ?C)
   case B =>
