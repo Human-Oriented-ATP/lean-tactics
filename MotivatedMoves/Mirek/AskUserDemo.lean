@@ -23,8 +23,11 @@ def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
 
 def tactic_code (lineNo : Nat) : TacticIM Unit := do
   tactic_code_step lineNo
+  askUserConfirm <p>hello1</p>
   tactic_code_step (lineNo+1)
+  askUserConfirm <p>hello2</p>
   tactic_code_step (lineNo+2)
+  askUserConfirm <p>hello3</p>
   tactic_code_step (lineNo+3)
 
 syntax (name:=InteractiveTac) "interactive_tac" tacticSeq : tactic
