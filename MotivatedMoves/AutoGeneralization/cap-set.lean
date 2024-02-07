@@ -26,6 +26,11 @@ def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --toVec  (fun _ =
 def e {n : ℕ} (i : Fin n) : Vector (ZMod 3) n := toVec (fun idx => if idx = i then 1 else 0)
 #eval e (3 : Fin 5) -- a 5-dimensional basis vector with a "one" at the 3rd index
 
+/- A 1-d vector-/
+def dim1Vector {α : Type} (a : α): Vector α 1:=
+  ⟨[a], rfl⟩
+#eval dim1Vector one
+
 /- The density of any subset A in the finite field -/
 noncomputable def density {n : ℕ} (A : Finset (Vector (ZMod 3) n)) : ℝ  :=  A.card / 3^n
 
@@ -39,6 +44,10 @@ instance : Add (Vector (ZMod 3) n) :=
 instance : HMul ℕ (Vector (ZMod 3) n) (Vector (ZMod 3) n) := ⟨fun a v => v.map (fun x => a * x)⟩
 #eval 2 *  e (1 : Fin 5) -- [0, 2, 0, 0, 0]
 #eval 3 *  e (1 : Fin 5) -- zeroes out (because we're going mod 3)[0, 0, 0, 0, 0]
+
+/- Allow "++" notation to append vectors -/
+instance  {α : Type} {n m : ℕ} : HAppend (Vector α n) (Vector α m) (Vector α (n + m)) :=
+  ⟨Vector.append⟩
 
 /- Define a function that sums all coordinates of a vector -/
 def sum {n : ℕ} (v : Vector (ZMod 3) n) : ZMod 3 := Finset.sum (Finset.univ) (toFunc v) -- v.1.sum -- v.toList.sum
@@ -81,34 +90,124 @@ def A₂ (n : ℕ) : Finset (Vector (ZMod 3) n) := Finset.filter (fun v => sum v
 -- Define the vector space of n dimensional vectors over ZMod 3
 def 𝔽₃ (n : ℕ) : Finset (Vector (ZMod 3) n) := Finset.univ
 
-lemma card_of_𝔽₃' (n : ℕ) : Fintype.card (Vector (ZMod 3) n) = 3 ^ n := by apply card_vector
+lemma card_of_𝔽₃' (n : ℕ) : Fintype.card (Vector (ZMod 3) n) = 3 ^ n := by
+  apply card_vector
 
-lemma card_of_𝔽₃ (n : ℕ) : Fintype.card { x // x ∈ 𝔽₃ n } = 3^n := sorry
+lemma card_of_𝔽₃ (n : ℕ) : Fintype.card { x // x ∈ 𝔽₃ n } = 3^n := by
+  have h := card_of_𝔽₃' n
+  simp
+  assumption
 
-def f (n : ℕ) : { x // x ∈ A₀ (n + 1) } → { x // x ∈ 𝔽₃ n } := sorry--fun v => (Vector.append v (Vector.ofFn ![3-sum v]))
+/- Given an n-dimensional vector, we can create an (n+1)-dim vector with coord sum 0 -/
+lemma can_create_vector_with_sum_0 (v : { x // x ∈ 𝔽₃ n }):
+  (3-(sum v.val)) ::ᵥ v.val ∈ A₀ (n + 1) := by
+  sorry
 
-theorem f_bij (n : ℕ): Function.Bijective (f n) := by sorry
--- or could use Finset.card_congr
+/- The function that takes any vector, and turns it into a vector in the bigger space with sum 0 mod 3  -/
+def f (n : ℕ) : { x // x ∈ 𝔽₃ n } → { x // x ∈ A₀ (n + 1) }  :=
+  fun v => ⟨(3-(sum v.val)) ::ᵥ v.val, by apply can_create_vector_with_sum_0⟩
 
-lemma card_of_A₀_is_card_of_full_smaller_vec_space (n : ℕ) :  Fintype.card (A₀ (n+1)) = Fintype.card (𝔽₃ n) := by
-  apply Fintype.card_of_bijective (f_bij n)
+theorem f_injective (n : ℕ)  : Function.Injective (f n) := by sorry
+
+/- Appending then removing from a vector then appending back gets you back the same vector -/
+theorem vector_remove_then_append : True := by sorry
+
+/- Remove the last element of a vector-/
+abbrev removeFirst {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n :=
+  v.tail
+#eval removeFirst (Vector.ofFn ![zero, one, two])
+
+/- Remove the last element of a vector-/
+-- abbrev removeLast {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n :=
+--   v.removeNth n
+-- #eval removeLast(Vector.ofFn ![zero, one, two])
+-- #eval (Vector.ofFn ![zero, one, two]).take 2
+
+/- Get the last element of a vector-/
+def getLast {α : Type} {n : ℕ} ( v : Vector α (n+1)) : α :=
+  v.get n
+#eval getLast (Vector.ofFn ![zero, one, two])
+
+/- If we know all but one value of a vector in A₀, we also know the last value-/
+theorem can_fill_in_last_value' {n : ℕ} (b: { x // x ∈ A₀ (n + 1) }) :
+  b.val = (removeFirst b.val) ++ (Vector.ofFn ![3-(sum b.val)]) :=
+  by
+    simp [removeFirst, Vector.ofFn]
+    simp [A₀] at b
+    sorry
+
+#check  List.dropLast_append_getLast
+#check Vector.toList_append
+#check Vector.toList_ofFn
+#check Vector.toList_mk
+
+/- The last value of any vector in A₀ is given by the (3-sum of all other values) -/
+theorem can_fill_in_last_value {n : ℕ} (b: { x // x ∈ A₀ (n + 1) }) :
+  b.val.toList.getLast = b.val.toList.head :=
+  by
+    simp [removeFirst]
+    -- simp [f]
+
+    sorry
+
+-- b = Vector.append (Vector.removeNth ↑n ↑b) (Vector.ofFn ![3 - sum (Vector.removeNth ↑n ↑b)])
+theorem remove_last_elem_then_add_last_element_keeps_vector_same  {n : ℕ} (v : Vector α (n+1)) :
+  v = (removeFirst v) ++ (dim1Vector (getLast v)) := by
+    simp [removeFirst]
+    simp [getLast]
+    simp [Vector]
+
+    have h : List.dropLast_append_getLast (_ : v.toList ≠ [])
+    sorry
+
+lemma first_val_of_vec_in_A0_is_unique {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
+  b.val.head = 3-sum b.val.tail := by sorry
+
+/- Prove that removing the last element of a list then adding it back gives the same list-/
+theorem truncate_then_apply_f_keeps_same {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
+  b = f n ⟨(removeFirst b.val), by simp [𝔽₃]⟩ := by
+  have hb := first_val_of_vec_in_A0_is_unique b
+  match b with
+  | ⟨⟨[], pf⟩, _⟩ => simp at pf; contradiction
+  | ⟨⟨h :: t, _⟩, _⟩ =>
+    simp [removeFirst, Vector.tail, f]
+    apply Subtype.ext_val -- if the two vals of a subtype are equal, the two subtypes are qual
+    simp [Vector.head] at hb ⊢
+    assumption
+
+theorem f_surjective (n : ℕ)  : Function.Surjective (f n) := by
+  unfold Function.Surjective
+  intro b -- consider an arbitrary element in  A₀ (n + 1)
+  use ⟨removeFirst b.val, by {simp [𝔽₃]}⟩ -- show that it is reachable by applying f to its truncated form
+  have h := truncate_then_apply_f_keeps_same b
+  rw [← h]
+
+/- There's a bijection between vectors that have sum 0 mod 3 in the (n+1)-dim vector space, and all vectors in the n-dim vector space -/
+theorem f_bijective (n : ℕ) : Function.Bijective (f n) := by
+  unfold Function.Bijective
+  constructor
+  apply f_injective n
+  apply f_surjective n
+
+/- These spaces have the same size: vectors that have sum 0 mod 3 in the (n+1)-dim vector space, and all vectors in the n-dim vector space -/
+lemma card_of_A₀_is_card_of_full_smaller_vec_space (n : ℕ)  : Fintype.card (𝔽₃ n) = Fintype.card (A₀ (n+1))  := by
+  apply Fintype.card_of_bijective (f_bijective n)
 
 /- The fintype version: the number of elements of 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
 lemma card_of_A₀' (n : ℕ) :  Fintype.card (A₀ (n+1)) = 3^n := by
   rw [← card_of_𝔽₃ n]
-  apply (card_of_A₀_is_card_of_full_smaller_vec_space n)
+  apply (Eq.symm $ card_of_A₀_is_card_of_full_smaller_vec_space n )
 
 /- The finset version: the number of elements of 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
 lemma card_of_A₀ (n : ℕ) :  Finset.card (A₀ (n+1)) = 3^n := by
-  have h := card_of_A₀' n
-  simp [Fintype.card] at h
+  have h := card_of_A₀' n; simp [Fintype.card] at h
   assumption
 
 /- A third of the vectors in 𝔽₃(n) have coordinate-sum equal to 0 mod 3. -/
 lemma partition_has_density_one_third : ∀ n : ℕ, n ≥ 1 → density (A₀ n) = 1/3 := by
   intro n h
   rw [density]
-  induction' n
+  induction' n with N _
   · contradiction
   · rw [card_of_A₀]
     field_simp; rw [← @pow_succ']; norm_cast
