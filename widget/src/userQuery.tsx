@@ -6,6 +6,16 @@ import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
 
 // import { Html } from '@react-three/drei';
 
+interface ProgWidgetContext {
+  answer (arg : any) : void
+  pos : DocumentPosition
+}
+
+const progWidgetContext = React.createContext<ProgWidgetContext>({
+  answer : (ans) => { console.warn(`Uncaptured answer: ${ans}`) },
+  pos : { uri: "dummy", line:0, character:0 }
+})
+
 type EmptyQ = { kind:"empty", }
 type FormQ = { kind:"form", elems:Html[] }
 type SelectQ = { kind:"select", question:Html, options:Html[] }
@@ -13,34 +23,29 @@ type CustomQ = { kind: "custom", code:Html }
 type EditDocumentQ = { kind: "editDocument", edit:TextDocumentEdit }
 type ErrorQ = { kind:"error", data:MessageData }
 
-interface WidgetProps<Q> {
-  q : Q
-  answer (a : any) : void
-  pos : DocumentPosition
-}
-
-function EmptyWidget (props : WidgetProps<{}>) {
+export function EmptyWidget (props : {}) {
   return <div>
     <p>No questions...</p>
   </div>
 }
 
-function FormWidget (props : WidgetProps<FormQ>) {
+export function FormWidget (props : FormQ) {
+  const ctx = React.useContext(progWidgetContext)
   function answer(event:React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    props.answer(Object.fromEntries(data))
+    ctx.answer(Object.fromEntries(data))
   }
   const formRef = React.useRef<HTMLFormElement>(null)
 
   React.useEffect(() => {
     if(formRef.current !== null)
       formRef.current.reset()
-  }, [props.q.elems])
+  }, [props.elems])
 
   return <form onSubmit={answer} ref={formRef}>
-    {props.q.elems.map(html =>
-    <HtmlDisplay pos={props.pos} html={html} />)}
+    {props.elems.map(html =>
+    <HtmlDisplay pos={ctx.pos} html={html} />)}
   </form>
 }
 
@@ -74,25 +79,22 @@ function HtmlDisplayClickable (props : HtmlDisplayClickableProps) {
   return <HtmlDisplay html={htmlAddOnClick(props.html, props.onClick)} pos={props.pos}/>
 }
 
-function SelectWidget (props : WidgetProps<SelectQ>) {
+export function SelectWidget (props : SelectQ) {
 
   const optionsRef = React.useRef<HTMLDivElement>(null)
+  const ctx = React.useContext(progWidgetContext)
 
   return <div>
-    <HtmlDisplay pos={props.pos} html={props.q.question} />
+    <HtmlDisplay pos={ctx.pos} html={props.question} />
     <div ref={optionsRef}>
-    {props.q.options.map((option,i) => {
+    {props.options.map((option,i) => {
       return <HtmlDisplayClickable
         html={option}
-        pos={props.pos}
-        onClick={() => props.answer(i)} />
+        pos={ctx.pos}
+        onClick={() => ctx.answer(i)} />
     })}
     </div>
   </div>
-}
-
-function CustomWidget (props : WidgetProps<CustomQ>) {
-  return <HtmlDisplay pos={props.pos} html={props.q.code} />;
 }
 
 type Question = EmptyQ | FormQ | SelectQ | CustomQ | ErrorQ
@@ -194,16 +196,16 @@ export default function InteractiveWidget(props: Props) {
   var widget : ReactJSXElement = <div/>
   switch (question.kind) {
     case "empty":
-      widget = <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
+      widget = <EmptyWidget />
       break
     case "form":
-      widget = <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
+      widget = <FormWidget kind="form" elems={question.elems} />
       break
     case "select":
-      widget = <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
+      widget = <SelectWidget kind="select" question={question.question} options={question.options} />
       break
     case "custom":
-      widget = <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
+      widget = <HtmlDisplay pos={props.pos} html={question.code} />;
       break
     case "error":
       widget = <InteractiveMessageData msg={question.data} />
@@ -212,6 +214,11 @@ export default function InteractiveWidget(props: Props) {
   return <div>
     <button onClick={undo}>Undo</button>
     <hr/>
-    {widget}
+    <progWidgetContext.Provider value={{
+      answer : sendAnswer,
+      pos : props.pos
+    }}>
+      {widget}
+    </progWidgetContext.Provider>
   </div>
 }
