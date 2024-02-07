@@ -66,12 +66,16 @@ def customContextTestCode2 :=
     })
   }
   function CombinedComponentTest(props){
-    return jsxs(ctx.Provider,{value:5,children:props.children})
+    return jsxs(ctx.Provider,{value:props.value,children:props.children})
   }
   export{CombinedComponentTest as default};"
 
+structure CtxProps where
+  value : Int
+deriving FromJson, ToJson
+
 @[widget_module]
-def CombinedComponentTest2 : Component NoProps where
+def CombinedComponentTest2 : Component CtxProps where
   javascript := customContextTestCode2
 
 @[widget_module]
@@ -85,7 +89,7 @@ def ComponentB2 : Component NoProps where
   «export» := "ComponentB"
 
 #html
-  <CombinedComponentTest2>
+  <CombinedComponentTest2 value={42}>
     <ComponentA2/>
     <ComponentB2/>
   </CombinedComponentTest2>
