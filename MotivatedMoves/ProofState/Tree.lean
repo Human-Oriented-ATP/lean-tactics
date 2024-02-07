@@ -53,7 +53,7 @@ structure DirectTreeRecursor (α : Type u) where
   and_right (p : Expr) : Bool → Expr → α → α
   imp_left  (p : Expr) : Bool → Expr → α → α
   and_left  (p : Expr) : Bool → Expr → α → α
-  not : Bool → Expr → α → α 
+  not : Bool → Expr → α → α
 
 def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor (m α)) (pol : Bool) (tree : Expr) (pos : OuterPosition)
   (k : Bool → Expr → m α) : m α :=
@@ -66,6 +66,7 @@ def DirectTreeRecursor.recurse [Monad m] [MonadError m] (r : DirectTreeRecursor 
     | 1::xs, and_pattern p tree     => r.and_right p pol tree (visit   pol  xs tree)
     | 0::xs, imp_pattern tree p     => r.imp_left  p pol tree (visit (!pol) xs tree)
     | 0::xs, and_pattern tree p     => r.and_left  p pol tree (visit   pol  xs tree)
+    | 1::xs, not_pattern tree       => r.not         pol tree (visit (!pol) xs tree)
     | [], e => k pol e
     | xs, e => throwError badOuterPositionMessage e xs
   visit pol pos tree
@@ -142,7 +143,7 @@ partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM �
     | 0::xs, imp_pattern tree p               => k? do r.imp_left  p pol tree (visit (!pol) xs tree)
     | 0::xs, regular_and_pattern tree p       => k? do r.and_left  p pol tree (visit   pol  xs tree)
     | 1::xs, regular_not_pattern tree         => k? do r.not         pol tree (visit (!pol) xs tree)
-    | [], e => k pol e []    
+    | [], e => k pol e []
     | xs, e => throwError badOuterPositionMessage e xs
   visit pol path tree
 
@@ -150,6 +151,7 @@ partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM �
 def findOuterPosition : Expr → OuterPosition
   | imp_pattern _ tree                 => 1 :: findOuterPosition tree
   | and_pattern _ tree                 => 1 :: findOuterPosition tree
+  | not_pattern   tree                 => 1 :: findOuterPosition tree
   | forall_pattern (body := tree) ..   => 1 :: findOuterPosition tree
   | exists_pattern (body := tree) ..   => 1 :: findOuterPosition tree
   | instance_pattern (body := tree) .. => 1 :: findOuterPosition tree
@@ -159,6 +161,7 @@ def findNegativeOuterPosition : Expr → Option OuterPosition
   | imp_pattern _ tree => match findNegativeOuterPosition tree with
       | some path => 1 :: path
       | none => some [0]
+  | not_pattern _ => some [1]
   | and_pattern _ tree                 => (1 :: ·) <$> findNegativeOuterPosition tree
   | forall_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeOuterPosition tree
   | exists_pattern (body := tree) ..   => (1 :: ·) <$> findNegativeOuterPosition tree
@@ -176,11 +179,12 @@ partial def makeTreeAux (e : Expr) : MetaM Expr := do match ← replaceForallE e
   | regular_not_pattern p   => return mkApp  (.const ``Not []) (← makeTreeAux p)
   | regular_iff_pattern p q => return mkApp2 (.const ``Iff []) (← makeTreeAux p) (← makeTreeAux q)
   | e@(eq_pattern u α p q) => do
-      match ← whnfD α with
-      | .sort .zero => return mkApp3 (.const ``Eq [u]) α (← makeTreeAux p) (← makeTreeAux q)
-      | _           => pure e
-  | and_pattern  p q => return mkApp2 (.const ``And  []) (← makeTreeAux p) (← makeTreeAux q)
-  | imp_pattern  p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
+    match ← whnfD α with
+    | .sort .zero => return mkApp3 (.const ``Eq [u]) α (← makeTreeAux p) (← makeTreeAux q)
+    | _           => pure e
+  | and_pattern p q => return mkApp2 (.const ``And  []) (← makeTreeAux p) (← makeTreeAux q)
+  | imp_pattern p q => return mkApp2 (.const ``Imp  []) (← makeTreeAux p) (← makeTreeAux q)
+  | not_pattern p   => return mkNot (← makeTreeAux p)
 
   | instance_pattern n u d b => withLocalDeclD n d fun fvar =>
     return mkInstance n u d ((← makeTreeAux (b.instantiate1 fvar)).abstract #[fvar])
@@ -213,14 +217,14 @@ def workOnTree (move : Expr → MetaM TreeProof) : TacticM Unit := do
     | some newTree =>
       let mvarNew  ← mkFreshExprSyntheticOpaqueMVar (← makeTree newTree)
       let proof  := .app proof mvarNew
-      unless ← isTypeCorrect proof do 
+      unless ← isTypeCorrect proof do
         throwError m!"changing the goal does not type check:{indentExpr proof} \nnewTree: {indentExpr newTree}"
       (← getMainGoal).assign proof
       replaceMainGoal [mvarNew.mvarId!]
 
 def workOnTreeDefEq (move : Expr → MetaM Expr) : TacticM Unit := do
-  replaceMainGoal [← (← getMainGoal).change (← makeTree (← move (← getMainTarget)))] 
-  
+  replaceMainGoal [← (← getMainGoal).change (← makeTree (← move (← getMainTarget)))]
+
 
 elab "make_tree" : tactic => workOnTreeDefEq pure
 
@@ -262,7 +266,7 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : OuterPosition) (pos 
       | xs   , .mdata _ b       => visit xs b
 
       | []   , e                => fun fvars => k pol (e.instantiateRev fvars)
-      
+
       | 0::xs, .app f _         => visit xs f
       | 1::xs, .app _ a         => visit xs a
 
@@ -272,7 +276,7 @@ def withTreeSubexpr [Inhabited α] (tree : Expr) (treePos : OuterPosition) (pos 
       | 1::xs, .letE _ _ v _ _  => visit xs v
       | 2::xs, .letE n t _ b _  => fun fvars =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
-                                                        
+
       | 0::xs, .lam _ t _ _     => visit xs t
       | 1::xs, .lam n t b _     => fun fvars =>
         withLocalDeclD n (t.instantiateRev fvars) fun fvar => visit xs b (fvars.push fvar)
@@ -306,10 +310,10 @@ where
       bind name u domain fvar pol tree treeProof
 
 def workOnTreeAt (pos : OuterPosition) (move : Bool → Expr → MetaM TreeProof) (saveClosed : Bool := false) : TacticM Unit :=
-  workOnTree fun tree => do 
+  workOnTree fun tree => do
     (TreeProofRec saveClosed).recurse true tree pos (fun pol tree _ => move pol tree)
 
-    
+
 lemma imp (p tree : Prop) (hp : p) : (Imp p tree) → tree := fun h => h hp
 
 open Elab in
