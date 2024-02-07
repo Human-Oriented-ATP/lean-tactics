@@ -16,20 +16,13 @@ const progWidgetContext = React.createContext<ProgWidgetContext>({
   pos : { uri: "dummy", line:0, character:0 }
 })
 
-type EmptyQ = { kind:"empty", }
-type FormQ = { kind:"form", elems:Html[] }
-type SelectQ = { kind:"select", question:Html, options:Html[] }
-type CustomQ = { kind: "custom", code:Html }
-type EditDocumentQ = { kind: "editDocument", edit:TextDocumentEdit }
-type ErrorQ = { kind:"error", data:MessageData }
-
 export function EmptyWidget (props : {}) {
   return <div>
     <p>No questions...</p>
   </div>
 }
 
-export function FormWidget (props : FormQ) {
+export function FormWidget (props : { elems : Html[] }) {
   const ctx = React.useContext(progWidgetContext)
   function answer(event:React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -79,7 +72,7 @@ function HtmlDisplayClickable (props : HtmlDisplayClickableProps) {
   return <HtmlDisplay html={htmlAddOnClick(props.html, props.onClick)} pos={props.pos}/>
 }
 
-export function SelectWidget (props : SelectQ) {
+export function SelectWidget (props : { question : Html, options : Html[] }) {
 
   const optionsRef = React.useRef<HTMLDivElement>(null)
   const ctx = React.useContext(progWidgetContext)
@@ -97,53 +90,57 @@ export function SelectWidget (props : SelectQ) {
   </div>
 }
 
-type Question = EmptyQ | FormQ | SelectQ | CustomQ | ErrorQ
-type QuestionE = Question | EditDocumentQ
 type Props = {code: MessageData, pos:DocumentPosition}
 
-const dummyQuestion : EmptyQ = {kind:"empty"}
+type WidgetQuery =
+  { widget : { w : Html } } |
+  { editDocument : { edit : TextDocumentEdit } }
+
+const dummyQuestion = { text: "" } 
 
 interface History {
-  state : [Question,any]
+  state : [Html,any]
   edits : TextDocumentEdit[]
 }
 
 export default function InteractiveWidget(props: Props) {
-  const [state, setStateRaw] = React.useState<[Question, any]>([dummyQuestion, null])
+  const [state, setStateRaw] = React.useState<[Html, any]>([dummyQuestion, null])
   const history = React.useRef<History[]>([])
   const [question, continuation] = state
   const rs = React.useContext(RpcContext)
   const ec = React.useContext(EditorContext)
 
-  async function setState(nextState : [QuestionE, any]) {
+  async function setState(nextState : [WidgetQuery, any]) {
     while (true) {
       const [question, cont] = nextState
-      if (question.kind == "editDocument") {
-        const edit : TextDocumentEdit = question.edit
+      console.log("Question structure")
+      console.log(question)
+      if ("editDocument" in question) {
+        const edit : TextDocumentEdit = question.editDocument.edit
         if (history.current.length > 0) {
           const last = history.current[history.current.length-1]
           last.edits.push(edit)
         }
         await ec.api.applyEdit({ documentChanges: [edit] })
 
-        nextState = await rs.call<any, [QuestionE,any]>(
+        nextState = await rs.call<any, [WidgetQuery,any]>(
           'processUserAnswer', [null, cont])
       }
       else {
-        setStateRaw([question, cont])
+        setStateRaw([question.widget.w, cont])
         break
       }
     }
   }
 
   async function initForm() {
-    const nextState = await rs.call<MessageData, [QuestionE,any]>(
+    const nextState = await rs.call<MessageData, [WidgetQuery,any]>(
       'initializeInteraction', props.code)
     history.current = []
     setState(nextState)
   }
   async function sendAnswer(answer : any) {
-    const nextState = await rs.call<any, [QuestionE,any]>(
+    const nextState = await rs.call<any, [WidgetQuery,any]>(
       'processUserAnswer', [answer, continuation])
       history.current.push({ state: state, edits:[] })
       setState(nextState)
@@ -187,30 +184,14 @@ export default function InteractiveWidget(props: Props) {
     console.log(history)
     const last = history.current.pop()
     if (last !== undefined) {
-      setState(last.state)
+      setStateRaw(last.state)
       unapplyEdits(last.edits)
     }
   }
 
   React.useEffect(() => {initForm()}, [props.pos.line])
   var widget : ReactJSXElement = <div/>
-  switch (question.kind) {
-    case "empty":
-      widget = <EmptyWidget />
-      break
-    case "form":
-      widget = <FormWidget kind="form" elems={question.elems} />
-      break
-    case "select":
-      widget = <SelectWidget kind="select" question={question.question} options={question.options} />
-      break
-    case "custom":
-      widget = <HtmlDisplay pos={props.pos} html={question.code} />;
-      break
-    case "error":
-      widget = <InteractiveMessageData msg={question.data} />
-      break
-  }
+  
   return <div>
     <button onClick={undo}>Undo</button>
     <hr/>
@@ -218,7 +199,7 @@ export default function InteractiveWidget(props: Props) {
       answer : sendAnswer,
       pos : props.pos
     }}>
-      {widget}
+      <HtmlDisplay pos={props.pos} html={question} />
     </progWidgetContext.Provider>
   </div>
 }

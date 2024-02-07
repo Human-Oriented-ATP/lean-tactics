@@ -5,6 +5,7 @@ import Mathlib.Tactic
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server
 
+-- Monad
 --    __  __                       _
 --   |  \/  | ___  _ __   __ _  __| |
 --   | |\/| |/ _ \| '_ \ / _` |/ _` |
@@ -82,6 +83,7 @@ def runWithAnswersIO {Q A ε α : Type} (as : Array A) (x : IStateM Q A ε IO.Re
 
 end IStateM
 
+-- Question instance
 --     ___                  _   _               _           _
 --    / _ \ _   _  ___  ___| |_(_) ___  _ __   (_)_ __  ___| |_ __ _ _ __   ___ ___
 --   | | | | | | |/ _ \/ __| __| |/ _ \| '_ \  | | '_ \/ __| __/ _` | '_ \ / __/ _ \
@@ -89,72 +91,75 @@ end IStateM
 --    \__\_\\__,_|\___||___/\__|_|\___/|_| |_| |_|_| |_|___/\__\__,_|_| |_|\___\___|
 --
 
-inductive UserQuestion : Type where
-| empty
-| form (elems : Array Html)
-| select (question : Html) (array : Array Html)
-| custom (code : Html)
+inductive QueryWidget : Type where
+| widget (w : Html)
 | editDocument (edit : Lsp.TextDocumentEdit)
-| error (data : WithRpcRef MessageData)
-instance UserQuestion.Inhabited : Inhabited UserQuestion where
-  default := .empty
+deriving RpcEncodable
+instance : Inhabited QueryWidget where
+  default := .widget <div/>
 
-instance : RpcEncodable UserQuestion where
-  rpcEncode q := match q with
-  | .empty => return Json.mkObj [("kind", "empty")]
-  | .form elems => do
-    let elems ← elems.mapM rpcEncode
-    return Json.mkObj [("kind", "form"), ("elems", Json.arr elems)]
-  | .select question options => do
-    let question ← rpcEncode question
-    let options ← options.mapM rpcEncode
-    return Json.mkObj [("kind", "select"), ("question",question),
-    ("options", Json.arr options)]
-  | .custom code => do
-    let code ← rpcEncode code
-    return Json.mkObj [("kind", "custom"), ("code", code)]
-  | .editDocument edit => do
-    let edit ← rpcEncode edit
-    return Json.mkObj [("kind", "editDocument"), ("edit", edit)]
-  | .error data => do
-    let data ← rpcEncode data
-    return Json.mkObj [("kind", "error"), ("data",data)]
-  rpcDecode json := do
-    let kind ← json.getObjVal? "kind"
-    let kind ← kind.getStr?
-    match kind with
-    | "empty" =>
-      return .empty
-    | "form" => do
-      let elems ← json.getObjVal? "elems"
-      let elems ← elems.getArr?
-      let elems : Array Html ← elems.mapM rpcDecode
-      return .form elems
-    | "select" =>
-      let question ← json.getObjVal? "question"
-      let question : Html ← rpcDecode question
-      let options ← json.getObjVal? "options"
-      let options ← options.getArr?
-      let options : Array Html ← options.mapM rpcDecode
-      return .select question options
-    | "custom" => do
-      let msg ← json.getObjVal? "msg"
-      let msg : Html ← rpcDecode msg
-      return .custom msg
-    | "editDocument" => do
-      let edit ← json.getObjVal? "edit"
-      let edit : Lsp.TextDocumentEdit ← rpcDecode edit
-      return .editDocument edit
-    | "error" => do
-      let data ← json.getObjVal? "data"
-      let data : WithRpcRef MessageData ← rpcDecode data
-      return .error data
-    | _ => .error s!"Invalid kind: {kind}"
-
-abbrev InteractiveM := ReaderT RequestContext <| IStateM UserQuestion Json (Exception ⊕ String) IO.RealWorld
+abbrev InteractiveM := ReaderT RequestContext <| IStateM QueryWidget Json (Exception ⊕ String) IO.RealWorld
 
 def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 
+-- Display Widget
+--    ____  _           _              __        ___     _            _
+--   |  _ \(_)___ _ __ | | __ _ _   _  \ \      / (_) __| | __ _  ___| |_
+--   | | | | / __| '_ \| |/ _` | | | |  \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
+--   | |_| | \__ \ |_) | | (_| | |_| |   \ V  V / | | (_| | (_| |  __/ |_
+--   |____/|_|___/ .__/|_|\__,_|\__, |    \_/\_/  |_|\__,_|\__, |\___|\__|
+--               |_|            |___/                      |___/
+
+def ProgWidget.jscode := include_str ".." / ".." / "build" / "js" / "userQuery.js"
+
+--  RpcEncodable by reference
+
+def InteractiveMUnit := InteractiveM Unit
+deriving instance TypeName for InteractiveMUnit
+instance : RpcEncodable (InteractiveM Unit) where
+  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
+  rpcDecode json := do
+    let out : WithRpcRef InteractiveMUnit ← rpcDecode json
+    return out.val
+
+def JsonToInteractiveMUnit := Json → InteractiveM Unit
+deriving instance TypeName for JsonToInteractiveMUnit
+
+structure ProgWidget.Props where
+  code : InteractiveM Unit
+deriving Server.RpcEncodable
+@[widget_module]
+def ProgWidget : Component ProgWidget.Props where
+  javascript := ProgWidget.jscode
+
+structure ProgWidget.Form.Props where
+  elems : Array Html
+deriving Server.RpcEncodable
+@[widget_module]
+def ProgWidget.Form : Component ProgWidget.Form.Props where
+  javascript := ProgWidget.jscode
+  «export» := "FormWidget"
+
+structure ProgWidget.Select.Props where
+  question : Html
+  options : Array Html
+deriving Server.RpcEncodable
+@[widget_module]
+def ProgWidget.Select : Component ProgWidget.Select.Props where
+  javascript := ProgWidget.jscode
+  «export» := "SelectWidget"
+
+structure InteractiveMessageDataProps where
+  msg : WithRpcRef MessageData
+deriving RpcEncodable
+@[widget_module]
+def InteractiveMessageData : Component InteractiveMessageDataProps where
+  javascript :=
+   "import * as React from 'react';
+    import { InteractiveMessageData } from '@leanprover/infoview';
+    export default InteractiveMessageData;"
+
+-- Specific questions
 --    ____                  _  __ _
 --   / ___| _ __   ___  ___(_)/ _(_) ___
 --   \___ \| '_ \ / _ \/ __| | |_| |/ __|
@@ -168,18 +173,19 @@ def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
 --       |_|
 
-def askUser (q : UserQuestion) : InteractiveM Json := fun _ => IStateM.askQuestion q
+def queryWidget (q : QueryWidget) : InteractiveM Json := fun _ => IStateM.askQuestion q
+def askWidget (widget : Html) : InteractiveM Json := queryWidget (.widget widget)
 
 def askUserForm (form : Html) : InteractiveM Json := do
   let .element "form" _ elems := form | throwWidgetError "Not an Html form"
-  askUser (.form elems)
+  askWidget <ProgWidget.Form elems={elems}/>
 open ProofWidgets.Jsx in
 def askUserInput (title input : Html) : InteractiveM String := do
   let .element "input" inputAttrs inputElems := input | throwWidgetError "Not an Html input"
   let inputAttrs := inputAttrs.push ("name", "query")
   let input := Html.element "input" inputAttrs inputElems
   let submit := <input type="submit"/>
-  let answer ← askUser (.form #[title, input, submit])
+  let answer ← askWidget <ProgWidget.Form elems={#[title, input, submit]}/>
   match answer.getObjValAs? String "query" with
   | .error err => throwWidgetError err
   | .ok answer => return answer
@@ -192,7 +198,8 @@ def askUserInt (question : Html) : InteractiveM Int := do
   return answer
 def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
   : InteractiveM α := do
-  match fromJson? (← askUser (.select question (options.map Prod.snd).toArray)) with
+  let widget := <ProgWidget.Select question={question} options={(options.map Prod.snd).toArray}/>
+  match fromJson? (← askWidget widget) with
   | .error err => throwWidgetError err
   | .ok (answer : Nat) => do
     let some (answer,_) := options.get? answer | throwWidgetError "Index out of bounds"
@@ -209,7 +216,7 @@ def editDocument (edits : Array Lsp.TextEdit) : InteractiveM Unit
   := do
     let ctx : RequestContext ← read
     let meta := ctx.doc.meta
-    _ ← askUser (.editDocument {
+    _ ← queryWidget (.editDocument {
       textDocument := { uri := meta.uri, version? := meta.version }
       edits := edits
     })
@@ -219,14 +226,15 @@ def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
   let pos : Lsp.Position := { line := lineNo, character := 0 }
   editDocument #[{ range := { start := pos, «end» := pos }, newText := line++"\n" }]
 
---   __        ___     _            _
---   \ \      / (_) __| | __ _  ___| |_
---    \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
---     \ V  V / | | (_| | (_| |  __/ |_
---      \_/\_/  |_|\__,_|\__, |\___|\__|
---                       |___/
+-- Process Widget
+--    ____                               __        ___     _            _
+--   |  _ \ _ __ ___   ___ ___  ___ ___  \ \      / (_) __| | __ _  ___| |_
+--   | |_) | '__/ _ \ / __/ _ \/ __/ __|  \ \ /\ / /| |/ _` |/ _` |/ _ \ __|
+--   |  __/| | | (_) | (_|  __/\__ \__ \   \ V  V / | | (_| | (_| |  __/ |_
+--   |_|   |_|  \___/ \___\___||___/___/    \_/\_/  |_|\__,_|\__, |\___|\__|
+--                                                           |___/
 
-def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := fun ctx => do
+def runWidget (x : InteractiveM Unit) : RequestM (QueryWidget × (Json → InteractiveM Unit)) := fun ctx => do
   match x ctx (← EStateM.get) with
   | .interact q s cont =>
     EStateM.set s
@@ -234,30 +242,25 @@ def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → Inte
 
   | .terminate () s =>
     EStateM.set s
-    return (.empty, fun _ => pure ())
+    return (default, fun _ => pure ())
 
   | .throw (.inl e) s =>
     EStateM.set s
-    return (.error (WithRpcRef.mk e.toMessageData), fun _ => pure ())
+    return (
+      .widget <InteractiveMessageData msg={(WithRpcRef.mk e.toMessageData)}/>,
+      fun _ => pure ()
+    )
 
   | .throw (.inr e) s =>
     EStateM.set s
-    return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], fun _ => pure ())
-
-def InteractiveMUnit := InteractiveM Unit
-deriving instance TypeName for InteractiveMUnit
-
-instance : RpcEncodable (InteractiveM Unit) where
-  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
-  rpcDecode json := do
-    let out : WithRpcRef InteractiveMUnit ← rpcDecode json
-    return out.val
-
-def JsonToInteractiveMUnit := Json → InteractiveM Unit
-deriving instance TypeName for JsonToInteractiveMUnit
+    return (.widget <ProgWidget.Select
+      question={<p><b>Widget Error: </b>{.text e}</p>}
+      options={#[<button>OK</button>]} />,
+      fun _ => pure ()
+    )
 
 @[server_rpc_method]
-def initializeInteraction (code : InteractiveM Unit) : RequestM (RequestTask (UserQuestion × WithRpcRef JsonToInteractiveMUnit)) :=
+def initializeInteraction (code : InteractiveM Unit) : RequestM (RequestTask (QueryWidget × WithRpcRef JsonToInteractiveMUnit)) :=
   RequestM.asTask do
     let (question, cont) ← runWidget code
     return (question, WithRpcRef.mk cont)
@@ -265,12 +268,13 @@ def initializeInteraction (code : InteractiveM Unit) : RequestM (RequestTask (Us
 @[server_rpc_method]
 def processUserAnswer
   (args : Json × (WithRpcRef JsonToInteractiveMUnit))
-  : RequestM (RequestTask (UserQuestion × (WithRpcRef JsonToInteractiveMUnit))) :=
+  : RequestM (RequestTask (QueryWidget × (WithRpcRef JsonToInteractiveMUnit))) :=
   RequestM.asTask do
     let (answer, cont) := args
     let (question, cont2) ← runWidget (cont.val answer)
     return (question, WithRpcRef.mk cont2)
 
+-- TacticIM
 --    _____          _   _      ___ __  __
 --   |_   _|_ _  ___| |_(_) ___|_ _|  \/  |
 --     | |/ _` |/ __| __| |/ __|| || |\/| |
@@ -331,20 +335,13 @@ def g (n : Nat) : InteractiveM Nat := do
   timeit "" y
 -/
 
+-- Demo
 --    ____
 --   |  _ \  ___ _ __ ___   ___
 --   | | | |/ _ \ '_ ` _ \ / _ \
 --   | |_| |  __/ | | | | | (_) |
 --   |____/ \___|_| |_| |_|\___/
 --
-
-structure InteractiveWidgetProps where
-  code : InteractiveM Unit
-deriving Server.RpcEncodable
-
-@[widget_module]
-def ProgramableWidget : Component InteractiveWidgetProps where
-  javascript := include_str ".." / ".." / "build" / "js" / "userQuery.js"
 
 def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
   let goal : Format ← Lean.Elab.Tactic.withMainContext do
@@ -378,7 +375,7 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
   )
   let raw_code ← current_code.run
 
-  Widget.savePanelWidgetInfo (hash ProgramableWidget.javascript) (do
+  Widget.savePanelWidgetInfo (hash ProgWidget.javascript) (do
     let jsonCode ← rpcEncode raw_code
     return json%{
       code : $jsonCode
@@ -391,12 +388,12 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
     rewrite [Nat.mul_comm]
     rewrite [Nat.add_comm]
 
-#html <ProgramableWidget code={do
+#html <ProgWidget code={do
   let name ← askUserString <p>What is your name?</p>
   let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
   askUserConfirm <p>{.text s!"Nice to meet you, {name} {surname}"}</p>
 } />
-#html <ProgramableWidget code={do
+#html <ProgWidget code={do
   let teletubie : String ← askUserSelect <p>Favorite color?</p> [
     ("Tinky Winky", <button style={Json.mkObj [("background-color", "purple"), ("color", "white")]}>purple</button>),
     ("Dipsy", <button style={Json.mkObj [("background-color", "green"), ("color", "white")]}>green</button>),
@@ -410,7 +407,7 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   throwWidgetError "Sorry, I played with exceptions"
   let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
-#html <ProgramableWidget code={do
+#html <ProgWidget code={do
   let ans ← askUserSelect <div/> [
     ("You clicked a link", <div>Click <a>here</a></div>),
     ("You clicked a button", <div> or <button>here</button></div>),
@@ -430,7 +427,7 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   askUserConfirm <| <p>{.text s!"Good choice, I like {ans} too."}</p>
 } />
 
-#html <ProgramableWidget code={do
+#html <ProgWidget code={do
   let str ← askUserSelect <p>What would you like to insert?</p> [
     ("Hello", <button>Hello</button>),
     ("World", <button>World</button>),
