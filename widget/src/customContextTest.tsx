@@ -13,8 +13,9 @@ export function ComponentB() {
 }
 
 export function CombinedComponentTest() {
-    <CustomContext.Provider value={5}>
+    return <CustomContext.Provider value={5}>
         <ComponentA />
         <ComponentB />
     </CustomContext.Provider>
 }
+export default CombinedComponentTest
