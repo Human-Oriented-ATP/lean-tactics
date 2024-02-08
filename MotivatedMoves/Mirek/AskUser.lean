@@ -299,6 +299,8 @@ abbrev MetaIM     := ReaderT Meta.Context <| StateRefT Meta.State CoreIM
 abbrev TermElabIM := ReaderT Term.Context <| StateRefT Term.State MetaIM
 abbrev TacticIM   := ReaderT Tactic.Context <| StateRefT Tactic.State TermElabIM
 
+section
+
 variable [Monad n] [Monad m] [MonadLiftT (ST ω) m] [MonadLiftT (ST ω) n]
 
 private def liftReaderState [MonadLift m n] : MonadLift (ReaderT ρ (StateRefT' ω σ m)) (ReaderT ρ (StateRefT' ω σ n)) where
@@ -321,6 +323,8 @@ def CoreIM.run     : CoreIM α     → CoreM     (InteractiveM α) := separateRe
 def MetaIM.run     : MetaIM α     → MetaM     (InteractiveM α) := separateReaderState CoreIM.run
 def TermElabIM.run : TermElabIM α → TermElabM (InteractiveM α) := separateReaderState MetaIM.run
 def TacticIM.run   : TacticIM α   → TacticM   (InteractiveM α) := separateReaderState TermElabIM.run
+
+end
 
 /-
 This example shows that it is important to inline bind.
@@ -345,35 +349,33 @@ def g (n : Nat) : InteractiveM Nat := do
 --   |____/ \___|_| |_| |_|\___/
 --
 
-def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
+def tactic_code_step : TacticIM Unit := do
   let goal : Format ← Lean.Elab.Tactic.withMainContext do
     let goal ← Elab.Tactic.getMainGoal
     Elab.Term.ppGoal goal
-  askUserConfirm 0 <p>{.text s!"The goal is {goal}"}</p>
+  let tacStr ← askUserSelect 0 <p>{.text s!"The goal is {goal}"}</p> [
+    ("rewrite [Nat.mul_comm]", <button>Rw Mul</button>),
+    ("rewrite [Nat.add_comm]", <button>Rw Comm</button>),
+  ]
+  insertLine ("    "++tacStr)
+  let .ok tacStx := Parser.runParserCategory (← getEnv) `tactic tacStr | throwWidgetError "failed to parse tactic"
+  evalTactic tacStx
   -- TODO: ask user which tactic to apply, apply it, and insert line
 
-def tactic_code (lineNo : Nat) : TacticIM Unit := do
-  tactic_code_step lineNo
-  tactic_code_step (lineNo+1)
-  tactic_code_step (lineNo+2)
-  tactic_code_step (lineNo+3)
+partial def tactic_code : TacticIM Unit := do
+  tactic_code_step
+  tactic_code
 
 syntax (name:=InteractiveTac) "interactive_tac" tacticSeq : tactic
 
 @[tactic InteractiveTac]
 def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
 | stx@`(tactic|interactive_tac $seq) => do
-  let tacs ← (match seq with
-    | `(Lean.Parser.Tactic.tacticSeq| $[$tacs]*)
-    | `(Lean.Parser.Tactic.tacticSeq| { $[$tacs]* }) =>
-      return tacs
-    | _ => Lean.Elab.throwUnsupportedSyntax
-  )
-  let some ⟨stxStart, _⟩ := (←getFileMap).rangeOfStx? stx | return
+  let some ⟨stxStart, stxEnd⟩ := (←getFileMap).rangeOfStx? stx | return
   let current_code : TacticIM Unit := (do
-    for tac in tacs do
-      Lean.Elab.Tactic.evalTactic tac
-    tactic_code (stxStart.line + tacs.size + 1)
+    Lean.Elab.Tactic.evalTacticSeq seq
+    initEdit stxEnd
+    tactic_code
   )
   let raw_code ← current_code.run
 
@@ -387,7 +389,6 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
 
 example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
-    rewrite [Nat.mul_comm]
     rewrite [Nat.add_comm]
 
 #html <ProgWidget code={do
@@ -430,7 +431,7 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
 } />
 
 #html <ProgWidget code={do
-  initEdit { line := 449, character := 0 }
+  initEdit { line := 449, character := 3 }
   let str ← askUserSelect 0 <p>What would you like to insert?</p> [
     ("Hello", <button>Hello</button>),
     ("World", <button>World</button>),
@@ -444,6 +445,8 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   insertLine ("-- "++str)
   askUserConfirm 1 <p>Inserted</p>
 } />
+
+--
 
 
 

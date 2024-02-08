@@ -150,7 +150,10 @@ export default function ProgWidget(props: Props) {
     else editCursor.current = { line: pos.line + newLines.length, character : 0 }
     if (pos.character != 0) {
       newText = '\n'+newText
-      editCursor.current.character += 1
+      editCursor.current = {
+        line : editCursor.current.line + 1,
+        character : 0,
+      }
     }
     editDocumentAsync({
       textDocument: editProps.current.ident,
