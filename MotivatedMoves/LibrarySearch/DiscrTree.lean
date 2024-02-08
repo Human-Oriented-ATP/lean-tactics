@@ -916,6 +916,7 @@ def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α �
   let numHeartbeats ← IO.getNumHeartbeats
   let maxTotalHeartbeats := maxTotalHeartbeats * 1000
   let filter a := Aesop.withMaxHeartbeats maxHeartbeats do
+    withTheReader Core.Context ({· with catchRuntimeEx := true}) do
     try
       filter a
       return true
