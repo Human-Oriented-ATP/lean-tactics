@@ -99,6 +99,7 @@ def isBadDecl (name : Name) (cinfo : ConstantInfo) (env : Environment) : Bool :=
     | _ => true)
   || (match name with
     | .str _ "inj"
+    | .str _ "injEq"
     | .str _ "sizeOf_spec"
     | .str _ "noConfusionType" => true
     | _ => false)
