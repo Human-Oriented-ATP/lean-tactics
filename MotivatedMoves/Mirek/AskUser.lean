@@ -92,11 +92,12 @@ end IStateM
 --
 
 inductive QueryWidget : Type where
-| widget (w : Html)
-| editDocument (edit : Lsp.TextDocumentEdit)
+| widget (level : Int) (w : Html)
+| initEdit (ident : Lsp.VersionedTextDocumentIdentifier) (startPos : Lsp.Position)
+| insertLine (line : String)
 deriving RpcEncodable
 instance : Inhabited QueryWidget where
-  default := .widget <div/>
+  default := .widget 0 <div/>
 
 abbrev InteractiveM := ReaderT RequestContext <| IStateM QueryWidget Json (Exception ⊕ String) IO.RealWorld
 
@@ -128,6 +129,7 @@ deriving instance TypeName for JsonToInteractiveMUnit
 structure ProgWidget.Props where
   code : InteractiveM Unit
 deriving Server.RpcEncodable
+
 @[widget_module]
 def ProgWidget : Component ProgWidget.Props where
   javascript := ProgWidget.jscode
@@ -174,57 +176,57 @@ def InteractiveMessageData : Component InteractiveMessageDataProps where
 --       |_|
 
 def queryWidget (q : QueryWidget) : InteractiveM Json := fun _ => IStateM.askQuestion q
-def askWidget (widget : Html) : InteractiveM Json := queryWidget (.widget widget)
+def askWidget (lev : Int) (widget : Html) : InteractiveM Json := queryWidget (.widget lev widget)
 
-def askUserForm (form : Html) : InteractiveM Json := do
+def askUserForm (lev : Int) (form : Html) : InteractiveM Json := do
   let .element "form" _ elems := form | throwWidgetError "Not an Html form"
-  askWidget <ProgWidget.Form elems={elems}/>
+  askWidget lev <ProgWidget.Form elems={elems}/>
 open ProofWidgets.Jsx in
-def askUserInput (title input : Html) : InteractiveM String := do
+def askUserInput (lev : Int) (title input : Html) : InteractiveM String := do
   let .element "input" inputAttrs inputElems := input | throwWidgetError "Not an Html input"
   let inputAttrs := inputAttrs.push ("name", "query")
   let input := Html.element "input" inputAttrs inputElems
   let submit := <input type="submit"/>
-  let answer ← askWidget <ProgWidget.Form elems={#[title, input, submit]}/>
+  let answer ← askWidget lev <ProgWidget.Form elems={#[title, input, submit]}/>
   match answer.getObjValAs? String "query" with
   | .error err => throwWidgetError err
   | .ok answer => return answer
 
-def askUserString (question : Html) : InteractiveM String :=
-  askUserInput question <input type="string"/>
-def askUserInt (question : Html) : InteractiveM Int := do
-  let answer ← askUserInput question <input type="number" defaultValue="0"/>
+def askUserString (lev : Int) (question : Html) : InteractiveM String :=
+  askUserInput lev question <input type="string"/>
+def askUserInt (lev : Int) (question : Html) : InteractiveM Int := do
+  let answer ← askUserInput lev question <input type="number" defaultValue="0"/>
   let some answer := answer.toInt? | throwWidgetError "not an integer"
   return answer
-def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
+def askUserSelect {α : Type} (lev : Int) (question : Html) (options : List (α × Html))
   : InteractiveM α := do
   let widget := <ProgWidget.Select question={question} options={(options.map Prod.snd).toArray}/>
-  match fromJson? (← askWidget widget) with
-  | .error err => throwWidgetError err
+  let answer ← askWidget lev widget
+  match fromJson? answer with
+  | .error err => throwWidgetError (toString answer) -- err
   | .ok (answer : Nat) => do
     let some (answer,_) := options.get? answer | throwWidgetError "Index out of bounds"
     return answer
-def askUserBool (question : Html) : InteractiveM Bool
-  := askUserSelect question [
+def askUserBool (lev : Int) (question : Html) : InteractiveM Bool
+  := askUserSelect lev question [
     (true, <button>Yes</button>),
     (false, <button>No</button>)
   ]
-def askUserConfirm (message : Html) : InteractiveM Unit
-  := askUserSelect message [((), <button>OK</button>)]
+def askUserConfirm (lev : Int) (message : Html) : InteractiveM Unit
+  := askUserSelect lev message [((), <button>OK</button>)]
 
-def editDocument (edits : Array Lsp.TextEdit) : InteractiveM Unit
-  := do
-    let ctx : RequestContext ← read
-    let meta := ctx.doc.meta
-    _ ← queryWidget (.editDocument {
-      textDocument := { uri := meta.uri, version? := meta.version }
-      edits := edits
-    })
-    return
+def initEdit (pos : Lsp.Position) : InteractiveM Unit := do
+  let ctx : RequestContext ← read
+  let meta := ctx.doc.meta
+  let ident : Lsp.VersionedTextDocumentIdentifier := {
+    uri := meta.uri,
+    version? := meta.version,
+  }
+  _ ← queryWidget (.initEdit ident pos)
 
-def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
-  let pos : Lsp.Position := { line := lineNo, character := 0 }
-  editDocument #[{ range := { start := pos, «end» := pos }, newText := line++"\n" }]
+def insertLine (line : String) : InteractiveM Unit := do
+  _ ← queryWidget (.insertLine line)
+  return
 
 -- Process Widget
 --    ____                               __        ___     _            _
@@ -247,13 +249,13 @@ def runWidget (x : InteractiveM Unit) : RequestM (QueryWidget × (Json → Inter
   | .throw (.inl e) s =>
     EStateM.set s
     return (
-      .widget <InteractiveMessageData msg={(WithRpcRef.mk e.toMessageData)}/>,
+      .widget 0 <InteractiveMessageData msg={(WithRpcRef.mk e.toMessageData)}/>,
       fun _ => pure ()
     )
 
   | .throw (.inr e) s =>
     EStateM.set s
-    return (.widget <ProgWidget.Select
+    return (.widget 0 <ProgWidget.Select
       question={<p><b>Widget Error: </b>{.text e}</p>}
       options={#[<button>OK</button>]} />,
       fun _ => pure ()
@@ -347,7 +349,7 @@ def tactic_code_step (lineNo : Nat) : TacticIM Unit := do
   let goal : Format ← Lean.Elab.Tactic.withMainContext do
     let goal ← Elab.Tactic.getMainGoal
     Elab.Term.ppGoal goal
-  askUserConfirm <p>{.text s!"The goal is {goal}"}</p>
+  askUserConfirm 0 <p>{.text s!"The goal is {goal}"}</p>
   -- TODO: ask user which tactic to apply, apply it, and insert line
 
 def tactic_code (lineNo : Nat) : TacticIM Unit := do
@@ -389,31 +391,31 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
     rewrite [Nat.add_comm]
 
 #html <ProgWidget code={do
-  let name ← askUserString <p>What is your name?</p>
-  let surname ← askUserString <p>Hi {.text name}, what is your surname?</p>
-  askUserConfirm <p>{.text s!"Nice to meet you, {name} {surname}"}</p>
+  let name ← askUserString 0 <p>What is your name?</p>
+  let surname ← askUserString 1 <p>Hi {.text name}, what is your surname?</p>
+  askUserConfirm 0 <p>{.text s!"Nice to meet you, {name} {surname}"}</p>
 } />
 #html <ProgWidget code={do
-  let teletubie : String ← askUserSelect <p>Favorite color?</p> [
+  let teletubie : String ← askUserSelect 0 <p>Favorite color?</p> [
     ("Tinky Winky", <button style={Json.mkObj [("background-color", "purple"), ("color", "white")]}>purple</button>),
     ("Dipsy", <button style={Json.mkObj [("background-color", "green"), ("color", "white")]}>green</button>),
     ("Laa-Laa", <button style={Json.mkObj [("background-color", "yellow")]}>yellow</button>),
     ("Po", <button style={Json.mkObj [("background-color", "red"), ("color", "white")]}>red</button>)
   ]
-  let response ← askUserString <p>{.text s!"OMG, how can you like the color of {teletubie}, the most annoying of all Teletubbies??"}</p>
-  let i ← askUserInt <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
-  let i ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
+  let response ← askUserString 0 <p>{.text s!"OMG, how can you like the color of {teletubie}, the most annoying of all Teletubbies??"}</p>
+  let i ← askUserInt 0 <p>{.text s!"What do you mean by '{response}'? Let's try something different. I am thinking of a number, try to guess it."}</p>
+  let i ← askUserInt 0 <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
   throw $ .inl $ Exception.internal ⟨4⟩
   throwWidgetError "Sorry, I played with exceptions"
-  let _ ← askUserInt <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
+  let _ ← askUserInt 0 <p>{.text s!"Oh, you thought {i}? That was close, I was thinking of {i+1}. Let's try again."}</p>
 } />
 #html <ProgWidget code={do
-  let ans ← askUserSelect <div/> [
+  let ans ← askUserSelect 0 <div/> [
     ("You clicked a link", <div>Click <a>here</a></div>),
     ("You clicked a button", <div> or <button>here</button></div>),
   ]
-  askUserConfirm <| Html.text <| toString ans
-  let ans ← askUserForm <form>
+  askUserConfirm 0 <| Html.text <| toString ans
+  let ans ← askUserForm 0 <form>
     <p><label>Username: </label>
     <input name="str" type="string"/></p>
     <p><label>Password: </label>
@@ -422,24 +424,28 @@ example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
     <input name="num" type="number"/></p>
     <input type="submit"/>
   </form>
-  askUserConfirm <| Html.text <| toString ans
-  let ans ← askUserInput <p>Now a <b>real </b> favorite color</p> <input type="color" defaultValue="#00ffff"/>
-  askUserConfirm <| <p>{.text s!"Good choice, I like {ans} too."}</p>
+  askUserConfirm 0 <| Html.text <| toString ans
+  let ans ← askUserInput 0 <p>Now a <b>real </b> favorite color</p> <input type="color" defaultValue="#00ffff"/>
+  askUserConfirm 0 <| <p>{.text s!"Good choice, I like {ans} too."}</p>
 } />
 
 #html <ProgWidget code={do
-  let str ← askUserSelect <p>What would you like to insert?</p> [
+  initEdit { line := 449, character := 0 }
+  let str ← askUserSelect 0 <p>What would you like to insert?</p> [
     ("Hello", <button>Hello</button>),
     ("World", <button>World</button>),
   ]
-  insertLine 450 ("-- "++str)
-  let str ← askUserSelect <p>What would you like to insert?</p> [
-    ("Hello2", <button>Hello</button>),
-    ("World2", <button>World</button>),
+  insertLine ("-- "++str)
+  let str ← askUserSelect 1 <p>What would you like to insert?</p> [
+    ("Hello2", <button>Hello2</button>),
+    ("World2", <button>World2</button>),
   ]
-  askUserConfirm <p>You are now inserting {.text str}</p>
-  insertLine 451 ("-- "++str)
-}/>
+  askUserConfirm 1 <p>You are now inserting {.text str}</p>
+  insertLine ("-- "++str)
+  askUserConfirm 1 <p>Inserted</p>
+} />
+
+
 
 
 
