@@ -7,7 +7,7 @@ open ProofWidgets.Jsx
 #check IO
 
 structure InteractiveWidgetProps where
-  code : InteractiveM Unit
+  code : InteractiveIO Unit
 deriving Server.RpcEncodable
 
 @[widget_module]

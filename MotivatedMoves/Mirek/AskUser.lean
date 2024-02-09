@@ -151,9 +151,9 @@ instance : RpcEncodable UserQuestion where
       return .error data
     | _ => .error s!"Invalid kind: {kind}"
 
-abbrev InteractiveM := ReaderT RequestContext <| IStateM UserQuestion Json (Exception ⊕ String) IO.RealWorld
+abbrev InteractiveIO := ReaderT RequestContext <| IStateM UserQuestion Json (Exception ⊕ String) IO.RealWorld
 
-def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
+def throwWidgetError (e : String) : InteractiveIO α := throw (.inr e)
 
 --    ____                  _  __ _
 --   / ___| _ __   ___  ___(_)/ _(_) ___
@@ -168,13 +168,13 @@ def throwWidgetError (e : String) : InteractiveM α := throw (.inr e)
 --    \__, |\__,_|\___||___/\__|_|\___/|_| |_|___/
 --       |_|
 
-def askUser (q : UserQuestion) : InteractiveM Json := fun _ => IStateM.askQuestion q
+def askUser (q : UserQuestion) : InteractiveIO Json := fun _ => IStateM.askQuestion q
 
-def askUserForm (form : Html) : InteractiveM Json := do
+def askUserForm (form : Html) : InteractiveIO Json := do
   let .element "form" _ elems := form | throwWidgetError "Not an Html form"
   askUser (.form elems)
 open ProofWidgets.Jsx in
-def askUserInput (title input : Html) : InteractiveM String := do
+def askUserInput (title input : Html) : InteractiveIO String := do
   let .element "input" inputAttrs inputElems := input | throwWidgetError "Not an Html input"
   let inputAttrs := inputAttrs.push ("name", "query")
   let input := Html.element "input" inputAttrs inputElems
@@ -184,28 +184,28 @@ def askUserInput (title input : Html) : InteractiveM String := do
   | .error err => throwWidgetError err
   | .ok answer => return answer
 
-def askUserString (question : Html) : InteractiveM String :=
+def askUserString (question : Html) : InteractiveIO String :=
   askUserInput question <input type="string"/>
-def askUserInt (question : Html) : InteractiveM Int := do
+def askUserInt (question : Html) : InteractiveIO Int := do
   let answer ← askUserInput question <input type="number" defaultValue="0"/>
   let some answer := answer.toInt? | throwWidgetError "not an integer"
   return answer
 def askUserSelect {α : Type} (question : Html) (options : List (α × Html))
-  : InteractiveM α := do
+  : InteractiveIO α := do
   match fromJson? (← askUser (.select question (options.map Prod.snd).toArray)) with
   | .error err => throwWidgetError err
   | .ok (answer : Nat) => do
     let some (answer,_) := options.get? answer | throwWidgetError "Index out of bounds"
     return answer
-def askUserBool (question : Html) : InteractiveM Bool
+def askUserBool (question : Html) : InteractiveIO Bool
   := askUserSelect question [
     (true, <button>Yes</button>),
     (false, <button>No</button>)
   ]
-def askUserConfirm (message : Html) : InteractiveM Unit
+def askUserConfirm (message : Html) : InteractiveIO Unit
   := askUserSelect message [((), <button>OK</button>)]
 
-def editDocument (edits : Array Lsp.TextEdit) : InteractiveM Unit
+def editDocument (edits : Array Lsp.TextEdit) : InteractiveIO Unit
   := do
     let ctx : RequestContext ← read
     let meta := ctx.doc.meta
@@ -215,7 +215,7 @@ def editDocument (edits : Array Lsp.TextEdit) : InteractiveM Unit
     })
     return
 
-def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
+def insertLine (lineNo : Nat) (line : String) : InteractiveIO Unit :=
   let pos : Lsp.Position := { line := lineNo, character := 0 }
   editDocument #[{ range := { start := pos, «end» := pos }, newText := line++"\n" }]
 
@@ -226,7 +226,7 @@ def insertLine (lineNo : Nat) (line : String) : InteractiveM Unit :=
 --      \_/\_/  |_|\__,_|\__, |\___|\__|
 --                       |___/
 
-def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → InteractiveM Unit)) := fun ctx => do
+def runWidget (x : InteractiveIO Unit) : RequestM (UserQuestion × (Json → InteractiveIO Unit)) := fun ctx => do
   match x ctx (← EStateM.get) with
   | .interact q s cont =>
     EStateM.set s
@@ -244,20 +244,20 @@ def runWidget (x : InteractiveM Unit) : RequestM (UserQuestion × (Json → Inte
     EStateM.set s
     return (.select <p><b>Widget Error: </b>{.text e}</p> #[<button>OK</button>], fun _ => pure ())
 
-def InteractiveMUnit := InteractiveM Unit
+def InteractiveMUnit := InteractiveIO Unit
 deriving instance TypeName for InteractiveMUnit
 
-instance : RpcEncodable (InteractiveM Unit) where
+instance : RpcEncodable (InteractiveIO Unit) where
   rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
   rpcDecode json := do
     let out : WithRpcRef InteractiveMUnit ← rpcDecode json
     return out.val
 
-def JsonToInteractiveMUnit := Json → InteractiveM Unit
+def JsonToInteractiveMUnit := Json → InteractiveIO Unit
 deriving instance TypeName for JsonToInteractiveMUnit
 
 @[server_rpc_method]
-def initializeInteraction (code : InteractiveM Unit) : RequestM (RequestTask (UserQuestion × WithRpcRef JsonToInteractiveMUnit)) :=
+def initializeInteraction (code : InteractiveIO Unit) : RequestM (RequestTask (UserQuestion × WithRpcRef JsonToInteractiveMUnit)) :=
   RequestM.asTask do
     let (question, cont) ← runWidget code
     return (question, WithRpcRef.mk cont)
@@ -278,9 +278,9 @@ def processUserAnswer
 --     |_|\__,_|\___|\__|_|\___|___|_|  |_|
 --
 
-instance : STWorld IO.RealWorld InteractiveM where
+instance : STWorld IO.RealWorld InteractiveIO where
 
-instance : MonadLift (EIO Exception) InteractiveM where
+instance : MonadLift (EIO Exception) InteractiveIO where
   monadLift x := fun _ s =>
     match x s with
     | .ok x s => .terminate x s
@@ -288,7 +288,7 @@ instance : MonadLift (EIO Exception) InteractiveM where
 
 open Elab Tactic
 
-abbrev CoreIM     := ReaderT Core.Context <| StateRefT Core.State InteractiveM
+abbrev CoreIM     := ReaderT Core.Context <| StateRefT Core.State InteractiveIO
 abbrev MetaIM     := ReaderT Meta.Context <| StateRefT Meta.State CoreIM
 abbrev TermElabIM := ReaderT Term.Context <| StateRefT Term.State MetaIM
 abbrev TacticIM   := ReaderT Tactic.Context <| StateRefT Tactic.State TermElabIM
@@ -307,26 +307,11 @@ instance : MonadLift MetaM MetaIM := liftReaderState
 instance : MonadLift TermElabM TermElabIM := liftReaderState
 instance : MonadLift TacticM TacticIM := liftReaderState
 
-private def separateReaderState (finalize : m α → n (InteractiveM α)) (x : ReaderT ρ (StateRefT' ω σ m) α)
-    : ReaderT ρ (StateRefT' ω σ n) (InteractiveM α) :=
+private def separateReaderState (finalize : m α → n (InteractiveIO α)) (x : ReaderT ρ (StateRefT' ω σ m) α)
+    : ReaderT ρ (StateRefT' ω σ n) (InteractiveIO α) :=
   fun c => do finalize ((x c).run' (← get))
 
-def CoreIM.run     : CoreIM α     → CoreM     (InteractiveM α) := separateReaderState pure
-def MetaIM.run     : MetaIM α     → MetaM     (InteractiveM α) := separateReaderState CoreIM.run
-def TermElabIM.run : TermElabIM α → TermElabM (InteractiveM α) := separateReaderState MetaIM.run
-def TacticIM.run   : TacticIM α   → TacticM   (InteractiveM α) := separateReaderState TermElabIM.run
-
-/-
-This example shows that it is important to inline bind.
-
-def g (n : Nat) : InteractiveM Nat := do
-  for _ in [:n] do
-    if true then
-      continue
-  return 4
-
-#eval show TermElabM _ from do
-  let x ← pure (g 1000000)
-  let y := IStateM.runWithAnswersIO #[] x
-  timeit "" y
--/
+def CoreIM.run     : CoreIM α     → CoreM     (InteractiveIO α) := separateReaderState pure
+def MetaIM.run     : MetaIM α     → MetaM     (InteractiveIO α) := separateReaderState CoreIM.run
+def TermElabIM.run : TermElabIM α → TermElabM (InteractiveIO α) := separateReaderState MetaIM.run
+def TacticIM.run   : TacticIM α   → TacticM   (InteractiveIO α) := separateReaderState TermElabIM.run
