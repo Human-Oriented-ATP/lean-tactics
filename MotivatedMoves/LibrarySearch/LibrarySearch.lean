@@ -48,8 +48,8 @@ instance : Append ProcessResult where
 
 -- might want to add some whnf applications with reducible transparency?
 partial def processTree : Expr → MetaM ProcessResult
-  | .forallE _n domain body bi => do
-    let mvar ← mkFreshExprMVar domain
+  | .forallE n domain body bi => do
+    let mvar ← mkFreshExprMVar domain (userName := n)
     let result ← processTree (body.instantiate1 mvar)
     let result := addBinderKind [1] 1 result
     if bi.isExplicit && !body.hasLooseBVars then
