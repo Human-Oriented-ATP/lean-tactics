@@ -1,46 +1,47 @@
 import * as React from 'react';
-import { TextEdit, TextDocumentEdit } from 'vscode-languageserver-protocol';
+import { TextEdit, TextDocumentEdit, OptionalVersionedTextDocumentIdentifier, Position } from 'vscode-languageserver-protocol';
 import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
 import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
 
 // import { Html } from '@react-three/drei';
 
-type EmptyQ = { kind:"empty", }
-type FormQ = { kind:"form", elems:Html[] }
-type SelectQ = { kind:"select", question:Html, options:Html[] }
-type CustomQ = { kind: "custom", code:Html }
-type EditDocumentQ = { kind: "editDocument", edit:TextDocumentEdit }
-type ErrorQ = { kind:"error", data:MessageData }
-
-interface WidgetProps<Q> {
-  q : Q
-  answer (a : any) : void
+interface ProgWidgetContext {
+  answer (arg : any) : void
   pos : DocumentPosition
 }
+function dummyAnswer(ans : any) {
+  console.warn(`Uncaptured answer: ${ans}`)
+}
 
-function EmptyWidget (props : WidgetProps<{}>) {
+const progWidgetContext = React.createContext<ProgWidgetContext>({
+  answer : dummyAnswer,
+  pos : { uri: "dummy", line:0, character:0 }
+})
+
+export function EmptyWidget (props : {}) {
   return <div>
     <p>No questions...</p>
   </div>
 }
 
-function FormWidget (props : WidgetProps<FormQ>) {
+export function FormWidget (props : { elems : Html[] }) {
+  const ctx = React.useContext(progWidgetContext)
   function answer(event:React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    props.answer(Object.fromEntries(data))
+    ctx.answer(Object.fromEntries(data))
   }
   const formRef = React.useRef<HTMLFormElement>(null)
 
   React.useEffect(() => {
     if(formRef.current !== null)
       formRef.current.reset()
-  }, [props.q.elems])
+  }, [props.elems])
 
   return <form onSubmit={answer} ref={formRef}>
-    {props.q.elems.map(html =>
-    <HtmlDisplay pos={props.pos} html={html} />)}
+    {props.elems.map(html =>
+    <HtmlDisplay pos={ctx.pos} html={html} />)}
   </form>
 }
 
@@ -74,144 +75,206 @@ function HtmlDisplayClickable (props : HtmlDisplayClickableProps) {
   return <HtmlDisplay html={htmlAddOnClick(props.html, props.onClick)} pos={props.pos}/>
 }
 
-function SelectWidget (props : WidgetProps<SelectQ>) {
+export function SelectWidget (props : { question : Html, options : Html[] }) {
 
   const optionsRef = React.useRef<HTMLDivElement>(null)
+  const ctx = React.useContext(progWidgetContext)
 
   return <div>
-    <HtmlDisplay pos={props.pos} html={props.q.question} />
+    <HtmlDisplay pos={ctx.pos} html={props.question} />
     <div ref={optionsRef}>
-    {props.q.options.map((option,i) => {
+    {props.options.map((option,i) => {
       return <HtmlDisplayClickable
         html={option}
-        pos={props.pos}
-        onClick={() => props.answer(i)} />
+        pos={ctx.pos}
+        onClick={() => ctx.answer(i)} />
     })}
     </div>
   </div>
 }
 
-function CustomWidget (props : WidgetProps<CustomQ>) {
-  return <HtmlDisplay pos={props.pos} html={props.q.code} />;
+interface EditProps {
+  ident: OptionalVersionedTextDocumentIdentifier,
+  startPos: Position,
+}
+interface Props {
+  code: MessageData,
+  pos: DocumentPosition,
 }
 
-type Question = EmptyQ | FormQ | SelectQ | CustomQ | ErrorQ
-type QuestionE = Question | EditDocumentQ
-type Props = {code: MessageData, pos:DocumentPosition}
+type WidgetQuery =
+  { widget : { level: number, w : Html } } |
+  { insertLine : { line : string } } |
+  { initEdit : EditProps }
 
-const dummyQuestion : EmptyQ = {kind:"empty"}
+const dummyQuestion = { text: "" } 
 
-interface History {
-  state : [Question,any]
-  edits : TextDocumentEdit[]
+interface ProgWidgetState {
+  level : number,
+  widget : JSX.Element,
+  editPos: Position,
+  parent? : ProgWidgetState
+  previous? : ProgWidgetState
+}
+const iniState : ProgWidgetState = {
+  level : 0,
+  editPos : {line : 0, character : 0},
+  widget : <p>Initializing...</p>,
 }
 
-export default function InteractiveWidget(props: Props) {
-  const [state, setStateRaw] = React.useState<[Question, any]>([dummyQuestion, null])
-  const history = React.useRef<History[]>([])
-  const [question, continuation] = state
+export default function ProgWidget(props: Props) {
+  const [state, setState] = React.useState<ProgWidgetState>(iniState)
   const rs = React.useContext(RpcContext)
   const ec = React.useContext(EditorContext)
+  const editCursor = React.useRef<Position>({line:0, character:0})
+  const editProps = React.useRef<EditProps | null>(null)
 
-  async function setState(nextState : [QuestionE, any]) {
-    while (true) {
-      const [question, cont] = nextState
-      if (question.kind == "editDocument") {
-        const edit : TextDocumentEdit = question.edit
-        if (history.current.length > 0) {
-          const last = history.current[history.current.length-1]
-          last.edits.push(edit)
+  // Document editing
+
+  async function editDocumentAsync(edit : TextDocumentEdit) {
+    await ec.api.applyEdit({ documentChanges: [edit] })
+  }
+  function editDocument(pos : Position, newLines : string[]) {
+    if (editProps.current === null) {
+      if (newLines.length > 0) {
+        console.warn("Document editing not initialized, cannot insert:")
+        console.warn(newLines)
+      }
+      return
+    }
+    if (pos === editCursor.current && newLines.length == 0) return
+
+    const range = { start : pos, end : editCursor.current }
+    var newText : string = newLines.map(x => x+'\n').join('')
+    if (newLines.length == 0) editCursor.current = pos
+    else editCursor.current = { line: pos.line + newLines.length, character : 0 }
+    if (pos.character != 0) {
+      newText = '\n'+newText
+      editCursor.current = {
+        line : editCursor.current.line + 1,
+        character : 0,
+      }
+    }
+    editDocumentAsync({
+      textDocument: editProps.current.ident,
+      edits: [{ range: range, newText: newText }]
+    })
+  }
+
+  // Widget composition
+
+  function buildNextState(
+      prevState : ProgWidgetState | undefined,
+      level : number,
+      html : Html,
+      cont : MessageData
+    ) : ProgWidgetState {
+
+    const editPos = editCursor.current
+
+    // Process next answer
+
+    async function sendAnswer(answer : any) {
+      console.log("Answer:")
+      console.log(answer)
+      var cont2 = cont
+      const newLines : string[] = []
+      while (true) {
+        const queryCont = await rs.call<[any,MessageData], [WidgetQuery,MessageData]>(
+          'processUserAnswer', [answer, cont2])
+        const query = queryCont[0]
+        cont2 = queryCont[1]
+        answer = null
+        if ("insertLine" in query) {
+          newLines.push(query.insertLine.line)
         }
-        await ec.api.applyEdit({ documentChanges: [edit] })
+        else if ("initEdit" in query) {
+          console.warn("initEdit is only available suring initialization")
+        }
+        else {
+          editDocument(editPos, newLines)
+          setState(buildNextState(
+            nextState,
+            query.widget.level,
+            query.widget.w,
+            cont2,
+          ))  
+          break
+        }
+      }
+    }
 
-        nextState = await rs.call<any, [QuestionE,any]>(
-          'processUserAnswer', [null, cont])
+    // Build widget
+
+    const widget = <progWidgetContext.Provider value={{
+        answer : sendAnswer,
+        pos : props.pos
+      }}>
+        <HtmlDisplay html={html} pos={props.pos}/>
+      </progWidgetContext.Provider>
+
+    // Insert to the state
+
+    var parent : ProgWidgetState | undefined = prevState
+    while (parent !== undefined && parent.level >= level)
+      parent = parent.parent
+    const nextState = {
+      level : level,
+      widget : widget,
+      editPos : editPos,
+      parent : parent,
+      previous : prevState,
+    }
+    return nextState
+  }
+  async function initialize() {
+    var [query,cont] = await rs.call<MessageData, [WidgetQuery,MessageData]>(
+      'initializeInteraction', props.code)
+    editProps.current = null
+    while (true) {
+      if ("insertLine" in query) {
+        console.warn("Edits disabled before user action")
+      }
+      else if ("initEdit" in query) {
+        editProps.current = query.initEdit
       }
       else {
-        setStateRaw([question, cont])
+        if (editProps.current)
+          editCursor.current = editProps.current.startPos
+        setState(buildNextState(
+          undefined,
+          query.widget.level,
+          query.widget.w,
+          cont,
+        ))
         break
       }
-    }
-  }
-
-  async function initForm() {
-    const nextState = await rs.call<MessageData, [QuestionE,any]>(
-      'initializeInteraction', props.code)
-    history.current = []
-    setState(nextState)
-  }
-  async function sendAnswer(answer : any) {
-    const nextState = await rs.call<any, [QuestionE,any]>(
-      'processUserAnswer', [answer, continuation])
-      history.current.push({ state: state, edits:[] })
-      setState(nextState)
-  }
-
-  function reverseBasicEdit(e : TextEdit) : TextEdit {
-    // calculate pasted range
-    const lines = e.newText.split("\n")
-    const endLine = e.range.start.line + (lines.length-1)
-    var endCharacter = lines[lines.length-1].length
-    if (lines.length == 1) endCharacter += e.range.start.character
-    
-    // we cannot recover the original text, so we fill it with spaces
-    var dummyText = ""
-    if (e.range.start.line == e.range.end.line)
-      dummyText = " ".repeat(e.range.end.character - e.range.start.character)
-    else
-      dummyText = "\n".repeat(e.range.end.line - e.range.start.line) + " ".repeat(e.range.end.character)
-
-    const res = {
-      range: {
-        start: e.range.start,
-        end:{ line: endLine, character: endCharacter }
-      },
-      newText: dummyText
-    }
-    console.log(res)
-    return res
-  }
-  async function unapplyEdits(edits : TextDocumentEdit[]) {
-    for (var i=edits.length-1; i >= 0; i--) {
-      const edit = edits[i]
-      const revedit : TextDocumentEdit = {
-        textDocument: edit.textDocument,
-        edits: edit.edits.map(reverseBasicEdit)
-      }
-      await ec.api.applyEdit({ documentChanges: [revedit] })
+      [query,cont] = await rs.call<[null,MessageData], [WidgetQuery,MessageData]>(
+        'processUserAnswer', [null, cont])
     }
   }
   function undo() {
-    console.log(history)
-    const last = history.current.pop()
-    if (last !== undefined) {
-      setState(last.state)
-      unapplyEdits(last.edits)
-    }
+    console.log("Undo")
+    console.log(state)
+    if (state.previous === undefined) return
+    editDocument(state.previous.editPos, [])
+    setState(state.previous)
   }
 
-  React.useEffect(() => {initForm()}, [props.pos.line])
-  var widget : ReactJSXElement = <div/>
-  switch (question.kind) {
-    case "empty":
-      widget = <EmptyWidget q={{}} answer={sendAnswer} pos={props.pos}/>
-      break
-    case "form":
-      widget = <FormWidget q={question} answer={sendAnswer} pos={props.pos}/>
-      break
-    case "select":
-      widget = <SelectWidget q={question} answer={sendAnswer} pos={props.pos}/>
-      break
-    case "custom":
-      widget = <CustomWidget q={question} answer={sendAnswer} pos={props.pos} />
-      break
-    case "error":
-      widget = <InteractiveMessageData msg={question.data} />
-      break
+  React.useEffect(() => { initialize() }, [props.pos.line])
+
+  // Rendering
+
+  const widgets : JSX.Element[] = []
+  var x : ProgWidgetState | undefined = state
+  while (x !== undefined) {
+    widgets.push(x.widget)
+    x = x.parent
   }
+  widgets.reverse()
   return <div>
     <button onClick={undo}>Undo</button>
     <hr/>
-    {widget}
+    {widgets}
   </div>
 }
