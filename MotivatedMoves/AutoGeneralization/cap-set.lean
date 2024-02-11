@@ -91,7 +91,12 @@ lemma can_create_vector_with_sum_0 (v : { x // x ∈ 𝔽₃ n }):
 def f (n : ℕ) : { x // x ∈ 𝔽₃ n } → { x // x ∈ A₀ (n + 1) }  :=
   fun v => ⟨(-(sum v.val)) ::ᵥ v.val, by apply can_create_vector_with_sum_0⟩
 
-theorem f_injective (n : ℕ)  : Function.Injective (f n) := by sorry
+theorem f_injective (n : ℕ)  : Function.Injective (f n) := by
+ intro ⟨avec, _⟩ ⟨bvec, _⟩ h
+ simp [f] at h
+ rw [@Vector.eq_cons_iff] at h
+ let ⟨_, tails_eq⟩ := h
+ simpa
 
 /- Remove the last element of a vector-/
 abbrev removeFirst {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n := v.tail
