@@ -8,27 +8,28 @@ def zero : ZMod 3 := 0
 def one : ZMod 3 := 1
 def two : ZMod 3 := 2
 def func_examp : Fin 5 → ZMod 3 := ![zero,one,two,zero,one]
-def vec_examp : Vector (ZMod 3) 5 := Vector.ofFn ![zero,one,two,zero,one]
+def vec_examp : Vector (ZMod 3) 6 := Vector.ofFn ![one,zero,one,two,zero,one]
 
 /- Define a function that takes us from functions to vectors -/
-def toVec {n : ℕ} (f : Fin n → ZMod 3) : Vector (ZMod 3) n :=  Vector.ofFn f
+def toVec {α : Type}  {n : ℕ} (f : Fin n → α) : Vector α n :=  Vector.ofFn f
 #eval toVec func_examp
 
 /- Define a function that takes us from vectors to functions -/
-def toFunc {n : ℕ} (v : Vector (ZMod 3) n) : Fin n → ZMod 3 := fun i => v.get i
+def toFunc {α : Type} {n : ℕ} (v : Vector α n) : Fin n → α := fun i => v.get i
 #eval toFunc vec_examp
 
 /- The all-zeroes vector in n-dimensions -/
-def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --toVec  (fun _ => 0)
+-- def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --toVec  (fun _ => 0)
+-- #eval @z 5 -- the 5-dimensional all-zeroes vector
+def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --⟨List.replicate n zero, by simp⟩
 #eval @z 5 -- the 5-dimensional all-zeroes vector
 
 /- A basis vector in n-dimensions -/
-def e {n : ℕ} (i : Fin n) : Vector (ZMod 3) n := toVec (fun idx => if idx = i then 1 else 0)
+def e {n : ℕ} (i : Fin n) : Vector (ZMod 3) n := Vector.set (@z n) i 1
 #eval e (3 : Fin 5) -- a 5-dimensional basis vector with a "one" at the 3rd index
 
 /- A 1-d vector-/
-def dim1Vector {α : Type} (a : α): Vector α 1:=
-  ⟨[a], rfl⟩
+def dim1Vector {α : Type} (a : α): Vector α 1:= ⟨[a], rfl⟩
 #eval dim1Vector one
 
 /- The density of any subset A in the finite field -/
@@ -50,34 +51,67 @@ instance  {α : Type} {n m : ℕ} : HAppend (Vector α n) (Vector α m) (Vector 
   ⟨Vector.append⟩
 
 /- Define a function that sums all coordinates of a vector -/
-def sum {n : ℕ} (v : Vector (ZMod 3) n) : ZMod 3 := Finset.sum (Finset.univ) (toFunc v) -- v.1.sum -- v.toList.sum
-#eval vec_examp -- [0, 1, 2, 0, 1]
-#eval sum vec_examp -- 1
+-- def sum {n : ℕ} (v : Vector (ZMod 3) n) : ZMod 3 := Finset.sum (Finset.univ) (toFunc v) -- v.1.sum -- v.toList.sum
+-- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
+-- #eval sum vec_examp -- 1
 
-lemma h : List.map (toFunc x) (Finset.toList Finset.univ) = Vector.toList x := by
-  simp [toFunc]
-  simp [Vector.get]
-  simp [Finset.toList]
-  simp [Vector.toList]
-  sorry
+/- The sum of a vector is the sum of the head + sum of its tail -/
+-- def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 :=
+--   match v with
+--   | ⟨h :: t, _⟩   => h + List.sum t
+--   | ⟨[], _ ⟩      => 0
+-- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
+-- #eval sum vec_examp -- 2
 
-lemma finset_sum_is_list_sum {n : ℕ} {x : Vector (ZMod 3) n}: Finset.sum Finset.univ (toFunc x) = x.toList.sum :=
-by
-  have := Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x)
-  rw [← h]
-  apply (Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x))
+-- def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 :=
+--   match v with
+--   | Vector (ZMod 3) 0 => sorry
+--   | Vector (ZMod 3) 1 => sorry
+--   | Vector.cons h t   => sorry
+--   -- v.head + (List.sum v.tail.1)
+-- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
+-- #eval sum vec_examp -- 2
 
-#check List.sum_toFinset
-#check Finset.sum_to_list
+def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 := List.sum (Vector.toList v)
+#eval vec_examp -- [1, 0, 1, 2, 0, 1]
+#eval sum vec_examp -- 2
 
-/- Lemma to allow conversion between vectors and functions -/
-lemma ith_of_vec_is_ith_of_func : Vector.get (toVec f) i = f i := by {rw [toVec, Vector.get]; simp}
+-- lemma h : List.map (toFunc x) (Finset.toList Finset.univ) = Vector.toList x := by
+--   simp [toFunc]
+--   simp [Vector.get]
+--   simp [Finset.toList]
+--   simp [Vector.toList]
+--   sorry
+
+-- lemma finset_sum_is_list_sum {n : ℕ} {x : Vector (ZMod 3) n}: Finset.sum Finset.univ (toFunc x) = x.toList.sum :=
+-- by
+--   have := Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x)
+--   rw [← h]
+--   apply (Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x))
+
+-- #check List.sum_toFinset
+-- #check Finset.sum_to_list
+
+-- /- Lemma to allow conversion between vectors and functions -/
+-- lemma ith_of_vec_is_ith_of_func : Vector.get (toVec f) i = f i :=
+--   by {
+--     rw [toVec, Vector.get]
+--     show List.nthLe
+--     simp
+--   }
+
+-- theorem Vector.sum_set' {n : ℕ} {α : Type u_1} [AddCommGroup α] (v : Vector α n) (i : Fin n) (a : α) :
+-- List.sum (Vector.toList (Vector.set v i a)) = List.sum (Vector.toList v) + -Vector.get v i + a
+
 
 /- Lemma: the sum of all components of a basis vector is 1 -/
 def sum_of_basis_vec_is_one : ∀ i : Fin n, sum (e i) = 1 := by
   intro i
-  simp only [sum, toFunc, e]
-  simp only [ith_of_vec_is_ith_of_func, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+  simp only [sum, e, z, zero]
+  rw [Vector.sum_set']
+  simp [Vector.get_replicate]
+  simp [Vector.replicate]
+
 
 -- Define the sets A₀, A₁, A₂ based on the sum of components modulo 3
 -- def A₀ (n : ℕ) : Finset (Vector (ZMod 3) n) :=  { x // sum x = 0}
@@ -100,68 +134,36 @@ lemma card_of_𝔽₃ (n : ℕ) : Fintype.card { x // x ∈ 𝔽₃ n } = 3^n :=
 
 /- Given an n-dimensional vector, we can create an (n+1)-dim vector with coord sum 0 -/
 lemma can_create_vector_with_sum_0 (v : { x // x ∈ 𝔽₃ n }):
-  (3-(sum v.val)) ::ᵥ v.val ∈ A₀ (n + 1) := by
-  sorry
+  (-(sum v.val)) ::ᵥ v.val ∈ A₀ (n + 1) := by
+  have := -(sum v.val)+ (sum v.val) = 0 := by sorry
 
 /- The function that takes any vector, and turns it into a vector in the bigger space with sum 0 mod 3  -/
 def f (n : ℕ) : { x // x ∈ 𝔽₃ n } → { x // x ∈ A₀ (n + 1) }  :=
-  fun v => ⟨(3-(sum v.val)) ::ᵥ v.val, by apply can_create_vector_with_sum_0⟩
+  fun v => ⟨(-(sum v.val)) ::ᵥ v.val, by apply can_create_vector_with_sum_0⟩
 
 theorem f_injective (n : ℕ)  : Function.Injective (f n) := by sorry
-
-/- Appending then removing from a vector then appending back gets you back the same vector -/
-theorem vector_remove_then_append : True := by sorry
 
 /- Remove the last element of a vector-/
 abbrev removeFirst {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n :=
   v.tail
 #eval removeFirst (Vector.ofFn ![zero, one, two])
 
-/- Remove the last element of a vector-/
--- abbrev removeLast {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n :=
---   v.removeNth n
--- #eval removeLast(Vector.ofFn ![zero, one, two])
--- #eval (Vector.ofFn ![zero, one, two]).take 2
+lemma vector_in_A0_has_sum_0 {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
+  sum b.val = 0 := by
+  simp [A₀] at b
 
-/- Get the last element of a vector-/
-def getLast {α : Type} {n : ℕ} ( v : Vector α (n+1)) : α :=
-  v.get n
-#eval getLast (Vector.ofFn ![zero, one, two])
-
-/- If we know all but one value of a vector in A₀, we also know the last value-/
-theorem can_fill_in_last_value' {n : ℕ} (b: { x // x ∈ A₀ (n + 1) }) :
-  b.val = (removeFirst b.val) ++ (Vector.ofFn ![3-(sum b.val)]) :=
-  by
-    simp [removeFirst, Vector.ofFn]
-    simp [A₀] at b
-    sorry
-
-#check  List.dropLast_append_getLast
-#check Vector.toList_append
-#check Vector.toList_ofFn
-#check Vector.toList_mk
-
-/- The last value of any vector in A₀ is given by the (3-sum of all other values) -/
-theorem can_fill_in_last_value {n : ℕ} (b: { x // x ∈ A₀ (n + 1) }) :
-  b.val.toList.getLast = b.val.toList.head :=
-  by
-    simp [removeFirst]
-    -- simp [f]
-
-    sorry
-
--- b = Vector.append (Vector.removeNth ↑n ↑b) (Vector.ofFn ![3 - sum (Vector.removeNth ↑n ↑b)])
-theorem remove_last_elem_then_add_last_element_keeps_vector_same  {n : ℕ} (v : Vector α (n+1)) :
-  v = (removeFirst v) ++ (dim1Vector (getLast v)) := by
-    simp [removeFirst]
-    simp [getLast]
-    simp [Vector]
-
-    have h : List.dropLast_append_getLast (_ : v.toList ≠ [])
-    sorry
+#check Subtype.val_prop
+#check Subtype.coe_prop ↑b
 
 lemma first_val_of_vec_in_A0_is_unique {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
-  b.val.head = 3-sum b.val.tail := by sorry
+  b.val.head = -sum b.val.tail := by
+  have hb := vector_in_A0_has_sum_0 b
+  rw [sum] at hb
+  simp
+
+  -- have : sum b.val = 0 := by simp [Subtype.ext_val]
+  -- have h :  (b.val.head) + (sum b.val.tail) = sum b.val := by simp [sum]
+  -- have :  (b.val.head) + (sum b.val.tail) = 0 := by simp [h]
 
 /- Prove that removing the last element of a list then adding it back gives the same list-/
 theorem truncate_then_apply_f_keeps_same {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
@@ -210,7 +212,7 @@ lemma partition_has_density_one_third : ∀ n : ℕ, n ≥ 1 → density (A₀ n
   induction' n with N _
   · contradiction
   · rw [card_of_A₀]
-    field_simp; rw [← @pow_succ']; norm_cast
+    field_simp; rw [← @pow_succ']
 
 /- If you have a vector x and a vector y, then sum(x+y) = sum(x) + sum(y) -/
 lemma sum_of_vector_sum_is_sum_of_sum_of_vectors {n : ℕ} {x : Vector (ZMod 3) n} {y : Vector (ZMod 3) n} :
