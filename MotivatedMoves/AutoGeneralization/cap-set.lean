@@ -15,8 +15,8 @@ def toVec {α : Type}  {n : ℕ} (f : Fin n → α) : Vector α n :=  Vector.ofF
 #eval toVec func_examp
 
 /- Define a function that takes us from vectors to functions -/
-def toFunc {α : Type} {n : ℕ} (v : Vector α n) : Fin n → α := fun i => v.get i
-#eval toFunc vec_examp
+-- def toFunc {α : Type} {n : ℕ} (v : Vector α n) : Fin n → α := fun i => v.get i
+-- #eval toFunc vec_examp
 
 /- The all-zeroes vector in n-dimensions -/
 -- def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --toVec  (fun _ => 0)
@@ -50,59 +50,9 @@ instance : HMul ℕ (Vector (ZMod 3) n) (Vector (ZMod 3) n) := ⟨fun a v => v.m
 instance  {α : Type} {n m : ℕ} : HAppend (Vector α n) (Vector α m) (Vector α (n + m)) :=
   ⟨Vector.append⟩
 
-/- Define a function that sums all coordinates of a vector -/
--- def sum {n : ℕ} (v : Vector (ZMod 3) n) : ZMod 3 := Finset.sum (Finset.univ) (toFunc v) -- v.1.sum -- v.toList.sum
--- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
--- #eval sum vec_examp -- 1
-
-/- The sum of a vector is the sum of the head + sum of its tail -/
--- def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 :=
---   match v with
---   | ⟨h :: t, _⟩   => h + List.sum t
---   | ⟨[], _ ⟩      => 0
--- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
--- #eval sum vec_examp -- 2
-
--- def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 :=
---   match v with
---   | Vector (ZMod 3) 0 => sorry
---   | Vector (ZMod 3) 1 => sorry
---   | Vector.cons h t   => sorry
---   -- v.head + (List.sum v.tail.1)
--- #eval vec_examp -- [1, 0, 1, 2, 0, 1]
--- #eval sum vec_examp -- 2
-
 def sum {n : ℕ} (v : Vector (ZMod 3) n): ZMod 3 := List.sum (Vector.toList v)
 #eval vec_examp -- [1, 0, 1, 2, 0, 1]
 #eval sum vec_examp -- 2
-
--- lemma h : List.map (toFunc x) (Finset.toList Finset.univ) = Vector.toList x := by
---   simp [toFunc]
---   simp [Vector.get]
---   simp [Finset.toList]
---   simp [Vector.toList]
---   sorry
-
--- lemma finset_sum_is_list_sum {n : ℕ} {x : Vector (ZMod 3) n}: Finset.sum Finset.univ (toFunc x) = x.toList.sum :=
--- by
---   have := Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x)
---   rw [← h]
---   apply (Eq.symm $ Finset.sum_to_list Finset.univ (toFunc x))
-
--- #check List.sum_toFinset
--- #check Finset.sum_to_list
-
--- /- Lemma to allow conversion between vectors and functions -/
--- lemma ith_of_vec_is_ith_of_func : Vector.get (toVec f) i = f i :=
---   by {
---     rw [toVec, Vector.get]
---     show List.nthLe
---     simp
---   }
-
--- theorem Vector.sum_set' {n : ℕ} {α : Type u_1} [AddCommGroup α] (v : Vector α n) (i : Fin n) (a : α) :
--- List.sum (Vector.toList (Vector.set v i a)) = List.sum (Vector.toList v) + -Vector.get v i + a
-
 
 /- Lemma: the sum of all components of a basis vector is 1 -/
 def sum_of_basis_vec_is_one : ∀ i : Fin n, sum (e i) = 1 := by
