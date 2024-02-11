@@ -85,7 +85,7 @@ lemma card_of_𝔽₃ (n : ℕ) : Fintype.card { x // x ∈ 𝔽₃ n } = 3^n :=
 /- Given an n-dimensional vector, we can create an (n+1)-dim vector with coord sum 0 -/
 lemma can_create_vector_with_sum_0 (v : { x // x ∈ 𝔽₃ n }):
   (-(sum v.val)) ::ᵥ v.val ∈ A₀ (n + 1) := by
-  have := -(sum v.val)+ (sum v.val) = 0 := by sorry
+  simp [A₀, sum]
 
 /- The function that takes any vector, and turns it into a vector in the bigger space with sum 0 mod 3  -/
 def f (n : ℕ) : { x // x ∈ 𝔽₃ n } → { x // x ∈ A₀ (n + 1) }  :=
@@ -94,26 +94,25 @@ def f (n : ℕ) : { x // x ∈ 𝔽₃ n } → { x // x ∈ A₀ (n + 1) }  :=
 theorem f_injective (n : ℕ)  : Function.Injective (f n) := by sorry
 
 /- Remove the last element of a vector-/
-abbrev removeFirst {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n :=
-  v.tail
+abbrev removeFirst {α : Type} {n : ℕ} ( v : Vector α (n+1)) : Vector α n := v.tail
 #eval removeFirst (Vector.ofFn ![zero, one, two])
 
 lemma vector_in_A0_has_sum_0 {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
   sum b.val = 0 := by
-  simp [A₀] at b
+  let ⟨v,p⟩ := b
+  simp [A₀] at p
+  assumption
 
 #check Subtype.val_prop
-#check Subtype.coe_prop ↑b
+#check Subtype.coe_prop
+#check Subtype.ext_val
 
 lemma first_val_of_vec_in_A0_is_unique {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
   b.val.head = -sum b.val.tail := by
   have hb := vector_in_A0_has_sum_0 b
-  rw [sum] at hb
-  simp
-
-  -- have : sum b.val = 0 := by simp [Subtype.ext_val]
-  -- have h :  (b.val.head) + (sum b.val.tail) = sum b.val := by simp [sum]
-  -- have :  (b.val.head) + (sum b.val.tail) = 0 := by simp [h]
+  let ⟨⟨h::t,_⟩,p⟩ := b
+  simp [Vector.head, sum, Vector.tail] at *
+  rw [neg_eq_of_add_eq_zero_left hb]
 
 /- Prove that removing the last element of a list then adding it back gives the same list-/
 theorem truncate_then_apply_f_keeps_same {n : ℕ} (b: { x // x ∈ A₀ (n+1) }) :
@@ -168,7 +167,7 @@ lemma partition_has_density_one_third : ∀ n : ℕ, n ≥ 1 → density (A₀ n
 lemma sum_of_vector_sum_is_sum_of_sum_of_vectors {n : ℕ} {x : Vector (ZMod 3) n} {y : Vector (ZMod 3) n} :
  sum x + sum y = sum (x+y):=
 by
-  simp only [sum, finset_sum_is_list_sum]
+  simp only [sum]
   apply Vector.sum_add_sum_eq_sum_zipWith x
 
 /- If you have a vector x ∈ A₀ (coordinate-sum 0), then x + e i ∈ A₁ (coordinate-sum 1) -/
