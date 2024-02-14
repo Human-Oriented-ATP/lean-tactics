@@ -4,6 +4,7 @@ import Mathlib.Data.Real.Irrational
 
 open Lean Elab Tactic Meta Term Command
 
+namespace Tutorial
 /-- Tactic that does nothing. -/
 elab "do_nothing" : tactic => do
   return
@@ -345,8 +346,8 @@ def pi := Expr.const ``Real.pi []
 #eval pi
 
 /-- Elaborate it -/
-elab "one" : term => return one
-#eval one -- 1
+elab "one_as_term" : term => return one
+#eval one_as_term -- 1
 
 /-- Turn lean Nats into Expressions -/
 def natExpr (n : Nat): Expr :=
@@ -535,29 +536,29 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
   return thm.type -- return the theorem statement (the type is the proposition)
 
-#eval do {let e ← getTheoremStatement `multPermute; logExpression e}
+#eval do {let e ← getTheoremStatement ``multPermute; logExpression e}
 
-#eval getTheoremStatement `multPermute
-#eval do {let e ← getTheoremStatement `multPermute; logPrettyExpression e}
+#eval getTheoremStatement ``multPermute
+#eval do {let e ← getTheoremStatement ``multPermute; logPrettyExpression e}
 
-#eval do {let e ← getTheoremStatement `multPermute; logFormattedExpression e}
-#eval do {let e ← getTheoremStatement `multPermute; logExpressionType e}
+#eval do {let e ← getTheoremStatement ``multPermute; logFormattedExpression e}
+#eval do {let e ← getTheoremStatement ``multPermute; logExpressionType e}
 
 /-- Getting theorem proof from context --/
 def getTheoremProof (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
   return thm.value! -- return the theorem proof (the term is the proof)
 
-#eval do {let e ← getTheoremProof `reflOfZero; logExpression e}
-#eval do {let e ← getTheoremProof `reflOfZero; logFormattedExpression e}
-#eval do {let e ← getTheoremProof `reflOfZero; logPrettyExpression e}
+#eval do {let e ← getTheoremProof ``reflOfZero; logExpression e}
+#eval do {let e ← getTheoremProof ``reflOfZero; logFormattedExpression e}
+#eval do {let e ← getTheoremProof ``reflOfZero; logPrettyExpression e}
 
 
 /-- Print all subexpressions that involve constants --/
 def printConstantsIn (e : Expr) : MetaM Unit :=
   e.forEachWhere Expr.isConst logExpression
 
-#eval do {let e ← getTheoremStatement `multPermute; printConstantsIn e}
+#eval do {let e ← getTheoremStatement ``multPermute; printConstantsIn e}
 
 def printIfNat (subexpr : Expr) : MetaM Unit := do
   try
@@ -573,7 +574,7 @@ def printIfNat (subexpr : Expr) : MetaM Unit := do
 def printNatsIn (e : Expr) : MetaM Unit := do
   e.forEach printIfNat
 
-#eval do {let e ← getTheoremStatement `multPermute;  printNatsIn e}
+#eval do {let e ← getTheoremStatement ``multPermute;  printNatsIn e}
 
 /- (For debugging) Print what type of expression something is -/
 def printExprType (e : Expr) : MetaM Unit := do
@@ -596,7 +597,7 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   subexprs
 
-#eval do {let e ← getTheoremStatement `multPermute;  logInfo (getSubexpressionsIn e)}
+#eval do {let e ← getTheoremStatement ``multPermute;  logInfo (getSubexpressionsIn e)}
 #eval getSubexpressionsIn (Lean.Expr.app (Lean.Expr.const `CommRing [Lean.Level.zero]) (Lean.Expr.const `Int []))
 /- Get (in a list) all subexpressions that involve natural numbers -/
 def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
@@ -616,8 +617,8 @@ def getNatsIn (e : Expr) : MetaM (List Expr) := do
   return natSubexprs
 
 theorem flt_example : 2^4 % 5 = 1 := by simp
-#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
-#eval do { let e ← getTheoremStatement `multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement ``multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
 
 def isAtomicNat (e : Expr) : MetaM Bool := do
   if not (← isNat e) then return false
@@ -653,8 +654,8 @@ def getAtomicNatsIn (e : Expr) : MetaM (List Expr) := do
   let natSubexprs ← subexprs.filterMapM getIfAtomicNat
   return natSubexprs
 
-#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
-#eval do { let e ← getTheoremStatement `flt_example; let natsInE ← getAtomicNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
+#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getAtomicNatsIn e; natsInE.forM logPrettyExpression}
 
 elab "createReflexivityGoal'" : tactic => do
   let goalType ← mkEq (Expr.const ``Nat.zero []) (Expr.const ``Nat.zero [])
@@ -1033,3 +1034,4 @@ example : True := by
   -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
   -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
   simp
+end Tutorial
