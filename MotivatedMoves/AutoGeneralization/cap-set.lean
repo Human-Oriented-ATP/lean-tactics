@@ -3,6 +3,9 @@ import Mathlib.Data.Real.Basic
 import Mathlib.Data.Vector.Zip
 import Mathlib.Data.Fintype.Card
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace
+
+import MotivatedMoves.AutoGeneralization.Tutorial
 
 def zero : ZMod 3 := 0
 def one : ZMod 3 := 1
@@ -195,6 +198,24 @@ by
   rw [sum1] at sum0
   simp at sum0
 
+/- Weaker lemma: if you have a vector x ∈ A₀ (coordinate-sum 0), then x + e i ∉ A₀ -/
+lemma adding_two_basis_vector_changes_slice {n : ℕ} {x : Vector (ZMod 3) n} :
+  x ∈ A₀ n →  (∀ i : Fin n, x + e i ∉ A₀ n) :=
+by
+  sorry
+
+#check AffineSubspace
+/- The basis of a given n-dimensional -/
+def basis (n : ℕ) : Set (Vector (ZMod 3) n) := e '' (⊤ : Set (Fin n))
+-- {x | (∃ i : Fin n, x = e i) }
+-- def basis (n : ℕ) : AffineSubspace (Vector (ZMod 3) n) := sorry
+
+/- The set of all vectors that can be written as the sum of 2 basis vectors -/
+def two_basis (n : ℕ) : Set (Vector (ZMod 3) n) := {x | (∃ i j : Fin n, x = e i + e j) }
+
+/- The set of all vectors that can be written as the sum of k basis vectors -/
+def k_basis (n : ℕ) (k : ℕ) : Set (Vector (ZMod 3) n) := sorry
+
 /-
 A conjecture that you can create a particular line by varying only one coordinate
 This disproof says that
@@ -217,3 +238,28 @@ by
   apply partition_has_density_one_third n hn
   intros x i hx; left;
   apply adding_basis_vector_changes_slice hx
+
+/- A rephrasing to use "basis" bucket for "d"-/
+theorem cap_set_basis_size_1_disproof' :
+  ∃ (δ : ℝ), δ > 0 →
+  ∀ (n : ℕ), n ≥ 1 →
+  ∃ (A : Finset (Vector (ZMod 3) n)),
+    density A = δ ∧
+    ∀ (x : Vector (ZMod 3) n),
+    ∀ d ∈ basis n,
+      x ∈ A →
+      (x + d) ∉ A ∨ (x + 2 * d) ∉ A :=
+by
+  use 1/3 -- We need to prove the density 1/3 works
+  intros _δ n hn
+  use A₀ n -- We need to prove the set A₀ works
+  constructor
+  apply partition_has_density_one_third n hn
+  intros x ei hei hb; left;
+  simp [basis] at hei
+  obtain ⟨y, hy⟩ := hei
+  rw [← hy]
+  apply adding_basis_vector_changes_slice hb
+
+/- A rephrasing to use "affine subspace of dimension 1"-/
+theorem cap_set_basis_size_1_disproof'' : True = simp
