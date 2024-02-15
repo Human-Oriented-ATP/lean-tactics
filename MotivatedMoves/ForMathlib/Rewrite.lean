@@ -35,11 +35,11 @@ instance : ToString Occurrences where
     | .pos occs => s!".pos {occs}"
     | .neg occs => s!".neg {occs}"
 
-/-- Convert a `Rewrite.Config` to a `String`.
-    This instance is restricted to printing just the information about the occurrences. -/
-instance : ToString Rewrite.Config where
-  toString cfg :=
-    "{ " ++ s!"occs := {cfg.occs}" ++ " }"
+-- /-- Convert a `Rewrite.Config` to a `String`.
+--     This instance is restricted to printing just the information about the occurrences. -/
+-- instance : ToString Rewrite.Config where
+--   toString cfg :=
+--     s! "\{ occs := {cfg.occs} }"
 
 /-- Extract the left and right hand sides of an equality or iff statement. -/
 def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
@@ -52,7 +52,7 @@ end
 /-- Specialises the theorem to match the sub-expression at the given position
     and calculates its occurrence number in the whole expression. -/
 def findRewriteOccurrence (thm : Expr) (symm : Bool)
-    (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
+    (position : SubExpr.Pos) (target : Expr) : MetaM (Occurrences × Expr) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let .some (lhs, rhs) ← matchEqn? eqn |
@@ -63,15 +63,17 @@ def findRewriteOccurrence (thm : Expr) (symm : Bool)
   return (occurrence, pattern)
 
 /-- Generates a rewrite tactic call with configuration from the arguments. -/
-def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
+def rwCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
     (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM String := do
   let subExpr ← loc.toSubExpr
   let us ← thmAbst.paramNames.mapM <| fun _ ↦ mkFreshLevelMVar
   let thm := thmAbst.expr.instantiateLevelParamsArray thmAbst.paramNames us
   let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
-  let cfg : Rewrite.Config := { occs := .pos [occurrence] }
+  let cfg := if occurrence matches .all then ""
+    else
+      s! " (config := \{ occs := {occurrence} })"
   let arg := Format.pretty <| ← ppExpr pattern
-  return s!"rw (config := {cfg}) [{(if symm then "← " else "") ++ arg}]{loc.loc.render goal}"
+  return s! "rw{cfg} [{if symm then "← " else ""}{arg}]{loc.loc.render goal}"
 
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
@@ -81,7 +83,7 @@ def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
-      rewriteTacticCall loc goal props.rwRule.val props.symm
+      rwCall loc goal props.rwRule.val props.symm
   return .pure (
         <DynamicEditButton
           label={"Rewrite sub-term"}
@@ -123,6 +125,6 @@ section Demo
 example (h : 5 + 6 = 8 + 7) : 1 + 2 = (3 + 4) + (1 + 2) := by
   rw (config := { occs := .all }) [Nat.add_comm 1 2]
   rw [Nat.add_comm] at? -- select the sub-expression `5 + 6`
-  sorry                         
-                         
+  sorry
+
 end Demo

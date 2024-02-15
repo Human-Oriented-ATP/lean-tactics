@@ -18,7 +18,7 @@ These include:
 
 section
 
-/-- Expand a term representing a pattern as an expression with meta-variables. 
+/-- Expand a term representing a pattern as an expression with meta-variables.
     This follows code from `Lean/Elab/Tactic/Conv/Pattern.lean`. -/
 def expandPattern (p : Term) : TermElabM AbstractMVarsResult :=
   withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) <|
@@ -33,7 +33,7 @@ def expandOccs : Option (TSyntax ``occs) → Occurrences
   | some occs =>
     match occs with
       | `(occs| (occs := *)) => .all
-      | `(occs| (occs := $ids*)) => .pos <| ids.map TSyntax.getNat |>.toList        
+      | `(occs| (occs := $ids*)) => .pos <| ids.map TSyntax.getNat |>.toList
       | _ => panic! s!"Invalid syntax {occs} for occurrences."
 
 end
@@ -42,10 +42,10 @@ section
 
 /-- The pattern at a given position in an expression.
     Variables under binders are turned into meta-variables in the pattern. -/
-def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do  
+def SubExpr.patternAt (p : SubExpr.Pos) (root : Expr) : MetaM Expr := do
   let e ← Core.viewSubexpr p root
   let binders ← Core.viewBinders p root
-  let mvars ← binders.mapM fun (name, type) ↦ 
+  let mvars ← binders.mapM fun (name, type) ↦
     mkFreshExprMVar type (userName := name)
   return e.instantiateRev mvars
 
@@ -66,14 +66,14 @@ open PrettyPrinter Delaborator SubExpr in
     | n => n.getRoot -- the root of the name; this operation may not be hygienic
   `((?$(mkIdent n) : $type))
 
-/-- Finds the occurrence number of the pattern in the expression 
+/-- Finds the occurrence number of the pattern in the expression
     that matches the sub-expression at the specified position.
     This follows the structure of `kabstract` from Lean core. -/
-def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Nat := do
+def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Occurrences := do
   let root ← instantiateMVars root
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
     throwError s!"The specified pattern does not match the pattern at position {position}."
-  let pattern ← instantiateMVars pattern   
+  let pattern ← instantiateMVars pattern
   let pHeadIdx := pattern.toHeadIndex
   let pNumArgs := pattern.headNumArgs
   let rec visit (e : Expr) (p : SubExpr.Pos) (offset : Nat) : StateRefT Nat (OptionT MetaM) Unit := do
@@ -94,7 +94,7 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
       | .forallE _ d b _ => do
         visit d p.pushBindingDomain offset <|>
         visit b p.pushBindingBody (offset+1)
-      | e                => failure
+      | _                => failure
     if e.hasLooseBVars then
       visitChildren ()
     else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
@@ -110,13 +110,13 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
       visitChildren ()
   let .some (_, occ) ← visit root .root 0 |>.run 0 |
     throwError s!"Could not find pattern at specified position {position}."
-  return occ
+  return Occurrences.pos [occ]
 
 /-- Finds the occurrence number of the pattern at
     the specified position in the whole expression. -/
-def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Nat := do
+def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Occurrences := do
   let pattern ← SubExpr.patternAt position root
-  findMatchingOccurrence position root pattern 
+  findMatchingOccurrence position root pattern
 
 end
 
@@ -128,10 +128,10 @@ def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) :
   hyps.concatMap (·.names)
 
 /-- A `SubExpr.GoalsLocation` as a `SubExpr`. -/
-def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubExpr 
+def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubExpr
   | ⟨mvarId, .hyp fvarId⟩ => mvarId.withContext do
       return ⟨← fvarId.getType, .fromString! "/"⟩
-  | ⟨mvarId, .hypType fvarId pos⟩ => mvarId.withContext do 
+  | ⟨mvarId, .hypType fvarId pos⟩ => mvarId.withContext do
       return ⟨← fvarId.getType, pos⟩
   | ⟨mvarId, .hypValue fvarId pos⟩ => mvarId.withContext do
       let .some val ← fvarId.getValue? | unreachable!
@@ -139,11 +139,11 @@ def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubEx
   | ⟨mvarId, .target pos⟩ => do return ⟨← mvarId.getType, pos⟩
 
 /-- Rendering a `SubExpr.GoalLocation` as a `String`. -/
-def Lean.SubExpr.GoalLocation.render 
+def Lean.SubExpr.GoalLocation.render
     (goal : Widget.InteractiveGoal) : SubExpr.GoalLocation → String
   | .hyp fvarId => renderLocation (fvarId.getUserNames goal) false
   | .hypType fvarId _ => renderLocation (fvarId.getUserNames goal) false
-  | .hypValue fvarId _ => panic! "Unable to operate on `let`-value" -- TODO: handle this case
+  | .hypValue _fvarId _ => panic! "Unable to operate on `let`-value" -- TODO: handle this case
   | .target _ => ""
 where
   renderLocation (hyps : Array String) (type : Bool) : String :=
