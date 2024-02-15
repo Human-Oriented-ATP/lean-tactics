@@ -42,7 +42,7 @@ protected def orElse {α : Type u} (x : ListT m α) (y : Unit → ListT m α) : 
 protected def failure {α : Type u} : ListT m α := ListT.mk do
   pure []
 
-instance [Alternative m] : Alternative (ListT m) where
+instance : Alternative (ListT m) where
   failure := ListT.failure
   orElse  := ListT.orElse
 
