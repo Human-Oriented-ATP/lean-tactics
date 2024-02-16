@@ -69,10 +69,10 @@ open PrettyPrinter Delaborator SubExpr in
 /-- Finds the occurrence number of the pattern in the expression
     that matches the sub-expression at the specified position.
     This follows the structure of `kabstract` from Lean core. -/
-def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM Occurrences := do
+def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Expr) : MetaM (Option Occurrences) := do
   let root ← instantiateMVars root
   unless ← isDefEq pattern (← SubExpr.patternAt position root) do
-    throwError s!"The specified pattern does not match the pattern at position {position}."
+    return none
   let pattern ← instantiateMVars pattern
   let pHeadIdx := pattern.toHeadIndex
   let pNumArgs := pattern.headNumArgs
@@ -114,7 +114,7 @@ def findMatchingOccurrence (position : SubExpr.Pos) (root : Expr) (pattern : Exp
 
 /-- Finds the occurrence number of the pattern at
     the specified position in the whole expression. -/
-def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM Occurrences := do
+def findOccurrence (position : SubExpr.Pos) (root : Expr) : MetaM (Option Occurrences) := do
   let pattern ← SubExpr.patternAt position root
   findMatchingOccurrence position root pattern
 

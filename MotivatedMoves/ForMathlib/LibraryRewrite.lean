@@ -107,7 +107,7 @@ def renderResult
   (goal : Widget.InteractiveGoal)
   (range : Lsp.Range)
   (rwLemma : RewriteLemma) : MetaM (Option Html) := do
-  let some tacticCall ← (try? do
+  let some tacticCall ← (do
     rwCall loc goal (← abstractMVars <| ← mkConstWithLevelParams rwLemma.name) rwLemma.symm)
     | return none
   return mkDiv
