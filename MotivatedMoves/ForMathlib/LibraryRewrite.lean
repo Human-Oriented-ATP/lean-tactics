@@ -198,10 +198,14 @@ def rwExpand : TacticCodeAction := fun _ snap ctx _ node => do
           let tgtDecl ← getMainDecl
           let expectedDecl := info.mctxAfter.getDecl info.goalsAfter.head!
           -- we want to somehow check that `tgtDecl` and `expectedDecl` are "the same"
-          let check : MetaM Bool := sorry
+          let check : MetaM Bool := pure true
           if ← check then
              return #[lazy]
           else return #[]
     | _ => return #[]
   ctx.runMetaM {} <| TermElabM.run' <|
   Prod.fst <$> ((codeActions { elaborator := .anonymous }).run { goals := info.goalsBefore })
+
+example : 1 + 2 = 1 := by
+  rw (config := { occs := .pos [1] }) [Nat.add_comm] -- stay on this line to see the lightbulb
+  sorry
