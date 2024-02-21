@@ -1,4 +1,5 @@
 import Mathlib.Tactic.Rewrites
+import Std.CodeAction.Attr
 import MotivatedMoves.ForMathlib.Rewrite
 import MotivatedMoves.GUI.DynamicEditButton
 import MotivatedMoves.LibrarySearch.LibrarySearch
@@ -144,10 +145,7 @@ def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask 
     Meta.withLCtx lctx md.localInstances do
       let target ← loc.toSubExpr
       let results ← getMatches target
-      let suggestions ← results.foldlM (init := #[]) fun suggestions result => do
-        match ← renderResult loc goal props.replaceRange result with
-        | some suggestion => return suggestions.push suggestion
-        | none => return suggestions
+      let suggestions ← results.filterMapM <| renderResult loc goal props.replaceRange
       if suggestions.isEmpty then
         return none
       return mkDiv suggestions) | return .pure <p>No library rewrites found.</p>
@@ -165,3 +163,45 @@ elab stx:"lib_rw?" : tactic => do
   let range := (← getFileMap).rangeOfStx? stx
   Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }
+
+open Std CodeAction Elab Term Tactic
+
+@[tactic_code_action Parser.Tactic.rwSeq]
+def rwExpand : TacticCodeAction := fun _ snap ctx _ node => do
+  let .node (.ofTacticInfo info) _ := node | return #[]
+  let doc ← RequestM.readDoc
+
+  let codeActions : TacticM (Array LazyCodeAction) := withMainContext do
+    match info.stx with
+    | tac@`(tactic| rw $cfg [$seq,*] $(loc)?) => 
+        let eager : Lsp.CodeAction := {
+          title := "Delete configuration in `rw` tactic call.",
+          kind? := "quickfix"
+        }
+        -- TODO: Extend range by one character to get rid of extra whitespace
+        let some cfgRange := doc.meta.text.rangeOfStx? cfg | return #[]
+        let deleteCfgEdit : Lsp.TextEdit := {
+          range := cfgRange, 
+          newText := ""
+        }
+        let lazy : LazyCodeAction := {
+          eager
+          lazy? := some <| pure {
+            eager with
+            edit? := some <| .ofTextEdit doc.versionedIdentifier deleteCfgEdit 
+          }
+        }
+        evalTactic =<< `(tactic| rw [$seq,*] $(loc)?)
+        if (← getUnsolvedGoals).isEmpty && info.goalsAfter.isEmpty then
+          return #[lazy]
+        else
+          let tgtDecl ← getMainDecl
+          let expectedDecl := info.mctxAfter.getDecl info.goalsAfter.head!
+          -- we want to somehow check that `tgtDecl` and `expectedDecl` are "the same"
+          let check : MetaM Bool := sorry
+          if ← check then
+             return #[lazy]
+          else return #[]
+    | _ => return #[]
+  ctx.runMetaM {} <| TermElabM.run' <|
+  Prod.fst <$> ((codeActions { elaborator := .anonymous }).run { goals := info.goalsBefore })
