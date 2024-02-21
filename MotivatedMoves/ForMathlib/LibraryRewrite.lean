@@ -164,48 +164,32 @@ elab stx:"lib_rw?" : tactic => do
   Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }
 
-open Std CodeAction Elab Term Tactic
+open Std CodeAction Elab Term Tactic Parser Tactic
 
 @[tactic_code_action Parser.Tactic.rwSeq]
-def rwExpand : TacticCodeAction := fun _ snap ctx _ node => do
+def rwConfigDelete : TacticCodeAction := fun _ _ ctx _ node => do
   let .node (.ofTacticInfo info) _ := node | return #[]
   let doc ← RequestM.readDoc
+  match info.stx with
+  | `(tactic| rw $cfg $_ $(_)?) => 
+      let eager : Lsp.CodeAction := {
+        title := "Delete configuration in `rw` tactic call.",
+        kind? := "quickfix"
+      }
+      let some cfgRange := doc.meta.text.rangeOfStx? cfg | return #[]
+      let deleteCfgEdit : Lsp.TextEdit := {
+        range := ⟨cfgRange.start, { cfgRange.end with character := cfgRange.end.character + 1 }⟩, 
+        newText := ""
+      }
+      let lazy : LazyCodeAction := {
+        eager
+        lazy? := some <| pure {
+          eager with
+          edit? := some <| .ofTextEdit doc.versionedIdentifier deleteCfgEdit 
+        }
+      }
+      return #[lazy]
+  | _ => return #[]
 
-  let codeActions : TacticM (Array LazyCodeAction) := withMainContext do
-    match info.stx with
-    | tac@`(tactic| rw $cfg [$seq,*] $(loc)?) => 
-        let eager : Lsp.CodeAction := {
-          title := "Delete configuration in `rw` tactic call.",
-          kind? := "quickfix"
-        }
-        -- TODO: Extend range by one character to get rid of extra whitespace
-        let some cfgRange := doc.meta.text.rangeOfStx? cfg | return #[]
-        let deleteCfgEdit : Lsp.TextEdit := {
-          range := cfgRange, 
-          newText := ""
-        }
-        let lazy : LazyCodeAction := {
-          eager
-          lazy? := some <| pure {
-            eager with
-            edit? := some <| .ofTextEdit doc.versionedIdentifier deleteCfgEdit 
-          }
-        }
-        evalTactic =<< `(tactic| rw [$seq,*] $(loc)?)
-        if (← getUnsolvedGoals).isEmpty && info.goalsAfter.isEmpty then
-          return #[lazy]
-        else
-          let tgtDecl ← getMainDecl
-          let expectedDecl := info.mctxAfter.getDecl info.goalsAfter.head!
-          -- we want to somehow check that `tgtDecl` and `expectedDecl` are "the same"
-          let check : MetaM Bool := pure true
-          if ← check then
-             return #[lazy]
-          else return #[]
-    | _ => return #[]
-  ctx.runMetaM {} <| TermElabM.run' <|
-  Prod.fst <$> ((codeActions { elaborator := .anonymous }).run { goals := info.goalsBefore })
-
-example : 1 + 2 = 1 := by
-  rw (config := { occs := .pos [1] }) [Nat.add_comm] -- stay on this line to see the lightbulb
-  sorry
+example : 1 + 2 = 3 := by
+  rw (config := { occs := .pos [1] }) [Nat.add_comm] -- click on the lightbulb that shows up here
