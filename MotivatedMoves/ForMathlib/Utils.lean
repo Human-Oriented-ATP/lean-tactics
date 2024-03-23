@@ -127,16 +127,19 @@ def Lean.FVarId.getUserNames (fvarId : FVarId) (goal : Widget.InteractiveGoal) :
   let hyps := goal.hyps.filter (·.fvarIds.contains fvarId)
   hyps.concatMap (·.names)
 
+/-- The `Expr` at a `SubExpr.GoalsLocation`. -/
+def Lean.SubExpr.GoalsLocation.expr : SubExpr.GoalsLocation → MetaM Expr
+  | ⟨mvarId, .hyp fvarId⟩        => mvarId.withContext fvarId.getType
+  | ⟨mvarId, .hypType fvarId _⟩  => mvarId.withContext fvarId.getType
+  | ⟨mvarId, .hypValue fvarId _⟩ => mvarId.withContext do return (← fvarId.getDecl).value
+  | ⟨mvarId, .target _⟩          => mvarId.getType
+
 /-- A `SubExpr.GoalsLocation` as a `SubExpr`. -/
-def Lean.SubExpr.GoalsLocation.toSubExpr : SubExpr.GoalsLocation → MetaM SubExpr
-  | ⟨mvarId, .hyp fvarId⟩ => mvarId.withContext do
-      return ⟨← fvarId.getType, .fromString! "/"⟩
-  | ⟨mvarId, .hypType fvarId pos⟩ => mvarId.withContext do
-      return ⟨← fvarId.getType, pos⟩
-  | ⟨mvarId, .hypValue fvarId pos⟩ => mvarId.withContext do
-      let .some val ← fvarId.getValue? | unreachable!
-      return ⟨val, pos⟩
-  | ⟨mvarId, .target pos⟩ => do return ⟨← mvarId.getType, pos⟩
+def Lean.SubExpr.GoalsLocation.pos : SubExpr.GoalsLocation → SubExpr.Pos
+  | ⟨_, .hyp _⟩          => .root
+  | ⟨_, .hypType _ pos⟩  => pos
+  | ⟨_, .hypValue _ pos⟩ => pos
+  | ⟨_, .target pos⟩     => pos
 
 /-- Rendering a `SubExpr.GoalLocation` as a `String`. -/
 def Lean.SubExpr.GoalLocation.render

@@ -17,11 +17,11 @@ open ProofWidgets Lean Meta Elab Tactic Server Widget
 
 open Jsx OptionT
 
-instance : Quote SubExpr.Pos `Tree.treePos where
+instance : Quote SubExpr.Pos `MotivatedTree.treePos where
   quote pos :=
   let posStx : TSyntaxArray `num := pos.toArray.map quote
   let args : Array Syntax := ⟨List.intersperse (.atom .none ",") posStx.toList⟩
-  { raw := .node .none `Tree.treePos #[
+  { raw := .node .none `MotivatedTree.treePos #[
     .atom .none "[",
     .node .none `null args,
     .atom .none "]"
@@ -223,7 +223,7 @@ def libInduct : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexpr := props.selectedLocations[0]? | failure
     let ⟨goal, .target pos⟩ := subexpr | failure
-    let libSuggestions ← Tree.librarySearchInduction (pos.toArray.toList) (← goal.getType)
+    let libSuggestions ← MotivatedTree.librarySearchInduction (pos.toArray.toList) (← goal.getType)
     if libSuggestions.isEmpty then failure
     pure
       <DynamicEditButton
@@ -238,7 +238,7 @@ def libRewrite : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexpr := props.selectedLocations[0]? | failure
     let ⟨goal, .target pos⟩ := subexpr | failure
-    let libSuggestions ← Tree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
+    let libSuggestions ← MotivatedTree.librarySearchRewrite (pos.toArray.toList) (← goal.getType)
     pure
       <DynamicEditButton
           label={"Rewrite with a theorem"}
@@ -252,7 +252,7 @@ def libRewriteOrd : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexpr := props.selectedLocations[0]? | failure
     let ⟨goal, .target pos⟩ := subexpr | failure
-    let libSuggestions ← Tree.librarySearchRewriteOrd (pos.toArray.toList) (← goal.getType)
+    let libSuggestions ← MotivatedTree.librarySearchRewriteOrd (pos.toArray.toList) (← goal.getType)
     pure
       <DynamicEditButton
           label={"Ordered rewrite with a theorem"}
@@ -264,8 +264,8 @@ def libRewriteOrd : InfoviewAction := fun props ↦ do
 def libApply : InfoviewAction := fun props ↦ do
   let #[⟨goal, .target pos⟩] := props.selectedLocations | failure
   -- note that the library results are calculated twice. It should be made lazy in the future.
-  let libSuggestions_delete ← Tree.librarySearchApply false pos.toArray.toList (← goal.getType)
-  let libSuggestions_keep ← Tree.librarySearchApply true pos.toArray.toList (← goal.getType)
+  let libSuggestions_delete ← MotivatedTree.librarySearchApply false pos.toArray.toList (← goal.getType)
+  let libSuggestions_keep ← MotivatedTree.librarySearchApply true pos.toArray.toList (← goal.getType)
   let html_delete := ← renderLibrarySearchResults props.range "Library apply results" libSuggestions_delete
   let html_keep := ← renderLibrarySearchResults props.range "Library apply results" libSuggestions_keep
   pure
@@ -290,9 +290,9 @@ def push_neg : InfoviewAction := fun props ↦ do
   unless (props.selectedLocations.size == 1) do failure
   let some subexprPos := props.selectedLocations[0]? | failure
   let ⟨goal, .target pos⟩ := subexprPos | failure
-  let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-  unless (← Tree.withTreeSubexpr (← goal.getType) goalOuterPosition goalPos (fun _ x => pure x))
-    matches Expr.app (.const ``Tree.Not _) _ do failure
+  let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
+  unless (← MotivatedTree.withTreeSubexpr (← goal.getType) goalOuterPosition goalPos (fun _ x => pure x))
+    matches Expr.app (.const ``MotivatedTree.Not _) _ do failure
   pure
     <DynamicEditButton
         label={"Push the negation"}
@@ -326,8 +326,8 @@ def unify : InfoviewAction := fun props ↦ do
   if (props.selectedLocations.size == 1) then
     let some subexprPos := props.selectedLocations[0]? | failure
     let ⟨goal, .target pos⟩ := subexprPos | failure
-    let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-    unless (← Tree.withTreeSubexpr (← goal.getType) goalOuterPosition goalPos (fun _ x => pure x))
+    let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
+    unless (← MotivatedTree.withTreeSubexpr (← goal.getType) goalOuterPosition goalPos (fun _ x => pure x))
       matches Expr.app (.const ``Eq _) _ do failure
     pure
       <DynamicEditButton

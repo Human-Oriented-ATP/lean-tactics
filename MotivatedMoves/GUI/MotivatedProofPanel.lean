@@ -14,7 +14,7 @@ This file contains code for
 - The `motivated_proof_move` attribute for
   tagging and registering new motivated proof moves
 - The `motivated_proof` tactic which
-  displays the panel of motivated proof moves 
+  displays the panel of motivated proof moves
   alongside the problem state.
 
 -/
@@ -29,19 +29,19 @@ section InfoviewAction
 
 ## Infoview actions
 
-The motivated proof panel is customised according to the 
+The motivated proof panel is customised according to the
 pattern of selections made by the user in the goal state.
 
 The `InfoviewActionProps` structure contains most of the information
 about these selections, along with other relevant details.
 
-`InfoviewAction`s are the main abstraction used to decide 
+`InfoviewAction`s are the main abstraction used to decide
 the contents of the motivated proof panel.
 An `InfoviewAction` is defined as a function that takes in
 `InfoviewActionProps` and optionally returns a piece of HTML code
 (which is usually just a button).
 The `InfoviewAction`s are registered and stored through the
-`motivated_proof_move` attribute. 
+`motivated_proof_move` attribute.
 
 The panel is rendered by reading in the current `InfoviewActionProps`,
 applying it to all the `InfoviewAction`s registered in the environment
@@ -65,7 +65,7 @@ deriving RpcEncodable
 
 /-- An `InfoviewAction` is a procedure to optionally compute a piece of HTML
     based on the pattern of selections in the tactic state (which is roughly the infomation in `InfoActionProps`).
-    
+
     This is used in the motivated proof panel to display a suggestion (usually in the form of an HTML button)
     based on the selections made. -/
 abbrev InfoviewAction := InfoviewActionProps → OptionT TacticM Html
@@ -76,7 +76,7 @@ def mkInfoviewAction (n : Name) : ImportM InfoviewAction := do
   IO.ofExcept <| unsafe env.evalConstCheck InfoviewAction opts ``InfoviewAction n
 
 /-- A global register of `InfoviewAction`s. -/
-initialize infoviewActionExt : 
+initialize infoviewActionExt :
     PersistentEnvExtension Name (Name × InfoviewAction) (Array (Name × InfoviewAction)) ←
   registerPersistentEnvExtension {
     mkInitial := pure .empty
@@ -99,7 +99,7 @@ initialize registerBuiltinAttribute {
 open scoped Jsx in
 /-- Shortlist the applicable motivated proof moves and display them in a grid. -/
 @[server_rpc_method]
-def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := do
+def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTask Html) := dbg_trace "Hello"; do
   let goal? : Option Widget.InteractiveGoal := do
     if props.selectedLocations.isEmpty then
       props.goals[0]?
@@ -112,9 +112,9 @@ def MotivatedProofPanel.rpc (props : InfoviewActionProps) : RequestM (RequestTas
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
       let infoviewActions := infoviewActionExt.getState (← getEnv)
-      let motivatedProofMoves ← infoviewActions.filterMapM 
+      let motivatedProofMoves ← infoviewActions.filterMapM
         fun (_, action) ↦ TermElabM.run' do
-          Prod.fst <$> ( (action props).run { elaborator := .anonymous } 
+          Prod.fst <$> ( (action props).run { elaborator := .anonymous }
                           |>.run { goals := [goal.mvarId] } )
       return .pure <|
         <details «open»={true}>
@@ -145,7 +145,7 @@ panel of motivated proof moves alongside the goal state in the infoview.
 open Elab Tactic
 open scoped Json
 
-/-- The syntax for the `motivated_proof` mode. 
+/-- The syntax for the `motivated_proof` mode.
     Typing this brings up the panel of motivated proof moves. -/
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
@@ -169,14 +169,14 @@ syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
   Widget.savePanelWidgetInfo (hash MotivatedProofPanel.javascript) (stx := stx) do
     return json% { range : $(range) }
   -- this turns the goal into a tree initially
-  Tree.workOnTreeDefEq pure
+  MotivatedTree.workOnTreeDefEq pure
   -- evaluate the tactic sequence
   evalTacticSeq seq
 |                 _                    => throwUnsupportedSyntax
 where
   /--
   If `stx` is a tactic block of the form
-  
+
   ```
   <main_tactic>
       <tac₁>
@@ -202,7 +202,7 @@ where
       -- the leading and trailing whitespaces around the head of the syntax tree
       let (.original _leading _startPos trailing endPos) ← stx.getHeadInfo? | none
       -- this indirectly checks whether the tactic sequence is non-empty
-      -- this case must be treated differently since it affects the trailing whitespace calculation 
+      -- this case must be treated differently since it affects the trailing whitespace calculation
       guard <| some endPos != stx.getTailPos?
       -- the lines in the trailing whitespace
       let trailingLines := trailing.toString |>.split (· = '\n')
@@ -235,8 +235,8 @@ def startMotivatedProof : Std.CodeAction.TacticCodeAction :=
       lazy? := some do
         let some ⟨seqStart, seqEnd⟩ := doc.meta.text.rangeOfStx? seq | return eager
         let indent := seqStart.character
-        let ⟨edit, _⟩ := EditParams.ofReplaceWhitespace doc.meta 
-          { start := seqEnd, «end» := { line := seqEnd.line + 1, character := indent } } 
+        let ⟨edit, _⟩ := EditParams.ofReplaceWhitespace doc.meta
+          { start := seqEnd, «end» := { line := seqEnd.line + 1, character := indent } }
           ("motivated_proof\n".pushn ' ' (indent + 2) )
         return { eager with
           edit? := some <| .ofTextDocumentEdit edit } }]

@@ -1,6 +1,6 @@
 import MotivatedMoves.ProofState.Tree
 
-open Lean Tree
+open Lean MotivatedTree
 
 def appendToAll (positions : Array OuterPosition) (head : Nat) : Array OuterPosition := 
   positions.map (fun xs => head :: xs)

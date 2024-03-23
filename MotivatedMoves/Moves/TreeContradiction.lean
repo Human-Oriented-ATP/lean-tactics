@@ -1,7 +1,7 @@
 import MotivatedMoves.Moves.TreeApply
 import MotivatedMoves.Moves.TreeNormalize
 
-namespace Tree
+namespace MotivatedTree
 open Lean Meta
 
 lemma tree_contrapose {p q : Prop} (h : p) : (¬ q → ¬ p) → q := (not_imp_not.mp · h)

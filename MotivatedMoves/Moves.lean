@@ -8,7 +8,7 @@ import MotivatedMoves.Moves.TreeRewriteOrd
 import MotivatedMoves.Moves.TreeSearch
 import MotivatedMoves.Moves.TreeContradiction
 
-namespace Tree
+namespace MotivatedTree
 
 lemma forall_exists_unify (p : α → α → Prop) : (∀ a, p a a) → ∀ a, ∃ b, p a b :=
   fun h a => ⟨a, h a⟩

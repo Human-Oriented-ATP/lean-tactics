@@ -1,6 +1,6 @@
 import MotivatedMoves.ProofState.Tree
 
-namespace Tree
+namespace MotivatedTree
 namespace Search
 
 open Lean Meta

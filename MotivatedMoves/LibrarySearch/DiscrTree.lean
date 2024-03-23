@@ -1066,7 +1066,7 @@ partial def getMatchWithScore (d : RefinedDiscrTree α) (e : Expr) (unify : Bool
       let some c := d.root.find? (.star 0) | failure
       return c
 
-open Tree in
+open MotivatedTree in
 /-- apply `getMatchWithScore` at the given subexrpession. -/
 def getSubExprUnify (d : RefinedDiscrTree α) (tree : Expr) (treePos : OuterPosition) (pos : InnerPosition)
     (config : WhnfCoreConfig := {}) : MetaM (Array (Array α × Nat)) := do

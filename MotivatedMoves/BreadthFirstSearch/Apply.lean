@@ -1,7 +1,7 @@
 import MotivatedMoves.Moves.TreeApply
 import MotivatedMoves.BreadthFirstSearch.Move
 
-open Lean Elab Tactic Move Tree
+open Lean Elab Tactic Move MotivatedTree
   
 def applyMove : Move2 where 
   name := "Apply"

@@ -65,10 +65,9 @@ def findRewriteOccurrence (thm : Expr) (symm : Bool)
 /-- Generates a rewrite tactic call with configuration from the arguments. -/
 def rwCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
     (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM (Option String) := do
-  let subExpr ← loc.toSubExpr
   let us ← thmAbst.paramNames.mapM <| fun _ ↦ mkFreshLevelMVar
   let thm := thmAbst.expr.instantiateLevelParamsArray thmAbst.paramNames us
-  let some (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr | return none
+  let some (occurrence, pattern) ← findRewriteOccurrence thm symm loc.pos (← loc.expr) | return none
   let cfg := if occurrence matches .all then ""
     else
       s! " (config := \{ occs := {occurrence} })"
@@ -104,7 +103,7 @@ syntax (name := rw_at) "rw" "[" rwRule "]" "at?" : tactic
 @[tactic rw_at]
 def rewriteAt : Tactic
 | stx@`(tactic| rw [$rule] at?) => do
-  let .some range := (← getFileMap).rangeOfStx? stx | throwError s!"Could not find range of syntax {stx}."
+  let some range := (← getFileMap).rangeOfStx? stx | throwError s!"Could not find range of syntax {stx}."
   let (symm, arg) :=
     match rule with
       | `(rwRule| $arg:term) => (false, arg)

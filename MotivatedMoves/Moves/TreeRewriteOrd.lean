@@ -6,7 +6,7 @@ import Mathlib.Topology.MetricSpace.Basic
 
 open Function
 
-namespace Tree
+namespace MotivatedTree
 
 class MonotoneClass {α : Type u} {β : Type v} [order : Preorder β] (f : α → β) where
   anti : Bool
@@ -28,8 +28,8 @@ instance and_left_mono : MonotoneClass And where
   anti := false
   elim _ _ h _ := And.imp_left h
 
-instance tree_and_right_mono {P : Prop} : MonotoneClass (Tree.And P) := and_right_mono
-instance tree_and_left_mono : MonotoneClass Tree.And := and_left_mono
+instance tree_and_right_mono {P : Prop} : MonotoneClass (MotivatedTree.And P) := and_right_mono
+instance tree_and_left_mono : MonotoneClass MotivatedTree.And := and_left_mono
 
 instance exists_mono {α : Type u} : MonotoneClass (@_root_.Exists α) where
   anti := false
@@ -45,8 +45,8 @@ instance le_left_anti [Preorder α] : MonotoneClass (α := α) (. ≤ .) where
 instance imp_right_mono (a : Prop) : MonotoneClass (a → ·) := le_right_mono a
 instance imp_left_anti : MonotoneClass (· → ·) := le_left_anti
 
-instance tree_imp_right_mono (a : Prop) : MonotoneClass (Tree.Imp a) := le_right_mono a
-instance Tree_imp_left_anti : MonotoneClass Tree.Imp := le_left_anti
+instance tree_imp_right_mono (a : Prop) : MonotoneClass (MotivatedTree.Imp a) := le_right_mono a
+instance Tree_imp_left_anti : MonotoneClass MotivatedTree.Imp := le_left_anti
 
 instance sub_right_mono (a : Set α) : MonotoneClass (a ⊆ ·) := le_right_mono a
 instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) := le_left_anti 
@@ -375,7 +375,7 @@ lemma testLib : ∀ x, x - 1 ≤ x := sorry
 
 example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤ 4} := by
   make_tree
-  lib_rewrite_ord [1] Tree.testLib [1,2,1,1,1,0,1]
+  lib_rewrite_ord [1] MotivatedTree.testLib [1,2,1,1,1,0,1]
   lib_apply refl [1]
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by

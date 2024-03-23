@@ -47,7 +47,7 @@ def replaceByDefAux (e : Expr) : ExceptT MessageData MetaM Expr := do
       else return result
 
 /-- Replace the pattern by its definition at the specified occurrences in the expression. -/
-def replaceByDef (e : Expr) (pattern : AbstractMVarsResult) (occs : Occurrences) : MetaM Expr := do 
+def replaceByDef (e : Expr) (pattern : AbstractMVarsResult) (occs : Occurrences) : MetaM Expr := do
   let (_, _, p) ← openAbstractMVarsResult pattern
   let eAbst ← kabstract e p occs
   unless eAbst.hasLooseBVars do
@@ -67,16 +67,16 @@ elab "unfold'" occs:(occs)? p:term loc:(location)? : tactic => withMainContext d
   let location := (expandLocation <$> loc).getD (.targets #[] true)
   let occurrences := expandOccs occs
   let goal ← getMainGoal
-  goal.withContext do 
+  goal.withContext do
     withLocation location
       (atLocal := fun fvarId ↦ do
         let hypType ← fvarId.getType
-        let newGoal ← goal.replaceLocalDeclDefEq fvarId <| ← 
+        let newGoal ← goal.replaceLocalDeclDefEq fvarId <| ←
           replaceByDef hypType pattern occurrences
         replaceMainGoal [newGoal])
       (atTarget := do
         let newGoal ← goal.replaceTargetDefEq <| ←
-          replaceByDef (← goal.getType) pattern occurrences  
+          replaceByDef (← goal.getType) pattern occurrences
         replaceMainGoal [newGoal])
       (failed := (throwTacticEx `unfold · m!"Failed to unfold pattern {p}."))
 
@@ -92,22 +92,22 @@ def Unfold.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) :=
       let subExpr ← loc.toSubExpr
       let pattern ← SubExpr.patternAt subExpr.pos subExpr.expr
       let occurrence ← findOccurrence subExpr.pos subExpr.expr
-      return s!"unfold' (occs := {occurrence}) {(← PrettyPrinter.ppExpr pattern).pretty}{loc.loc.render goal}" 
+      return s!"unfold' (occs := {occurrence}) {(← PrettyPrinter.ppExpr pattern).pretty}{loc.loc.render goal}"
   return .pure (
-        <DynamicEditButton 
-          label={"Unfold definition"} 
-          range?={props.replaceRange} 
-          insertion?={some tacticStr} 
-          variant={"contained"} 
+        <DynamicEditButton
+          label={"Unfold definition"}
+          range?={props.replaceRange}
+          insertion?={some tacticStr}
+          variant={"contained"}
           size={"small"} />
       )
 
 @[widget_module]
-def Unfold : Component InteractiveTacticProps := 
+def Unfold : Component InteractiveTacticProps :=
   mk_rpc_widget% Unfold.rpc
 
 elab stx:"unfold?" : tactic => do
-  let range := (← getFileMap).rangeOfStx? stx 
+  let some range := (← getFileMap).rangeOfStx? stx | return
   savePanelWidgetInfo stx ``Unfold do
     return json% { replaceRange : $(range) }
 

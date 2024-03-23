@@ -1,7 +1,7 @@
 import MotivatedMoves.ProofState.Tree
 import ProofWidgets
 
-namespace Tree
+namespace MotivatedTree
 open Lean Parser
 
 def newLineTermParser := ppDedent ("⠀" >> ppLine >> categoryParser `tree 0)
@@ -95,7 +95,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   | e => if root then failure else descend e 2 delab
 
 
-@[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And, delab app.Tree.Not]
+@[delab app.MotivatedTree.Forall, delab app.MotivatedTree.Exists, delab app.MotivatedTree.Instance, delab app.MotivatedTree.Imp, delab app.MotivatedTree.And, delab app.MotivatedTree.Not]
 def delabTree : Delab :=
   delabTreeAux true true
 
@@ -209,7 +209,7 @@ open Meta Elab Tactic in
 def treeDisplay : Tactic
   | stx@`(tactic| with_tree_display $tacs) => do
     let tgt ← getMainTarget
-    let t ← Tree.toDisplayTree (← makeTree tgt)
+    let t ← MotivatedTree.toDisplayTree (← makeTree tgt)
     Widget.savePanelWidgetInfo (hash OrdinaryTreeDisplay.javascript) (stx := stx) do
       return json% { tree : $(← rpcEncode t) }
     evalTacticSeq tacs

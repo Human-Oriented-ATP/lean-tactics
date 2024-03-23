@@ -2,7 +2,7 @@ import Lean
 import Mathlib.Logic.Basic
 import Mathlib.Control.Bifunctor
 
-namespace Tree
+namespace MotivatedTree
 
 @[reducible] def Not (p : Prop) := ¬ p
 
@@ -15,7 +15,7 @@ namespace Tree
 @[reducible] def Instance (α : Sort u) (p : α → Prop) := (inst : α) → p inst
 
 open Lean Meta
-/- These are the constructors for the Tree nodes. -/
+/- These are the constructors for the MotivatedTree nodes. -/
 def mkNot (p : Expr) : Expr := mkApp (.const ``Not []) p
 
 def mkImp (p q : Expr) : Expr := mkApp2 (.const ``Imp []) p q

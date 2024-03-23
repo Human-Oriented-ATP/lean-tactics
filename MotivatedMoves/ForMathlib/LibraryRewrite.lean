@@ -20,13 +20,13 @@ def RewriteLemma.diffs (rwLemma : RewriteLemma) : Lean.AssocList SubExpr.Pos Wid
   (.cons rwLemma.deletedPos .wasDeleted .nil)
 
 def updateRewriteTree (name : Name) (cinfo : ConstantInfo) (discrTree : RefinedDiscrTree RewriteLemma) : MetaM (RefinedDiscrTree RewriteLemma) := do
-  if Tree.isBadDecl name cinfo (← getEnv) then
+  if MotivatedTree.isBadDecl name cinfo (← getEnv) then
     return discrTree
 
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
-  let .some (lhs, rhs) ← matchEqn? eqn | return discrTree
-  let eqnPos : SubExpr.Pos := vars.foldl (init := .root) (fun pos _ => pos.pushAppArg)
+  let some (lhs, rhs) ← matchEqn? eqn | return discrTree
+  let eqnPos : SubExpr.Pos := vars.foldl (init := .root) (fun pos _ => pos.pushBindingBody)
   let lhsPos := eqnPos.pushAppFn.pushAppArg
   let rhsPos := eqnPos.pushAppArg
   let discrTree ← discrTree.insert (e := lhs) (v := { name, symm := false, deletedPos := lhsPos, insertedPos := rhsPos })
@@ -126,9 +126,9 @@ end
 
 def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
   let (localLemmas, libraryLemmas) ← getRewriteLemmas
-  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars s => do
-    let localResults ← localLemmas.getMatchWithScore s (unify := true) (config := {})
-    let libraryResults ← libraryLemmas.getMatchWithScore s (unify := true) (config := {})
+  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars e => do
+    let localResults ← localLemmas.getMatchWithScore e (unify := true) (config := {})
+    let libraryResults ← libraryLemmas.getMatchWithScore e (unify := true) (config := {})
     let allResults := localResults ++ libraryResults -- TODO: filtering
     return allResults.concatMap Prod.fst
 
@@ -136,21 +136,22 @@ def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
 
 @[server_rpc_method]
 def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
-  let some loc := props.selectedLocations.back? | return .pure <p>Select an expression to rewrite.</p>
-  let some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
-  let some (core : Html) ← (goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+  let some loc := props.selectedLocations.back? | return .pure <p>Please select an expression to rewrite.</p>
+  let some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>Couln't find the goal.</p>
+  let some (core : Html) ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
       let target ← loc.toSubExpr
-      let results ← getMatches target
-      let suggestions ← results.foldlM (init := #[]) fun suggestions result => do
-        match ← renderResult loc goal props.replaceRange result with
-        | some suggestion => return suggestions.push suggestion
-        | none => return suggestions
-      if suggestions.isEmpty then
+      let rwLemmas ← getMatches target
+      let results ← rwLemmas.foldlM (init := #[]) fun results rwLemma => do
+        match ← renderResult loc goal props.replaceRange rwLemma with
+        | some suggestion => return results.push suggestion
+        | none => return results
+      if results.isEmpty then
         return none
-      return mkDiv suggestions) | return .pure <p>No library rewrites found.</p>
+      return mkDiv results
+    | return .pure <p>No library rewrites found.</p>
   return .pure (
     <details «open»={true}>
       <summary className="mv2 pointer">{.text "Library rewrites:"}</summary>
@@ -162,6 +163,6 @@ def LibraryRewrite : Component InteractiveTacticProps :=
   mk_rpc_widget% LibraryRewrite.rpc
 
 elab stx:"lib_rw?" : tactic => do
-  let range := (← getFileMap).rangeOfStx? stx
+  let some range := (← getFileMap).rangeOfStx? stx | return
   Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }

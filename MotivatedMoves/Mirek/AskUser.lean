@@ -115,12 +115,12 @@ def ProgWidget.jscode := include_str ".." / ".." / "build" / "js" / "userQuery.j
 
 --  RpcEncodable by reference
 
-def InteractiveMUnit := InteractiveIO Unit
-deriving instance TypeName for InteractiveMUnit
+def InteractiveIOUnit := InteractiveIO Unit
+deriving instance TypeName for InteractiveIOUnit
 instance : RpcEncodable (InteractiveIO Unit) where
-  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveMUnit)
+  rpcEncode x := rpcEncode (⟨x⟩ : WithRpcRef InteractiveIOUnit)
   rpcDecode json := do
-    let out : WithRpcRef InteractiveMUnit ← rpcDecode json
+    let out : WithRpcRef InteractiveIOUnit ← rpcDecode json
     return out.val
 
 def JsonToInteractiveMUnit := Json → InteractiveIO Unit

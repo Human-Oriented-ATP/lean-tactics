@@ -20,7 +20,7 @@ example : (∀ n l : Nat, n = l+n) → ∃ y : Nat, {x : Nat | x + 1 = y} = {3} 
 
 -- elab "hii" e:term : tactic => do
 --   let e ← Lean.Elab.Tactic.elabTerm e none
---   let e ← Tree.DiscrTree.mkDTExpr e
+--   let e ← MotivatedTree.DiscrTree.mkDTExpr e
 --   Lean.logInfo m! "{e}, {e.etaFlatten}"
 -- example := by
 --   hii (fun x a c => (a:Nat) + ?y)
@@ -36,7 +36,7 @@ example (a b c : Int) : a + b + c = a + (b + c) := by
   try_lib_rewrite [2,0,1]
 
 open BigOperators
-open Lean Tree DiscrTree in
+open Lean MotivatedTree DiscrTree in
 def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let discrTrees ← getLibraryLemmas
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
@@ -46,11 +46,11 @@ def librarySearchRewrite (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Arr
     _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewrite tree
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs, s! "lib_rewrite {printPosition treePos pos} {name} {goalPos'}")
-open Lean Tree Meta Elab Tactic DiscrTree
+open Lean MotivatedTree Meta Elab Tactic DiscrTree
 elab "try_lib_rewrite" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   let tree := (← getMainDecl).type
-  logLibrarySearch (← Tree.librarySearchRewrite goalPos tree)
+  logLibrarySearch (← MotivatedTree.librarySearchRewrite goalPos tree)
 example (N : ℕ) : ∑ n in Finset.range N, n  = N * (N - 1) / 2 := by
   try_lib_rewrite [2,0,1]
 

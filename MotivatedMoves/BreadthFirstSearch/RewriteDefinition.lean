@@ -1,7 +1,7 @@
 import MotivatedMoves.Moves.TreeRewriteDef
 import MotivatedMoves.BreadthFirstSearch.Move
 
-open Lean Elab Tactic Move Tree
+open Lean Elab Tactic Move MotivatedTree
   
 def rewriteDefinitionMove : Move where 
   name := "Rewrite Definition"
