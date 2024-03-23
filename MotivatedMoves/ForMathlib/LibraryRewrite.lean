@@ -1,4 +1,5 @@
 import Mathlib.Tactic.Rewrites
+import Std.CodeAction.Attr
 import MotivatedMoves.ForMathlib.Rewrite
 import MotivatedMoves.GUI.DynamicEditButton
 import MotivatedMoves.LibrarySearch.LibrarySearch
@@ -124,9 +125,9 @@ def renderResult
 
 end
 
-def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
+def getMatches (loc : SubExpr.GoalsLocation) : MetaM (Array RewriteLemma) := do
   let (localLemmas, libraryLemmas) ← getRewriteLemmas
-  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars e => do
+  viewSubexpr (p := loc.pos) (root := ← loc.expr) fun _fvars e => do
     let localResults ← localLemmas.getMatchWithScore e (unify := true) (config := {})
     let libraryResults ← libraryLemmas.getMatchWithScore e (unify := true) (config := {})
     let allResults := localResults ++ libraryResults -- TODO: filtering
@@ -142,8 +143,7 @@ def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask 
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
-      let target ← loc.toSubExpr
-      let rwLemmas ← getMatches target
+      let rwLemmas ← getMatches loc
       let results ← rwLemmas.foldlM (init := #[]) fun results rwLemma => do
         match ← renderResult loc goal props.replaceRange rwLemma with
         | some suggestion => return results.push suggestion
@@ -166,3 +166,33 @@ elab stx:"lib_rw?" : tactic => do
   let some range := (← getFileMap).rangeOfStx? stx | return
   Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }
+
+open Std CodeAction Elab Term Tactic Parser Tactic
+
+@[tactic_code_action Parser.Tactic.rwSeq]
+def rwConfigDelete : TacticCodeAction := fun _ _ ctx _ node => do
+  let .node (.ofTacticInfo info) _ := node | return #[]
+  let doc ← RequestM.readDoc
+  match info.stx with
+  | `(tactic| rw $cfg $_ $(_)?) =>
+      let eager : Lsp.CodeAction := {
+        title := "Delete configuration in `rw` tactic call.",
+        kind? := "quickfix"
+      }
+      let some cfgRange := doc.meta.text.rangeOfStx? cfg | return #[]
+      let deleteCfgEdit : Lsp.TextEdit := {
+        range := ⟨cfgRange.start, { cfgRange.end with character := cfgRange.end.character + 1 }⟩,
+        newText := ""
+      }
+      let lazy : LazyCodeAction := {
+        eager
+        lazy? := some <| pure {
+          eager with
+          edit? := some <| .ofTextEdit doc.versionedIdentifier deleteCfgEdit
+        }
+      }
+      return #[lazy]
+  | _ => return #[]
+
+example : 1 + 2 = 3 := by
+  rw (config := { occs := .pos [1] }) [Nat.add_comm] -- click on the lightbulb that shows up here
