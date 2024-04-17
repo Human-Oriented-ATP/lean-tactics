@@ -1,59 +1,15 @@
 import * as React from 'react';
-import { LocationsContext, importWidgetModule, RpcSessionAtPos, RpcContext, useAsyncPersistent, mapRpcError, GoalsLocation, DocumentPosition, CodeWithInfos, SubexprPos } from '@leanprover/infoview';
+import { LocationsContext, importWidgetModule, RpcSessionAtPos, RpcContext, useAsyncPersistent, mapRpcError, GoalsLocation, DocumentPosition, CodeWithInfos, SubexprPos, PanelWidgetProps } from '@leanprover/infoview';
+import { Html, renderHtml } from "./htmlDisplay";
+import { Range } from 'vscode-languageserver-protocol';
 
-type HtmlAttribute = [string, any]
-
-export type Html =
-    | { element: [string, HtmlAttribute[], Html[]] }
-    | { text: string }
-    | { component: [string, string, any, Html[]] }
-
-/**
- * Render a HTML tree into JSX, resolving any dynamic imports corresponding to `component`s along
- * the way.
- *
- * This guarantees that the resulting React tree is exactly as written down in Lean. In particular,
- * there are no extraneous {@link DynamicComponent} nodes which works better with some libraries
- * that directly inspect the children nodes.
- */
-async function renderHtml(rs: RpcSessionAtPos, pos: DocumentPosition, html: Html):
-        Promise<JSX.Element> {
-    if ('text' in html) {
-        return React.createElement(React.Fragment, null, html.text)
-    } else if ('element' in html) {
-        const [tag, attrsList, cs] = html.element
-        const attrs: any = {}
-        for (const [k,v] of attrsList) {
-            attrs[k] = v
-        }
-        const children = await Promise.all(cs.map(async html => await renderHtml(rs, pos, html)))
-        if (tag === "hr") {
-            // React is greatly concerned by <hr/>s having children.
-            return React.createElement('hr')
-        } else if (children.length === 0) {
-            return React.createElement(tag, attrs)
-        } else {
-            return React.createElement(tag, attrs, children)
-        }
-    } else if ('component' in html) {
-        const [hash, export_, props, cs] = html.component
-        const children = await Promise.all(cs.map(async html => await renderHtml(rs, pos, html)))
-        const dynProps = {...props, pos}
-        const mod = await importWidgetModule(rs, pos, hash)
-        if (!(export_ in mod)) throw new Error(`Module '${hash}' does not export '${export_}'`)
-        if (children.length === 0) {
-            return React.createElement(mod[export_], dynProps)
-        } else {
-            return React.createElement(mod[export_], dynProps, children)
-        }
-    } else {
-        return React.createElement('span', {className:'red', children:["Unknown HTML variant: ", JSON.stringify(html)]})
-    }
+interface InfoviewActionProps extends PanelWidgetProps {
+    range: Range
 }
 
-interface GoalSelectionProps {
-    pos : DocumentPosition
+interface GoalSelectionProps extends PanelWidgetProps {
     locations : SubexprPos[]
+    range: Range
 }
 
 function goalsLocationToSubexprPos(loc:GoalsLocation) : SubexprPos | undefined {
@@ -89,10 +45,10 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         subexprTemplate: { mvarId: '', loc: { target: '/' }}
     }), [selectedLocs]);
     const goalState = useAsyncPersistent<JSX.Element>(async () => {
-      const rpcProps:GoalSelectionProps = {
+      const goalRpcProps:GoalSelectionProps = {
         ...props,
         locations : selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p) }
-      const html:Html = await rs.call('renderTree', rpcProps);
+      const html:Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
     }, [rs, selectedLocs])
     const goal = 
@@ -101,11 +57,24 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         : goalState.state === 'loading' ?
             <>Loading...</>
         : goalState.value
+    const movesState = useAsyncPersistent<JSX.Element>(async () => {
+        const movesRpcProps:InfoviewActionProps = props
+        const html: Html = await rs.call('ProofWidgets.MotivatedProofPanel.rpc', movesRpcProps)
+        return renderHtml(rs, pos, html)
+    }, [rs, selectedLocs])
+    const moves =
+        movesState.state === 'rejected' ?
+            <p color='red'>{mapRpcError(movesState.error).message}</p>
+        : movesState.state === 'loading' ?
+            <>Loading...</>
+        : movesState.value
     return (
     <div>
         <LocationsContext.Provider value={locs}>
-            {goal}
+            { goal }
         </LocationsContext.Provider>
+        <hr />
+        { moves }
     </div>);
 });
 

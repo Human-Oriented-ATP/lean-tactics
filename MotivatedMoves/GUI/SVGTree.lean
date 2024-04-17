@@ -1,4 +1,5 @@
 import MotivatedMoves.GUI.DisplayTree
+import MotivatedMoves.GUI.MotivatedProofList
 import ProofWidgets
 
 open Lean Widget ProofWidgets Server
@@ -89,20 +90,20 @@ def withOppositePolarity : TreeRenderM α → TreeRenderM α :=
 def withOppositeColor (act : TreeRenderM α) : TreeRenderM α := do
   let ρ ← read
   if ρ.color == ρ.goalColor then
-    withReader ({ · with color := ρ.hypothesisColor}) 
+    withReader ({ · with color := ρ.hypothesisColor})
       act
   else if ρ.color == ρ.hypothesisColor then
-    withReader ({ · with color := ρ.goalColor}) 
+    withReader ({ · with color := ρ.goalColor})
       act
   else
     act
 
 /-- Move down the expression tree. -/
-def descend (childIdx : Nat) : TreeRenderM α → TreeRenderM α := 
+def descend (childIdx : Nat) : TreeRenderM α → TreeRenderM α :=
   withReader (pos %~ (·.push childIdx))
 
 /-- Split the current frame into left and right parts and work on them individually. -/
-def withHorizontalSplit (width : Nat) 
+def withHorizontalSplit (width : Nat)
     (leftAct : TreeRenderM Unit) (rightAct : TreeRenderM Unit) : TreeRenderM Unit := do
   let (leftFrame, rightFrame) := splitFrameHorizontal (← read).frame width
   withFrame leftFrame leftAct
@@ -110,8 +111,8 @@ def withHorizontalSplit (width : Nat)
 where
   /-- Split a frame into left and right parts. -/
   splitFrameHorizontal (f : Svg.Frame) (width : Nat) : Svg.Frame × Svg.Frame :=
-    let size := f.pixelSize * width.toFloat 
-    ( { f with xSize := size, width := width }, 
+    let size := f.pixelSize * width.toFloat
+    ( { f with xSize := size, width := width },
       { f with xSize := f.xSize - size, width := f.width - width, xmin := f.xmin + size } )
 
 /-- Split the current frame into equally sized left and right halves and work on them individually. -/
@@ -128,7 +129,7 @@ where
   /-- Split a frame into top and bottom parts. -/
   splitFrameVertical (f : Svg.Frame) (height : Nat) : Svg.Frame × Svg.Frame :=
     let size := f.pixelSize * height.toFloat
-    ( { f with height := height }, 
+    ( { f with height := height },
       { f with ymin := f.ymin + size, height := f.height - height } )
 
 /-- Work on the top row of the current frame and specify what to do on the rest. -/
@@ -164,7 +165,7 @@ def InteractiveRectangle : Component InteractiveRectangleProps where
   javascript := include_str "../../build/js/interactiveRectangle.js"
 
 open scoped Jsx in
-/-- Draw a rectangle bounding the current frame, set to highlight when 
+/-- Draw a rectangle bounding the current frame, set to highlight when
     the current position is selected in the UI. -/
 def drawFrame : TreeRenderM Unit := do
   let ρ ← read
@@ -188,7 +189,7 @@ open scoped Jsx in
 def drawCode (code : CodeWithInfos) (color : Svg.Color) : TreeRenderM Unit := do
   let ρ ← read
   let codeLength := ρ.charWidth * code.pretty.length
-  let (x, y) := (ρ.frame.xmin + (ρ.frame.width / 2 - ρ.padding - codeLength / 2).toFloat * ρ.frame.pixelSize, 
+  let (x, y) := (ρ.frame.xmin + (ρ.frame.width / 2 - ρ.padding - codeLength / 2).toFloat * ρ.frame.pixelSize,
                  ρ.frame.ymin + (ρ.frame.height / 2 - ρ.height / 2).toFloat * ρ.frame.pixelSize)
   draw <| .element "rect" #[
     ("x", toJson x),
@@ -213,9 +214,6 @@ open TreeRender in
 
 Render a `DisplayTree` as an SVG image within the `TreeRenderM` monad.
 
-# TO-DO:
-- Coloring based on polarity
-
 -/
 def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM Unit := do
   let ρ ← read
@@ -224,7 +222,7 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
   | .forall quantifier name type body =>
     withTopRowSplit
       (drawCode (.append #[quantifier, name, .text " : ", type]) (if ρ.polarity then ρ.forallQuantifierColor else ρ.existsQuantifierColor))
-      (descend 1 <| renderCore body) 
+      (descend 1 <| renderCore body)
   | .exists quantifier name type body =>
     withTopRowSplit
       (drawCode (.append #[quantifier, name, .text " : ", type]) (if ρ.polarity then ρ.existsQuantifierColor else ρ.forallQuantifierColor))
@@ -233,7 +231,7 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
     withTopRowSplit
       (drawCode inst ρ.instanceColor)
       (descend 1 <| renderCore body)
-  | .implication antecedent arrow consequent => 
+  | .implication antecedent arrow consequent =>
     withVerticalSplit (antecedent.depth * ρ.rowHeight)
       (descend 0 <| withOppositePolarity <| withOppositeColor <| renderCore antecedent)
       (withTopRowSplit
@@ -249,7 +247,7 @@ def Tree.DisplayTree.renderCore (displayTree : Tree.DisplayTree) : TreeRenderM U
     withHorizontalSplit ρ.rowHeight
       (drawCode neg ρ.negationColor)
       (descend 1 <| withOppositePolarity <| withOppositeColor <| renderCore body)
-  | .node val => 
+  | .node val =>
     withTopRowSplit
       (descend 2 <| drawCode val ρ.color)
       (pure ())
@@ -260,6 +258,7 @@ deriving instance TypeName for Tree.DisplayTree
 
 structure GoalSelectionProps where
   pos : Lsp.Position
+  range : Lsp.Range
   tree : WithRpcRef Tree.DisplayTree
   locations : Array SubExpr.Pos
 deriving RpcEncodable
@@ -293,21 +292,18 @@ def RenderTree : Component GoalSelectionProps where
 open Elab Tactic Json in
 elab stx:"display_tree" : tactic => do
   let e ← getMainTarget
-  let (t, _) ← Tree.toDisplayTree 
+  let .some range := (← getFileMap).rangeOfStx? stx | throwError s!"Could not find range of syntax {stx}."
+  let (t, _) ← Tree.toDisplayTree
             |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
             |>.run {}
   Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
-    return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ), locations : $( (.empty : Array SubExpr.Pos) )} 
+    return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ),
+                   range : $( range ),
+                   locations : $( (.empty : Array SubExpr.Pos) ) }
 
 example : ∀ x : Nat, (False → True) → True ∧ ¬ False := by
   make_tree
   display_tree
   sorry
-
-/-
-
-- Make the goal color more neutral, for example, gray
-
--/
 
 end Rendering

@@ -24,7 +24,7 @@ export type Html =
  * there are no extraneous {@link DynamicComponent} nodes which works better with some libraries
  * that directly inspect the children nodes.
  */
-async function renderHtml(rs: RpcSessionAtPos, pos: DocumentPosition, html: Html):
+export async function renderHtml(rs: RpcSessionAtPos, pos: DocumentPosition, html: Html):
         Promise<JSX.Element> {
     if ('text' in html) {
         return <>{html.text}</>
