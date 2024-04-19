@@ -1,10 +1,10 @@
 import Mathlib.Tactic.Rewrites
-import Std.Lean.Position
+import Std.CodeAction.Attr
 import MotivatedMoves.ForMathlib.Rewrite
 import MotivatedMoves.GUI.DynamicEditButton
 import MotivatedMoves.LibrarySearch.LibrarySearch
 
-open Lean Std Server Elab Meta ProofWidgets Jsx Json Parser Tactic
+open Lean Meta Server ProofWidgets Jsx
 
 structure RewriteLemma where
   name : Name
@@ -16,23 +16,22 @@ deriving BEq, Inhabited
 def RewriteLemma.length (rwLemma : RewriteLemma) : Nat :=
   rwLemma.name.toString.length
 
-def RewriteLemma.toDiffs (rwLemma : RewriteLemma) : Lean.AssocList SubExpr.Pos Widget.DiffTag :=
+def RewriteLemma.diffs (rwLemma : RewriteLemma) : Lean.AssocList SubExpr.Pos Widget.DiffTag :=
   .cons rwLemma.insertedPos .wasInserted
   (.cons rwLemma.deletedPos .wasDeleted .nil)
 
-def updateRewriteTree (decl : Name) (cinfo : ConstantInfo) (discrTree : RefinedDiscrTree RewriteLemma) : MetaM (RefinedDiscrTree RewriteLemma) := do
-  if Tree.isBadDecl decl cinfo (← getEnv) then
+def updateRewriteTree (name : Name) (cinfo : ConstantInfo) (discrTree : RefinedDiscrTree RewriteLemma) : MetaM (RefinedDiscrTree RewriteLemma) := do
+  if Tree.isBadDecl name cinfo (← getEnv) then
     return discrTree
 
   let stmt := cinfo.type
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let .some (lhs, rhs) ← matchEqn? eqn | return discrTree
-  let eqnPos : SubExpr.Pos := vars.foldl (init := .root) (fun pos _ ↦ pos.pushAppArg)
+  let eqnPos : SubExpr.Pos := vars.foldl (init := .root) (fun pos _ => pos.pushAppArg)
   let lhsPos := eqnPos.pushAppFn.pushAppArg
   let rhsPos := eqnPos.pushAppArg
-  (pure discrTree)
-    >>= RefinedDiscrTree.insert (e := lhs) (v := { name := decl, symm := false, deletedPos := lhsPos, insertedPos := rhsPos })
-    >>= RefinedDiscrTree.insert (e := rhs) (v := { name := decl, symm := true, deletedPos := rhsPos, insertedPos := lhsPos })
+  let discrTree ← discrTree.insert (e := lhs) (v := { name, symm := false, deletedPos := lhsPos, insertedPos := rhsPos })
+  discrTree.insert (e := rhs) (v := { name, symm := true, deletedPos := rhsPos, insertedPos := lhsPos })
 
 section
 
@@ -43,8 +42,8 @@ def RewriteCache := DeclCache (RefinedDiscrTree RewriteLemma × RefinedDiscrTree
 
 def RewriteCache.mk (profilingName : String)
   (init : Option (RefinedDiscrTree RewriteLemma) := none) :
-    IO RewriteCache := 
-  DeclCache.mk profilingName (pre := pre) ({}, {}) 
+    IO RewriteCache :=
+  DeclCache.mk profilingName (pre := pre) ({}, {})
     addDecl addLibraryDecl (post := post)
 where
   pre := do
@@ -90,7 +89,7 @@ def mkDiv (elems : Array Html) (cfg : Array (String × Json) := #[]) : Html :=
   .element "div" cfg elems
 
 def Lean.Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos :=
-  code.map fun info ↦
+  code.map fun info =>
     match diffs.find? info.subexprPos with
       | some diff => { info with diffStatus? := some diff }
       |    none   =>   info
@@ -108,11 +107,12 @@ def renderResult
   (loc : SubExpr.GoalsLocation)
   (goal : Widget.InteractiveGoal)
   (range : Lsp.Range)
-  (rwLemma : RewriteLemma) : MetaM Html := do
-  let tacticCall ← try? do
-    rewriteTacticCall loc goal (← abstractMVars <| ← mkConstWithLevelParams rwLemma.name) rwLemma.symm
+  (rwLemma : RewriteLemma) : MetaM (Option Html) := do
+  let some tacticCall ← (do
+    rwCall loc goal (← abstractMVars <| ← mkConstWithLevelParams rwLemma.name) rwLemma.symm)
+    | return none
   return mkDiv
-    #[← rwLemma.name.renderWithDiffs rwLemma.toDiffs,
+    #[← rwLemma.name.renderWithDiffs rwLemma.diffs,
         <DynamicEditButton
           label={rwLemma.name.toString}
           range?={range}
@@ -127,7 +127,7 @@ end
 
 def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
   let (localLemmas, libraryLemmas) ← getRewriteLemmas
-  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars s ↦ do
+  viewSubexpr (p := subExpr.pos) (root := subExpr.expr) fun _fvars s => do
     let localResults ← localLemmas.getMatchWithScore s (unify := true) (config := {})
     let libraryResults ← libraryLemmas.getMatchWithScore s (unify := true) (config := {})
     let allResults := localResults ++ libraryResults -- TODO: filtering
@@ -137,19 +137,21 @@ def getMatches (subExpr : SubExpr) : MetaM (Array RewriteLemma) := do
 
 @[server_rpc_method]
 def LibraryRewrite.rpc (props : InteractiveTacticProps) : RequestM (RequestTask Html) := do
-  let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
-  let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
-  let core : Html ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+  let some loc := props.selectedLocations.back? | return .pure <p>Select an expression to rewrite.</p>
+  let some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
+  let some (core : Html) ← (goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
       let target ← loc.toSubExpr
       let results ← getMatches target
-      let suggestions ← results.mapM <| renderResult loc goal props.replaceRange
-      return mkDiv suggestions
+      let suggestions ← results.filterMapM <| renderResult loc goal props.replaceRange
+      if suggestions.isEmpty then
+        return none
+      return mkDiv suggestions) | return .pure <p>No library rewrites found.</p>
   return .pure (
     <details «open»={true}>
-      <summary className="mv2 pointer">{.text "Library rewrite results"}</summary>
+      <summary className="mv2 pointer">{.text "Library rewrites:"}</summary>
       {core}
     </details>)
 
@@ -161,3 +163,33 @@ elab stx:"lib_rw?" : tactic => do
   let range := (← getFileMap).rangeOfStx? stx
   Widget.savePanelWidgetInfo (hash LibraryRewrite.javascript) (stx := stx) do
     return json% { replaceRange : $(range) }
+
+open Std CodeAction Elab Term Tactic Parser Tactic
+
+@[tactic_code_action Parser.Tactic.rwSeq]
+def rwConfigDelete : TacticCodeAction := fun _ _ ctx _ node => do
+  let .node (.ofTacticInfo info) _ := node | return #[]
+  let doc ← RequestM.readDoc
+  match info.stx with
+  | `(tactic| rw $cfg $_ $(_)?) => 
+      let eager : Lsp.CodeAction := {
+        title := "Delete configuration in `rw` tactic call.",
+        kind? := "quickfix"
+      }
+      let some cfgRange := doc.meta.text.rangeOfStx? cfg | return #[]
+      let deleteCfgEdit : Lsp.TextEdit := {
+        range := ⟨cfgRange.start, { cfgRange.end with character := cfgRange.end.character + 1 }⟩, 
+        newText := ""
+      }
+      let lazy : LazyCodeAction := {
+        eager
+        lazy? := some <| pure {
+          eager with
+          edit? := some <| .ofTextEdit doc.versionedIdentifier deleteCfgEdit 
+        }
+      }
+      return #[lazy]
+  | _ => return #[]
+
+example : 1 + 2 = 3 := by
+  rw (config := { occs := .pos [1] }) [Nat.add_comm] -- click on the lightbulb that shows up here

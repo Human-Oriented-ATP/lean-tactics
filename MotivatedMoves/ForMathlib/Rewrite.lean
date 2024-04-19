@@ -35,11 +35,11 @@ instance : ToString Occurrences where
     | .pos occs => s!".pos {occs}"
     | .neg occs => s!".neg {occs}"
 
-/-- Convert a `Rewrite.Config` to a `String`.
-    This instance is restricted to printing just the information about the occurrences. -/
-instance : ToString Rewrite.Config where
-  toString cfg :=
-    "{ " ++ s!"occs := {cfg.occs}" ++ " }"
+-- /-- Convert a `Rewrite.Config` to a `String`.
+--     This instance is restricted to printing just the information about the occurrences. -/
+-- instance : ToString Rewrite.Config where
+--   toString cfg :=
+--     s! "\{ occs := {cfg.occs} }"
 
 /-- Extract the left and right hand sides of an equality or iff statement. -/
 def matchEqn? (e : Expr) : MetaM (Option (Expr × Expr)) := do
@@ -52,42 +52,46 @@ end
 /-- Specialises the theorem to match the sub-expression at the given position
     and calculates its occurrence number in the whole expression. -/
 def findRewriteOccurrence (thm : Expr) (symm : Bool)
-    (position : SubExpr.Pos) (target : Expr) : MetaM (Nat × Expr) := do
+    (position : SubExpr.Pos) (target : Expr) : MetaM (Option (Occurrences × Expr)) := do
   let stmt ← inferType thm
   let (vars, _, eqn) ← forallMetaTelescopeReducing stmt
   let .some (lhs, rhs) ← matchEqn? eqn |
     panic! s!"Received {stmt}; equality or iff proof expected."
   let hs := if symm then rhs else lhs
-  let occurrence ← findMatchingOccurrence position target hs
+  let some occurrence ← findMatchingOccurrence position target hs | return none
   let pattern := mkAppN thm <| ← vars.mapM instantiateMVars
   return (occurrence, pattern)
 
 /-- Generates a rewrite tactic call with configuration from the arguments. -/
-def rewriteTacticCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
-    (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM String := do
+def rwCall (loc : SubExpr.GoalsLocation) (goal : Widget.InteractiveGoal)
+    (thmAbst : AbstractMVarsResult) (symm : Bool) : MetaM (Option String) := do
   let subExpr ← loc.toSubExpr
   let us ← thmAbst.paramNames.mapM <| fun _ ↦ mkFreshLevelMVar
   let thm := thmAbst.expr.instantiateLevelParamsArray thmAbst.paramNames us
-  let (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr
-  let cfg : Rewrite.Config := { occs := .pos [occurrence] }
+  let some (occurrence, pattern) ← findRewriteOccurrence thm symm subExpr.pos subExpr.expr | return none
+  let cfg := if occurrence matches .all then ""
+    else
+      s! " (config := \{ occs := {occurrence} })"
   let arg := Format.pretty <| ← ppExpr pattern
-  return s!"rw (config := {cfg}) [{(if symm then "← " else "") ++ arg}]{loc.loc.render goal}"
+  return s! "rw{cfg} [{if symm then "← " else ""}{arg}]{loc.loc.render goal}"
 
 @[server_rpc_method]
 def Rewrite.rpc (props : RewriteProps) : RequestM (RequestTask Html) := do
   let some loc := props.selectedLocations.back? | return .pure <p>Select a sub-expression to rewrite.</p>
   let .some goal := props.goals.find? (·.mvarId == loc.mvarId) | return .pure <p>No goals found.</p>
-  let tacticStr : String ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
+  -- still need to handle the `none` case:
+  let tacticStr ← goal.ctx.val.runMetaM {} do -- following `SelectInsertConv`
     let md ← goal.mvarId.getDecl
     let lctx := md.lctx |>.sanitizeNames.run' {options := (← getOptions)}
     Meta.withLCtx lctx md.localInstances do
-      rewriteTacticCall loc goal props.rwRule.val props.symm
+      rwCall loc goal props.rwRule.val props.symm
   return .pure (
         <DynamicEditButton
           label={"Rewrite sub-term"}
           range?={props.replaceRange}
-          insertion?={some tacticStr}
+          insertion?={tacticStr}
           variant={"contained"}
+          onWhitespace={false}
           size={"small"} />
       )
 
