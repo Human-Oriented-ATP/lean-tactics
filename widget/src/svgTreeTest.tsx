@@ -24,11 +24,13 @@ function goalsLocationToSubexprPos(loc:GoalsLocation) : SubexprPos | undefined {
     }
 }
 
+const dummyMVarId = "dummyMVarId"
+
 const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
     console.log(props);
     const rs = React.useContext(RpcContext)
     const pos = props.pos
-    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.locations.map (pos => {return {mvarId: '', loc: {target: pos}}}));
+    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.locations.map (pos => {return {mvarId: dummyMVarId, loc: {target: pos}}}));
     React.useEffect(() => setSelectedLocs([]), [pos.uri, pos.line, pos.character]);
     const locs = React.useMemo(() => ({
         isSelected: (l : GoalsLocation) => selectedLocs.some(v => GoalsLocation.isEqual(v, l)),
@@ -42,12 +44,13 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
                 newLocs.push(l);
             return wasSelected === isSelected ? ls : newLocs;
         }),
-        subexprTemplate: { mvarId: '', loc: { target: '/' }}
+        subexprTemplate: { mvarId: dummyMVarId, loc: { target: '/' } }
     }), [selectedLocs]);
     const goalState = useAsyncPersistent<JSX.Element>(async () => {
       const goalRpcProps:GoalSelectionProps = {
         ...props,
-        locations : selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p) }
+        selectedLocations: selectedLocs,
+        locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p) }
       const html:Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
     }, [rs, selectedLocs])
@@ -58,7 +61,11 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
             <>Loading...</>
         : goalState.value
     const movesState = useAsyncPersistent<JSX.Element>(async () => {
-        const movesRpcProps:InfoviewActionProps = props
+        console.log(selectedLocs)
+        const movesRpcProps:InfoviewActionProps = {
+            ...props,
+            selectedLocations: selectedLocs
+        }
         const html: Html = await rs.call('ProofWidgets.MotivatedProofPanel.rpc', movesRpcProps)
         return renderHtml(rs, pos, html)
     }, [rs, selectedLocs])
