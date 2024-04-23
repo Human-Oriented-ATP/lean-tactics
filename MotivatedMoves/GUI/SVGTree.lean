@@ -1,5 +1,4 @@
 import MotivatedMoves.GUI.DisplayTree
-import MotivatedMoves.GUI.MotivatedProofList
 import ProofWidgets
 
 open Lean Widget ProofWidgets Server
@@ -287,23 +286,6 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
 
 @[widget_module]
 def RenderTree : Component GoalSelectionProps where
-  javascript := include_str "../../build/js/svgTreeTest.js"
-
-open Elab Tactic Json in
-elab stx:"display_tree" : tactic => do
-  let e ← getMainTarget
-  let .some range := (← getFileMap).rangeOfStx? stx | throwError s!"Could not find range of syntax {stx}."
-  let (t, _) ← Tree.toDisplayTree
-            |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
-            |>.run {}
-  Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
-    return json% { tree : $(← rpcEncode (WithRpcRef.mk t) ),
-                   range : $( range ),
-                   locations : $( (.empty : Array SubExpr.Pos) ) }
-
-example : ∀ x : Nat, (False → True) → True ∧ ¬ False := by
-  make_tree
-  display_tree
-  sorry
+  javascript := include_str "../../build/js/svgTree.js"
 
 end Rendering
