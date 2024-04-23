@@ -3,10 +3,6 @@ import { LocationsContext, importWidgetModule, RpcSessionAtPos, RpcContext, useA
 import { Html, renderHtml } from "./htmlDisplay";
 import { Range } from 'vscode-languageserver-protocol';
 
-interface InfoviewActionProps extends PanelWidgetProps {
-    range: Range
-}
-
 interface GoalSelectionProps extends PanelWidgetProps {
     locations : SubexprPos[]
     range: Range
@@ -27,11 +23,11 @@ function goalsLocationToSubexprPos(loc:GoalsLocation) : SubexprPos | undefined {
 const dummyMVarId = "dummyMVarId"
 
 const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
-    console.log(props);
     const rs = React.useContext(RpcContext)
     const pos = props.pos
     const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.locations.map (pos => {return {mvarId: dummyMVarId, loc: {target: pos}}}));
     React.useEffect(() => setSelectedLocs([]), [pos.uri, pos.line, pos.character]);
+    
     const locs = React.useMemo(() => ({
         isSelected: (l : GoalsLocation) => selectedLocs.some(v => GoalsLocation.isEqual(v, l)),
         setSelected: (l : GoalsLocation, act : any) => setSelectedLocs(ls => {
@@ -46,12 +42,13 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         }),
         subexprTemplate: { mvarId: dummyMVarId, loc: { target: '/' } }
     }), [selectedLocs]);
+
     const goalState = useAsyncPersistent<JSX.Element>(async () => {
-      const goalRpcProps:GoalSelectionProps = {
+      const goalRpcProps: GoalSelectionProps = {
         ...props,
         selectedLocations: selectedLocs,
-        locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p) }
-      const html:Html = await rs.call('renderTree', goalRpcProps);
+        locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
+      const html: Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
     }, [rs, selectedLocs])
     const goal = 
@@ -60,13 +57,14 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         : goalState.state === 'loading' ?
             <>Loading...</>
         : goalState.value
+
     const movesState = useAsyncPersistent<JSX.Element>(async () => {
-        console.log(selectedLocs)
-        const movesRpcProps:InfoviewActionProps = {
+        const movesRpcProps: GoalSelectionProps = {
             ...props,
-            selectedLocations: selectedLocs
+            selectedLocations: selectedLocs,
+            locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p)
         }
-        const html: Html = await rs.call('ProofWidgets.MotivatedProofPanel.rpc', movesRpcProps)
+        const html: Html = await rs.call('MotivatedProof.MotivatedProofMovePanel.rpc', movesRpcProps)
         return renderHtml(rs, pos, html)
     }, [rs, selectedLocs])
     const moves =
@@ -75,6 +73,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         : movesState.state === 'loading' ?
             <>Loading...</>
         : movesState.value
+        
     return (
     <div>
         <LocationsContext.Provider value={locs}>
