@@ -390,6 +390,7 @@ def InteractiveTacImpl:Lean.Elab.Tactic.Tactic
 example (a b c d : Nat) (h : c+b*a = d) : a*b+c = d := by
   interactive_tac
     rewrite [Nat.add_comm]
+  sorry
 
 #html <ProgWidget code={do
   let name ← askUserString 0 <p>What is your name?</p>
