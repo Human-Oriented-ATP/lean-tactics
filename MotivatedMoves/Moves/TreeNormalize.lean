@@ -8,7 +8,7 @@ open Lean Elab Tactic Meta
 
 def normalize (norm : Expr → MetaM (Expr × Expr)) (fvars : Array Expr) (lhs : Expr) : MetaM RewriteInfo := do
   let (rhs, proof) ← norm (lhs.instantiateRev fvars)
-  
+
   let lctx ← getLCtx
 
   let n := fvars.size
@@ -22,12 +22,12 @@ def normalize (norm : Expr → MetaM (Expr × Expr)) (fvars : Array Expr) (lhs :
 
 
 private def NormalizeRec (norm : Expr → MetaM (Expr × Expr)) (target : Expr) (pos : InnerPosition) : MetaM RewriteInfo :=
-  
+
   let rec visit (fvars : Array Expr) : InnerPosition → Expr → MetaM RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
     | []   , e                 => normalize norm fvars e
-    
+
     | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
     | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
 
@@ -39,7 +39,7 @@ private def NormalizeRec (norm : Expr → MetaM (Expr × Expr)) (target : Expr) 
       withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
         let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.letE n t v e d, .letE n t v e' d, z)
-                                                      
+
     | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fvars xs t; return (.lam n e b bi, .lam n e' b bi, z)
     | 1::xs, .lam n t b bi     =>
       withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
@@ -53,7 +53,7 @@ private def NormalizeRec (norm : Expr → MetaM (Expr × Expr)) (target : Expr) 
         return (.forallE n t e bi, .forallE n t e' bi, z)
 
     | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
-      
+
   visit #[] pos target
 
 
@@ -97,6 +97,13 @@ elab "tree_simp" goalPos:treePos : tactic =>
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   defaultSimpMove goalOuterPosition goalPos
 
+@[new_motivated_proof_move]
+def treeSimpMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Simplify"
+    code := return s!"tree_simp {pos}"
+  }
+  | _ => failure
 
 example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
   make_tree
@@ -111,3 +118,15 @@ def pushNegContext : MetaM Simp.Context :=
 elab "tree_push_neg" goalPos:treePos : tactic => do
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   simpMoveAt (← pushNegContext) none goalOuterPosition goalPos
+
+@[new_motivated_proof_move]
+def treePushNegMove : MotivatedProof.Suggestion
+  | #[pos] => withMainContext do
+    let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
+    unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
+        matches Expr.app (.const ``Tree.Not _) _ do failure
+    return some {
+      description := "Push the negation"
+      code := return s!"tree_push_neg {pos}"
+    }
+  | _ => failure

@@ -1,4 +1,5 @@
 import MotivatedMoves.LibrarySearch.LibrarySearch
+import MotivatedMoves.Moves.Basic
 
 namespace Tree
 
@@ -556,3 +557,18 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
 /- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i
+
+open scoped ProofWidgets.Jsx in
+@[new_motivated_proof_move]
+def treeApplyMove : MotivatedProof.Suggestion
+  | #[pos₁, pos₂] => do
+    let tac ← `(tactic| tree_apply $(quote pos₁) $(quote pos₂))
+    let _ ← OptionT.mk <| withoutModifyingState <|
+              try? <| evalTactic tac
+    return {
+      description := "Apply",
+      code := do
+        let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
+        return s!"tree_apply{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+    }
+  | _ => failure

@@ -83,3 +83,15 @@ def librarySearchInduction (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Na
       return lemmas.map fun {name, treePos, pos, diffs} => (name, diffs,
         s! "lib_rewrite {printPosition treePos pos} {name} {goalPos}")
     | _ => return #[]
+
+@[new_motivated_proof_move]
+def treeInductionMove : MotivatedProof.Suggestion
+  | #[pos] => withMainContext do
+    let tac ← `(tactic| tree_induction $(quote pos))
+    let _ ← OptionT.mk <| withoutModifyingState <|
+      try? <| evalTactic tac
+    return some {
+      description := "Definitional induction/elimination",
+      code := return s!"tree_induction {pos}"
+    }
+  | _ => failure

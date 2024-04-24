@@ -24,7 +24,7 @@ initialize suggestionExt : PersistentEnvExtension Name (Name × Suggestion) (Arr
   }
 
 initialize registerBuiltinAttribute {
-  name := `motivated_proof_move
+  name := `new_motivated_proof_move
   descr := "Declare a new motivated proof move to appear in the panel of suggestions."
   applicationTime := .afterCompilation
   add := fun decl stx _ => do

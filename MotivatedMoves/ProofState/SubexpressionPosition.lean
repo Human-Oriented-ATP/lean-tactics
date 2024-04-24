@@ -7,9 +7,9 @@ open Lean
 abbrev InnerPosition := List ℕ
 abbrev OuterPosition := List ℕ
 
-def badInnerPositionMessage (e : Expr) (pos : InnerPosition) : MessageData := 
+def badInnerPositionMessage (e : Expr) (pos : InnerPosition) : MessageData :=
   m! "Could not find inner position {pos} in target {e}"
-def badOuterPositionMessage (e : Expr) (pos : OuterPosition) : MessageData := 
+def badOuterPositionMessage (e : Expr) (pos : OuterPosition) : MessageData :=
   m! "Could not find outer position {pos} in target {e}"
 
 def splitPosition (pos : List ℕ) : OuterPosition × InnerPosition :=
@@ -21,12 +21,23 @@ where
 
 def printPosition (outer : OuterPosition) (inner : InnerPosition) : String :=
   if inner == [] then s! "{outer}"
-  else s! "{outer ++ 2 :: inner}" 
+  else s! "{outer ++ 2 :: inner}"
 
 syntax treePos := "[" num,* "]"
 
 def getPosition (stx : TSyntax `Tree.treePos) : List ℕ :=
   (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
 
-def getOuterInnerPosition (stx : TSyntax `Tree.treePos) : OuterPosition × InnerPosition := 
+def getOuterInnerPosition (stx : TSyntax `Tree.treePos) : OuterPosition × InnerPosition :=
   splitPosition (getPosition stx)
+
+instance : Quote SubExpr.Pos `Tree.treePos where
+  quote pos :=
+  let posStx : TSyntaxArray `num := pos.toArray.map quote
+  let posStxRaw := posStx.map (·.raw) |>.toList
+  let args := (List.intersperse (Syntax.atom .none ",") posStxRaw).toArray
+  { raw := .node .none `Tree.treePos #[
+    .atom .none "[",
+    .node .none `null args,
+    .atom .none "]"
+  ] }

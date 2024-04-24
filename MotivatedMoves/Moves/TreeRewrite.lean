@@ -32,12 +32,12 @@ def rewriteUnify (fvars : Array Expr) (side target : Expr) (hypContext : Hypothe
     throwError m!"subexpression {target} : {← inferType target} does not match side {side} : {← inferType side}"
 
 private def recurseToPosition (side target : Expr) (hypContext : HypothesisContext) (pos : InnerPosition) : MetaM' RewriteInfo :=
-  
+
   let rec visit (fvars : Array Expr) : InnerPosition → Expr → MetaM' RewriteInfo
     | xs   , .mdata d b        => do let (e, e', z) ← visit fvars xs b; return (.mdata d e, .mdata d e', z)
 
     | []   , e                 => rewriteUnify fvars side e hypContext
-    
+
     | 0::xs, .app f a          => do let (e, e', z) ← visit fvars xs f; return (.app e a, .app e' a, z)
     | 1::xs, .app f a          => do let (e, e', z) ← visit fvars xs a; return (.app f e, .app f e', z)
 
@@ -49,7 +49,7 @@ private def recurseToPosition (side target : Expr) (hypContext : HypothesisConte
       withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
         let (e, e', z) ← visit (fvars.push fvar) xs b
         return (.letE n t v e d, .letE n t v e' d, z)
-                                                      
+
     | 0::xs, .lam n t b bi     => do let (e, e', z) ← visit fvars xs t; return (.lam n e b bi, .lam n e' b bi, z)
     | 1::xs, .lam n t b bi     =>
       withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
@@ -63,7 +63,7 @@ private def recurseToPosition (side target : Expr) (hypContext : HypothesisConte
         return (.forallE n t e bi, .forallE n t e' bi, z)
 
     | list, e                  => throwError m!"could not find subexpression {list} in '{e}'"
-      
+
   visit #[] pos target
 
 lemma substitute  {α : Sort u} {a b : α} (motive : α → Prop) (h₁ : Eq a b) : motive b → motive a :=
@@ -78,7 +78,7 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
     throwError m! "cannot rewrite using a subexpression: subtree {hypOuterPosition} in {eq}"
   let cont (lhs rhs : Expr) (hypProofM : MetaM' (Expr × Expr)) :=
     let cont (symm : Bool) (side : Expr) (hypProofM : MetaM' (Expr × Expr)) : MetaM' TreeProof := do
-    
+
       let (motive_core, newSide, proof, type) ← recurseToPosition side target {hypContext with hypProofM} goalPos
       let motive := Expr.lam `_a type motive_core .default
       let proof ← mkAppM (if pol != symm then ``substitute else ``substitute') #[motive, proof]
@@ -98,7 +98,7 @@ def treeRewrite (hypContext : HypothesisContext) (eq target : Expr) (pol : Bool)
   match eq.eq? with
   | some (_, lhs, rhs) => cont lhs rhs hypContext.hypProofM
   | none => throwError m!"equality or iff proof expected{indentExpr eq}"
-    
+
 
 
 open Elab.Tactic
@@ -115,10 +115,10 @@ elab "tree_rewrite'" hypPos:treePos goalPos:treePos : tactic => do
 
 def getRewritePos (pos : OuterPosition × InnerPosition ⊕ Bool) (hyp : Expr) (_ : MetaM Bool) : MetaM (Expr × OuterPosition × InnerPosition) := do
   let hypTree ← makeTree hyp
-  
+
   let (treePos, pos) := match pos with
     | .inl pos => pos
-    | .inr rev? => 
+    | .inr rev? =>
       let treePos := findOuterPosition hypTree
       (treePos, (if rev? then [1] else [0,1]))
   return (← makeTreePath treePos hyp, treePos, pos)
@@ -165,3 +165,17 @@ lemma imp_exists_iff [inst : Nonempty α] {p : Prop} {q : α → Prop} : Imp p (
   · intro ⟨a, h⟩ g
     exact ⟨a, h g⟩
 
+open scoped ProofWidgets.Jsx in
+@[new_motivated_proof_move]
+def treeRewriteMove : MotivatedProof.Suggestion
+  | #[pos₁, pos₂] => do
+    let tac ← `(tactic| tree_rewrite $(quote pos₁) $(quote pos₂))
+    let _ ← OptionT.mk <| withoutModifyingState <|
+              try? <| evalTactic tac
+    return {
+      description := "Rewrite",
+      code := do
+        let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
+        return s!"tree_rewrite{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+    }
+  | _ => failure

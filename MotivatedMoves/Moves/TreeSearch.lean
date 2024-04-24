@@ -1,4 +1,5 @@
 import MotivatedMoves.ProofState.Tree
+import MotivatedMoves.Moves.Basic
 
 namespace Tree
 namespace Search
@@ -44,3 +45,11 @@ elab "tree_search" : tactic => do
   workOnTree (visit true)
 elab "tree_search'" : tactic => do
   workOnTree (visit false)
+
+@[new_motivated_proof_move]
+def treeSearchMove : MotivatedProof.Suggestion
+  | #[] => return {
+    description := "Search for redundant hypotheses and targets",
+    code := do return s!"tree_search"
+  }
+  | _ => failure

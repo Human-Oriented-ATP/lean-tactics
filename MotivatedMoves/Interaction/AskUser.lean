@@ -1,6 +1,6 @@
 import Lean
 import ProofWidgets
-import Mathlib.Tactic
+import Std
 
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server

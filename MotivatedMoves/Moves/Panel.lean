@@ -1,4 +1,4 @@
-import MotivatedMoves.Moves.Basic
+import MotivatedMoves.Moves
 import MotivatedMoves.GUI.SVGTree
 import ProofWidgets
 
