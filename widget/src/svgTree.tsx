@@ -4,7 +4,7 @@ import { Html, renderHtml } from "./htmlDisplay";
 import { Range } from 'vscode-languageserver-protocol';
 
 interface GoalSelectionProps extends PanelWidgetProps {
-    locations : SubexprPos[]
+    selections : SubexprPos[]
     range: Range
 }
 
@@ -25,7 +25,7 @@ const dummyMVarId = "dummyMVarId"
 const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
     const rs = React.useContext(RpcContext)
     const pos = props.pos
-    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.locations.map (pos => {return {mvarId: dummyMVarId, loc: {target: pos}}}));
+    const [selectedLocs, setSelectedLocs] = React.useState<GoalsLocation[]>(props.selections?.map (pos => {return {mvarId: dummyMVarId, loc: {target: pos}}}));
     React.useEffect(() => setSelectedLocs([]), [pos.uri, pos.line, pos.character]);
     
     const locs = React.useMemo(() => ({
@@ -47,7 +47,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
       const goalRpcProps: GoalSelectionProps = {
         ...props,
         selectedLocations: selectedLocs,
-        locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
+        selections: selectedLocs?.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
       const html: Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
     }, [rs, selectedLocs])
@@ -62,7 +62,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         const movesRpcProps: GoalSelectionProps = {
             ...props,
             selectedLocations: selectedLocs,
-            locations: selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p)
+            selections: selectedLocs?.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p)
         }
         const html: Html = await rs.call('MotivatedProof.MotivatedProofMovePanel.rpc', movesRpcProps)
         return renderHtml(rs, pos, html)

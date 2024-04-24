@@ -259,7 +259,7 @@ structure GoalSelectionProps where
   pos : Lsp.Position
   range : Lsp.Range
   tree : WithRpcRef Tree.DisplayTree
-  locations : Array SubExpr.Pos
+  selections : Array SubExpr.Pos
 deriving RpcEncodable
 
 open scoped Jsx in
@@ -270,7 +270,7 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
   let width := tree.width
   let height := tree.depth * yScale
   let frame : Svg.Frame := { xmin := 0, ymin := 0, xSize := width.toFloat, width := width, height := height }
-  let (_, ⟨elements⟩) := tree.renderCore |>.run {} |>.run { selectedLocations := props.locations, frame := frame }
+  let (_, ⟨elements⟩) := tree.renderCore |>.run {} |>.run { selectedLocations := props.selections, frame := frame }
   return (
     <div align="center">
       {.element "svg"
@@ -279,8 +279,6 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
         ("width", width),
         ("height", height)]
       elements}
-      <hr />
-      {.element "div" #[] (props.locations.map (<p>{.text ·.toString}</p>))}
     </ div>
     )
 
