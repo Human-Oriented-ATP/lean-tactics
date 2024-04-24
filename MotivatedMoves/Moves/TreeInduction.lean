@@ -95,3 +95,44 @@ def treeInductionMove : MotivatedProof.Suggestion
       code := return s!"tree_induction {pos}"
     }
   | _ => failure
+
+end Tree
+
+open Lean Elab Tactic ProofWidgets Widget Server Jsx
+
+namespace Lean
+
+def Widget.CodeWithInfos.addDiffs (diffs : AssocList SubExpr.Pos DiffTag) (code : CodeWithInfos) : CodeWithInfos :=
+  code.map fun info ↦
+    match diffs.find? info.subexprPos with
+      | some diff => { info with diffStatus? := some diff }
+      |    none   =>   info
+
+def Expr.renderWithDiffs (e : Expr) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do
+  let e' := (← Widget.ppExprTagged e).addDiffs diffs
+  return <InteractiveCode fmt={e'} />
+
+def Name.renderWithDiffs (nm : Name) (diffs : AssocList SubExpr.Pos DiffTag) : MetaM Html := do
+  let env ← getEnv
+  let some ci := env.find? nm | failure
+  ci.type.renderWithDiffs diffs
+
+end Lean
+
+open Tree
+
+open scoped ProofWidgets.Jsx in
+@[new_motivated_proof_move]
+def treeLibraryInductionMove : MotivatedProof.Suggestion
+  | #[pos] => do
+    let libSuggestions ← Tree.librarySearchInduction (pos.toArray.toList) (← getMainTarget)
+    if libSuggestions.isEmpty then failure
+    return {
+      description := "Custom induction/elimination",
+      code := do
+        let tacticCall ← askUserSelect 0 <p>Choose an induction principle</p> <| ← libSuggestions.toList.mapM
+          fun (name, diffs, tacticCall) ↦ do
+            return (tacticCall, <button>{← name.renderWithDiffs diffs}</button>)
+        return tacticCall
+    }
+  | _ => failure
