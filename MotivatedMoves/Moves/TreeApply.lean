@@ -558,7 +558,8 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i
 
-open scoped ProofWidgets.Jsx in
+open scoped ProofWidgets.Jsx
+
 @[new_motivated_proof_move]
 def treeApplyMove : MotivatedProof.Suggestion
   | #[pos₁, pos₂] => do
@@ -571,4 +572,16 @@ def treeApplyMove : MotivatedProof.Suggestion
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
         return s!"tree_apply{if keepHyp then "" else "'"} {pos₁} {pos₂}"
     }
+  | _ => failure
+
+@[new_motivated_proof_move]
+def treeUnifyMove : MotivatedProof.Suggestion
+  | #[pos] => withMainContext do
+      let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
+      unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
+      matches Expr.app (.const ``Eq _) _ do failure
+      return some {
+        description := "Unify",
+        code := return s!"lib_apply refl {pos}"
+      }
   | _ => failure

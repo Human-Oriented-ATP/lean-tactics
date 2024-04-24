@@ -165,7 +165,8 @@ lemma imp_exists_iff [inst : Nonempty α] {p : Prop} {q : α → Prop} : Imp p (
   · intro ⟨a, h⟩ g
     exact ⟨a, h g⟩
 
-open scoped ProofWidgets.Jsx in
+open scoped ProofWidgets.Jsx
+
 @[new_motivated_proof_move]
 def treeRewriteMove : MotivatedProof.Suggestion
   | #[pos₁, pos₂] => do
@@ -177,5 +178,17 @@ def treeRewriteMove : MotivatedProof.Suggestion
       code := do
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
         return s!"tree_rewrite{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+    }
+  | _ => failure
+
+@[new_motivated_proof_move]
+def treeHypSwapMove : MotivatedProof.Suggestion
+  | #[pos] => do
+    let tac ← `(tactic| lib_rewrite Imp.swap $(quote pos))
+    let _ ← OptionT.mk <| withoutModifyingState <|
+              try? <| evalTactic tac
+    return {
+      description := "Swap the hypotheses",
+      code := return s!"lib_rewrite Imp.swap {pos}"
     }
   | _ => failure
