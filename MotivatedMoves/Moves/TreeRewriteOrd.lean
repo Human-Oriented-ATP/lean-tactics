@@ -338,7 +338,8 @@ elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
   let tree := (← getMainDecl).type
   logLibrarySearch (← librarySearchRewriteOrd goalPos tree)
 
-open scoped ProofWidgets.Jsx in
+open scoped ProofWidgets.Jsx
+
 @[new_motivated_proof_move]
 def treeRewriteOrdMove : MotivatedProof.Suggestion
   | #[pos₁, pos₂] => do
@@ -351,6 +352,36 @@ def treeRewriteOrdMove : MotivatedProof.Suggestion
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
         return s!"tree_rewrite_ord{if keepHyp then "" else "'"} {pos₁} {pos₂}"
     }
+  | _ => failure
+
+elab "skip_lib_rewrite_ord" : tactic => pure ()
+
+@[new_motivated_proof_move]
+def treeOrderedLibraryRewriteMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Ordered rewrite using a library result",
+    code := do
+    let libSuggestionsGrouped ← Tree.librarySearchRewriteOrd (pos.toArray.toList) (← getMainTarget)
+    let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
+    let resultsCount :=
+      if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
+        s!"at least {RefinedDiscrTree.maxResultsCap}"
+      else
+        s!"{libSuggestions.size}"
+    let chooseLibRewrite ← askUserBool 0 <p>{.text s!"There are {resultsCount} results in the library that match the selection.\n Would you like to retrieve one at random?"}</p>
+    if chooseLibRewrite then
+      let (name, diffs, tacticCall) ← IO.randSampleWeighted libSuggestions.toList
+      let confirmLibSuggestion ← askUserBool 0 <| .element "div" #[] #[
+        <text>The randomly chosen result is</text>,
+        <br />, ← name.renderWithDiffs diffs, <br />,
+        <text>Would you like to use this result?</text>]
+      if confirmLibSuggestion then
+        return tacticCall
+      else
+        return "skip_lib_rewrite_ord"
+    else
+      return "skip_lib_rewrite_ord"
+  }
   | _ => failure
 
 -- example (a : ℝ) : dist a b < 5 := by

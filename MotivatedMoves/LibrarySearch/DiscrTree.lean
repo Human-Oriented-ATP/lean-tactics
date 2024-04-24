@@ -1072,8 +1072,10 @@ def getSubExprUnify (d : RefinedDiscrTree α) (tree : Expr) (treePos : OuterPosi
     (config : WhnfCoreConfig := {}) : MetaM (Array (Array α × Nat)) := do
   withTreeSubexpr tree treePos pos fun _ e => getMatchWithScore d e true config
 
+def maxResultsCap := 18
+
 /-- Filter the matches coming from `getMatchWithScore` by whether the `filter` function succeeds within the given `maxHeartbeats`.-/
-def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Unit) (max_results : Option Nat := some 18)
+def filterLibraryResults («matches» : Array (Array α × Nat)) (filter : α → MetaM Unit) (max_results : Option Nat := maxResultsCap)
     (maxHeartbeats : Nat := 1000) (maxTotalHeartbeats : Nat := 10000) : MetaM (Array (Array α × Nat)) := do
   let numHeartbeats ← IO.getNumHeartbeats
   let maxTotalHeartbeats := maxTotalHeartbeats * 1000

@@ -192,3 +192,33 @@ def treeHypSwapMove : MotivatedProof.Suggestion
       code := return s!"lib_rewrite Imp.swap {pos}"
     }
   | _ => failure
+
+elab "skip_lib_rewrite" : tactic => pure ()
+
+@[new_motivated_proof_move]
+def treeLibraryRewriteMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Rewrite using a library result",
+    code := do
+    let libSuggestionsGrouped ← Tree.librarySearchRewrite (pos.toArray.toList) (← getMainTarget)
+    let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
+    let resultsCount :=
+      if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
+        s!"at least {RefinedDiscrTree.maxResultsCap}"
+      else
+        s!"{libSuggestions.size}"
+    let chooseLibRewrite ← askUserBool 0 <p>{.text s!"There are {resultsCount} results in the library that match the selection.\n Would you like to retrieve one at random?"}</p>
+    if chooseLibRewrite then
+      let (name, diffs, tacticCall) ← IO.randSampleWeighted libSuggestions.toList
+      let confirmLibSuggestion ← askUserBool 0 <| .element "div" #[] #[
+        <text>The randomly chosen result is</text>,
+        <br />, ← name.renderWithDiffs diffs, <br />,
+        <text>Would you like to use this result?</text>]
+      if confirmLibSuggestion then
+        return tacticCall
+      else
+        return "skip_lib_rewrite"
+    else
+      return "skip_lib_rewrite"
+  }
+  | _ => failure

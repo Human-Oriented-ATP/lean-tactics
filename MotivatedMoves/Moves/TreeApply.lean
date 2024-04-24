@@ -585,3 +585,34 @@ def treeUnifyMove : MotivatedProof.Suggestion
         code := return s!"lib_apply refl {pos}"
       }
   | _ => failure
+
+elab "skip_lib_apply" : tactic => pure ()
+
+@[new_motivated_proof_move]
+def treeLibraryApplyMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Apply a library result",
+    code := do
+    let keepHyp? ← askUserBool 0 <text>Would you like to keep the closed goal as a hypothesis?</text>
+    let libSuggestionsGrouped ← Tree.librarySearchApply keepHyp? (pos.toArray.toList) (← getMainTarget)
+    let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
+    let resultsCount :=
+      if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
+        s!"at least {RefinedDiscrTree.maxResultsCap}"
+      else
+        s!"{libSuggestions.size}"
+    let chooseLibApply ← askUserBool 0 <p>{.text s!"There are {resultsCount} results in the library that match the selection.\n Would you like to retrieve one at random?"}</p>
+    if chooseLibApply then
+      let (name, diffs, tacticCall) ← IO.randSampleWeighted libSuggestions.toList
+      let confirmLibSuggestion ← askUserBool 0 <| .element "div" #[] #[
+        <text>The randomly chosen result is</text>,
+        <br />, ← name.renderWithDiffs diffs, <br />,
+        <text>Would you like to use this result?</text>]
+      if confirmLibSuggestion then
+        return tacticCall
+      else
+        return "skip_lib_apply"
+    else
+      return "skip_lib_apply"
+  }
+  | _ => failure
