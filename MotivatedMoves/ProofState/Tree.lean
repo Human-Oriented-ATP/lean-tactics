@@ -1,10 +1,10 @@
 import MotivatedMoves.ProofState.SubexpressionPosition
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean
 
-/- These are the match patterns for the Tree nodes -/
+/- These are the match patterns for the MotivatedTree nodes -/
 @[match_pattern] def not_pattern (p : Expr) : Expr := mkApp (.const ``Not []) p
 
 @[match_pattern] def imp_pattern (p q : Expr) : Expr := mkApp2 (.const ``Imp []) p q
@@ -15,7 +15,7 @@ def forall_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (b
   mkApp2 (.const ``Forall [u]) domain' (.lam name domain body bi)
 @[match_pattern]
 def exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) {bi : BinderInfo} : Expr :=
-  mkApp2 (.const ``Tree.Exists [u]) domain' (.lam name domain body bi)
+  mkApp2 (.const ``MotivatedTree.Exists [u]) domain' (.lam name domain body bi)
 @[match_pattern]
 def regular_exists_pattern (name : Name) (u : Level) (domain : Expr) {domain' : Expr} (body : Expr) (bi : BinderInfo) : Expr :=
   mkApp2 (.const `Exists [u]) domain' (.lam name domain body bi)
@@ -32,7 +32,7 @@ def instance_pattern (name : Name) (u : Level) (cls : Expr) {cls' : Expr} (body 
 @[match_pattern] def regular_or_pattern (p q : Expr) : Expr :=       mkApp2 (.const `Or  []) p q
 
 
-/-- Return True if the expression starts with a Tree node. -/
+/-- Return True if the expression starts with a MotivatedTree node. -/
 def isTree : Expr → Bool
 | imp_pattern ..
 | and_pattern ..
@@ -43,7 +43,7 @@ def isTree : Expr → Bool
 | _ => false
 
 
-/-- The general structure for recursing through a Tree expression. -/
+/-- The general structure for recursing through a MotivatedTree expression. -/
 structure DirectTreeRecursor (α : Type u) where
   all (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
   ex  (name : Name) (u : Level) (domain : Expr) : Bool → Expr → α → α
@@ -119,7 +119,7 @@ partial def TreeRecursor.recurse [Inhabited α] [Monad m] [MonadError m] (r : Tr
   visit pol pos tree
 
 open Meta
-/-- If the expression is an `Expr.forallE`, replace it by a `Tree.Forall`, `Tree.Instance` or `Tree.Imp` node as appropriate.-/
+/-- If the expression is an `Expr.forallE`, replace it by a `MotivatedTree.Forall`, `MotivatedTree.Instance` or `MotivatedTree.Imp` node as appropriate.-/
 def replaceForallE : Expr → MetaM Expr
   | .forallE name domain body bi => do
     let u ← getLevel domain

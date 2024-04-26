@@ -1,6 +1,6 @@
 import MotivatedMoves.Moves.TreeRewriteDef
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta
 

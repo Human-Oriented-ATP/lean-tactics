@@ -1,6 +1,6 @@
 import MotivatedMoves.LibrarySearch.DiscrTree
 
-namespace Tree
+namespace MotivatedTree
 
 open RefinedDiscrTree Lean Meta
 

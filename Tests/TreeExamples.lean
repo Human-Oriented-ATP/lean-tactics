@@ -45,14 +45,14 @@ tree_rewrite_ord [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2] [1, 1, 1, 1, 1, 1
 tree_apply [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 sorry
 
-lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by 
+lemma Infinitude_of_Primes : ∀ n : ℕ, ∃ p : ℕ, n ≤ p ∧ Nat.Prime p := by
 motivated_proof
 lib_apply * [1, 1, 1, 0] Nat.exists_prime_and_dvd [1, 1, 1, 2]
 tree_contrapose [1, 1, 1, 1, 0, 2] [1, 1, 1, 1, 1, 1, 2]
 lib_rewrite [1, 1, 1, 2, 1] Nat.not_dvd_iff_between_consec_multiples [1, 1, 1, 1, 1, 1, 2]
 tree_name pk [1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
 lib_rewrite [1, 1, 2, 1] Nat.succ_le_iff [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
-lib_apply  [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2] 
+lib_apply  [1, 1, 1] Nat.le_of_eq [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 lib_apply * [1] Nat.succ_succ_ne_one [1, 1, 0, 2]
 lib_rewrite [1, 1, 2, 0, 1] Nat.succ_inj' [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2]
 tree_rewrite [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 1] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 0, 1]
@@ -120,7 +120,7 @@ sorry
 
 
 
-example : {f g : ℝ → ℂ} → {x : ℝ} → {a b : ℂ} → (hf : HasDerivAt f a x) → (hg : HasDerivAt g b x) → 
+example : {f g : ℝ → ℂ} → {x : ℝ} → {a b : ℂ} → (hf : HasDerivAt f a x) → (hg : HasDerivAt g b x) →
     HasDerivAt (fun x => f x + g x) (a + b) x := by
   motivated_proof
   try_lib_apply [1,1,1,1,1,1,1]
@@ -138,7 +138,7 @@ example : [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β)
   tree_apply [1,1,1,0] [1,1,1,1,1,0]
   tree_search
 
-example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) : 
+example [PseudoMetricSpace α] [PseudoMetricSpace β] (f : α → β) :
   LipschitzWith 1 f → Continuous f := by
   make_tree
   lib_rewrite Metric.continuous_iff [1]
@@ -177,14 +177,14 @@ sorry
 
 
 
-example : ∀ (α β : Type*), [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →  
+example : ∀ (α β : Type*), [PseudoMetricSpace α] → [PseudoMetricSpace β] → (f : α → β) → (F : ℕ → α → β) →
   (∀ n, Continuous (F n)) → TendstoUniformly F f Filter.atTop → Continuous f := by
 motivated_proof
 lib_rewrite [1,1,1,1,1,2,0,1] Metric.continuous_iff [1,1,1,1,1,1,0,1,2]
 lib_rewrite [1,1,1,1,1,1,1,2,0,1] Metric.tendstoUniformly_iff [1,1,1,1,1,1,1,0,2]
 lib_rewrite [1,1,1,1,2,0,1] Filter.eventually_atTop [1,1,1,1,1,1,1,0,1,1,2]
 lib_rewrite [1,1,1,1,1,2,0,1] Metric.continuous_iff [1,1,1,1,1,1,1,1,2]
-lib_rewrite [1,1,1,1,2,0,1] Tree.imp_exists_iff [1,1,1,1,1,1,1,0,1]
+lib_rewrite [1,1,1,1,2,0,1] MotivatedTree.imp_exists_iff [1,1,1,1,1,1,1,0,1]
 lib_rewrite [1,1,1,2,0,1] Classical.skolem [1,1,1,1,1,1,1,0]
 tree_induction [1,1,1,1,1,1,1]
 lib_rewrite_ord [1,1,1,1,1] dist_triangle [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,0,1]
@@ -219,8 +219,8 @@ tree_apply [1, 0, 2] [1, 1, 2]
 
 
 
- 
-  
+
+
 example (a b c : Int) : a + b + c = a + (b + c) := by
   try_lib_rewrite [2,0,1]
 

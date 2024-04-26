@@ -1,6 +1,6 @@
 import MotivatedMoves.ProofState.TreeLemmas
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean
 
@@ -25,18 +25,18 @@ def printPosition (outer : OuterPosition) (inner : InnerPosition) : String :=
 
 syntax treePos := "[" num,* "]"
 
-def getPosition (stx : TSyntax `Tree.treePos) : List ℕ :=
+def getPosition (stx : TSyntax `MotivatedTree.treePos) : List ℕ :=
   (stx.raw[1].getSepArgs.map (·.isNatLit?.getD 0)).toList
 
-def getOuterInnerPosition (stx : TSyntax `Tree.treePos) : OuterPosition × InnerPosition :=
+def getOuterInnerPosition (stx : TSyntax `MotivatedTree.treePos) : OuterPosition × InnerPosition :=
   splitPosition (getPosition stx)
 
-instance : Quote SubExpr.Pos `Tree.treePos where
+instance : Quote SubExpr.Pos `MotivatedTree.treePos where
   quote pos :=
   let posStx : TSyntaxArray `num := pos.toArray.map quote
   let posStxRaw := posStx.map (·.raw) |>.toList
   let args := (List.intersperse (Syntax.atom .none ",") posStxRaw).toArray
-  { raw := .node .none `Tree.treePos #[
+  { raw := .node .none `MotivatedTree.treePos #[
     .atom .none "[",
     .node .none `null args,
     .atom .none "]"

@@ -1,5 +1,5 @@
 import MotivatedMoves.LibrarySearch.LibrarySearch
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta
 
@@ -340,7 +340,7 @@ where
       then
         fun k => do
         let kleiski ← k
-        let tree' := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``Tree.And) [])) p tree
+        let tree' := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``MotivatedTree.And) [])) p tree
         let {binders ..} ← get
         let (bindHyp, binders) := takeHypBinders true {} binders pol tree'
         modify fun s => { s with binders }
@@ -372,7 +372,7 @@ where
       let nonHypMVars := mfvarsState.MVarIds.filter (!boundMVars.contains ·)
       let nonHypBinders ← liftMetaM <| nonHypMVars.mapM mkMetaHypBinder
 
-      let tree' := mkApp2 (.const (if pol then ``Tree.Exists else ``Tree.Forall) [u]) domain tree
+      let tree' := mkApp2 (.const (if pol then ``MotivatedTree.Exists else ``MotivatedTree.Forall) [u]) domain tree
 
       let (bindHyp, binders) := (if hypInScope then takeHypBinders (nonHypMVars.size != 0) mfvarsState else takeMVarHypBinders mfvarsState.toCollectMVarsState) binders pol tree'
 
@@ -554,4 +554,4 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
 
 /- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
-abbrev Tree.infer {α : Prop} [i : α] := i
+abbrev MotivatedTree.infer {α : Prop} [i : α] := i

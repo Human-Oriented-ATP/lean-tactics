@@ -8,7 +8,7 @@ import MotivatedMoves.Moves.TreeContradiction
 
 open Lean ProofWidgets Elab Tactic Jsx
 
-namespace Tree
+namespace MotivatedTree
 
 @[new_motivated_proof_move]
 def treeApplyMove : MotivatedProof.Suggestion
@@ -27,8 +27,8 @@ def treeApplyMove : MotivatedProof.Suggestion
 @[new_motivated_proof_move]
 def treeUnifyMove : MotivatedProof.Suggestion
   | #[pos] => withMainContext do
-      let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-      unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
+      let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
+      unless (← MotivatedTree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
       matches Expr.app (.const ``Eq _) _ do failure
       return some {
         description := "Unify",
@@ -44,7 +44,7 @@ def treeLibraryApplyMove : MotivatedProof.Suggestion
     description := "Apply a library result",
     code := do
     let keepHyp? ← askUserBool 0 <text>Would you like to keep the closed goal as a hypothesis?</text>
-    let libSuggestionsGrouped ← Tree.librarySearchApply keepHyp? (pos.toArray.toList) (← getMainTarget)
+    let libSuggestionsGrouped ← MotivatedTree.librarySearchApply keepHyp? (pos.toArray.toList) (← getMainTarget)
     let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
     let resultsCount :=
       if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
@@ -96,7 +96,7 @@ def treeInductionMove : MotivatedProof.Suggestion
 @[new_motivated_proof_move]
 def treeLibraryInductionMove : MotivatedProof.Suggestion
   | #[pos] => do
-    let libSuggestions ← Tree.librarySearchInduction (pos.toArray.toList) (← getMainTarget)
+    let libSuggestions ← MotivatedTree.librarySearchInduction (pos.toArray.toList) (← getMainTarget)
     if libSuggestions.isEmpty then failure
     return {
       description := "Custom induction/elimination",
@@ -131,9 +131,9 @@ def treeSimpMove : MotivatedProof.Suggestion
 @[new_motivated_proof_move]
 def treePushNegMove : MotivatedProof.Suggestion
   | #[pos] => withMainContext do
-    let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-    unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
-        matches Expr.app (.const ``Tree.Not _) _ do failure
+    let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
+    unless (← MotivatedTree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
+        matches Expr.app (.const ``MotivatedTree.Not _) _ do failure
     return some {
       description := "Push the negation"
       code := return s!"tree_push_neg {pos}"
@@ -173,7 +173,7 @@ def treeLibraryRewriteMove : MotivatedProof.Suggestion
   | #[pos] => return {
     description := "Rewrite using a library result",
     code := do
-    let libSuggestionsGrouped ← Tree.librarySearchRewrite (pos.toArray.toList) (← getMainTarget)
+    let libSuggestionsGrouped ← MotivatedTree.librarySearchRewrite (pos.toArray.toList) (← getMainTarget)
     let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
     let resultsCount :=
       if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
@@ -217,7 +217,7 @@ def treeOrderedLibraryRewriteMove : MotivatedProof.Suggestion
   | #[pos] => return {
     description := "Ordered rewrite using a library result",
     code := do
-    let libSuggestionsGrouped ← Tree.librarySearchRewriteOrd (pos.toArray.toList) (← getMainTarget)
+    let libSuggestionsGrouped ← MotivatedTree.librarySearchRewriteOrd (pos.toArray.toList) (← getMainTarget)
     let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
     let resultsCount :=
       if libSuggestions.size = RefinedDiscrTree.maxResultsCap then

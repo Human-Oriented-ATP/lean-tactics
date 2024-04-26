@@ -1,6 +1,6 @@
 import MotivatedMoves.Moves.TreeApply
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta Elab.Tactic
 
@@ -73,7 +73,7 @@ def custom_inductors : HashMap Name (Array LibraryLemma) :=
 
 def librarySearchInduction (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String)) := do
   let (goalOuterPosition, []) := splitPosition goalPos | return #[]
-  Tree.withTreeSubexpr tree goalOuterPosition [] fun _ e => do
+  MotivatedTree.withTreeSubexpr tree goalOuterPosition [] fun _ e => do
   match e with
     | imp_pattern domain _
     | forall_pattern _ _ domain _ =>

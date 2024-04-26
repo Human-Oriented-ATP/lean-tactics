@@ -1,6 +1,6 @@
 import MotivatedMoves.Moves.TreeApply
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta
 

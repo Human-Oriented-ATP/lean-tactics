@@ -1,7 +1,7 @@
 import MotivatedMoves.Moves.TreeRewrite
 import Mathlib.Logic.Basic
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean Elab Tactic Meta
 

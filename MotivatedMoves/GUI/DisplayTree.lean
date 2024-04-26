@@ -18,7 +18,7 @@ open Lean.Widget in
 def Lean.Widget.CodeWithInfos.withRelativePos (codeWithInfos : CodeWithInfos) (pos : SubExpr.Pos) : CodeWithInfos :=
   codeWithInfos.map <| subexprPos %~ (SubExpr.Pos.append pos)
 
-namespace Tree
+namespace MotivatedTree
 open Lean Parser
 
 def newLineTermParser := ppDedent ("⠀" >> ppLine >> categoryParser `tree 0)
@@ -111,7 +111,7 @@ partial def delabTreeAux (pol : Bool) (root := false) : Delab := do
   | e => if root then failure else descend e 2 delab
 
 
-@[delab app.Tree.Forall, delab app.Tree.Exists, delab app.Tree.Instance, delab app.Tree.Imp, delab app.Tree.And, delab app.Tree.Not]
+@[delab app.MotivatedTree.Forall, delab app.MotivatedTree.Exists, delab app.MotivatedTree.Instance, delab app.MotivatedTree.Imp, delab app.MotivatedTree.And, delab app.MotivatedTree.Not]
 def delabTree : Delab :=
   delabTreeAux true true
 
@@ -234,23 +234,23 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
   | forall_pattern n _u d b =>
     let n ← getUnusedName n b
     let quantifierInfo ← annotateAsCurrentTree "∀"
-    let domainInfo ← ppTreeTagged d 
+    let domainInfo ← ppTreeTagged d
     Meta.withLocalDeclD n d fun fvar => do
       let fvarAnnotated := if pol then fvar else mkAnnotation `star fvar
       let varInfo ← ppTreeTagged fvarAnnotated
       descend (b.instantiate1 fvarAnnotated) 1 do
         return .forall quantifierInfo varInfo domainInfo (← toDisplayTree pol)
-  
+
   | exists_pattern n _u d b =>
     let n ← getUnusedName n b
     let quantifierInfo ← annotateAsCurrentTree "∃"
-    let domainInfo ← ppTreeTagged d 
+    let domainInfo ← ppTreeTagged d
     Meta.withLocalDeclD n d fun fvar => do
       let fvarAnnotated := if pol then fvar else mkAnnotation `bullet fvar
       let varInfo ← ppTreeTagged fvarAnnotated
       descend (b.instantiate1 fvarAnnotated) 1 do
         return .exists quantifierInfo varInfo domainInfo (← toDisplayTree pol)
-  
+
   | instance_pattern n _u d b =>
     Meta.withLocalDeclD n d fun fvar => do
       let n ← (do
@@ -260,7 +260,7 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
           return s! "{← getUnusedName n b} : ")
       descend (b.instantiate1 fvar) 1 do
         return .instance (.append #[.text s! "[{n}", ← ppTreeTagged d, .text "]"]) (← toDisplayTree pol)
-  
+
   | imp_pattern p q =>
     let arrowInfo ← annotateAsCurrentTree "↓"
     let antecedent ← descend p 0 (toDisplayTree !pol)
@@ -278,10 +278,10 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
     let body ← descend p 1 (toDisplayTree !pol)
     return .not notInfo body
 
-  | e => 
-    if root then 
-      failure 
+  | e =>
+    if root then
+      failure
     else do descend e 2 do
-      return .node <| 
-        (← ppExprTaggedWith e delab) 
+      return .node <|
+        (← ppExprTaggedWith e delab)
           |>.withRelativePos (← getPos)

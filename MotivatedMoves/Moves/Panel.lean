@@ -42,10 +42,10 @@ def motivatedProofModeImpl : Tactic
   | stx@`(tactic| motivated_proof $seq) => withMainContext do
     let some range := (← getFileMap).rangeOfStx? stx | return
     -- this turns the goal into a tree initially
-    Tree.workOnTreeDefEq pure
+    MotivatedTree.workOnTreeDefEq pure
     evalTacticSeq seq
     let e ← getMainTarget
-    let (t, _) ← Tree.toDisplayTree
+    let (t, _) ← MotivatedTree.toDisplayTree
           |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
           |>.run {}
     Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
