@@ -1,4 +1,5 @@
 import MotivatedMoves.Moves.Basic
+import MotivatedMoves.Moves.Panel
 import MotivatedMoves.Moves.TreeInduction
 import MotivatedMoves.Moves.TreeNaming
 import MotivatedMoves.Moves.TreeRewriteOrd
