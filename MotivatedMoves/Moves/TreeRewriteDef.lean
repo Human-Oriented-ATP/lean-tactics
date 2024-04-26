@@ -1,5 +1,4 @@
 import MotivatedMoves.ProofState.Tree
-import MotivatedMoves.Moves.Basic
 import ProofWidgets.Compat
 
 namespace Tree
@@ -90,12 +89,3 @@ elab "tree_rewrite_def" pos:treePos : tactic => do
   workOnTreeDefEq (edit treePos pos replaceByDef)
   let mkTree ← `(tactic | make_tree)
   evalTactic mkTree
-
-@[new_motivated_proof_move]
-def treeUnfoldMove : MotivatedProof.Suggestion
-  | #[pos] =>
-    return {
-      description := "Unfold",
-      code := return s!"tree_rewrite_def {pos}"
-    }
-  | _ => failure

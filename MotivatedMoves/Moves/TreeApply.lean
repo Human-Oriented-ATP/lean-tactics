@@ -1,6 +1,4 @@
 import MotivatedMoves.LibrarySearch.LibrarySearch
-import MotivatedMoves.Moves.Basic
-
 namespace Tree
 
 open Lean Meta
@@ -557,62 +555,3 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
 /- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
 abbrev Tree.infer {α : Prop} [i : α] := i
-
-open scoped ProofWidgets.Jsx
-
-@[new_motivated_proof_move]
-def treeApplyMove : MotivatedProof.Suggestion
-  | #[pos₁, pos₂] => do
-    let tac ← `(tactic| tree_apply $(quote pos₁) $(quote pos₂))
-    let _ ← OptionT.mk <| withoutModifyingState <|
-              try? <| evalTactic tac
-    return {
-      description := "Apply",
-      code := do
-        let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
-        return s!"tree_apply{if keepHyp then "" else "'"} {pos₁} {pos₂}"
-    }
-  | _ => failure
-
-@[new_motivated_proof_move]
-def treeUnifyMove : MotivatedProof.Suggestion
-  | #[pos] => withMainContext do
-      let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-      unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
-      matches Expr.app (.const ``Eq _) _ do failure
-      return some {
-        description := "Unify",
-        code := return s!"lib_apply refl {pos}"
-      }
-  | _ => failure
-
-elab "skip_lib_apply" : tactic => pure ()
-
-@[new_motivated_proof_move]
-def treeLibraryApplyMove : MotivatedProof.Suggestion
-  | #[pos] => return {
-    description := "Apply a library result",
-    code := do
-    let keepHyp? ← askUserBool 0 <text>Would you like to keep the closed goal as a hypothesis?</text>
-    let libSuggestionsGrouped ← Tree.librarySearchApply keepHyp? (pos.toArray.toList) (← getMainTarget)
-    let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
-    let resultsCount :=
-      if libSuggestions.size = RefinedDiscrTree.maxResultsCap then
-        s!"at least {RefinedDiscrTree.maxResultsCap}"
-      else
-        s!"{libSuggestions.size}"
-    let chooseLibApply ← askUserBool 0 <p>{.text s!"There are {resultsCount} results in the library that match the selection.\n Would you like to retrieve one at random?"}</p>
-    if chooseLibApply then
-      let (name, diffs, tacticCall) ← IO.randSampleWeighted libSuggestions.toList
-      let confirmLibSuggestion ← askUserBool 0 <| .element "div" #[] #[
-        <text>The randomly chosen result is</text>,
-        <br />, ← name.renderWithDiffs diffs, <br />,
-        <text>Would you like to use this result?</text>]
-      if confirmLibSuggestion then
-        return tacticCall
-      else
-        return "skip_lib_apply"
-    else
-      return "skip_lib_apply"
-  }
-  | _ => failure

@@ -83,32 +83,3 @@ def librarySearchInduction (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Na
       return lemmas.map fun {name, treePos, pos, diffs} => (name, diffs,
         s! "lib_rewrite {printPosition treePos pos} {name} {goalPos}")
     | _ => return #[]
-
-@[new_motivated_proof_move]
-def treeInductionMove : MotivatedProof.Suggestion
-  | #[pos] => withMainContext do
-    let tac ← `(tactic| tree_induction $(quote pos))
-    let _ ← OptionT.mk <| withoutModifyingState <|
-      try? <| evalTactic tac
-    return some {
-      description := "Definitional induction/elimination",
-      code := return s!"tree_induction {pos}"
-    }
-  | _ => failure
-
-open Lean Elab Tactic ProofWidgets.Jsx
-
-@[new_motivated_proof_move]
-def treeLibraryInductionMove : MotivatedProof.Suggestion
-  | #[pos] => do
-    let libSuggestions ← Tree.librarySearchInduction (pos.toArray.toList) (← getMainTarget)
-    if libSuggestions.isEmpty then failure
-    return {
-      description := "Custom induction/elimination",
-      code := do
-        let tacticCall ← askUserSelect 0 <p>Choose an induction principle</p> <| ← libSuggestions.toList.mapM
-          fun (name, diffs, tacticCall) ↦ do
-            return (tacticCall, <button>{← name.renderWithDiffs diffs}</button>)
-        return tacticCall
-    }
-  | _ => failure

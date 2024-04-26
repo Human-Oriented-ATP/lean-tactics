@@ -156,19 +156,6 @@ elab "tree_name_meta" name:ident pos:treePos : tactic => do
   let name := name.getId
   workOnTree $ NameSubExpr true name treePos pos
 
-open scoped ProofWidgets.Jsx in
-@[new_motivated_proof_move]
-def treeNameMove : MotivatedProof.Suggestion
-  | #[pos] =>
-    return {
-      description := "Name the selected expression"
-      code := do
-        let meta? ← askUserBool 0 <p>Would you like to name the expression as a meta-variable?</p>
-        let name ← askUserString 0 <p>Enter a name for the variable</p>
-        return s!"tree_name{if meta? then "_meta" else ""} {name} {pos}"
-    }
-  | _ => failure
-
 -- example : ∃ f : ℕ → ℕ, ∀ w, f (w + 1) = w := by
 --   make_tree
 --   tree_name_meta xx [1,1,2,0,1,1]

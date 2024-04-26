@@ -97,14 +97,6 @@ elab "tree_simp" goalPos:treePos : tactic =>
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   defaultSimpMove goalOuterPosition goalPos
 
-@[new_motivated_proof_move]
-def treeSimpMove : MotivatedProof.Suggestion
-  | #[pos] => return {
-    description := "Simplify"
-    code := return s!"tree_simp {pos}"
-  }
-  | _ => failure
-
 example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
   make_tree
   tree_simp [1,1,0]
@@ -118,15 +110,3 @@ def pushNegContext : MetaM Simp.Context :=
 elab "tree_push_neg" goalPos:treePos : tactic => do
   let (goalOuterPosition, goalPos) := getOuterInnerPosition goalPos
   simpMoveAt (← pushNegContext) none goalOuterPosition goalPos
-
-@[new_motivated_proof_move]
-def treePushNegMove : MotivatedProof.Suggestion
-  | #[pos] => withMainContext do
-    let (goalOuterPosition, goalPos) := Tree.splitPosition pos.toArray.toList
-    unless (← Tree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
-        matches Expr.app (.const ``Tree.Not _) _ do failure
-    return some {
-      description := "Push the negation"
-      code := return s!"tree_push_neg {pos}"
-    }
-  | _ => failure
