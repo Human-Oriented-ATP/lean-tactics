@@ -29,7 +29,7 @@ def treeUnifyMove : MotivatedProof.Suggestion
   | #[pos] => withMainContext do
       let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
       unless (← MotivatedTree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
-      matches Expr.app (.const ``Eq _) _ do failure
+      matches Expr.app (.const ``Eq _) _ do return none
       return some {
         description := "Unify",
         code := return s!"lib_apply refl {pos}"
@@ -133,7 +133,7 @@ def treePushNegMove : MotivatedProof.Suggestion
   | #[pos] => withMainContext do
     let (goalOuterPosition, goalPos) := MotivatedTree.splitPosition pos.toArray.toList
     unless (← MotivatedTree.withTreeSubexpr (← getMainTarget) goalOuterPosition goalPos (fun _ x => pure x))
-        matches Expr.app (.const ``MotivatedTree.Not _) _ do failure
+        matches Expr.app (.const ``MotivatedTree.Not _) _ do return none
     return some {
       description := "Push the negation"
       code := return s!"tree_push_neg {pos}"
