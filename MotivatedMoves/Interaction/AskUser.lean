@@ -128,6 +128,7 @@ deriving instance TypeName for JsonToInteractiveMUnit
 
 structure ProgWidget.Props where
   code : InteractiveIO Unit
+  key : String := "defaultKey"
 deriving Server.RpcEncodable
 
 @[widget_module]
