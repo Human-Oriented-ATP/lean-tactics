@@ -46,8 +46,8 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
     const goalState = useAsyncPersistent<JSX.Element>(async () => {
       const goalRpcProps: GoalSelectionProps = {
         ...props,
-        selectedLocations: selectedLocs,
-        selections: selectedLocs?.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
+        selectedLocations: [],
+        selections: selectedLocs.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
       const html: Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
     }, [rs, selectedLocs])
@@ -61,8 +61,8 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
     const movesState = useAsyncPersistent<JSX.Element>(async () => {
         const movesRpcProps: GoalSelectionProps = {
             ...props,
-            selectedLocations: selectedLocs,
-            selections: selectedLocs?.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p)
+            selectedLocations: [],
+            selections: selectedLocs.map(goalsLocationToSubexprPos).filter((p : SubexprPos | undefined) : p is SubexprPos => !!p)
         }
         const html: Html = await rs.call('MotivatedProof.MotivatedProofMovePanel.rpc', movesRpcProps)
         return renderHtml(rs, pos, html)
