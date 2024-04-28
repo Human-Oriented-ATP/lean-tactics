@@ -33,7 +33,7 @@ def MotivatedProofMovePanel.rpc (props : MotivatedProofPanelProps) : RequestM (R
         suggestMotivatedMoves (indent := props.range.start.character) props.selections
       let (rawCode, _) ← TermElabM.run' <| currentCode.run { elaborator := .anonymous }
                           |>.run { goals := [goal.mvarId] }
-      return .pure <ProgWidget code={rawCode} />
+      return .pure <ProgWidget code={rawCode} key={toString props.selections} />
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
