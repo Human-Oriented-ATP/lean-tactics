@@ -131,8 +131,9 @@ export default function ProgWidget(props: Props) {
 
   // Document editing
 
-  async function editDocumentAsync(edit : TextDocumentEdit) {
+  async function editDocumentAsync(edit : TextDocumentEdit, pos: DocumentPosition) {
     await ec.api.applyEdit({ documentChanges: [edit] })
+    await ec.revealPosition(pos)
   }
   function editDocument(pos : Position, newLines : string[]) {
     if (editProps.current === null) {
@@ -158,6 +159,9 @@ export default function ProgWidget(props: Props) {
     editDocumentAsync({
       textDocument: editProps.current.ident,
       edits: [{ range: range, newText: newText }]
+    }, {
+      ...editCursor.current,
+      uri: editProps.current.ident.uri
     })
   }
 
