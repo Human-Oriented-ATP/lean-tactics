@@ -32,7 +32,7 @@ def treeUnifyMove : MotivatedProof.Suggestion
       matches Expr.app (.const ``Eq _) _ do return none
       return some {
         description := "Unify",
-        code := return s!"lib_apply refl {pos}"
+        code := return s!"lib_apply refl {pos.toArray.toList}"
       }
   | _ => failure
 
@@ -89,7 +89,7 @@ def treeInductionMove : MotivatedProof.Suggestion
       try? <| evalTactic tac
     return some {
       description := "Definitional induction/elimination",
-      code := return s!"tree_induction {pos}"
+      code := return s!"tree_induction {pos.toArray.toList}"
     }
   | _ => failure
 
@@ -116,7 +116,7 @@ def treeNameMove : MotivatedProof.Suggestion
       code := do
         let meta? ← askUserBool 0 <p>Would you like to name the expression as a meta-variable?</p>
         let name ← askUserString 0 <p>Enter a name for the variable</p>
-        return s!"tree_name{if meta? then "_meta" else ""} {name} {pos}"
+        return s!"tree_name{if meta? then "_meta" else ""} {name} {pos.toArray.toList}"
     }
   | _ => failure
 
@@ -124,7 +124,7 @@ def treeNameMove : MotivatedProof.Suggestion
 def treeSimpMove : MotivatedProof.Suggestion
   | #[pos] => return {
     description := "Simplify"
-    code := return s!"tree_simp {pos}"
+    code := return s!"tree_simp {pos.toArray.toList}"
   }
   | _ => failure
 
@@ -136,7 +136,7 @@ def treePushNegMove : MotivatedProof.Suggestion
         matches Expr.app (.const ``MotivatedTree.Not _) _ do return none
     return some {
       description := "Push the negation"
-      code := return s!"tree_push_neg {pos}"
+      code := return s!"tree_push_neg {pos.toArray.toList}"
     }
   | _ => failure
 
@@ -162,7 +162,7 @@ def treeHypSwapMove : MotivatedProof.Suggestion
               try? <| evalTactic tac
     return {
       description := "Swap the hypotheses",
-      code := return s!"lib_rewrite Imp.swap {pos}"
+      code := return s!"lib_rewrite Imp.swap {pos.toArray.toList}"
     }
   | _ => failure
 
@@ -253,7 +253,7 @@ def treeUnfoldMove : MotivatedProof.Suggestion
   | #[pos] =>
     return {
       description := "Unfold",
-      code := return s!"tree_rewrite_def {pos}"
+      code := return s!"tree_rewrite_def {pos.toArray.toList}"
     }
   | _ => failure
 
@@ -271,6 +271,6 @@ def treeUnifyForallExistsMove : MotivatedProof.Suggestion
       try? <| evalTactic tac
     return {
       description := "Unify existential with preceding universal variable",
-      code := return s!"unify_forall_exists {pos}"
+      code := return s!"unify_forall_exists {pos.toArray.toList}"
     }
   | _ => failure
