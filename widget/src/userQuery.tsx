@@ -82,15 +82,17 @@ export function SelectWidget (props : { question : Html, options : Html[] }) {
 
   return <div>
     <HtmlDisplay pos={ctx.pos} html={props.question} />
-    <div ref={optionsRef}>
+    <div style={{display: "grid", alignItems: "center", justifyItems: "center"}} ref={optionsRef}>
     {props.options.map((option,i) => {
-      return <HtmlDisplayClickable
-        html={option}
-        pos={ctx.pos}
-        onClick={() => ctx.answer(i)} />
+      return <div className="grid-item">
+        <HtmlDisplayClickable
+          html={option}
+          pos={ctx.pos}
+          onClick={() => ctx.answer(i)} />
+        </div>
     })}
     </div>
-  </div>
+    </div>
 }
 
 interface EditProps {
