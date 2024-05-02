@@ -145,13 +145,13 @@ export default function ProgWidget(props: Props) {
       }
       return
     }
-    if (pos === editCursor.current && newLines.length == 0) return
+    if (pos === editCursor.current && newLines.length === 0) return
 
     const range = { start : pos, end : editCursor.current }
     var newText : string = newLines.map(x => x+'\n').join('')
-    if (newLines.length == 0) editCursor.current = pos
+    if (newLines.length === 0) editCursor.current = pos
     else editCursor.current = { line: pos.line + newLines.length, character : 0 }
-    if (pos.character != 0) {
+    if (pos.character !== 0) {
       newText = '\n'+newText
       editCursor.current = {
         line : editCursor.current.line + 1,

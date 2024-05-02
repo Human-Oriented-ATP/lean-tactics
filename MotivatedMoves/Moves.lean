@@ -39,9 +39,9 @@ def treeUnifyMove : MotivatedProof.Suggestion
 elab "skip_lib_apply" : tactic => pure ()
 
 @[new_motivated_proof_move]
-def treeLibraryApplyMove : MotivatedProof.Suggestion
+def treeRandomLibraryApplyMove : MotivatedProof.Suggestion
   | #[pos] => return {
-    description := "Apply a library result",
+    description := "Apply a random library result",
     code := do
     let keepHyp? ← askUserBool 0 <text>Would you like to keep the closed goal as a hypothesis?</text>
     let libSuggestionsGrouped ← MotivatedTree.librarySearchApply keepHyp? (pos.toArray.toList) (← getMainTarget)
@@ -169,9 +169,9 @@ def treeHypSwapMove : MotivatedProof.Suggestion
 elab "skip_lib_rewrite" : tactic => pure ()
 
 @[new_motivated_proof_move]
-def treeLibraryRewriteMove : MotivatedProof.Suggestion
+def treeRandomLibraryRewriteMove : MotivatedProof.Suggestion
   | #[pos] => return {
-    description := "Rewrite using a library result",
+    description := "Rewrite using a random library result",
     code := do
     let libSuggestionsGrouped ← MotivatedTree.librarySearchRewrite (pos.toArray.toList) (← getMainTarget)
     let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
@@ -213,9 +213,9 @@ def treeRewriteOrdMove : MotivatedProof.Suggestion
 elab "skip_lib_rewrite_ord" : tactic => pure ()
 
 @[new_motivated_proof_move]
-def treeOrderedLibraryRewriteMove : MotivatedProof.Suggestion
+def treeRandomOrderedLibraryRewriteMove : MotivatedProof.Suggestion
   | #[pos] => return {
-    description := "Ordered rewrite using a library result",
+    description := "Ordered rewrite using a random library result",
     code := do
     let libSuggestionsGrouped ← MotivatedTree.librarySearchRewriteOrd (pos.toArray.toList) (← getMainTarget)
     let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
