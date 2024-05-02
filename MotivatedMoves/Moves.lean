@@ -68,6 +68,21 @@ def treeRandomLibraryApplyMove : MotivatedProof.Suggestion
   | _ => failure
 
 @[new_motivated_proof_move]
+def treeLibraryApplyMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Apply a library result",
+    code := do
+      let keepHyp? ← askUserBool 0 <text>Would you like to keep the closed goal as a hypothesis?</text>
+      let libSuggestionsGrouped ← MotivatedTree.librarySearchApply  keepHyp? (pos.toArray.toList) (← getMainTarget)
+      let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
+      let tacticCall ← askUserSelect 0 <p>Choose a result to apply to the selected expression.</p> <| ← libSuggestions.toList.mapM
+        fun ((name, diffs, tacticCall), score) ↦ do
+          return (tacticCall, <button>{← name.renderWithDiffs diffs}</button>)
+      return tacticCall
+  }
+  | _ => failure
+
+@[new_motivated_proof_move]
 def treeContraposeMove : MotivatedProof.Suggestion
   | #[pos₁, pos₂] => do
     let tac ← `(tactic| tree_contrapose $(quote pos₁) $(quote pos₂))
@@ -193,6 +208,20 @@ def treeRandomLibraryRewriteMove : MotivatedProof.Suggestion
         return "skip_lib_rewrite"
     else
       return "skip_lib_rewrite"
+  }
+  | _ => failure
+
+@[new_motivated_proof_move]
+def treeLibraryRewriteMove : MotivatedProof.Suggestion
+  | #[pos] => return {
+    description := "Rewrite using a library result",
+    code := do
+      let libSuggestionsGrouped ← MotivatedTree.librarySearchRewrite (pos.toArray.toList) (← getMainTarget)
+      let libSuggestions := libSuggestionsGrouped.concatMap fun («matches», score) ↦ («matches».map (·, score))
+      let tacticCall ← askUserSelect 0 <p>Choose a result to rewrite the selected expression.</p> <| ← libSuggestions.toList.mapM
+        fun ((name, diffs, tacticCall), score) ↦ do
+          return (tacticCall, <button>{← name.renderWithDiffs diffs}</button>)
+      return tacticCall
   }
   | _ => failure
 
