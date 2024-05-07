@@ -147,17 +147,17 @@ export default function ProgWidget(props: Props) {
     }
     if (pos === editCursor.current && newLines.length === 0) return
 
-    const range = { start : pos, end : editCursor.current }
-    var newText : string = newLines.map(x => x+'\n').join('')
-    if (newLines.length === 0) editCursor.current = pos
-    else editCursor.current = { line: pos.line + newLines.length, character : 0 }
+    var newText : string = newLines.map(x => x+'\n').join('').trimEnd()
+    if (newLines.length === 0) editCursor.current = pos 
+    else editCursor.current = { line: pos.line + newLines.length, character : newLines[newLines.length-1].length }
     if (pos.character !== 0) {
       newText = '\n'+newText
       editCursor.current = {
         line : editCursor.current.line + 1,
-        character : 0,
+        character : newLines[newLines.length-1].length,
       }
     }
+    const range = { start : pos, end : editCursor.current }
     editDocumentAsync({
       textDocument: editProps.current.ident,
       edits: [{ range: range, newText: newText }]

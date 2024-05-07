@@ -279,7 +279,7 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
         ("width", width),
         ("height", height)]
       elements}
-    </ div>
+    </div>
     )
 
 @[widget_module]
