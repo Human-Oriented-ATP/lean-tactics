@@ -30,7 +30,7 @@ def MotivatedProofMovePanel.rpc (props : MotivatedProofPanelProps) : RequestM (R
     Meta.withLCtx lctx md.localInstances do
       let currentCode : TacticIM Unit := do
         initEdit props.range.end
-        suggestMotivatedMoves (indent := props.range.start.character) props.selections
+        suggestMotivatedMoves (indent := props.range.start.character + 2) props.selections
       let (rawCode, _) ← TermElabM.run' <| currentCode.run { elaborator := .anonymous }
                           |>.run { goals := [goal.mvarId] }
       return .pure <ProgWidget code={rawCode} key={toString props.selections} />
