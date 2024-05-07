@@ -50,7 +50,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         selections: selectedLocs.map(goalsLocationToSubexprPos).filter((p: SubexprPos | undefined) : p is SubexprPos => !!p) }
       const html: Html = await rs.call('renderTree', goalRpcProps);
       return renderHtml(rs, pos, html);
-    }, [rs, selectedLocs])
+    }, [rs, pos, selectedLocs])
     const goal = 
         goalState.state === 'rejected' ?
             <p color='red'>{mapRpcError(goalState.error).message}</p>
@@ -66,7 +66,7 @@ const InfoDisplayContent = React.memo((props : GoalSelectionProps) => {
         }
         const html: Html = await rs.call('MotivatedProof.MotivatedProofMovePanel.rpc', movesRpcProps)
         return renderHtml(rs, pos, html)
-    }, [rs, selectedLocs])
+    }, [rs, pos, selectedLocs])
     const moves =
         movesState.state === 'rejected' ?
             <p color='red'>{mapRpcError(movesState.error).message}</p>
