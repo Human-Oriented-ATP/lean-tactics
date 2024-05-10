@@ -5,7 +5,6 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace
 
-import MotivatedMoves.AutoGeneralization.Tutorial
 
 def zero : ZMod 3 := 0
 def one : ZMod 3 := 1
@@ -22,30 +21,31 @@ def toVec {α : Type}  {n : ℕ} (f : Fin n → α) : Vector α n :=  Vector.ofF
 -- #eval toFunc vec_examp
 
 /- The all-zeroes vector in n-dimensions -/
--- def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --toVec  (fun _ => 0)
--- #eval @z 5 -- the 5-dimensional all-zeroes vector
-def z {n : ℕ} : Vector (ZMod 3) n := Vector.replicate n zero --⟨List.replicate n zero, by simp⟩
-#eval @z 5 -- the 5-dimensional all-zeroes vector
+-- def z (n : ℕ) (α : Type := ZMod 3): Vector α n := Vector.replicate n 0 --⟨List.replicate n zero, by simp⟩
+def z (n : ℕ) : Vector (ZMod 3) n := Vector.replicate n zero --⟨List.replicate n zero, by simp⟩
+#eval z 5 -- the 5-dimensional all-zeroes vector
 
 /- A basis vector in n-dimensions -/
-def e {n : ℕ} (i : Fin n) : Vector (ZMod 3) n := Vector.set (@z n) i 1
+def e {n : ℕ} (i : Fin n): Vector (ZMod 3) n := Vector.set (z n) i 1
 #eval e (3 : Fin 5) -- a 5-dimensional basis vector with a "one" at the 3rd index
+
+-- def e {n : ℕ} (i : Fin n) (α : Type := ZMod 3): Vector α n := Vector.set (@z n) i 1
 
 /- A 1-d vector-/
 def dim1Vector {α : Type} (a : α): Vector α 1:= ⟨[a], rfl⟩
 #eval dim1Vector one
 
 /- The density of any subset A in the finite field -/
-noncomputable def density {n : ℕ} (A : Finset (Vector (ZMod 3) n)) : ℝ  :=  A.card / 3^n
+noncomputable def density {n m : ℕ} (A : Finset (Vector (ZMod m) n)) : ℝ  :=  A.card / 3^n
 
 /- Define what addition looks like for two vectors-/
-instance : Add (Vector (ZMod 3) n) :=
+instance {m : ℕ} : Add (Vector (ZMod m) n) :=
   ⟨Vector.zipWith (fun x y => x + y)⟩
   -- ⟨Vector.map₂ Add.add⟩
 #eval e (2 : Fin 5) + e (1 : Fin 5)
 
 /- Define what scaling looks like for a vectors-/
-instance : HMul ℕ (Vector (ZMod 3) n) (Vector (ZMod 3) n) := ⟨fun a v => v.map (fun x => a * x)⟩
+instance  {m : ℕ} : HMul ℕ (Vector (ZMod m) n) (Vector (ZMod m) n) := ⟨fun a v => v.map (fun x => a * x)⟩
 #eval 2 *  e (1 : Fin 5) -- [0, 2, 0, 0, 0]
 #eval 3 *  e (1 : Fin 5) -- zeroes out (because we're going mod 3)[0, 0, 0, 0, 0]
 
@@ -200,13 +200,20 @@ by
 
 /- Weaker lemma: if you have a vector x ∈ A₀ (coordinate-sum 0), then x + e i ∉ A₀ -/
 lemma adding_two_basis_vector_changes_slice {n : ℕ} {x : Vector (ZMod 3) n} :
-  x ∈ A₀ n →  (∀ i : Fin n, x + e i ∉ A₀ n) :=
+  x ∈ A₀ n →  (∀ i j: Fin n, x + e i + e j ∉ A₀ n) :=
 by
   sorry
 
 #check AffineSubspace
+#check Finset (Fin 3)
+
+
+
+#check ∑ i in (s : Finset (Fin 3)), i
+#check Finset.map (fun i => i) (Finset (Fin 3))
 /- The basis of a given n-dimensional -/
-def basis (n : ℕ) : Set (Vector (ZMod 3) n) := e '' (⊤ : Set (Fin n))
+def basis (n : ℕ) : Finset (Vector (ZMod 3) n) := Finset.map (fun i =>  e i) (Finset (Fin n))
+--e '' (⊤ : Set (Fin n))
 -- {x | (∃ i : Fin n, x = e i) }
 -- def basis (n : ℕ) : AffineSubspace (Vector (ZMod 3) n) := sorry
 
@@ -262,4 +269,70 @@ by
   apply adding_basis_vector_changes_slice hb
 
 /- A rephrasing to use "affine subspace of dimension 1"-/
-theorem cap_set_basis_size_1_disproof'' : True = simp
+theorem cap_set_basis_size_1_disproof'' : True := trivial
+
+/- Density Hales Jewett -- arbitrarily many -/
+theorem density_hales_jewett :
+  ∀ (δ : ℝ), δ > 0 →
+  ∃  (n : ℕ), n ≥ 1 →
+  ∀ (A : Finset (Vector (ZMod 3) n)),
+    density A = δ ∧
+    ∃ (x : Vector (ZMod 3) n),
+    ∃ B ⊆ basis n,
+    ∃ (d : Vector (ZMod 3) n),
+    d = Finset.sum B (fun b => b) ∧
+    x ∈ A ∧ (x + d) ∈ A ∧ (x + 2 * d) ∈ A :=
+by
+  use 1/3 -- We need to prove the density 1/3 works
+  intros _δ n hn
+  use A₀ n -- We need to prove the set A₀ works
+  constructor
+  apply partition_has_density_one_third n hn
+  intros x ei hei hb; left;
+  simp [basis] at hei
+  obtain ⟨y, hy⟩ := hei
+  rw [← hy]
+  apply adding_basis_vector_changes_slice hb
+
+example : True :=
+  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  autogeneralize _sqrt2Irrational (2 : ℕ)
+
+-- theorem cap_set_basis_size_1_disproof_in_F2' : True :=
+--   let h : ∃ (δ : ℝ), δ > 0 →
+--   ∀ (n : ℕ), n ≥ 1 →
+--   ∃ (A : Finset (Vector (ZMod 3) n)),
+--     density A = δ ∧
+--     ∀ (x : Vector (ZMod 3) n) (i : Fin n),
+--       x ∈ A →
+--       (x + e i) ∉ A ∨ (x + 2 * e i) ∉ A := cap_set_basis_size_1_disproof
+--   Tutorial.autogeneralize h 3
+--   trivial
+
+/- Applying to use F2 instead of F3 -/
+-- theorem cap_set_basis_size_1_disproof_in_F2 :
+--   ∃ (δ : ℝ), δ > 0 →
+--   ∀ (n : ℕ), n ≥ 1 →
+--   ∃ (A : Finset (Vector (ZMod 2) n)),
+--     density A = δ ∧
+--     ∀ (x : Vector (ZMod 2) n),
+--     ∀ d ∈ basis n,
+--       x ∈ A →
+--       (x + d) ∉ A ∨ (x + 2 * d) ∉ A :=
+-- by
+--   use 1/3 -- We need to prove the density 1/3 works
+--   intros _δ n hn
+--   use A₀ n -- We need to prove the set A₀ works
+--   constructor
+--   apply partition_has_density_one_third n hn
+--   intros x ei hei hb; left;
+--   simp [basis] at hei
+--   obtain ⟨y, hy⟩ := hei
+--   rw [← hy]
+--   apply adding_basis_vector_changes_slice hb
+
+
+example : True :=
+  have hales_jewett : True := trivial
+  -- apply move to turn it into 1 basis vector case
+  trivial
