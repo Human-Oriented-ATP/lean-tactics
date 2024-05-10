@@ -43,16 +43,43 @@ example: True := by
   autogeneralize h 3
 
 
-
-/---------------------------------------------------------------------------
-Given integers a and b, you can write their gcd as a linear combination of a and b
----------------------------------------------------------------------------/
-theorem gcd_as_lin_comb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by
-  intros a b
-  exact exists_gcd_eq_mul_add_mul a b
-
 /---------------------------------------------------------------------------
 Generalizing the theorem about GCDs from integers to polynomials
 ---------------------------------------------------------------------------/
 example : True := by
+  let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
+  autogeneralize _gcdlincomb ℤ  -- adds _gcdlincomb.Gen to list of hypotheses
+  -- autogeneralize _gcdlincomb.Gen LinearOrderedCommRing
+  -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
+  -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
+  simp
+
+/---------------------------------------------------------------------------
+Trying to get gcd problem to work if you don't put the proof in directly into the hypothesis
+---------------------------------------------------------------------------/
+
+theorem gcdof2and3 : gcd 2 3 = 1 := by
+  have neq2and3 : 2 ≠ 3 := by simp
+  have p2 : Nat.Prime 2 := Nat.prime_two
+  have p3 : Nat.Prime 3 := Nat.prime_three
+  have copr := Nat.coprime_primes p2 p3
+  apply Iff.mpr at copr
+  apply Nat.Coprime.gcd_eq_one
+  exact copr (neq2and3)
+
+theorem gcdof2and3' : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
+
+
+example : True := by
+  let _gcdof2and3 :  gcd 2 3 = 1 :=  gcdof2and3
+
+  autogeneralize _gcdof2and3 (3: ℕ)
+
+  simp
+
+example : True := by
+  let _gcdof2and3 :  gcd 2 3 = 1 :=  gcdof2and3'
+
+  autogeneralize _gcdof2and3 (3: ℕ)
+
   simp

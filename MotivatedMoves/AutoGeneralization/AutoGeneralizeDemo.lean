@@ -14,7 +14,7 @@ open Real
 open Autogeneralize
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues false
+set_option pp.showLetValues true
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false
@@ -88,62 +88,18 @@ example : True := by
   -- it only needs Coprime f p
 
 /---------------------------------------------------------------------------
-Analogizing the theorem about GCDs of integers (to GCDs of polynomials)
----------------------------------------------------------------------------/
-example : True := by
-  let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
-  autogeneralize _gcdlincomb ℤ  -- adds _gcdlincomb.Gen to list of hypotheses
-  -- autogeneralize _gcdlincomb.Gen LinearOrderedCommRing
-  -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
-  -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
-  simp
-
-/---------------------------------------------------------------------------
 A theorem that uses the coprimality of two numbers
+TO DO: should work for any prime not equal to 3.
+  right now, it generalizes to any prime
 ---------------------------------------------------------------------------/
--- theorem bothPrimeMeansGCDIs1 : ∀ (a b : Nat), a ≠ b → Nat.Prime a → Nat.Prime b → gcd a b = 1 := by
---   intros a b aneqb pa pb
---   have copr := Nat.coprime_primes pa pb
---   apply Iff.mpr at copr
---   exact copr aneqb
 
-example : True := by
-  let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
-  autogeneralize _sqrt2Irrational 2 -- adds _sqrt2Irrational.Gen to list of hypotheses
-  simp
-
-theorem gcdof2and3 : gcd 2 3 = 1 := by
-  have neq2and3 : 2 ≠ 3 := by simp
-  have p2 : Nat.Prime 2 := Nat.prime_two
-  have p3 : Nat.Prime 3 := Nat.prime_three
-  have copr := Nat.coprime_primes p2 p3
-  apply Iff.mpr at copr
-  apply Nat.Coprime.gcd_eq_one
-  exact copr (neq2and3)
-
-theorem gcdof2and3' : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
-
-
-example : True := by
-  let _gcdof2and3 :  gcd 2 3 = 1 :=  gcdof2and3
-
-  autogeneralize _gcdof2and3 (3: ℕ)
-
-  simp
-
-example : True := by
-  let _gcdof2and3 :  gcd 2 3 = 1 :=  gcdof2and3'
-
-  autogeneralize _gcdof2and3 (3: ℕ)
-
-  simp
-
-example : True := by
+example : gcd 3 3 = 1 := by
   let _gcdof2and3 : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
 
   autogeneralize _gcdof2and3 (3: ℕ)
 
-  simp
+  specialize _gcdof2and3.Gen 3 (Nat.prime_three)
+  assumption
 
 -- will generalize saying you need the generalized-3 to be prime
 -- but really, you just need the generalized-3 to be coprime to 5
