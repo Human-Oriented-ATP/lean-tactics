@@ -387,7 +387,9 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
   let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
+  logInfo m!"Old identifier types {identifierTypes}"
   let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
+  logInfo m!"Filtered identifier types {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
   let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
@@ -401,19 +403,18 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
   let modifiers := modifiers.reverse
 
-  logInfo m!"The original proof: {thmProof}"
+  -- logInfo m!"The original proof: {thmProof}"
 
   -- add in the hypotheses, replacing old hypotheses names
   let genThmProof ← (modifiers.size).foldM
     (fun i acc => do
       let mod := modifiers.get! i
-      logInfo m!"Proof so far: {acc}"
       logInfo m!"New hypothesis to add: {mod.newType}"
       let body ← replaceWithBVar (.const mod.oldName []) acc
       return .lam mod.newName mod.newType body .default
 
     ) thmProof ;
-  logInfo m!"Proof with all added hypotheses {genThmProof}"
+  -- logInfo m!"Proof with all added hypotheses {genThmProof}"
 
   -- add in f, replacing the old f
   --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
@@ -486,7 +487,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
 
   -- Do the next bit of generalization -- figure out which hypotheses we need to add to make the generalization true
   let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
-  logInfo m!"The first hypothesis needed was {modifiers[0]!.oldType}, which we'll now change to {modifiers[0]!.newType}"
   -- logInfo m!"The number of hypotheses needed to generalize this theorem is {modifiers.size}"
 
   -- Get the generalized theorem (with those additional hypotheses)

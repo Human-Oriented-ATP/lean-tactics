@@ -83,3 +83,22 @@ example : True := by
   autogeneralize _gcdof2and3 (3: ℕ)
 
   simp
+
+/---------------------------------------------------------------------------
+A theorem that uses the coprimality of two numbers
+TO DO: should work for any prime not equal to 3.
+  right now, it generalizes to any prime
+
+  issue: the proof that 2 ≠ 3 doesn't actualy involve 3.  it says "Not ((Nat.succ.injEq 1 2))..."
+---------------------------------------------------------------------------/
+
+example : gcd 3 3 = 1 := by
+  let _gcdof2and3 : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
+
+  autogeneralize _gcdof2and3 (3: ℕ)
+
+  specialize _gcdof2and3.Gen 3 (Nat.prime_three)
+  assumption
+
+-- will generalize saying you need the generalized-3 to be prime
+-- but really, you just need the generalized-3 to be coprime to 5

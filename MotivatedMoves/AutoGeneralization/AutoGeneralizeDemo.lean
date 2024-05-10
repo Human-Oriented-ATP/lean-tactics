@@ -14,7 +14,7 @@ open Real
 open Autogeneralize
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false
@@ -78,28 +78,12 @@ example : (0.5 : ℝ) + 0.7 = 0.7 + 0.5 := by
 /---------------------------------------------------------------------------
 Analogizing the theorem that any prime has GCD 1 with 3 (to the theorem that any prime has GCD 1 with 2)
 ---------------------------------------------------------------------------/
-example : True := by
-  let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1:= by {intros p neq pp; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
+example : Nat.gcd 19 2 = 1 := by
+  let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → Nat.gcd p 3 = 1:= by {intros p neq pp; apply Nat.Coprime.gcd_eq_one; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
   autogeneralize _coprimality 3 -- adds _coprimality.Gen to list of hypotheses
 
-  specialize _coprimality.Gen 2 Nat.prime_two
-  simp
-  -- you should be able to tell that the proof doesn't need Prime f and Prime p
-  -- it only needs Coprime f p
-
-/---------------------------------------------------------------------------
-A theorem that uses the coprimality of two numbers
-TO DO: should work for any prime not equal to 3.
-  right now, it generalizes to any prime
----------------------------------------------------------------------------/
-
-example : gcd 3 3 = 1 := by
-  let _gcdof2and3 : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
-
-  autogeneralize _gcdof2and3 (3: ℕ)
-
-  specialize _gcdof2and3.Gen 3 (Nat.prime_three)
+  specialize _coprimality.Gen 2 Nat.prime_two 19 (by simp) (by exact (Nat.prime_iff_card_units 19).mpr rfl)
   assumption
 
--- will generalize saying you need the generalized-3 to be prime
--- but really, you just need the generalized-3 to be coprime to 5
+  -- you should be able to tell that the proof doesn't need Prime f and Prime p
+  -- it only needs Coprime f p
