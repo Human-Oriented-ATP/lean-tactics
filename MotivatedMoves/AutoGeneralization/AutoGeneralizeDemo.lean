@@ -63,17 +63,6 @@ example : Irrational (Real.sqrt 3) := by
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
   assumption
 
-/---------------------------------------------------------------------------
-Analogizing the theorem that any prime has GCD 1 with 3 (to the theorem that any prime has GCD 1 with 2)
----------------------------------------------------------------------------/
-example : True := by
-  let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1:= by {intros p neq pp; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
-  autogeneralize _coprimality 3 -- adds _coprimality.Gen to list of hypotheses
-
-  specialize _coprimality.Gen 2 Nat.prime_two
-  simp
-  -- you should be able to tell that the proof doesn't need Prime f and Prime p
-  -- it only needs Coprime f p
 
 /---------------------------------------------------------------------------
 Analogizing the theorem that integers commute (to the theorem that reals commute)
@@ -85,6 +74,18 @@ example : (0.5 : ℝ) + 0.7 = 0.7 + 0.5 := by
   specialize _comm_nums.Gen ℝ inferInstance
   specialize _comm_nums.Gen 0.5 0.7
   assumption
+
+/---------------------------------------------------------------------------
+Analogizing the theorem that any prime has GCD 1 with 3 (to the theorem that any prime has GCD 1 with 2)
+---------------------------------------------------------------------------/
+example : True := by
+  let _coprimality : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1:= by {intros p neq pp; exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq}
+  autogeneralize _coprimality 3 -- adds _coprimality.Gen to list of hypotheses
+
+  specialize _coprimality.Gen 2 Nat.prime_two
+  simp
+  -- you should be able to tell that the proof doesn't need Prime f and Prime p
+  -- it only needs Coprime f p
 
 /---------------------------------------------------------------------------
 Analogizing the theorem about GCDs of integers (to GCDs of polynomials)
@@ -100,93 +101,23 @@ example : True := by
 /---------------------------------------------------------------------------
 A theorem that uses the coprimality of two numbers
 ---------------------------------------------------------------------------/
-theorem bothPrimeMeansGCDIs1 : ∀ (a b : Nat), a ≠ b → Nat.Prime a → Nat.Prime b → gcd a b = 1 := by
-  intros a b aneqb pa pb
-  have copr := Nat.coprime_primes pa pb
+-- theorem bothPrimeMeansGCDIs1 : ∀ (a b : Nat), a ≠ b → Nat.Prime a → Nat.Prime b → gcd a b = 1 := by
+--   intros a b aneqb pa pb
+--   have copr := Nat.coprime_primes pa pb
+--   apply Iff.mpr at copr
+--   exact copr aneqb
+
+theorem gcdof2and3 : gcd 2 3 = 1 := by
+  have neq2and3 : 2 ≠ 3 := by simp
+  have p2 : Nat.Prime 2 := Nat.prime_two
+  have p3 : Nat.Prime 3 := Nat.prime_three
+  have copr := Nat.coprime_primes p2 p3
   apply Iff.mpr at copr
-  exact copr aneqb
+  exact copr (neq2and3)
 
-#print multPermute -- the proof term
+example : True := by
+  let h := gcdof2and3
+  autogeneralize h (3: ℕ)
 
-theorem gcdof5and7 : gcd 5 7 = 1 := by
-  have neq5and7 : 5 ≠ 7 := by simp
-  have p5 : Nat.Prime 5 := by simp
-  have p7 : Nat.Prime 7 := by simp
-  have copr := Nat.coprime_primes p5 p7
-  apply Iff.mpr at copr
-  exact copr (neq5and7)
-#print gcdof5and7
-
-theorem gcdofpand7 : Nat.Prime p → p ≠ 7 →  gcd p 7 = 1 := by
-  intros pp neq
-  have p7 : Nat.Prime 7 := by simp
-  have copr := Nat.coprime_primes pp p7
-  apply Iff.mpr at copr
-  exact copr neq
-#print gcdof5and7
-
-theorem gcdofpand3 : ∀ p : ℕ, p ≠ 3 → Nat.Prime p → gcd p 3 = 1 := by
-  intros p neq pp
-  exact (Iff.mpr $ Nat.coprime_primes pp (Nat.prime_three)) neq
-#print gcdofpand3
-
--- will gneralize saying, you need f (the generalized 3) to be prime
--- but really, you just need f (the generalized 3) to be coprime to p
-
-/---------------------------------------------------------------------------
-A theorem that uses FLT
----------------------------------------------------------------------------/
-
--- theorem flt_example : 2^4 ZMOD 5 = 1:= by
-
-theorem flt_example : 2^4 % 5 = 1 := by rfl
-#print flt_example
-
-theorem flt_example' : 2^4 % 5 = 1 := by
-  generalize ha: 2 = a
-  generalize hn: 5 = n
-  generalize hm: 4 = m
-  rw[ ←ha, ←hn, ←hm]
-  rfl
-
-#check Nat.Prime.coprime_iff_not_dvd
-#check Nat.Coprime.isCoprime
-
-theorem flt_example'' : 2^4 % (5 : ℤ) = (1 : ℤ) % (5 : ℤ):= by
-  have hp2 : Nat.Prime 2 := by norm_num
-  have hp5 : Nat.Prime 5 := by norm_num
-  have ne25 : 2 ≠ 5 := by norm_num
-  have hcp := Iff.mpr (Nat.coprime_primes hp2 hp5) ne25
-  have hcp' := Nat.Coprime.isCoprime hcp
-  have flt := Int.ModEq.pow_card_sub_one_eq_one hp5 hcp'
-  assumption
-#print flt_example''
-
-
-theorem flt_general (hp : Nat.Prime p) (hpn : IsCoprime a p) : a ^ (p - 1) % p = 1 := by
-  sorry
-
-
-/---------------------------------------------------------------------------
-Given integers a and b, you can write their gcd as a linear combination of a and b
----------------------------------------------------------------------------/
-theorem gcd_as_lin_comb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by
-  intros a b
-  exact exists_gcd_eq_mul_add_mul a b
-
-/---------------------------------------------------------------------------
-GCD of polynomials
----------------------------------------------------------------------------/
-theorem gcd_as_lin_comb' : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by
-  intros a b
-  exact exists_gcd_eq_mul_add_mul a b
-#check Polynomial.degree_gcd_le_right
-
-/---------------------------------------------------------------------------
-Generalizing the theorem about GCDs from integers to polynomials
----------------------------------------------------------------------------/
--- example : True := by
---   let _gcdlincomb : ∀ a b : ℤ, ∃ x y : ℤ, gcd a b = a*x + b*y := by {intros a b; exact exists_gcd_eq_mul_add_mul a b}
---   autogeneralize _gcdlincomb a  -- adds _gcdlincomb.Gen to list of hypotheses
---   specialize _gcdlincomb.Gen ℝ 1 (0.5 : ℝ)
---   simp at _gcdlincomb.Gen
+-- will generalize saying you need the generalized-3 to be prime
+-- but really, you just need the generalized-3 to be coprime to 5
