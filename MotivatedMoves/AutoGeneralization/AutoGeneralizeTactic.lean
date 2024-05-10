@@ -6,6 +6,27 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
+/-- Getting theorems from context --/
+def getTheoremStatement (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
+  return thm.type -- return the theorem statement (the type is the proposition)
+
+/-- Getting theorems from context --/
+def isTheorem (n : Name) : MetaM Bool := do
+  let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
+  return thm.hasValue -- returns true if it is a theorem or definition
+
+/-- Getting theorems from context --/
+def getTheoremProof (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
+  return thm.value! -- return the theorem statement (the type is the proposition)
+
+
+/- (For debugging) Print what type of expression something is -/
+def printExprType (e : Expr) : MetaM Unit := do
+  logInfo e.ctorName
+
+
 /--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
 def getHypotheses : TacticM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
@@ -48,7 +69,8 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
           then
             let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
             return ← liftOption val
-          else return hyp.value -- works if proved directly with a proof term like `:= fun ...`
+          else
+            return hyp.value -- works if proved directly with a proof term like `:= fun ...`
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 /--  Tactic to return goal variable -/
@@ -144,10 +166,7 @@ def logExpressionType (e : Expr) : MetaM Unit :=
     let t ← inferType e
     dbg_trace t
 
-/-- Getting theorems from context --/
-def getTheoremStatement (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
-  return thm.type -- return the theorem statement (the type is the proposition)
+
 
 #eval do {let e ← getTheoremStatement ``multPermute; logExpression e}
 
@@ -156,11 +175,6 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
 
 #eval do {let e ← getTheoremStatement ``multPermute; logFormattedExpression e}
 #eval do {let e ← getTheoremStatement ``multPermute; logExpressionType e}
-
-/-- Getting theorem proof from context --/
-def getTheoremProof (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
-  return thm.value! -- return the theorem proof (the term is the proof)
 
 #eval do {let e ← getTheoremProof ``reflOfZero; logExpression e}
 #eval do {let e ← getTheoremProof ``reflOfZero; logFormattedExpression e}
@@ -254,7 +268,8 @@ def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
 
 -- TO DO: use traverseExpr to do this instead
 /-- Creating replaces "original" with "replacement" in an expression -- as long as the subexpression found is definitionally equal to "original" -/
-def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr := fun e => do
+def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr :=
+fun e => do
   -- if there's a loose bvar in the expression, don't try checking definitional equality
   if !e.hasLooseBVars then
     if (← isDefEq e original)  -- do the replacement if you find a match
@@ -271,6 +286,19 @@ def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr 
   | Expr.app f a           => return Expr.app (← replaceCoarsely original replacement f) (← replaceCoarsely original replacement a)
   | Expr.letE n t v b x    => return Expr.letE n (← replaceCoarsely original replacement t) (← replaceCoarsely original replacement v) (← replaceCoarsely original replacement b) x
   | misc                     => return misc -- no need to recurse on any of the other expressions...if they didn't match "original" already, they won't if you go any deeper.
+
+/- If a subexpression matches the given "condition", it is replaced with "replacement"-/
+def replaceWhere (condition : Expr → Bool) (replacement: Expr) : Expr → MetaM Expr  :=
+fun e => do
+  if condition e
+    then return replacement
+  else
+    match e with
+    | Expr.forallE n d b bi  => return Expr.forallE n (← replaceWhere condition replacement d) (← replaceWhere condition replacement b) bi
+    | Expr.lam n d b bi      => return Expr.lam n (← replaceWhere condition replacement d) (← replaceWhere condition replacement b) bi
+    | Expr.app f a           => return Expr.app (← replaceWhere condition replacement f) (← replaceWhere condition replacement a)
+    | Expr.letE n t v b x    => return Expr.letE n (← replaceWhere condition replacement t) (← replaceWhere condition replacement v) (← replaceWhere condition replacement b) x
+    | misc                     => return misc -- no need to recurse
 
 /-- Create the expression d → b with name n-/
 def mkImplies (n : Name := `h) (d b : Expr) : MetaM Expr :=
@@ -350,7 +378,7 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
-  let identifiersInProofType := getFreeIdentifiers thmType
+  -- let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
 
   -- get all identifiers (that is, constants) in the proof term
@@ -396,10 +424,61 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
 
   return genThmProof
 
+def replaceExpressionsWhere (f : Expr → Bool) (replacement : Expr) (e : Expr) : MetaM Expr := do
+  -- first check if true for larger expression
+
+  -- if not, check for smaller
+  let replaced_e ← Lean.Meta.traverseChildren (fun subexpr =>
+    if f subexpr then return replacement
+    else return subexpr
+  ) e
+  return replaced_e
+
+def unfoldConstantsInProof (e : Expr) (depth := 3) : MetaM Expr := do
+  logInfo m!"Before unfolding proof: {e}"
+  let constants := e.getUsedConstants.toList
+  logInfo m!"Used constants: {constants}"
+
+  let unfolded_e ← (constants.length).foldM (fun i acc => do
+    let cName := constants.get! i
+    unless ← isTheorem cName do return acc
+    let cProof ← getTheoremProof cName
+    let unfoldedProof ← replaceWhere (fun e => e.isConstOf cName) cProof acc
+    return unfoldedProof
+  ) e
+
+  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
+  --   let cName := constants.get! i
+  --   let cProof ← getTheoremProof cName
+  --   let unfoldedProof ← replaceCoarsely (.const cName []) cProof acc
+  --   return unfoldedProof
+  -- ) e
+
+  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
+  --   let cName := constants.get! i
+  --   let cProof ← getTheoremProof cName
+  --   logInfo m!"cProof: {cProof}"
+  --   let unfoldedProof ← Lean.Meta.traverseChildren (fun e => -- only works on immediate children
+  --     if e.isConstOf cName then return cProof
+  --     else return e
+  --   ) acc
+  --   return unfoldedProof
+  -- ) e
+
+  logInfo m!"After unfolding proof: {unfolded_e}"
+  let constants := unfolded_e.getUsedConstants.toList
+  logInfo m!"Used constants after unfolding: {constants}"
+  return unfolded_e
+
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
+
+  -- Expose more details of the proof, recursing down
+  -- let thmProof ← unfoldConstantsInProof thmProof
+  -- let thmType ← inferType thmProof
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   let f : GeneralizedTerm := {oldValue := fExpr, name := `f, type := ← inferType fExpr, placeholder := ← mkFreshExprMVar (some (← inferType fExpr))}
