@@ -15,11 +15,11 @@ open Autogeneralize
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
--- set_option pp.proofs true
+-- set_option pp.explicit true
+
+-- set_option pp.proofs false
 -- set_option pp.proofs.withType true
--- set_option pp.explicit true
 -- set_option pp.instanceTypes true
--- set_option pp.explicit true
 
 /---------------------------------------------------------------------------
 Generalizing a theorem about an operator that uses commutativity and associativity
@@ -107,17 +107,26 @@ A theorem that uses the coprimality of two numbers
 --   apply Iff.mpr at copr
 --   exact copr aneqb
 
+example : True := by
+  let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
+  autogeneralize _sqrt2Irrational 2 -- adds _sqrt2Irrational.Gen to list of hypotheses
+  simp
+
 theorem gcdof2and3 : gcd 2 3 = 1 := by
   have neq2and3 : 2 ≠ 3 := by simp
   have p2 : Nat.Prime 2 := Nat.prime_two
   have p3 : Nat.Prime 3 := Nat.prime_three
   have copr := Nat.coprime_primes p2 p3
   apply Iff.mpr at copr
+  apply Nat.Coprime.gcd_eq_one
   exact copr (neq2and3)
 
 example : True := by
-  let h := gcdof2and3
-  autogeneralize h (3: ℕ)
+  let _gcdof2and3 : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
+
+  autogeneralize _gcdof2and3 (3: ℕ)
+
+  simp
 
 -- will generalize saying you need the generalized-3 to be prime
 -- but really, you just need the generalized-3 to be coprime to 5
