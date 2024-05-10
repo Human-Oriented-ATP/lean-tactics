@@ -6,24 +6,6 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
-/--  Tactic to print all non-implementation-detail hypotheses -/
-def printHypotheses : TacticM Unit := do
-  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
-  for ldecl in (← goal.getDecl).lctx do
-    if ldecl.isImplementationDetail then continue
-    let hypName := ldecl.userName
-    let hypType := ldecl.type
-    logInfo m!"Name: '{hypName}'  Type: '{hypType}'"
-
-elab "print_hypotheses" : tactic => do
-  printHypotheses
-
-example (a b : ℕ) (h1 : a = 2) (h2: b = 3) : a+b=5 := by
-  print_hypotheses
-  have h3 : b-a = 1 := by {rw [h1, h2]}
-  print_hypotheses
-  simp [h1, h2, h3]
-
 /--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
 def getHypotheses : TacticM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
@@ -37,25 +19,9 @@ def getHypotheses : TacticM (List LocalDecl) := do
 def getHypothesesTypes : TacticM (List Expr) := do
   return (← getHypotheses).map (fun hypothesis => hypothesis.type)
 
-elab "print_hypotheses_types" : tactic => do
-  let types ← getHypothesesTypes
-  logInfo ("Hyp types:" ++ types)
-
-example (a b : ℕ) (h1 : a = 2) (h2: b = 3) : a+b=5 := by
-  print_hypotheses_types
-  simp [h1, h2]
-
 /--  Tactic to return hypotheses names-/
 def getHypothesesNames : TacticM (List Name) := do
     return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
-
-elab "print_hypotheses_names" : tactic => do
-  let names ← getHypothesesNames
-  logInfo ("Hyp names:" ++ toString names)
-
-example {P Q : Prop} (p : P) (q: Q): P := by
-  print_hypotheses_names
-  assumption
 
 /--  Tactic get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
@@ -101,82 +67,10 @@ def getGoalDecl : TacticM MetavarDecl := do
 def getGoalType : TacticM Expr := do
   return ← getMainTarget -- (← getGoalDecl).type or (← getGoalVar).getType
 
-/--  Tactic that closes goal with a matching hypothesis if available-/
-elab "assump" : tactic => do
-  let goalDecl ← getGoalDecl
-  for hypDecl in ← getHypotheses do
-    if ← isDefEq hypDecl.type goalDecl.type then
-      closeMainGoal hypDecl.toExpr
-
-example {P : Prop} (p : P): P := by
-  assump -- works
-
--- example {P : Prop} : P := by
---   assump -- does nothing
---   sorry
-
-/--  Tactic that closes goal with a matching hypothesis if available, throws error if not-/
-elab "assump'" : tactic => do
-  let goalDecl ← getGoalDecl
-
-  -- check if any of the hypotheses matches the goal.
-  for hypDecl in ← getHypotheses do
-    if ← isDefEq hypDecl.type goalDecl.type then
-      closeMainGoal hypDecl.toExpr
-      return
-
-  -- if no hypothesis matched, this tactic fails.
-  throwError "No matching assumptions."
-
-example {P : Prop} (p : P): P := by
-  assump' -- works
-
--- example {P : Prop} : P := by
---   assump' -- throws error "No matching assumptions."
---   sorry
-
-/--  Tactic that behaves identically to the above, but takes advantage of built-in looping with findM -/
-elab "assump''" : tactic => do
-  let goalDecl ← getGoalDecl
-  let hypDecls ← getHypotheses
-
-  -- check if any of the hypotheses matches the goal.
-  let matchingHypDecl ← hypDecls.findM? (
-    -- when isDefEq returns true, we return the corresponding hypDecl
-    -- if it never does, we return none
-    fun hypDecl => return ← isDefEq hypDecl.type goalDecl.type
-  )
-
-   -- close the goal, or fail if no hypothesis matched
-  match matchingHypDecl with
-  | some hypDecl => closeMainGoal hypDecl.toExpr
-  | none => throwError "No matching assumptions."
-
-example {P : Prop} (p : P): P := by
-  assump''
-
--- example {P Q : Prop} (p : P): Q := by
---   assump''
---   sorry
-
 /-- Create new goals -/
 def createGoal (goalType : Expr) : TacticM Unit := do
   let goal ← mkFreshExprMVar goalType
   appendGoals [goal.mvarId!]
-
-elab "create_nat_goal" : tactic => do
-  let goalType := (Expr.const ``Nat []) -- make the goal to find an instance of type "Nat"
-  createGoal goalType
-example : 1 + 2 = 3 := by
-  create_nat_goal
-  simp; use 5
-
-elab "create_reflexivity_goal" : tactic => do
-  let goalType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
-  createGoal goalType
-example : 1 + 2 = 3 := by
-  create_reflexivity_goal
-  simp; simp
 
 /-- Create a new hypothesis using a "have" statement -/
 def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
@@ -193,62 +87,7 @@ def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Na
   let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
 
-elab "create_nat_hypothesis" : tactic => do
-  let hypType := Expr.const ``Nat []
-  let hypProof :=  (toExpr 0) -- use 0 as a term of type Nat
-  createHypothesis hypType hypProof `x
-example : 1 + 2 = 3 := by
-  create_nat_hypothesis
-  simp
 
-theorem rf : 0 = 0 := by rfl
-#print rf
-
-
--- elab "create_reflexivity_hypothesis" : tactic => do
---   let hypType ← mkEq (toExpr 0) (toExpr 0) -- make the metavariable goal to prove that "0 = 0"
---   let l ← mkFreshLevelMVar
---   let hypProof := .app (.const ``Eq.refl [l]) (toExpr 0) -- proof that 0 = 0 by reflexivity
---   createHypothesis hypType hypProof
--- example : 1 + 2 = 3 := by
---   create_reflexivity_hypothesis
---   simp
-
-/-- Create 0, 1, and π -/
-def zero := Expr.const ``Nat.zero []
-#eval zero
-
-def one := Expr.app (.const ``Nat.succ []) zero
-#eval one
-
-def two := Expr.app (.const ``Nat.succ []) one
-#eval two
-
-def pi := Expr.const ``Real.pi []
-#eval pi
-
-/-- Elaborate it -/
-elab "one_as_term" : term => return one
-#eval one_as_term -- 1
-
-/-- Turn lean Nats into Expressions -/
-def natExpr (n : Nat): Expr :=
-match n with
-| 0 => .const ``Nat.zero []
-| n + 1 => .app (.const ``Nat.succ []) (natExpr n)
-#eval natExpr 2
-#eval toExpr 2
-#eval isDefEq (toExpr 2) (natExpr 2)
-
-#eval natExpr 0
-#eval toExpr 0
-#eval (toExpr 0) == (natExpr 0)
-
-
-/-- Create an expression that sums two nats -/
-def sumExpr (n : Nat) (m : Nat) : Expr :=
-  Expr.app (.app (.const `Nat.add []) (natExpr m)) (natExpr n)
-#eval sumExpr 1 2
 
 /-- Print out an expression in a human-readable way  --/
 def printPrettyExpression (e : Expr) : MetaM Unit := do
@@ -268,104 +107,6 @@ elab "#term_to_expr" t:term : command => do
 #term_to_expr (Eq.refl 0)
 
 
-
-
-
-
-
-
-
-/- Turn expressions back into code -/
-def expectedType := Expr.const ``Nat []
-def value := (sumExpr 1 2)
-#eval evalExpr Nat expectedType value
-
-/- Turn expressions back into code another way -/
-elab "sumExpr12" : term => return (sumExpr 1 2)
-#eval sumExpr12
-
-/- Get types of Lean constant expressions -/
-#eval zero.isConst  -- true, is a natural number constant
-#eval pi.isConst    -- true, is a real number constant
-
-#eval inferType zero  -- Lean.Expr.const `Nat []
-#eval inferType pi    -- Lean.Expr.const `Real []
-
-#eval (Expr.const `Nat []).isConstOf `Nat -- true
-#eval (Expr.const `Nat []).isConstOf `Real -- false
-
-def isNat (e: Expr): MetaM Bool := do
-  let type_expr ← inferType e
-  return type_expr.isConstOf `Nat
-
-#eval isNat zero
-#eval isNat pi
-
-
-/- Get types of Lean constant expressions, with debugging -/
-def isNatDebug (e: Expr): MetaM Unit := do
-  let type_expr ← inferType e
-  dbg_trace "The type expression is: {type_expr}"
-
-#eval isNatDebug zero
-
-def isNatDebugRepr (e: Expr): MetaM Unit := do
-  let type_expr ← inferType e
-  dbg_trace "The type expression is: {repr type_expr}"
-
-#eval isNatDebugRepr zero
-
-def sayHello : MetaM Unit := do
-  logInfo "hi"
-
-#eval sayHello
-
-elab "sayHello" : tactic => sayHello
-
-example : True := by
-  sayHello
-  trivial
-
-/- Applications -/
-def func := Expr.const `Nat.succ []
-def x := Expr.const `Nat.zero []
-#eval (Expr.app func x) -- Nat.succ Nat.zero
-
-elab "fx" : term => return (Expr.app func x)
-#eval (fx = Nat.succ Nat.zero) -- true
-
-def f' := Expr.const `Nat.add []
-def x' := Expr.const `Nat.zero []
-def y' := Expr.const `Nat.zero []
-#eval (Expr.app (.app f' x') y') -- Nat.add Nat.zero Nat.zero
-
-elab "fxy" : term => return (Expr.app (.app f' x') y')
-#eval (fxy = Nat.add Nat.zero Nat.zero) -- true
-
-/- Applications puzzle -/
-def addExpr := Expr.const `Nat.add []
-def mulExpr := Expr.const `Nat.mul []
-
-def sumExpr': Nat → Nat → Expr
-| m, n =>  (Expr.app (.app addExpr (natExpr m)) (natExpr n))
-def mulExpr': Nat → Nat → Expr
-| m, n =>  (Expr.app (.app mulExpr (natExpr m)) (natExpr n))
-
-elab "sum12" : term => return sumExpr' 1 2
-elab "mul12" : term => return mulExpr' 1 2
-#eval (sum12 = 3) -- should be true
-#eval (mul12 = 2) -- should be true
-
-/- Get types of Lean application expressions -/
-#eval (sumExpr 1 2).isConst -- false, is an application
-#eval (sumExpr 1 2).isApp   -- true, is an application
-
-def isAddition (e : Expr) :  MetaM Bool := do
-  -- dbg_trace "The function: {e.getAppFn}"
-  if (← isDefEq e.getAppFn addExpr) then return true else return false
-
-#eval isAddition (sumExpr' 1 2) -- true
-#eval isAddition (mulExpr' 1 2) -- false
 
 /-- Given the compiled code in the goal, _print_ the full raw format of an expression  --/
 elab "print_goal_as_expression" : tactic => do
@@ -387,7 +128,6 @@ theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
 /-- What the expression looks like --/
 def logExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{repr e}"
-#eval logExpression zero
 
 /-- What the expression looks like, but prettier  --/
 def logFormattedExpression (e : Expr) : MetaM Unit := do
@@ -407,15 +147,6 @@ def logExpressionType (e : Expr) : MetaM Unit :=
   do
     let t ← inferType e
     dbg_trace t
-
--- def logCompiledExpression (e : Expr) : MetaM Unit := do
---   dbg_trace "{e}"
-#eval logExpression zero        -- Lean.Expr.const `Nat.zero []
-#eval logFormattedExpression zero    -- Nat.zero
-#eval logPrettyExpression zero    -- Nat.zero
-#eval logDelabExpression zero    -- `Nat.zero
-#eval logExpressionType zero    -- Nat
--- #eval logCompiledExpression zero -- 0
 
 /-- Getting theorems from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
@@ -439,33 +170,6 @@ def getTheoremProof (n : Name) : MetaM Expr := do
 #eval do {let e ← getTheoremProof ``reflOfZero; logFormattedExpression e}
 #eval do {let e ← getTheoremProof ``reflOfZero; logPrettyExpression e}
 
-
-/-- Print all subexpressions that involve constants --/
-def printConstantsIn (e : Expr) : MetaM Unit :=
-  e.forEachWhere Expr.isConst logExpression
-
-#eval do {let e ← getTheoremStatement ``multPermute; printConstantsIn e}
-
-def printIfNat (subexpr : Expr) : MetaM Unit := do
-  try
-    let isNatResult ← isNat subexpr
-    if isNatResult
-      then logPrettyExpression subexpr; dbg_trace "---"
-      else return
-  catch
-  | Exception.error _ _ => return
-  | _ => throwError "Something about 'isNat subexpr' is throwing an error."
-
-/-- Print all subexpressions that involve natural numbers --/
-def printNatsIn (e : Expr) : MetaM Unit := do
-  e.forEach printIfNat
-
-#eval do {let e ← getTheoremStatement ``multPermute;  printNatsIn e}
-
-/- (For debugging) Print what type of expression something is -/
-def printExprType (e : Expr) : MetaM Unit := do
-  logInfo e.ctorName
-
 /- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : List Expr :=
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
@@ -483,88 +187,7 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   subexprs
 
-#eval do {let e ← getTheoremStatement ``multPermute;  logInfo (getSubexpressionsIn e)}
-#eval getSubexpressionsIn (Lean.Expr.app (Lean.Expr.const `CommRing [Lean.Level.zero]) (Lean.Expr.const `Int []))
-/- Get (in a list) all subexpressions that involve natural numbers -/
-def getIfNat (subexpr : Expr) : MetaM (Option Expr) := do
-  try
-    let isNatResult ← isNat subexpr
-    if isNatResult
-      then return some subexpr
-      else return none
-  catch
-  | Exception.error _ _ => return none
-  | _ => throwError "Something about 'isNat subexpr' is throwing an error."
 
-
-def getNatsIn (e : Expr) : MetaM (List Expr) := do
-  let subexprs := getSubexpressionsIn e
-  let natSubexprs ← subexprs.filterMapM getIfNat
-  return natSubexprs
-
-theorem flt_example : 2^4 % 5 = 1 := by simp
-#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
-#eval do { let e ← getTheoremStatement ``multPermute; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
-
-def isAtomicNat (e : Expr) : MetaM Bool := do
-  if not (← isNat e) then return false
-  else
-    let rec getFirstNonAppTerm (e : Expr) : MetaM Expr := match e with
-    | Expr.app f a => return (← getFirstNonAppTerm f)
-    | _ => return e
-    let nonAppTerm ← getFirstNonAppTerm e
-    -- dbg_trace repr e
-    -- dbg_trace ">>>"
-    if nonAppTerm.isConstOf `OfNat.ofNat --nonAppTerm.isLit -
-      then
-        -- dbg_trace repr nonAppTerm; dbg_trace "==========";
-        return true
-      else
-        -- dbg_trace repr nonAppTerm; dbg_trace "==========";
-        return false
-
-#eval toExpr 1
-#eval sumExpr 1 2
-#eval isAtomicNat (toExpr 1) -- true
-#eval isAtomicNat (sumExpr 1 2) -- false
-
-/- Get (in a list) all subexpressions that are just a single natural numbers -/
-def getIfAtomicNat (subexpr : Expr) : MetaM (Option Expr) := do
-  if (← isAtomicNat subexpr)
-    then return some subexpr
-    else return none
-
-/-- Returns single nats like 3 and 4, not 3^4 or 3*4 -/
-def getAtomicNatsIn (e : Expr) : MetaM (List Expr) := do
-  let subexprs := getSubexpressionsIn e
-  let natSubexprs ← subexprs.filterMapM getIfAtomicNat
-  return natSubexprs
-
-#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getNatsIn e; natsInE.forM logPrettyExpression}
-#eval do { let e ← getTheoremStatement ``flt_example; let natsInE ← getAtomicNatsIn e; natsInE.forM logPrettyExpression}
-
-elab "createReflexivityGoal'" : tactic => do
-  let goalType ← mkEq (Expr.const ``Nat.zero []) (Expr.const ``Nat.zero [])
-  createGoal goalType
-example : 1 + 2 = 3 := by
-  createReflexivityGoal'
-  simp; simp
-
-/-- Introduce a hypothesis already in the goal -/
-elab "introductor" : tactic => do
-  let goal ← getGoalVar
-  let (_, new_goal) ← goal.intro `h
-  setGoals [new_goal]
-
-elab "introductor'" : tactic => do
-  liftMetaTactic fun goal => do
-    let (_, new_goal) ← goal.intro `wow
-    return [new_goal]
-
-example (P Q : Prop) : P → Q → P := by
-  introductor
-  introductor
-  assumption
 
 
 
@@ -629,26 +252,6 @@ example : 2^4 % 5 = 1 := by
   generalize2
   generalize4
   rw [← h_0, ← h_1]; rfl
-
-/-- Generalizing all natural numbers in a theorem  -/
-elab "generalizeAllNats" : tactic => do
-  let nats ← getAtomicNatsIn (← getGoalType)
-  nats.forM generalizeTerm
-
-example : 2^4 % 5 = 1 := by
-  generalizeAllNats
-  rw  [←h_0, ←h_1, ←h_2, ←h_3]; rfl
-
-elab "generalizef" : tactic => do
-  let hmul := .const `HMul.hMul [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero]
-  let nat := .const ``Nat []
-  let inst :=   mkApp2 (.const `instHMul [Lean.Level.zero]) nat (.const `instMulNat [])
-  let f := mkApp4 hmul nat nat nat inst
-  generalizeTerm f
-
-example : True := by
-  generalizef
-  simp
 
 /-- Gets all identifier names in an expression -/
 def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
@@ -728,14 +331,6 @@ def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr
     | .lam n a b bi => return .lam n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
     | .forallE n a b bi => return .forallE n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
     | x =>  replaceCoarsely (original) (.bvar depth) x
-
-#eval do {
-  let e := sumExpr 2 3;
-  let e ← replaceWithBVar (toExpr 2) e;
-  dbg_trace e; -- Nat.add #0 (Nat.succ #0)
-  let lamb_e := Expr.lam `x (.const `Nat []) e .default;
-  dbg_trace lamb_e -- fun (x : Nat) => Nat.add x (Nat.succ x)
-  }
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do

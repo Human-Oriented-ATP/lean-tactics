@@ -36,9 +36,9 @@ Generalizing the theorem that sqrt(2) is irrational
 (Note this isn't the most general version of the theorem -- it's a proof-based generalization)
 ---------------------------------------------------------------------------/
 example : True := by
-  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
 
-  autogeneralize _sqrt2Irrational (2 : ℕ) -- adds _sqrt2Irrational.Gen to list of hypotheses
+  autogeneralize _sqrt2Irrational 2 -- adds _sqrt2Irrational.Gen to list of hypotheses
 
   simp
 
@@ -96,81 +96,6 @@ example : True := by
   -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
   -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
   simp
-/---------------------------------------------------------------------------
-A theorem that sqrt 2 is irrational
----------------------------------------------------------------------------/
-
-theorem sqrt_2_irrational : Irrational (sqrt 2) := Nat.prime_two.irrational_sqrt
-
-/---------------------------------------------------------------------------
-A theorem that sqrt of any prime p is irrational (from mathlib)
----------------------------------------------------------------------------/
-
-theorem sqrt_p_irrational (hp : Nat.Prime p) : Irrational (sqrt p) := by
-  let h := sqrt_2_irrational
-  autogeneralize h 2
-  sorry
-/---------------------------------------------------------------------------
-A theorem about irrationality of sqrt 2
----------------------------------------------------------------------------/
-
-theorem sqrt_two_irrational : Irrational (sqrt 2):=
-  by sorry
-
-theorem sqrt_prime_irrational {p : ℕ} (hp : Nat.Prime p): Irrational (sqrt p):=
-  by sorry
-
-/---------------------------------------------------------------------------
-A theorem that uses associativity and commutativity of multiplication
----------------------------------------------------------------------------/
-theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
-  intros n m p
-  rw [← Nat.mul_assoc]
-  rw [@Nat.mul_comm n m]
-  rw [Nat.mul_assoc]
-#print multPermute -- the proof term
-
-/---------------------------------------------------------------------------
-Using generalize to suppose the operation is not necessarily assoc/comm
----------------------------------------------------------------------------/
-theorem multPermute' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) :=
-by
-  intros n m p
-  generalize hm : @HMul.hMul Nat Nat Nat instHMul = f
-  -- clear hm -- removing that assumption from context, to fully generalize
-  rw [← hm]-- now this is false, so we need to revert it
-  apply multPermute
-
-theorem multPermute'' : ∀ (n m p : Nat), n * (m * p) = m * (n * p) :=
-by
-  intros n m p
-  generalize hm : @HMul.hMul Nat Nat Nat instHMul = f
-  clear hm
-  revert f
-  sorry
-/---------------------------------------------------------------------------
-A generalization of the theorem to any binary operation that is assoc & comm
----------------------------------------------------------------------------/
-theorem fPermute :
-∀ (f : Nat → Nat → Nat)
--- (f_assoc : ∀ (n m p : Nat),  f n (f m p) = f (f n m) p ) -- n (m p) = (n m) p
-(gen_mul_assoc : ∀ (n m p : Nat),  f (f n m) p = f n (f m p)) -- n (m p) = (n m) p
-(gen_mul_comm : ∀ (n m : Nat), f n m = f m n)
-(n m p : Nat), f n (f m p) = f m (f n p) -- n (m p) = m (n p)
-:= by
-
-  intros f gen_mul_assoc gen_mul_comm n m p
-  rw [← gen_mul_assoc]
-  rw [gen_mul_comm n m]
-  rw [gen_mul_assoc]
-#print fPermute
-
-
-/---------------------------------------------------------------------------
-Checking that we can instantiate the generalization with addition
----------------------------------------------------------------------------/
-theorem addPermute : ∀ (n m p : Nat), n + (m + p) = m + (n + p) := by
-  apply fPermute _ Nat.add_assoc Nat.add_comm
 
 /---------------------------------------------------------------------------
 A theorem that uses the coprimality of two numbers
