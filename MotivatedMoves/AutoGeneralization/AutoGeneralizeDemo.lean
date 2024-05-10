@@ -121,6 +121,8 @@ theorem gcdof2and3 : gcd 2 3 = 1 := by
   apply Nat.Coprime.gcd_eq_one
   exact copr (neq2and3)
 
+
+
 example : True := by
   let _gcdof2and3 : gcd 2 3 = 1 := Nat.Coprime.gcd_eq_one $ Iff.mpr (Nat.coprime_primes Nat.prime_two Nat.prime_three) (by simp)
 

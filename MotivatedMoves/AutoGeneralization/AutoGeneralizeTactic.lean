@@ -15,10 +15,6 @@ def getHypotheses : TacticM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
-/--  Tactic to return hypotheses expressions (the types)-/
-def getHypothesesTypes : TacticM (List Expr) := do
-  return (← getHypotheses).map (fun hypothesis => hypothesis.type)
-
 /--  Tactic to return hypotheses names-/
 def getHypothesesNames : TacticM (List Name) := do
     return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
@@ -30,7 +26,7 @@ def getHypothesisByName (h : Name) : TacticM LocalDecl := do
     if ldecl.isImplementationDetail then continue
     if ldecl.userName == h then
       return ldecl
-  throwError "No hypothesis by that name."
+  throwError m!"No hypothesis by name '{h}'."
 
 /-- Get the FVarID for a hypothesis (given its name) -/
 def getHypothesisFVarId (h : Name) : TacticM FVarId := do
@@ -256,21 +252,6 @@ example : 2^4 % 5 = 1 := by
 /-- Gets all identifier names in an expression -/
 def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
 
--- Demonstration of using the replace function
-def originalExpr : Expr := mkApp2 (Expr.const `Nat.add []) (mkNatLit 1) (mkNatLit 1)
-def replacementFunction : Expr → Option Expr
-  | .lit (Literal.natVal 1) => some $ .lit (Literal.natVal 2)
-  | _                      => none
-def replacedExpr : Expr := originalExpr.replace replacementFunction
-#eval ppExpr originalExpr
-#eval ppExpr replacedExpr
-
-/-- Creating a replacementRule to replace "original" with "replacement" -/
-def replacementRule (original : Expr) (replacement: Expr) : Expr → Option Expr := fun e => do
-  if e == original
-    then some replacement
-    else none
-
 -- TO DO: use traverseExpr to do this instead
 /-- Creating replaces "original" with "replacement" in an expression -- as long as the subexpression found is definitionally equal to "original" -/
 def replaceCoarsely (original : Expr) (replacement: Expr) : Expr → MetaM Expr := fun e => do
@@ -298,9 +279,11 @@ def mkImplies (n : Name := `h) (d b : Expr) : MetaM Expr :=
 /-- Create a reasonable name for an expression -/
 def mkAbstractedName (n : Name) : Name :=
     match n with
-    | (.str _ s) => s!"f_{s.take 7}" -- truncate to first 7 chars of string
+    | (.str _ s) => s!"f_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
 
+#eval mkAbstractedName `prime_two
+#eval mkAbstractedName `instAddCommSemigroupInt
 
 /-- Replaces every occurence in e of old[0] with new[0], and old[1] with new[1] and so on -/
 def replaceAll (original : List Name) (replacement : List Name) (e : Expr): MetaM Expr := do
@@ -390,14 +373,19 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
   let modifiers := modifiers.reverse
 
+  logInfo m!"The original proof: {thmProof}"
+
   -- add in the hypotheses, replacing old hypotheses names
   let genThmProof ← (modifiers.size).foldM
     (fun i acc => do
       let mod := modifiers.get! i
+      logInfo m!"Proof so far: {acc}"
+      logInfo m!"New hypothesis to add: {mod.newType}"
       let body ← replaceWithBVar (.const mod.oldName []) acc
       return .lam mod.newName mod.newType body .default
 
     ) thmProof ;
+  logInfo m!"Proof with all added hypotheses {genThmProof}"
 
   -- add in f, replacing the old f
   --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
@@ -415,9 +403,12 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   let f : GeneralizedTerm := {oldValue := fExpr, name := `f, type := ← inferType fExpr, placeholder := ← mkFreshExprMVar (some (← inferType fExpr))}
+  logInfo m!"The term to be generalized is {f.oldValue} with type {f.type}"
 
   -- Do the next bit of generalization -- figure out which hypotheses we need to add to make the generalization true
   let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
+  logInfo m!"The first hypothesis needed was {modifiers[0]!.oldType}, which we'll now change to {modifiers[0]!.newType}"
+  -- logInfo m!"The number of hypotheses needed to generalize this theorem is {modifiers.size}"
 
   -- Get the generalized theorem (with those additional hypotheses)
   let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
