@@ -40,6 +40,33 @@ def getHypotheses : TacticM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
+/--  Get a hypothesis declaration by its name -/
+def getHypothesisByName (h : Name) : TacticM LocalDecl := do
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
+    if ldecl.isImplementationDetail then continue
+    if ldecl.userName == h then
+      return ldecl
+  throwError "No hypothesis by that name."
+
+/-- Get the statement of a given hypothesis (given its name) -/
+def getHypothesisType (h : Name) : TacticM Expr := do
+  let hyp ← getHypothesisByName h
+  return hyp.type
+
+/-- Get the proof of a given hypothesis (given its name) -/
+def getHypothesisProof (h : Name) : TacticM Expr := do
+  (← getMainGoal).withContext do
+    let hyp ← getHypothesisByName h
+    if hyp.hasValue
+      then
+        if hyp.value.isMVar
+          then
+            let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
+            return ← liftOption val
+          else return hyp.value -- works if proved directly with a proof term like `:= fun ...`
+      else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Creating hypotheses
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/

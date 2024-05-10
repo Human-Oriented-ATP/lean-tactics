@@ -189,7 +189,7 @@ def getHypothesisFVarId (h : Name) : TacticM FVarId := do
   let hyp ← getHypothesisByName h
   return hyp.fvarId
 
-/-- Get the proposition for a given hypothesis (given its name) -/
+/-- Get the statement of a given hypothesis (given its name) -/
 def getHypothesisType (h : Name) : TacticM Expr := do
   let hyp ← getHypothesisByName h
   return hyp.type
@@ -296,6 +296,20 @@ example : 1 + 2 = 3 := by
   create_reflexivity_goal
   simp; simp
 
+/-- Replace goals -/
+def replaceGoal (goalType : Expr) : TacticM Unit :=
+withMainContext do
+  let goal ← mkFreshExprMVar goalType
+  replaceMainGoal [goal.mvarId!]
+
+elab "replace_goal" t:term : tactic => do
+  let e ← Term.elabTerm t none
+  replaceGoal e
+
+example : True := by
+  replace_goal False
+  exfalso
+
 /-- Create a new hypothesis using a "have" statement -/
 def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
   let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
@@ -358,6 +372,11 @@ match n with
 #eval toExpr 2
 #eval isDefEq (toExpr 2) (natExpr 2)
 
+#eval natExpr 0
+#eval toExpr 0
+#eval (toExpr 0) == (natExpr 0)
+
+
 /-- Create an expression that sums two nats -/
 def sumExpr (n : Nat) (m : Nat) : Expr :=
   Expr.app (.app (.const `Nat.add []) (natExpr m)) (natExpr n)
@@ -379,7 +398,6 @@ elab "#term_to_expr" t:term : command => do
   logInfo m!"The expression corresponding to {t} is:\n\n{repr e}"
 #term_to_expr (2+3=5)
 #term_to_expr (Eq.refl 0)
-
 
 
 
@@ -951,6 +969,8 @@ elab "autogeneralize" h:ident f:term : tactic => do
   let f ← (Lean.Elab.Term.elabTerm f none)
   autogeneralize h.getId f
 
+
+
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 -- set_option pp.proofs true
@@ -1034,4 +1054,4 @@ example : True := by
   -- specialize _gcdlincomb.Gen (Polynomial ℤ) (inferInstance) inferInstance
   -- inferInstance (Polynomial.normalizedGcdMonoid ℝ)
   simp
-end Tutorial
+-- end Tutorial
