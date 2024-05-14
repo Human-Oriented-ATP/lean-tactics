@@ -100,7 +100,6 @@ elab "tree_simp" goalPos:treePos : tactic =>
 example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
   make_tree
   tree_simp [1,1,0]
-  simp
 
 -- since the tree binders are reducible, we can use lemma's about regular binders
 @[inline] def pushNegLemmas : List Name := [``Classical.not_imp, ``not_and, ``not_forall, ``not_exists, ``not_not, ``not_true, ``not_false_iff, ``not_le, ``not_lt]
