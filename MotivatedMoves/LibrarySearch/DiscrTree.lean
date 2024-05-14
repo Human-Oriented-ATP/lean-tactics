@@ -5,9 +5,9 @@ Authors: J. W. Gerbscheid
 -/
 import MotivatedMoves.ProofState.Tree
 import MotivatedMoves.LibrarySearch.StateList
-import Std.Data.List.Basic
+import Batteries.Data.List.Basic
 import Lean.Meta
-import Mathlib.Data.Pi.Algebra
+import Mathlib.Algebra.Group.Pi.Basic
 
 /-!
 We define discrimination trees for the purpose of unifying local expressions with library results.
@@ -374,15 +374,13 @@ which is used for `RefinedDiscrTree` indexing. -/
 def DTExpr.flatten (e : DTExpr) (initCapacity := 16) : Array Key :=
   (DTExpr.flattenAux (.mkEmpty initCapacity) e).run' {}
 
-
-
 /-- Return true if `e` is one of the following
 - A nat literal (numeral)
 - `Nat.zero`
 - `Nat.succ x` where `isNumeral x`
 - `OfNat.ofNat _ x _` where `isNumeral x` -/
 private partial def isNumeral (e : Expr) : Bool :=
-  if e.isNatLit then true
+  if e.isRawNatLit then true
   else
     let f := e.getAppFn
     if !f.isConst then false
@@ -513,7 +511,7 @@ def etaExpand (args : Array Expr) (type : Expr) (lambdas : List FVarId) (goalAri
       etaExpand (args.push fvar) type (fvar.fvarId! :: lambdas) goalArity k
   else
     k args lambdas
-termination_by etaExpand => goalArity - args.size
+termination_by goalArity - args.size
 @[match_pattern] def mkApp2 (f a b : Expr) := mkAppB f a b
 @[match_pattern] def mkApp3 (f a b c : Expr) := mkApp (mkAppB f a b) c
 /-- Normalize an application of a heterogenous binary operator like `HAdd.hAdd`. -/
@@ -855,7 +853,7 @@ where
         loop (i+1)
     else
       vs.push v
-termination_by loop i => vs.size - i
+termination_by vs.size - i
 
 /-- Insert the value `v` at index `keys : Array Key` in a `Trie`. -/
 partial def insertInTrie [BEq α] (keys : Array Key) (v : α) (i : Nat) : Trie α → Trie α

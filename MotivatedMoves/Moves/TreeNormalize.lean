@@ -60,7 +60,7 @@ private def NormalizeRec (norm : Expr → MetaM (Expr × Expr)) (target : Expr) 
 
 
 def simpMoveAux (ctx : Simp.Context) (discharge? : Option Simp.Discharge := none) (e : Expr) : MetaM (Expr × Expr) := do
-  let (r, _) ← simp e ctx discharge? {}
+  let (r, _) ← simp e ctx #[] discharge? {}
   match r.proof? with
   | some proof => return (r.expr, proof)
   | none => return (e, ← mkEqRefl e) --throwError m! "could not simplify {e}"
@@ -100,9 +100,10 @@ elab "tree_simp" goalPos:treePos : tactic =>
 example : ∀ a : Nat, ∃ n : Nat, (1 = 2) ∧ True → False := by
   make_tree
   tree_simp [1,1,0]
+  simp
 
 -- since the tree binders are reducible, we can use lemma's about regular binders
-@[inline] def pushNegLemmas : List Name := [``not_imp, ``not_and, ``not_forall, ``not_exists, ``not_not, ``not_true, ``not_false_iff, ``not_le, ``not_lt]
+@[inline] def pushNegLemmas : List Name := [``Classical.not_imp, ``not_and, ``not_forall, ``not_exists, ``not_not, ``not_true, ``not_false_iff, ``not_le, ``not_lt]
 
 def pushNegContext : MetaM Simp.Context :=
   return { simpTheorems := #[← pushNegLemmas.foldlM (·.addConst ·) ({} : SimpTheorems)] }

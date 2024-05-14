@@ -282,6 +282,7 @@ def renderTree (props : GoalSelectionProps) : RequestM (RequestTask Html) := Req
     </div>
     )
 
+
 @[widget_module]
 def RenderTree : Component GoalSelectionProps where
   javascript := include_str "../../build/js/svgTree.js"
