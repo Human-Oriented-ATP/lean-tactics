@@ -123,11 +123,11 @@ open Meta
 def replaceForallE : Expr → MetaM Expr
   | .forallE name domain body bi => do
     let u ← getLevel domain
-    return if bi.isInstImplicit
-      then mkInstance name u domain body
-      else if ← pure !body.hasLooseBVars <&&> isLevelDefEq u .zero
-        then mkImp domain body
-        else mkForall name u domain body
+    if bi.isInstImplicit then
+      return mkInstance name u domain body
+    else if (← (pure !body.hasLooseBVars <&&> isLevelDefEq u .zero)) then
+      return mkImp domain body
+    else return mkForall name u domain body
   | e => return e
 
 partial def TreeRecursor.recurseNonTree [Inhabited α] (r : TreeRecursor MetaM α)

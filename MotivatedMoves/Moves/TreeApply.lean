@@ -1,5 +1,4 @@
 import MotivatedMoves.LibrarySearch.LibrarySearch
-
 namespace MotivatedTree
 
 open Lean Meta
@@ -530,18 +529,15 @@ open RefinedDiscrTree in
 def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas
-  let results := if ← getPolarity tree goalOuterPosition then
-    (← getSubExprUnify discrTrees.2.apply tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply tree goalOuterPosition [])
+  let results : Array (Array LibraryLemma × Nat) ← if (← getPolarity tree goalOuterPosition) then
+    pure <| (← getSubExprUnify discrTrees.2.apply tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply tree goalOuterPosition [])
   else
-    (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
-
-  let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
+    pure <| (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
+  let results ← filterLibraryResults results fun ({name, treePos, pos, ..} : LibraryLemma) => do
     _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
-
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs,
     s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
-
 
 def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) : MetaM Unit := do
   let result ← result.mapM fun (candidates, specific) => return (specific, ← candidates.mapM fun (name, _) => return m! "{name} : {(← getConstInfo name).type}")

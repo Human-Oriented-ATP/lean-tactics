@@ -2,12 +2,12 @@ import MotivatedMoves.Moves.TreeApply
 import MotivatedMoves.Moves.TreeNormalize
 
 namespace MotivatedTree
-open Lean Meta
+open Lean Meta Elab Tactic
 
 lemma tree_contrapose {p q : Prop} (h : p) : (¬ q → ¬ p) → q := (not_imp_not.mp · h)
 
 def contrapose (hypContext : HypothesisContext) (hyp goal : Expr) (pol : Bool) (hypOuterPosition : OuterPosition) (hypPos goalPos : InnerPosition) : MetaM' TreeProof := do
-  unless hypPos == [] && hypOuterPosition == [] do    
+  unless hypPos == [] && hypOuterPosition == [] do
     throwError m! "cannot contrapose a subexpression: position {hypPos} in {hyp}"
   unless goalPos == [] do
     throwError m! "cannot contrapose in a subexpression: position {goalPos} in {goal}"

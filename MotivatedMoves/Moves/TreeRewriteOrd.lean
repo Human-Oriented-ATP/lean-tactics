@@ -49,7 +49,7 @@ instance tree_imp_right_mono (a : Prop) : MonotoneClass (MotivatedTree.Imp a) :=
 instance Tree_imp_left_anti : MonotoneClass MotivatedTree.Imp := le_left_anti
 
 instance sub_right_mono (a : Set α) : MonotoneClass (a ⊆ ·) := le_right_mono a
-instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) := le_left_anti 
+instance sub_left_anti : MonotoneClass (α := Set α) (. ⊆ .) := le_left_anti
 
 instance lt_right_mono [Preorder α] (a : α) : MonotoneClass (a < ·) where
   anti := false
@@ -59,7 +59,7 @@ instance lt_left_anti [Preorder α] : MonotoneClass (α := α) (· < .) where
   elim _ _ h _ := lt_of_le_of_lt h
 
 instance ssub_right_mono (a : Set α) : MonotoneClass (a ⊂ ·) := lt_right_mono a
-instance ssub_left_anti : MonotoneClass (α := Set α) (. ⊂ .) := lt_left_anti 
+instance ssub_left_anti : MonotoneClass (α := Set α) (. ⊂ .) := lt_left_anti
 
 instance set_mono : MonotoneClass (@setOf α) where
   anti := false
@@ -81,7 +81,7 @@ instance add_right_mono {μ : β → α → α} [Preorder α] [i : CovariantClas
 instance inv_anti [OrderedCommGroup α] : MonotoneClass (fun x : α => x⁻¹) where
   anti := true
   elim _ _ := inv_le_inv'
-  
+
 @[to_additive]
 instance div_left_mono [OrderedCommGroup α] : MonotoneClass (· / · : α → α → α) where
   anti := false
@@ -152,10 +152,10 @@ def getLEsides (u : Level) (rel α preorder target : Expr) : MetaM (Pattern × E
       return (.lt, lhs, rhs)
 
     throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
-  
+
   | .forallE _ lhs rhs _ => do
     if rhs.hasLooseBVars then
-      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}" 
+      throwError m! "expected an inequality for {target} : {α}, not {indentExpr rel}"
     if ← isDefEq preorder PropPreorder then
       return (.imp, lhs, rhs)
 
@@ -216,7 +216,7 @@ partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadE
     return (.mdata d rhs, h)
 
   | [], lhs => k fvars u α preorder lhs pol
-    
+
   | 0::xs, .app lhs a => do
     let α' ← inferType a
     let v ← getDecLevel α'
@@ -234,23 +234,23 @@ partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadE
       | .const ``true  [] => pure true
       | .const ``false [] => pure false
       | _ => throwError m! "Boolean value not known: {indentExpr anti}"
-    
+
     let (rhs, h) ← visit k uNew typeNew preorder' fvars (pol != anti) xs lhs
     return (.app f rhs, ← mkAppOptM' monoProof #[none, none, h])
 
 
-  | 2::xs, .letE n t v lhs d => do 
+  | 2::xs, .letE n t v lhs d => do
     withLocalDeclD n (t.instantiateRev fvars) fun fvar => do
     let (rhs, h) ← visit k u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
-    
+
     return (.letE n t v (rhs.abstract #[fvar]) d, .letE n t v (h.abstract #[fvar]) d)
 
-                                                    
+
   | 1::xs, .lam n t lhs bi => do
     withLocalDecl n bi (t.instantiateRev fvars) fun fvar => do
     let .forallE _ α' β _ := α | panic! "type of lambda is not a forall"
     let u ← getDecLevel α'
-    let v ← getDecLevel β 
+    let v ← getDecLevel β
     let newPreorder ← mkFreshExprMVar (mkApp (.const ``Preorder [v]) β)
     let requiredPreorder := mkApp3 (.const ``Pi.ndPreorder [u, v]) α' β newPreorder
     unless ← isDefEq preorder requiredPreorder do
@@ -275,11 +275,11 @@ partial def visit [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadE
     let (rhs, h) ← visit k u α preorder (fvars.push fvar) pol xs (lhs.instantiate1 fvar)
     let h   := mkApp2 (mkConst ``id [.zero]) ((if pol then swap else id) (mkApp2 (mkLE u α preorder)) lhs rhs) h
     let h   := .lam n t (h.abstract #[fvar]) bi
-    
+
     let lhs := .lam n t (lhs.abstract #[fvar]) bi
     let rhs := rhs.abstract #[fvar]
     let (rhs, rhs') := (.forallE n t rhs bi, .lam n t rhs bi)
-    
+
     return (rhs, mkApp ((if pol then swap else id) (mkApp3 (.const  ``forall_mono [← getLevel t]) t) lhs rhs') h)
 
   | list, lhs => throwError "could not find sub position {list} in '{lhs}'"
@@ -320,14 +320,14 @@ elab "lib_rewrite_ord" hypPos:(treePos)? hypName:ident goalPos:treePos : tactic 
   let hypPos := getOuterInnerPosition <$> hypPos
   workOnTree (applyUnbound hypName (getRewriteOrdPos hypPos) goalOuterPosition goalPos treeRewriteOrd)
 
-open RefinedDiscrTree in 
+open RefinedDiscrTree in
 def librarySearchRewriteOrd (goalPos' : List Nat) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, goalPos) := splitPosition goalPos'
   let pol ← try getOrdPolarity goalOuterPosition goalPos tree catch _ => return #[]
   let discrTrees ← getLibraryLemmas
-  let results := if pol
-    then (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalOuterPosition goalPos)
-    else (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalOuterPosition goalPos)
+  let results ← if pol
+    then pure <| (← getSubExprUnify discrTrees.2.rewrite_ord     tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord     tree goalOuterPosition goalPos)
+    else pure <| (← getSubExprUnify discrTrees.2.rewrite_ord_rev tree goalOuterPosition goalPos) ++ (← getSubExprUnify discrTrees.1.rewrite_ord_rev tree goalOuterPosition goalPos)
   let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
     _ ← applyUnbound name (fun hyp _goalPath => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition goalPos treeRewriteOrd tree
 
@@ -337,8 +337,6 @@ elab "try_lib_rewrite_ord" goalPos:treePos : tactic => do
   let goalPos := getPosition goalPos
   let tree := (← getMainDecl).type
   logLibrarySearch (← librarySearchRewriteOrd goalPos tree)
-
-
 
 -- example (a : ℝ) : dist a b < 5 := by
 --   revert a
@@ -380,7 +378,7 @@ example : (∀ x, x - 1 ≤ x) → {x : Nat | x ≤ 4 } ⊆ {x : Nat | x - 1 ≤
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∃ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1,1]
-  use 0    
+  use 0
 
 example : Imp (Forall ℕ fun x => x - 1 ≤ x) <| ∀ n, n - 1 ≤ n := by
   tree_rewrite_ord [0,1] [1,2,1,1]
@@ -409,4 +407,3 @@ Maybe the function is not fully invertible, but only under some hypothesis, e.g.
 Ah, so then this is just a form of finding the library result, and applying it.
 
 -/
-

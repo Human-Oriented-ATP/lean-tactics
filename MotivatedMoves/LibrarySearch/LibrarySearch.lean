@@ -103,11 +103,10 @@ def isBadDecl (name : Name) (cinfo : ConstantInfo) (env : Environment) : Bool :=
     | .str _ "sizeOf_spec"
     | .str _ "noConfusionType" => true
     | _ => false)
-  || name.isInternal'
+  || name.isInternalDetail
   || isAuxRecursor env name
   || isNoConfusion env name
   || isMatcherCore env name
-
 
 def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM DiscrTrees := do
   if isBadDecl name cinfo (← getEnv) then
@@ -122,7 +121,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
     else ds))
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
-open Std.Tactic
+open Batteries.Tactic
 
 @[reducible] def DiscrTreesCache : Type :=
   DeclCache (DiscrTrees × DiscrTrees)

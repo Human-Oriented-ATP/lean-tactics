@@ -16,14 +16,14 @@ def bindSolvedAndLeft (p pproof tree : Expr) : TreeProof → TreeProof :=
       proof := mkApp5 (.const ``solve_and_left []) p tree newTree pproof proof
       newTree }
 
-def start : Std.AssocList Expr Expr := Std.AssocList.nil.cons (.const ``True []) (.const ``trivial [])
+def start : Batteries.AssocList Expr Expr := Batteries.AssocList.nil.cons (.const ``True []) (.const ``trivial [])
 
 /-- `O(n)`. Returns the first entry in the list whose entry satisfies `p`. -/
-@[specialize] def _root_.Std.AssocList.findPM? [Monad m] (p : α → m Bool) : Std.AssocList α β → m (Option (β))
+@[specialize] def _root_.Batteries.AssocList.findPM? [Monad m] (p : α → m Bool) : Batteries.AssocList α β → m (Option (β))
   | .nil         => return none
   | .cons k v es => do bif ← p k then return some v else findPM? p es
 
-partial def visit (delete? : Bool) (hyps : Std.AssocList Expr Expr := start) (e : Expr) : MetaM TreeProof := do
+partial def visit (delete? : Bool) (hyps : Batteries.AssocList Expr Expr := start) (e : Expr) : MetaM TreeProof := do
   match ← hyps.findPM? (Lean.Meta.isDefEq e) with
   | some proof => return {proof}
   | none => match e with

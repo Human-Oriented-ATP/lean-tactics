@@ -5,7 +5,7 @@ namespace MotivatedTree
 open Lean Meta
 
 /-- The type used for binding an abstraction as close to the root as possible,
-while requiring that the abstracted subexpression contains no loose bound variables. 
+while requiring that the abstracted subexpression contains no loose bound variables.
 The `outer` expression is the original expression with the inner expression replaced by `abstractedExpression`. -/
 inductive ExprAbstraction where
   | abstract (outer : Expr) (inner : Expr) : ExprAbstraction
@@ -19,7 +19,7 @@ def mkLetAbstraction (name : Name) (outer : Expr) (inner : Expr) : MetaM Expr :=
 
 partial def AbstractExpr (name : Name) : InnerPosition → Expr → MetaM ExprAbstraction
   | xs   , .mdata d b        => return wrap (.mdata d ·) (← AbstractExpr name xs b)
-  
+
   | 0::xs, .app f a          => return wrap (.app · a) (← AbstractExpr name xs f)
   | 1::xs, .app f a          => return wrap (.app f ·) (← AbstractExpr name xs a)
 
@@ -28,7 +28,7 @@ partial def AbstractExpr (name : Name) : InnerPosition → Expr → MetaM ExprAb
   | 0::xs, .letE n t v b d   => return wrap (.letE n · v b d) (← AbstractExpr name xs t)
   | 1::xs, .letE n t v b d   => return wrap (.letE n t · b d) (← AbstractExpr name xs v)
   | 2::xs, .letE n t v b d   => return wrap (.letE n t v · d) (← withVar n t b xs)
-                                                    
+
   | 0::xs, .lam n t b bi     => return wrap (.lam n · b bi) (← AbstractExpr name xs t)
   | 1::xs, .lam n t b bi     => return wrap (.lam n t · bi) (← withVar n t b xs)
 
@@ -82,15 +82,15 @@ def mkNameAbstraction (meta : Bool) (name : Name) (outer : Expr) (inner : Expr) 
   let u ← getLevel type
   return if meta
   then if pol
-    then { 
+    then {
       newTree := mkExists name u type (mkAnd (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
       proof := mkApp3 (.const ``give_meta_name  [u]) type (.lam name type outer .default) inner }
     else {
       newTree := mkForall name u type (mkImp (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
       proof := mkApp3 (.const ``give_meta_name' [u]) type (.lam name type outer .default) inner }
-  
+
   else if pol
-    then { 
+    then {
       newTree := mkForall name u type (mkImp (mkApp3 (.const ``Eq [u]) type inner (.bvar 0)) outer)
       proof := mkApp3 (.const ``give_name  [u]) type (.lam name type outer .default) inner }
     else {
@@ -99,9 +99,9 @@ def mkNameAbstraction (meta : Bool) (name : Name) (outer : Expr) (inner : Expr) 
 
 
 def NamingRecursor (meta : Bool) (name : Name) : TreeRecursor MetaM Abstraction where
-  imp_right p := introProp (bindImpRight false p) (mkImp p)  
+  imp_right p := introProp (bindImpRight false p) (mkImp p)
   imp_left  p := introProp (bindImpLeft  false p) (mkImp · p)
-  and_right p := introProp (bindAndRight false p) (mkAnd p)  
+  and_right p := introProp (bindAndRight false p) (mkAnd p)
   and_left  p := introProp (bindAndLeft  false p) (mkAnd · p)
   not         := introProp bindNot mkNot
 
@@ -168,7 +168,7 @@ we get a let expression from the naming move. -/
 
 def AbstractAux (depth : ℕ) : InnerPosition → Expr → MetaM (Expr × Expr)
   | xs   , .mdata d b        => return Bifunctor.fst (.mdata d ·) (← AbstractAux depth xs b)
-  
+
   | 0::xs, .app f a          => return Bifunctor.fst (.app · a) (← AbstractAux depth xs f)
   | 1::xs, .app f a          => return Bifunctor.fst (.app f ·) (← AbstractAux depth xs a)
 
@@ -177,7 +177,7 @@ def AbstractAux (depth : ℕ) : InnerPosition → Expr → MetaM (Expr × Expr)
   | 0::xs, .letE n t v b d   => return Bifunctor.fst (.letE n · v b d) (← AbstractAux depth xs t)
   | 1::xs, .letE n t v b d   => return Bifunctor.fst (.letE n t · b d) (← AbstractAux depth xs v)
   | 2::xs, .letE n t v b d   => return Bifunctor.fst (.letE n t v · d) (← AbstractAux (depth+1) xs b)
-                                                    
+
   | 0::xs, .lam n t b bi     => return Bifunctor.fst (.lam n · b bi) (← AbstractAux depth xs t)
   | 1::xs, .lam n t b bi     => return Bifunctor.fst (.lam n t · bi) (← AbstractAux (depth+1) xs b)
 

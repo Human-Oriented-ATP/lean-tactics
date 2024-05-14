@@ -2,7 +2,6 @@ import * as React from 'react';
 import { TextEdit, TextDocumentEdit, OptionalVersionedTextDocumentIdentifier, Position } from 'vscode-languageserver-protocol';
 import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
-import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
 
 // import { Html } from '@react-three/drei';
 
@@ -82,15 +81,17 @@ export function SelectWidget (props : { question : Html, options : Html[] }) {
 
   return <div>
     <HtmlDisplay pos={ctx.pos} html={props.question} />
-    <div ref={optionsRef}>
+    <div style={{display: "grid", alignItems: "center", justifyItems: "center"}} ref={optionsRef}>
     {props.options.map((option,i) => {
-      return <HtmlDisplayClickable
-        html={option}
-        pos={ctx.pos}
-        onClick={() => ctx.answer(i)} />
+      return <div className="grid-item">
+        <HtmlDisplayClickable
+          html={option}
+          pos={ctx.pos}
+          onClick={() => ctx.answer(i)} />
+        </div>
     })}
     </div>
-  </div>
+    </div>
 }
 
 interface EditProps {
@@ -131,8 +132,9 @@ export default function ProgWidget(props: Props) {
 
   // Document editing
 
-  async function editDocumentAsync(edit : TextDocumentEdit) {
+  async function editDocumentAsync(edit : TextDocumentEdit, pos: DocumentPosition) {
     await ec.api.applyEdit({ documentChanges: [edit] })
+    await ec.revealPosition(pos)
   }
   function editDocument(pos : Position, newLines : string[]) {
     if (editProps.current === null) {
@@ -142,22 +144,25 @@ export default function ProgWidget(props: Props) {
       }
       return
     }
-    if (pos === editCursor.current && newLines.length == 0) return
+    if (pos === editCursor.current && newLines.length === 0) return
 
-    const range = { start : pos, end : editCursor.current }
-    var newText : string = newLines.map(x => x+'\n').join('')
-    if (newLines.length == 0) editCursor.current = pos
-    else editCursor.current = { line: pos.line + newLines.length, character : 0 }
-    if (pos.character != 0) {
+    var newText : string = newLines.map(x => x+'\n').join('').trimEnd()
+    if (newLines.length === 0) editCursor.current = pos 
+    else editCursor.current = { line: pos.line + newLines.length, character : newLines[newLines.length-1].length - 1 }
+    if (pos.character !== 0) {
       newText = '\n'+newText
       editCursor.current = {
         line : editCursor.current.line + 1,
-        character : 0,
+        character : newLines[newLines.length-1].length - 1,
       }
     }
+    const range = { start : pos, end : editCursor.current }
     editDocumentAsync({
       textDocument: editProps.current.ident,
       edits: [{ range: range, newText: newText }]
+    }, {
+      ...editCursor.current,
+      uri: editProps.current.ident.uri
     })
   }
 
