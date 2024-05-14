@@ -2,7 +2,6 @@ import * as React from 'react';
 import { TextEdit, TextDocumentEdit, OptionalVersionedTextDocumentIdentifier, Position } from 'vscode-languageserver-protocol';
 import { EditorContext, DocumentPosition, RpcContext, MessageData, InteractiveMessageData } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
-import { ReactJSXElement } from '@emotion/react/types/jsx-namespace';
 
 // import { Html } from '@react-three/drei';
 
@@ -149,12 +148,12 @@ export default function ProgWidget(props: Props) {
 
     var newText : string = newLines.map(x => x+'\n').join('').trimEnd()
     if (newLines.length === 0) editCursor.current = pos 
-    else editCursor.current = { line: pos.line + newLines.length, character : newLines[newLines.length-1].length }
+    else editCursor.current = { line: pos.line + newLines.length, character : newLines[newLines.length-1].length - 1 }
     if (pos.character !== 0) {
       newText = '\n'+newText
       editCursor.current = {
         line : editCursor.current.line + 1,
-        character : newLines[newLines.length-1].length,
+        character : newLines[newLines.length-1].length - 1,
       }
     }
     const range = { start : pos, end : editCursor.current }
