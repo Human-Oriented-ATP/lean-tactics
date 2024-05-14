@@ -1,59 +1,42 @@
 {
-  "name": "widget",
+  "name": "interface-widgets",
   "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@emotion/react": "^11.11.4",
-    "@emotion/styled": "^11.11.5",
-    "@fontsource/roboto": "^5.0.13",
-    "@leanprover/infoview": "^0.7.0",
-    "@mui/material": "^5.15.17",
-    "@rollup/plugin-commonjs": "^25.0.7",
-    "@rollup/plugin-node-resolve": "^15.2.3",
-    "@rollup/plugin-replace": "^5.0.5",
-    "@rollup/plugin-terser": "^0.4.4",
-    "@rollup/plugin-typescript": "^11.1.6",
-    "@testing-library/jest-dom": "^6.4.5",
-    "@testing-library/react": "^15.0.7",
-    "@testing-library/user-event": "^14.5.2",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.12.12",
-    "@types/react": "^18.3.2",
-    "@types/react-dom": "^18.3.0",
-    "@types/three": "^0.164.0",
-    "glob": "^10.3.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-scripts": "5.0.1",
-    "rollup": "^4.17.2",
-    "tslib": "^2.6.2",
-    "typescript": "^5.4.5",
-    "use-resize-observer": "^9.1.0",
-    "vscode-languageserver-protocol": "^3.17.5",
-    "web-vitals": "^4.0.0"
-  },
+  "description": "",
   "scripts": {
     "watch": "rollup --environment NODE_ENV:production --config --watch",
     "watch-dev": "rollup --config --watch",
     "build": "rollup --environment NODE_ENV:production --config",
     "build-dev": "rollup --config"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@leanprover/infoview": "^0.7.0",
+    "@penrose/core": "^3.1.0",
+    "@react-three/drei": "^9.64.0",
+    "@react-three/fiber": "^8.12.0",
+    "@svgdotjs/svg.js": "^3.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-d3-tree": "^3.5.1",
+    "recharts": "^2.5.0",
+    "three": "^0.151.3",
+    "use-resize-observer": "^9.1.0",
+    "vscode-languageserver-protocol": "^3.17.2"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^24.0.1",
+    "@rollup/plugin-node-resolve": "^15.0.2",
+    "@rollup/plugin-replace": "^5.0.2",
+    "@rollup/plugin-terser": "^0.4.0",
+    "@rollup/plugin-typescript": "^11.1.0",
+    "@types/react": "^18.0.33",
+    "@types/react-dom": "^18.0.11",
+    "@types/three": "^0.150.1",
+    "glob": "^9.3.4",
+    "rollup": "^3.20.2",
+    "tslib": "^2.5.0",
+    "typescript": "^5.0.3"
   }
 }
