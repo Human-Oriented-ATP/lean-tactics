@@ -20,7 +20,7 @@ lean_exe discrTrees where
   supportInterpreter := true
 
 lean_lib Tests {
-  globs := #[.submodules "Tests"]
+  globs := #[.submodules `Tests]
 }
 
 section Scripts
