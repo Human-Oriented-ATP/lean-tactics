@@ -285,32 +285,3 @@ partial def toDisplayTree (pol := true) (root := false) : DelabM DisplayTree := 
       return .node <|
         (← ppExprTaggedWith e delab)
           |>.withRelativePos (← getPos)
-
-structure TreeDisplay extends PanelWidgetProps where
-  tree : DisplayTree
-deriving Server.RpcEncodable
-
-@[widget_module]
-def OrdinaryTreeDisplay : Component TreeDisplay where
-  javascript := include_str ".." / ".." / "build" / "js" / "interactiveTreeDisplay.js"
-
-syntax (name := tree_display) "with_tree_display" tacticSeq : tactic
-
-open Meta Elab Tactic in
-@[tactic tree_display]
-def treeDisplay : Tactic
-  | stx@`(tactic| with_tree_display $tacs) => do
-    let tgt ← getMainTarget
-    let t ← MotivatedTree.toDisplayTree (← makeTree tgt)
-    Widget.savePanelWidgetInfo (hash OrdinaryTreeDisplay.javascript) (stx := stx) do
-      return json% { tree : $(← rpcEncode t) }
-    evalTacticSeq tacs
-  | _ => throwUnsupportedSyntax
-
-example (p : Prop) (q : Nat → Prop) : ∀ x : Nat, ([LE ℕ] → [r: LE ℕ] →  ∀ a : Nat, ¬ ∃ g n : Int, ∃ m:Nat, Nat → q a) → p → ¬ (p → p) → ∃ m h : Nat, q m := by
-  make_tree
-  sorry
-example (p : Prop) : ∀ x : Nat, ∀ y : Nat, ↑x = y := by
-  make_tree
-  with_tree_display
-  sorry
