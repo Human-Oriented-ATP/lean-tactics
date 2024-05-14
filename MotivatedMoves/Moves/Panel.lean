@@ -44,15 +44,16 @@ def motivatedProofModeImpl : Tactic
     -- this turns the goal into a tree initially
     MotivatedTree.workOnTreeDefEq pure
     evalTacticSeq seq
-    let e ← getMainTarget
-    let (t, _) ← MotivatedTree.toDisplayTree
-          |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
-          |>.run {}
-    Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
-      return json% {
-        tree : $( ← rpcEncode (WithRpcRef.mk t) ),
-        selections: $( (.empty : Array SubExpr.Pos) ),
-        range: $( range ) }
+    unless (← getUnsolvedGoals).isEmpty do
+      let e ← getMainTarget
+      let (t, _) ← MotivatedTree.toDisplayTree
+            |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
+            |>.run {}
+      Widget.savePanelWidgetInfo (hash RenderTree.javascript) (stx := stx) do
+        return json% {
+          tree : $( ← rpcEncode (WithRpcRef.mk t) ),
+          selections: $( (.empty : Array SubExpr.Pos) ),
+          range: $( range ) }
   | _ => throwUnsupportedSyntax
 
 end MotivatedProof
