@@ -13,6 +13,8 @@ import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
 
 open Real
 open Autogeneralize
+open Lean Elab Tactic Meta Term Command
+
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
@@ -78,39 +80,25 @@ example : (0.5 : ℝ) + 0.7 = 0.7 + 0.5 := by
 
 
 /---------------------------------------------------------------------------
-The formula for the distance between any two points in ℝ²
+The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
 ---------------------------------------------------------------------------/
 
--- USE THIS LIBRARY https://leanprover-community.github.io/mathlib4_docs/Mathlib/Analysis/InnerProductSpace/PiL2.html#EuclideanSpace
+example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+  let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
+  autogeneralize _distance (3:)
 
--- OR DEFINE IT MYSELF -- define euclidean distance myself like below
--- def euclidean_distance {n : ℕ} (x y : fin n → ℝ) : ℝ :=
---   (∑ i : fin n, (x i - y i) * (x i - y i))^(1/2)
-
--- theorem 2d_euclidean_distance : ∀ (x y : ℝ × ℝ),
---   Euclidean.dist x y  = ((x.1 - y.1)^2 + (x.2 - y.2)^2)^(1/2) := by
---   simp [Euclidean.dist]
---   sorry
-
-theorem distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)),
-  dist x y = sqrt (dist (x 0) (y 0) ^ 2 + dist (x 1) (y 1) ^ 2) :=
-by
   intros x y
-  have d := EuclideanSpace.dist_eq x y
-  simp at d
+  specialize _distance.Gen 4 x y
   assumption
 
--- theorem distance : ∀ (x y : EuclideanSpace ℝ (fin 2)),
---   Euclidean.dist x y  = ((x 0 - y 0)^2 + (x 1 - y 1)^2)^(1/2) := by
---   simp [Euclidean.dist]
---   sorry
+/---------------------------------------------------------------------------
+The formula for the distance between any two points in ℝ² -- now there's two instances of what to generalize...and it overgeneralizes.
+---------------------------------------------------------------------------/
 
--- theorem distance : ∀ (x y : ℝ × ℝ),
---   Euclidean.dist x y  = ((x.1 - y.1)^2 + (x.2 - y.2)^2)^(1/2) := by
---   simp [Euclidean.dist]
---   sorry
+example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+  let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
+  autogeneralize _distance (2:) -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
--- theorem distance : ∀ (x y : fin 2 → ℝ),
---   Euclidean.dist x y  = ((x 0 - y 0)^2 + (x 1 - y 1)^2)^(1/2) := by
---   simp [Euclidean.dist]
---   sorry
+  intros x y
+  specialize _distance.Gen 3 x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
+  sorry
