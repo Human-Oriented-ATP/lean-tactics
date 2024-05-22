@@ -337,11 +337,19 @@ def replaceWithFVar (original :  Name) (replacementFVar : Expr) (e : Expr): Meta
 Replaces all instances of an expression with the outermost bound variable (to help build a lambda or for-all)
 Do this to the expression BEFORE wrapping it in a lambda or for-all.
 -/
-def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr :=
+def replaceWithBVarWhere (condition : Expr → Bool) (e : Expr) (depth : Nat := 0) : MetaM Expr := do
   match e with
-    | .lam n a b bi => return .lam n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
-    | .forallE n a b bi => return .forallE n (← replaceWithBVar original a (depth)) (← replaceWithBVar original b (depth+1)) bi
-    | x =>  replaceCoarsely (original) (.bvar depth) x
+    | .lam n a b bi => return .lam n a (← replaceWithBVarWhere condition b (depth+1)) bi
+    | .forallE n a b bi => return .forallE n a (← replaceWithBVarWhere condition b (depth+1)) bi
+    | x =>  replaceWhere (condition) (.bvar depth) x
+
+
+-- def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr := do
+--   logInfo m!"About to replace {original} with a bound variable {depth} in the expression {e}"
+--   match e with
+--     | .lam n a b bi => return .lam n a (← replaceWithBVar original b (depth+1)) bi
+--     | .forallE n a b bi => return .forallE n a (← replaceWithBVar original b (depth+1)) bi
+--     | x =>  logInfo m!"Going in for the replace."; replaceCoarsely (original) (.bvar depth) x
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
@@ -378,11 +386,11 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
-  -- let identifiersInProofType := getFreeIdentifiers thmType
+  let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
 
   -- get all identifiers (that is, constants) in the proof term
-  let identifierNames := identifiersInProofTerm--.removeAll identifiersInProofType
+  let identifierNames := identifiersInProofTerm.removeAll identifiersInProofType
   let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
@@ -412,11 +420,11 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
     (fun i acc => do
       let mod := modifiers.get! i
       logInfo m!"New hypothesis to add: {mod.newType}"
-      let body ← replaceWithBVar (.const mod.oldName []) acc
+      let body ← replaceWithBVarWhere (fun e => e.isConstOf mod.oldName) acc
       return .lam mod.newName mod.newType body .default
 
     ) thmProof ;
-  -- logInfo m!"Proof with all added hypotheses {genThmProof}"
+  logInfo m!"Proof with all added hypotheses {genThmProof}"
 
   -- add in f, replacing the old f
   --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
