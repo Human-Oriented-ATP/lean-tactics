@@ -19,8 +19,8 @@ def isTheorem (n : Name) : MetaM Bool := do
 /-- Getting theorems from context --/
 def getTheoremProof (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | throwError ("Could not find a theorem with name " ++ n) -- get the declaration with that name
-  return thm.value! -- return the theorem statement (the type is the proposition)
-
+  -- let pf ← thm.value?
+  return thm.value! -- return the theorem statement (the term is the proof)
 
 /- (For debugging) Print what type of expression something is -/
 def printExprType (e : Expr) : MetaM Unit := do
@@ -386,9 +386,11 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
   let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
-  let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
+  logInfo m!"Old identifier names {identifierNames}"
   logInfo m!"Old identifier types {identifierTypes}"
+  let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
   let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
+  logInfo m!"Filtered identifier names {identifierNames}"
   logInfo m!"Filtered identifier types {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
@@ -403,7 +405,7 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
   let modifiers := modifiers.reverse
 
-  -- logInfo m!"The original proof: {thmProof}"
+  logInfo m!"The original proof: {thmProof}"
 
   -- add in the hypotheses, replacing old hypotheses names
   let genThmProof ← (modifiers.size).foldM
