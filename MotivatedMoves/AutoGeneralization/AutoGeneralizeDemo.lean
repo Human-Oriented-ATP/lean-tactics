@@ -80,7 +80,7 @@ example : (0.5 : ℝ) + 0.7 = 0.7 + 0.5 := by
 
 
 /---------------------------------------------------------------------------
-The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
+DEMO OF SUCCESS -- The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
 ---------------------------------------------------------------------------/
 
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
@@ -92,11 +92,12 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum F
   assumption
 
 /---------------------------------------------------------------------------
-The formula for the distance between any two points in ℝ² -- now there's two instances of what to generalize...and it overgeneralizes.
+DEMO OF FAILURE -- The formula for the distance between any two points in ℝ² -- now there's two instances of what to generalize...and it overgeneralizes.
 ---------------------------------------------------------------------------/
 
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
   let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
+
   autogeneralize _distance (2:) -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
   intros x y
