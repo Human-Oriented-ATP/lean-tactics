@@ -197,10 +197,6 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   subexprs
 
-
-
-
-
 /-- Helper for incrementing idx when creating pretty names-/
 partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
   let candidate := base.appendIndexAfter i
@@ -212,56 +208,6 @@ partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : N
 /-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
 def mkPrettyName (baseName : Name) (idx : Nat) : TacticM Name := do
   return mkPrettyNameHelper (← getHypothesesNames) baseName idx
-
-/-- Generalizing a term in a theorem  -/
-def generalizeTerm (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM Unit := do
-    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
-    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
-    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
-    let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
-    setGoals [new_goal]
-
-/-- Generalizing a term in a theorem, then returning the name and type of the new generalized variable-/
-def generalizeTerm' (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr) := do
-    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
-    let h := h?.getD (← mkPrettyName `h 0) -- use the given hypothesis name, or if it's not there, make one
-    let genArg : GeneralizeArg := { expr := e, xName? := x, hName? := h }
-    let (_, new_goal) ← (←getGoalVar).generalize (List.toArray [genArg])
-    setGoals [new_goal]
-
-    return (x, ← getHypothesisType x) -- name and type of new generalized variable
-
-
-/-- Generalizing a term in the hypothesis, then returning the name and type of the new generalized variable-/
-def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Option Name := none) (h? : Option Name := none) : TacticM (Name × Expr × FVarId) := do
-    let x := x?.getD (← mkPrettyName `x 0) -- use the given variable name, or if it's not there, make one
-    let genArg : GeneralizeArg := { expr := e, xName? := x}
-
-    let goal ← getGoalVar
-    goal.withContext do
-      let (_, _, new_goal) ← goal.generalizeHyp [genArg].toArray  [hypToGeneralize].toArray
-      setGoals [new_goal]
-
-    return (x, ← getHypothesisType x, ← getHypothesisFVarId x) -- name and type of new generalized variable
-
-
-
-elab "generalize2" : tactic => do
-  let e := (toExpr 2)
-  let x := `x
-  let h := `h
-  generalizeTerm e -- like the lean command "generalize h : e = x"
-
-elab "generalize4" : tactic => do
-  let e := (toExpr 4)
-  let x := `x
-  let h := `h
-  generalizeTerm e  -- like the lean command "generalize h : e = x"
-
-example : 2^4 % 5 = 1 := by
-  generalize2
-  generalize4
-  rw [← h_0, ← h_1]; rfl
 
 /-- Gets all identifier names in an expression -/
 def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
@@ -343,13 +289,6 @@ def replaceWithBVarWhere (condition : Expr → Bool) (e : Expr) (depth : Nat := 
     | .forallE n a b bi => return .forallE n a (← replaceWithBVarWhere condition b (depth+1)) bi
     | x =>  replaceWhere (condition) (.bvar depth) x
 
-
--- def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr := do
---   logInfo m!"About to replace {original} with a bound variable {depth} in the expression {e}"
---   match e with
---     | .lam n a b bi => return .lam n a (← replaceWithBVar original b (depth+1)) bi
---     | .forallE n a b bi => return .forallE n a (← replaceWithBVar original b (depth+1)) bi
---     | x =>  logInfo m!"Going in for the replace."; replaceCoarsely (original) (.bvar depth) x
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
@@ -435,61 +374,12 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
 
   return genThmProof
 
-def replaceExpressionsWhere (f : Expr → Bool) (replacement : Expr) (e : Expr) : MetaM Expr := do
-  -- first check if true for larger expression
-
-  -- if not, check for smaller
-  let replaced_e ← Lean.Meta.traverseChildren (fun subexpr =>
-    if f subexpr then return replacement
-    else return subexpr
-  ) e
-  return replaced_e
-
-def unfoldConstantsInProof (e : Expr) (depth := 3) : MetaM Expr := do
-  logInfo m!"Before unfolding proof: {e}"
-  let constants := e.getUsedConstants.toList
-  logInfo m!"Used constants: {constants}"
-
-  let unfolded_e ← (constants.length).foldM (fun i acc => do
-    let cName := constants.get! i
-    unless ← isTheorem cName do return acc
-    let cProof ← getTheoremProof cName
-    let unfoldedProof ← replaceWhere (fun e => e.isConstOf cName) cProof acc
-    return unfoldedProof
-  ) e
-
-  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
-  --   let cName := constants.get! i
-  --   let cProof ← getTheoremProof cName
-  --   let unfoldedProof ← replaceCoarsely (.const cName []) cProof acc
-  --   return unfoldedProof
-  -- ) e
-
-  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
-  --   let cName := constants.get! i
-  --   let cProof ← getTheoremProof cName
-  --   logInfo m!"cProof: {cProof}"
-  --   let unfoldedProof ← Lean.Meta.traverseChildren (fun e => -- only works on immediate children
-  --     if e.isConstOf cName then return cProof
-  --     else return e
-  --   ) acc
-  --   return unfoldedProof
-  -- ) e
-
-  logInfo m!"After unfolding proof: {unfolded_e}"
-  let constants := unfolded_e.getUsedConstants.toList
-  logInfo m!"Used constants after unfolding: {constants}"
-  return unfolded_e
 
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
-
-  -- Expose more details of the proof, recursing down
-  -- let thmProof ← unfoldConstantsInProof thmProof
-  -- let thmType ← inferType thmProof
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   let f : GeneralizedTerm := {oldValue := fExpr, name := `f, type := ← inferType fExpr, placeholder := ← mkFreshExprMVar (some (← inferType fExpr))}
@@ -513,5 +403,12 @@ elab "autogeneralize" h:ident f:term : tactic => do
   autogeneralize h.getId f
 
 
+elab "kabstract_test" : term => do
+  let stx ← `(2+2+3)
+  let e ← Term.elabTerm stx none
+  let abstractedBody ← kabstract e (toExpr 2) (occs := .pos [1])
+  return .lam `x (.const `Nat []) abstractedBody .default
+
+#check kabstract_test
 
 end Autogeneralize
