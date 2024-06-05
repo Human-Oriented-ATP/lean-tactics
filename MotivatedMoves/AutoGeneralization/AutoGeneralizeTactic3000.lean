@@ -499,9 +499,9 @@ do
   logInfo m!"there are { numPatternInstances} instances of the pattern"
 
   -- replace each instance of tha pattern with a different mvar
-  while numPatternInstances ≥ 1 do
-    holeyE ← kabstract' holeyE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
-    numPatternInstances := numPatternInstances - 1
+  -- while numPatternInstances ≥ 1 do
+  holeyE ← kabstract' holeyE pattern --(occs := .pos [numPatternInstances]) -- abstract an occurrence
+  numPatternInstances := numPatternInstances - 1
   logInfo m!"expression after mvar abstraction { holeyE}"
 
   return holeyE
