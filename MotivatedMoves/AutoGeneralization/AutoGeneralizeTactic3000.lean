@@ -295,7 +295,7 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let mctx ← getMCtx -- save metavar context before using isDefEq
   let e_subexprs := getSubexpressionsIn e
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
-  setMCtx mctx -- replace metavar context after using isDefEq
+  setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
 
 #check Expr.occurs
@@ -429,51 +429,69 @@ def getAbstractedProofTerm (abstractedProofType : Expr) : MetaM Expr := sorry
 
 -- elab "putHolesInProof"
 
+def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+  let e ← instantiateMVars e
+  if p.isFVar && occs == Occurrences.all then
+    return e.abstract #[p] -- Easy case
+  else
+    let pHeadIdx := p.toHeadIndex
+    let pNumArgs := p.headNumArgs
+    let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
+      let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+        match e with
+        | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+        | .mdata _ b       => return e.updateMData! (← visit b offset)
+        | .proj _ _ b      => return e.updateProj! (← visit b offset)
+        | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+        | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
+        | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+        | e                => return e
+      if e.hasLooseBVars then
+        visitChildren ()
+      else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+        visitChildren ()
+      else
+        -- We save the metavariable context here,
+        -- so that it can be rolled back unless `occs.contains i`.
+        let mctx ← getMCtx
+        if (← isDefEq e p) then
+          let i ← get
+          set (i+1)
+          if occs.contains i then
+            return ← mkFreshExprMVar (← inferType p)
+          else
+            -- Revert the metavariable context,
+            -- so that other matches are still possible.
+            setMCtx mctx
+            visitChildren ()
+        else
+          visitChildren ()
+    visit e 0 |>.run' 1
+
 -- elab "turnAllOccurencesIntoDifferentMetavariables" h:ident pattern:term "(occ:=" occ:num ")" : tactic => withMainContext do
 def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
 do
-  -- let mut n := 0
-  -- while (← containsExpr pattern fullExpr) && (n < 3) do
-    -- n := n+1
-  -- logInfo m!"At loop {n} the xpr is {fullExpr}"
-
   let mut holeyE := e
+  logInfo m!"starting expression {e}"
 
+  -- count all occurences of the pattern (creating loose bvars)
+  let mut numPatternInstances := 0
   let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
-  logInfo m!"pattern { pattern}"
-  logInfo m!"expression { holeyE}"
-  logInfo m!"expression contains pattern? {containsPattern}"
+  while containsPattern do
+    holeyE ← kabstract holeyE pattern (occs := .pos [1]) -- abstract an occurrence
+    containsPattern ← containsExpr pattern holeyE
+    numPatternInstances := numPatternInstances + 1
+  logInfo m!"there are { numPatternInstances} instances of the pattern"
+  logInfo m!"expression after bvar abstraction { holeyE}"
 
-  holeyE ← kabstract holeyE pattern (occs := .pos [1])
-  containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
-  logInfo m!"pattern { pattern}"
-  logInfo m!"expression { holeyE}"
-  logInfo m!"expression contains pattern? {containsPattern}"
+  -- replace all those loose bvars with mvars
+  let mut finalE := e
+  while numPatternInstances ≥ 1 do
+    finalE ← kabstract' finalE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
+    numPatternInstances := numPatternInstances - 1
+  logInfo m!"expression after mvar abstraction { finalE}"
 
-
-  -- let mut n := 0
-  -- while containsPattern do
-  -- while n < 5 do
-  --   n := n+1
-
-  --   let abstractedE ← kabstract holeyE pattern (occs := .pos [1])
-
-  --   let m ← mkFreshExprMVar (← inferType pattern)
-  --   let instantiatedE := abstractedE.instantiate1 m
-
-  --   logInfo m!"After abstraction. {instantiatedE}"
-
-
-  --   holeyE := instantiatedE
-
-  --   -- let mctx ← getMCtx -- save metavar context before using isDefEq
-  --   containsPattern := pattern.occurs holeyE
-  --   -- setMCtx mctx -- revert back to before isDefEq
-  --   logInfo m!"pattern {pattern}"
-  --   logInfo m!"e {holeyE}"
-  --   logInfo m!"contains pattern. {containsPattern}"
-
-  return holeyE
+  return finalE
 
 elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
   -- let hTerm ← getHypothesisProof h.getId

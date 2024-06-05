@@ -79,8 +79,8 @@ EXPERIMENTATION
 #eval (toExpr 2).occurs (toExpr 2)
 
 example : True := by
-  -- let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
-  let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
+  let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
+  -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
   replacePatternWithHoles _hyp 2
   sorry
 
