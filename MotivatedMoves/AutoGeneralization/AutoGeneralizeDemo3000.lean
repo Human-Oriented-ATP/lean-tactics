@@ -83,15 +83,3 @@ example : True := by
   -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
   replacePatternWithHoles _hyp 2
   sorry
-
-example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
-  let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
-  -- turnAllOccurenceIntoDifferentMetavariables _distance 2 (occ:=1)
-
-  autogeneralize _distance (2:)  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
-  -- autogeneralize _distance (Fin 2) -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
-  -- autogeneralize _distance (EuclideanSpace ℝ (Fin 2)) -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
-
-  intros x y
-  specialize _distance.Gen 3 x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
-  sorry

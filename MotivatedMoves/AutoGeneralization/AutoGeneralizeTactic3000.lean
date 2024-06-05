@@ -472,7 +472,7 @@ def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr :
 def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
 do
   let mut holeyE := e
-  logInfo m!"starting expression {e}"
+  -- logInfo m!"starting expression {e}"
 
   -- count all occurences of the pattern (creating loose bvars)
   let mut numPatternInstances := 0
@@ -481,25 +481,27 @@ do
     holeyE ← kabstract holeyE pattern (occs := .pos [1]) -- abstract an occurrence
     containsPattern ← containsExpr pattern holeyE
     numPatternInstances := numPatternInstances + 1
-  logInfo m!"there are { numPatternInstances} instances of the pattern"
-  logInfo m!"expression after bvar abstraction { holeyE}"
+  -- logInfo m!"there are { numPatternInstances} instances of the pattern"
+  -- logInfo m!"expression after bvar abstraction { holeyE}"
 
   -- replace all those loose bvars with mvars
   let mut finalE := e
   while numPatternInstances ≥ 1 do
     finalE ← kabstract' finalE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
     numPatternInstances := numPatternInstances - 1
-  logInfo m!"expression after mvar abstraction { finalE}"
+  -- logInfo m!"expression after mvar abstraction { finalE}"
 
   return finalE
 
 elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
-  -- let hTerm ← getHypothesisProof h.getId
   let hType ← getHypothesisType h.getId
+  let hTerm ← getHypothesisProof h.getId
 
   let pattern ← Term.elabTermAndSynthesize pattern none
 
-  -- let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
   let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
+  let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
+
+  logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
 
 end Autogeneralize
