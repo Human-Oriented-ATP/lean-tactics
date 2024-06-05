@@ -317,6 +317,8 @@ def countOccurrencesOf (subexpr : Expr)  (e : Expr) : MetaM Nat := do
   -- return the length of that list of expressions
   return filteredExprsEqToSubexpr.length
 
+#eval countOccurrencesOf (toExpr 2) (toExpr 2)
+#eval countOccurrencesOf (toExpr 2) (toExpr 3)
 
 #check Expr.occurs
 -- /-- Returns true if "e" contains "subexpr". Uses '--'.  Same as 'occurs' -/
@@ -449,6 +451,7 @@ def getAbstractedProofTerm (abstractedProofType : Expr) : MetaM Expr := sorry
 
 -- elab "putHolesInProof"
 
+/- Replaces each instance of p in e with an mvar instead of a bvar-/
 def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
   let e ← instantiateMVars e
   if p.isFVar && occs == Occurrences.all then
@@ -488,27 +491,12 @@ def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr :
           visitChildren ()
     visit e 0 |>.run' 1
 
--- elab "turnAllOccurencesIntoDifferentMetavariables" h:ident pattern:term "(occ:=" occ:num ")" : tactic => withMainContext do
 def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
-do
-  let mut holeyE := e
-  logInfo m!"starting expression {e}"
-
-  -- count instances of the pattern
-  let mut numPatternInstances ← countOccurrencesOf pattern holeyE
-  logInfo m!"there are { numPatternInstances} instances of the pattern"
-
-  -- replace each instance of tha pattern with a different mvar
-  -- while numPatternInstances ≥ 1 do
-  holeyE ← kabstract' holeyE pattern --(occs := .pos [numPatternInstances]) -- abstract an occurrence
-  numPatternInstances := numPatternInstances - 1
-  logInfo m!"expression after mvar abstraction { holeyE}"
-
-  return holeyE
+  kabstract' e pattern
 
 /- For any mvars in e2 that unify with mvars in e1, replace them to be the ones in e1 -/
-def linkMVars (e1 : Expr) (e2 : Expr) : MetaM Expr := do
-  return e1
+-- def linkMVars (e1 : Expr) (e2 : Expr) : MetaM Expr := do
+--   return e1
 
 elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
   let hType ← getHypothesisType h.getId
@@ -519,8 +507,8 @@ elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext 
   let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
   let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
 
-  -- logInfo m!"After abstraction type {holeyHType}"
-  -- logInfo m!"After abstraction term {holeyHTerm}"
+  logInfo m!"After abstraction type {holeyHType}"
+  logInfo m!"After abstraction term {holeyHTerm}"
 
   -- logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
 
