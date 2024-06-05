@@ -296,6 +296,13 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
   return firstExprContainingSubexpr.isSome
 
+#check Expr.occurs
+-- /-- Returns true if "e" contains "subexpr". Uses '--'.  Same as 'occurs' -/
+-- def containsExprStrict (subexpr : Expr)  (e : Expr) : MetaM Bool := do
+--   let e_subexprs := getSubexpressionsIn e
+--   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return e_subexpr == subexpr)
+--   return firstExprContainingSubexpr.isSome
+
 /--This is the term that we are generalizing to an arbitrary term of that type -/
 structure GeneralizedTerm where
   oldValue : Expr                 -- e.g. Hmul.hmul
@@ -410,5 +417,64 @@ elab "kabstract_test" : term => do
   return .lam `x (.const `Nat []) abstractedBody .default
 
 #check kabstract_test
+
+-- Turns each instance of `pattern` in `e` into a different metavariable.`
+def abstractToDifferentMVars (e : Expr) (pattern : Expr) :  MetaM Expr := sorry -- this is our personalized kabstract
+
+-- Given a Proof Type with one constant turned into a metavariable
+-- Return the Proof Term with all the "tied-together" constants turned into the same metavariable
+def getAbstractedProofTerm (abstractedProofType : Expr) : MetaM Expr := sorry
+
+-- elab "putHolesInProof"
+
+-- elab "turnAllOccurencesIntoDifferentMetavariables" h:ident pattern:term "(occ:=" occ:num ")" : tactic => withMainContext do
+def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
+do
+  -- let mut n := 0
+  -- while (← containsExpr pattern fullExpr) && (n < 3) do
+    -- n := n+1
+  -- logInfo m!"At loop {n} the xpr is {fullExpr}"
+
+  let mut holeyE := e
+
+  let mctx ← getMCtx -- save metavar context before using isDefEq
+  let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
+  logInfo m!"pattern { pattern}"
+  logInfo m!"expression { holeyE}"
+  logInfo m!"expression contains pattern? {containsPattern}"
+  setMCtx mctx -- revert back to before isDefEq
+
+  -- let mut n := 0
+  -- -- while containsPattern do
+  -- while n < 5 do
+  --   n := n+1
+
+  --   let abstractedE ← kabstract holeyE pattern (occs := .pos [1])
+
+  --   let m ← mkFreshExprMVar (← inferType pattern)
+  --   let instantiatedE := abstractedE.instantiate1 m
+
+  --   logInfo m!"After abstraction. {instantiatedE}"
+
+
+  --   holeyE := instantiatedE
+
+  --   -- let mctx ← getMCtx -- save metavar context before using isDefEq
+  --   containsPattern := pattern.occurs holeyE
+  --   -- setMCtx mctx -- revert back to before isDefEq
+  --   logInfo m!"pattern {pattern}"
+  --   logInfo m!"e {holeyE}"
+  --   logInfo m!"contains pattern. {containsPattern}"
+
+  return holeyE
+
+elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
+  -- let hTerm ← getHypothesisProof h.getId
+  let hType ← getHypothesisType h.getId
+
+  let pattern ← Term.elabTermAndSynthesize pattern none
+
+  -- let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
+  let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
 
 end Autogeneralize
