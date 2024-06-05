@@ -72,11 +72,45 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
   specialize _distance.Gen 3 x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
   sorry
 
+/---------------------------------------------------------------------------
+FAILED EXPERIMENT -- sqrt(2)+3 is irrational.  the "instNatAtLeast2" is confused with the 2 we want to generalize.
+---------------------------------------------------------------------------/
+example : Irrational (Real.sqrt 2+5) := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  autogeneralize _sum_irrat (2:ℕ)
+  -- simp at _sum_irrat.Gen
+  -- specialize _sum_irrat
+  sorry
+
+#print Irrational.add_nat
+#print Nat.prime_two
+example : True := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  -- autogeneralize _sum_irrat 2
+  replacePatternWithHoles _sum_irrat (2:ℕ)
+  simp
+
+example : True := by
+  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  replacePatternWithHoles _sqrt2Irrational (2:)
+  simp
+
+
 /- --------------------------------------------------------------------------
 EXPERIMENTATION
 ---------------------------------------------------------------------------/
+example : Irrational (Real.sqrt 2 + 2) := by
+  apply Irrational.add_int
+  apply Nat.prime_two.irrational_sqrt
+
 
 #eval (toExpr 2).occurs (toExpr 2)
+
+example : True := by
+  let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
+  -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
+  replacePatternWithHoles _hyp 2
+  sorry
 
 example : True := by
   let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
