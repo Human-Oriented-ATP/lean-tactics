@@ -292,8 +292,10 @@ def replaceWithBVarWhere (condition : Expr → Bool) (e : Expr) (depth : Nat := 
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
+  let mctx ← getMCtx -- save metavar context before using isDefEq
   let e_subexprs := getSubexpressionsIn e
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
+  setMCtx mctx -- replace metavar context after using isDefEq
   return firstExprContainingSubexpr.isSome
 
 #check Expr.occurs
@@ -437,15 +439,20 @@ do
 
   let mut holeyE := e
 
-  let mctx ← getMCtx -- save metavar context before using isDefEq
   let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
   logInfo m!"pattern { pattern}"
   logInfo m!"expression { holeyE}"
   logInfo m!"expression contains pattern? {containsPattern}"
-  setMCtx mctx -- revert back to before isDefEq
+
+  holeyE ← kabstract holeyE pattern (occs := .pos [1])
+  containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
+  logInfo m!"pattern { pattern}"
+  logInfo m!"expression { holeyE}"
+  logInfo m!"expression contains pattern? {containsPattern}"
+
 
   -- let mut n := 0
-  -- -- while containsPattern do
+  -- while containsPattern do
   -- while n < 5 do
   --   n := n+1
 
