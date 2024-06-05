@@ -481,7 +481,7 @@ do
     holeyE ← kabstract holeyE pattern (occs := .pos [1]) -- abstract an occurrence
     containsPattern ← containsExpr pattern holeyE
     numPatternInstances := numPatternInstances + 1
-  -- logInfo m!"there are { numPatternInstances} instances of the pattern"
+  logInfo m!"there are { numPatternInstances} instances of the pattern"
   -- logInfo m!"expression after bvar abstraction { holeyE}"
 
   -- replace all those loose bvars with mvars
@@ -493,15 +493,22 @@ do
 
   return finalE
 
+/- For any mvars in e2 that unify with mvars in e1, replace them to be the ones in e1 -/
+def linkMVars (e1 : Expr) (e2 : Expr) : MetaM Expr := do
+  return e1
+
 elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
   let hType ← getHypothesisType h.getId
   let hTerm ← getHypothesisProof h.getId
 
   let pattern ← Term.elabTermAndSynthesize pattern none
 
-  let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
+  -- let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
   let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
 
-  logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
+  -- logInfo m!"After abstraction type {holeyHType}"
+  logInfo m!"After abstraction term {holeyHTerm}"
+
+  -- logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
 
 end Autogeneralize

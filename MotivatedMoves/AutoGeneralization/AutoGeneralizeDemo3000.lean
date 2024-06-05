@@ -83,3 +83,9 @@ example : True := by
   -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
   replacePatternWithHoles _hyp 2
   sorry
+
+example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+  let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
+  replacePatternWithHoles _distance (2:)
+
+  sorry
