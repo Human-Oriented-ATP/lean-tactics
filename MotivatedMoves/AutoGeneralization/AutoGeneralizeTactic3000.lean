@@ -298,6 +298,26 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
 
+/-- Returns the number of times "subexpr" occurs in "e". Uses the coarser "isDefEq" rather than "==" -/
+def countOccurrencesOf (subexpr : Expr)  (e : Expr) : MetaM Nat := do
+  -- save metavar context before using isDefEq
+  let mctx ← getMCtx
+
+  -- get everything that equals subexpr
+  let e_subexprs := getSubexpressionsIn e
+  let exprsEqToSubexpr ← (e_subexprs.filterM fun e_subexpr => return ← isDefEq e_subexpr subexpr)
+
+  -- remove any expression strictly contained in another
+  let filteredExprsEqToSubexpr ← exprsEqToSubexpr.filterM fun e1 =>
+    not <$> exprsEqToSubexpr.anyM fun e2 => return e1 != e2 && e1.occurs e2 -- e1 is strictly contained in e2
+  logInfo filteredExprsEqToSubexpr
+
+  -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
+  setMCtx mctx
+  -- return the length of that list of expressions
+  return filteredExprsEqToSubexpr.length
+
+
 #check Expr.occurs
 -- /-- Returns true if "e" contains "subexpr". Uses '--'.  Same as 'occurs' -/
 -- def containsExprStrict (subexpr : Expr)  (e : Expr) : MetaM Bool := do
@@ -472,23 +492,24 @@ def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr :
 def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
 do
   let mut holeyE := e
-  -- logInfo m!"starting expression {e}"
+  logInfo m!"starting expression {e}"
 
   -- count all occurences of the pattern (creating loose bvars)
-  let mut numPatternInstances := 0
-  let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
-  while containsPattern do
-    holeyE ← kabstract holeyE pattern (occs := .pos [1]) -- abstract an occurrence
-    containsPattern ← containsExpr pattern holeyE
-    numPatternInstances := numPatternInstances + 1
+  let numPatternInstances ← countOccurrencesOf pattern holeyE
+  -- let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
+  -- while containsPattern && numPatternInstances ≤ 10 do
+  --   holeyE ← kabstract holeyE pattern --(occs := .pos [1]) -- abstract an occurrence
+  --   logInfo m!"expression after single bvar abstraction { holeyE}"
+  --   containsPattern ← containsExpr pattern holeyE
+  --   numPatternInstances := numPatternInstances + 1
   logInfo m!"there are { numPatternInstances} instances of the pattern"
   -- logInfo m!"expression after bvar abstraction { holeyE}"
 
-  -- replace all those loose bvars with mvars
+  -- -- replace all those loose bvars with mvars
   let mut finalE := e
-  while numPatternInstances ≥ 1 do
-    finalE ← kabstract' finalE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
-    numPatternInstances := numPatternInstances - 1
+  -- while numPatternInstances ≥ 1 do
+  --   finalE ← kabstract' finalE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
+  --   numPatternInstances := numPatternInstances - 1
   -- logInfo m!"expression after mvar abstraction { finalE}"
 
   return finalE
@@ -503,11 +524,11 @@ elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext 
 
   let pattern ← Term.elabTermAndSynthesize pattern none
 
-  -- let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
-  let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
+  let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
+  -- let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
 
-  -- logInfo m!"After abstraction type {holeyHType}"
-  logInfo m!"After abstraction term {holeyHTerm}"
+  logInfo m!"After abstraction type {holeyHType}"
+  -- logInfo m!"After abstraction term {holeyHTerm}"
 
   -- logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
 
