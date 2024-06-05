@@ -310,7 +310,7 @@ def countOccurrencesOf (subexpr : Expr)  (e : Expr) : MetaM Nat := do
   -- remove any expression strictly contained in another
   let filteredExprsEqToSubexpr ← exprsEqToSubexpr.filterM fun e1 =>
     not <$> exprsEqToSubexpr.anyM fun e2 => return e1 != e2 && e1.occurs e2 -- e1 is strictly contained in e2
-  logInfo filteredExprsEqToSubexpr
+  -- logInfo filteredExprsEqToSubexpr
 
   -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   setMCtx mctx
@@ -494,25 +494,17 @@ do
   let mut holeyE := e
   logInfo m!"starting expression {e}"
 
-  -- count all occurences of the pattern (creating loose bvars)
-  let numPatternInstances ← countOccurrencesOf pattern holeyE
-  -- let mut containsPattern ← containsExpr pattern holeyE --pattern.occurs holeyE
-  -- while containsPattern && numPatternInstances ≤ 10 do
-  --   holeyE ← kabstract holeyE pattern --(occs := .pos [1]) -- abstract an occurrence
-  --   logInfo m!"expression after single bvar abstraction { holeyE}"
-  --   containsPattern ← containsExpr pattern holeyE
-  --   numPatternInstances := numPatternInstances + 1
+  -- count instances of the pattern
+  let mut numPatternInstances ← countOccurrencesOf pattern holeyE
   logInfo m!"there are { numPatternInstances} instances of the pattern"
-  -- logInfo m!"expression after bvar abstraction { holeyE}"
 
-  -- -- replace all those loose bvars with mvars
-  let mut finalE := e
-  -- while numPatternInstances ≥ 1 do
-  --   finalE ← kabstract' finalE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
-  --   numPatternInstances := numPatternInstances - 1
-  -- logInfo m!"expression after mvar abstraction { finalE}"
+  -- replace each instance of tha pattern with a different mvar
+  while numPatternInstances ≥ 1 do
+    holeyE ← kabstract' holeyE pattern (occs := .pos [numPatternInstances]) -- abstract an occurrence
+    numPatternInstances := numPatternInstances - 1
+  logInfo m!"expression after mvar abstraction { holeyE}"
 
-  return finalE
+  return holeyE
 
 /- For any mvars in e2 that unify with mvars in e1, replace them to be the ones in e1 -/
 def linkMVars (e1 : Expr) (e2 : Expr) : MetaM Expr := do
@@ -525,9 +517,9 @@ elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext 
   let pattern ← Term.elabTermAndSynthesize pattern none
 
   let holeyHType ← turnAllOccurencesIntoDifferentMetavariables  pattern hType
-  -- let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
+  let holeyHTerm ← turnAllOccurencesIntoDifferentMetavariables  pattern hTerm
 
-  logInfo m!"After abstraction type {holeyHType}"
+  -- logInfo m!"After abstraction type {holeyHType}"
   -- logInfo m!"After abstraction term {holeyHTerm}"
 
   -- logInfo m!"After abstraction.  {holeyHType} := {holeyHTerm}"
