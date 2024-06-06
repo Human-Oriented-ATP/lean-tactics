@@ -363,6 +363,8 @@ partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : 
   let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
     let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
       match e with
+      -- unify types of metavariables as soon as we get a chance in .app
+      -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         =>
                             let fAbs ← visit f offset
                             let aAbs ← visit a offset
@@ -374,10 +376,13 @@ partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : 
       | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
       | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
       | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+      -- when we encounter a theorem used in the proof
+      -- check whether that theorem has the variable we're trying to generalize
+      -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n _       => let constType ← getTheoremStatement n
                             if (← containsExpr p constType) then
-                              let genConstType ← visit constType offset
-                              let m ← mkFreshExprMVar genConstType
+                              let genConstType ← visit constType offset -- expr for generalized proof statment
+                              let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                               return m
                             else
                               return e
