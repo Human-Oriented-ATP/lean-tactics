@@ -76,27 +76,30 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
 DEMO OF SUCCESS-- sqrt(2)+3 is irrational.
 ---------------------------------------------------------------------------/
 
-example : Irrational (sqrt 4 + 4) := by
+example : Irrational (sqrt 2 + 3) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
-  -- autogeneralize _sum_irrat 2
   autogeneralize _sum_irrat (4:ℕ)
 
-
-
-  specialize _sum_irrat.Gen 4
+  specialize _sum_irrat.Gen 3
   assumption
-  -- simp at _sum_irrat.Gen
-  -- replacePatternWithHoles _sum_irrat (2:ℕ)
-  -- simp
 
+example : Irrational (sqrt 3 + 4) := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  autogeneralize _sum_irrat (2:ℕ)
 
-example : True := by
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
+
+/---------------------------------------------------------------------------
+DEMO OF SUBOPTIMALITY -- sqrt(2)+2 is irrational, generalizes to something over-specific -- prime f -> sqrt(f)+f is irrational
+---------------------------------------------------------------------------/
+
+example : Irrational (Real.sqrt 3 + 3) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat 2
 
-  specialize _sum_irrat.Gen 5
-  replacePatternWithHoles _sum_irrat (2:ℕ)
-  simp
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
 
 /- --------------------------------------------------------------------------
 TRASH the "instNatAtLeast2" is confused with the 2 we want to generalize.
