@@ -355,6 +355,48 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
   modifiers
 
 
+/- A slower, but more accurate version of kabstract.  It doesn't check if heads of expressions are equal before checking definitional equality. -/
+def kabstractSlow (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+  let e ← instantiateMVars e
+  if p.isFVar && occs == Occurrences.all then
+    return e.abstract #[p] -- Easy case
+  else
+    -- let pHeadIdx := p.toHeadIndex
+    -- let pNumArgs := p.headNumArgs
+    let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
+      let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+        match e with
+        | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+        | .mdata _ b       => return e.updateMData! (← visit b offset)
+        | .proj _ _ b      => return e.updateProj! (← visit b offset)
+        | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+        | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
+        | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+        | e                => return e
+      if e.hasLooseBVars then
+        visitChildren ()
+      -- -- kabstract usually checks if the heads of the expressions are same before bothering to check definition equality
+      -- -- this makes teh code more efficient, but it's not necessarily true that "heads not equal => not definitionally equal"
+      -- else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+      --   visitChildren ()
+      else
+        -- We save the metavariable context here,
+        -- so that it can be rolled back unless `occs.contains i`.
+        let mctx ← getMCtx
+        if (← isDefEq e p) then
+          let i ← get
+          set (i+1)
+          if occs.contains i then
+            return mkBVar offset
+          else
+            -- Revert the metavariable context,
+            -- so that other matches are still possible.
+            setMCtx mctx
+            visitChildren ()
+        else
+          visitChildren ()
+    visit e 0 |>.run' 1
+
 /- Replaces each instance of p in e with an mvar instead of a bvar-/
 def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
   let e ← instantiateMVars e
@@ -438,7 +480,7 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
   let genThmProof ← withLocalDecl f.name .default f.type (fun placeholder => do
     logInfo m!"Before kabstract {genThmProof}"
-    let body ← kabstract genThmProof f.oldValue  -- turn f.oldValue into loose bvars
+    let body ← kabstractSlow genThmProof f.oldValue  -- turn f.oldValue into loose bvars
     logInfo m!"After kabstract {body}"
     let body := body.instantiate1 placeholder -- turn the loose bvars to the mvar placeholder
     mkLambdaFVars #[placeholder] body
