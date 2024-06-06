@@ -354,6 +354,44 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
   ) #[] ;
   modifiers
 
+
+/- Replaces each instance of p in e with an mvar instead of a bvar-/
+def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+  let e ← instantiateMVars e
+  let pHeadIdx := p.toHeadIndex
+  let pNumArgs := p.headNumArgs
+  let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
+    let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+      match e with
+      | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+      | .mdata _ b       => return e.updateMData! (← visit b offset)
+      | .proj _ _ b      => return e.updateProj! (← visit b offset)
+      | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+      | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
+      | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+      | e                => return e
+    if e.hasLooseBVars then
+      visitChildren ()
+    else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+      visitChildren ()
+    else
+      -- We save the metavariable context here,
+      -- so that it can be rolled back unless `occs.contains i`.
+      let mctx ← getMCtx
+      if (← isDefEq e p) then
+        let i ← get
+        set (i+1)
+        if occs.contains i then
+          return ← mkFreshExprMVar (← inferType p)
+        else
+          -- Revert the metavariable context,
+          -- so that other matches are still possible.
+          setMCtx mctx
+          visitChildren ()
+      else
+        visitChildren ()
+  visit e 0 |>.run' 1
+
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
 def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
   let identifiersInProofType := getFreeIdentifiers thmType
@@ -389,9 +427,9 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   let genThmProof ← (modifiers.size).foldM
     (fun i acc => do
       let mod := modifiers.get! i
-      logInfo m!"New hypothesis to add: {mod.newType}"
+      logInfo m!"New hypothesis to add: {mod.oldType}"
       let body ← replaceWithBVarWhere (fun e => e.isConstOf mod.oldName) acc
-      return .lam mod.newName mod.newType body .default
+      return .lam mod.newName mod.oldType body .default
 
     ) thmProof ;
   logInfo m!"Proof with all added hypotheses {genThmProof}"
@@ -399,9 +437,13 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
   -- add in f, replacing the old f
   --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
   let genThmProof ← withLocalDecl f.name .default f.type (fun placeholder => do
-    let body ← replaceCoarsely f.placeholder placeholder genThmProof
+    logInfo m!"Before kabstract {genThmProof}"
+    let body ← kabstract genThmProof f.oldValue  -- turn f.oldValue into loose bvars
+    logInfo m!"After kabstract {body}"
+    let body := body.instantiate1 placeholder -- turn the loose bvars to the mvar placeholder
     mkLambdaFVars #[placeholder] body
   )
+  logInfo m!"Proof with abstracted 'f' {genThmProof}"
 
   return genThmProof
 
@@ -450,43 +492,6 @@ def abstractToDifferentMVars (e : Expr) (pattern : Expr) :  MetaM Expr := sorry 
 def getAbstractedProofTerm (abstractedProofType : Expr) : MetaM Expr := sorry
 
 -- elab "putHolesInProof"
-
-/- Replaces each instance of p in e with an mvar instead of a bvar-/
-def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
-  let e ← instantiateMVars e
-  let pHeadIdx := p.toHeadIndex
-  let pNumArgs := p.headNumArgs
-  let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
-    let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
-      match e with
-      | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
-      | .mdata _ b       => return e.updateMData! (← visit b offset)
-      | .proj _ _ b      => return e.updateProj! (← visit b offset)
-      | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
-      | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
-      | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
-      | e                => return e
-    if e.hasLooseBVars then
-      visitChildren ()
-    else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
-      visitChildren ()
-    else
-      -- We save the metavariable context here,
-      -- so that it can be rolled back unless `occs.contains i`.
-      let mctx ← getMCtx
-      if (← isDefEq e p) then
-        let i ← get
-        set (i+1)
-        if occs.contains i then
-          return ← mkFreshExprMVar (← inferType p)
-        else
-          -- Revert the metavariable context,
-          -- so that other matches are still possible.
-          setMCtx mctx
-          visitChildren ()
-      else
-        visitChildren ()
-  visit e 0 |>.run' 1
 
 def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : TacticM Expr :=
   kabstract' e pattern

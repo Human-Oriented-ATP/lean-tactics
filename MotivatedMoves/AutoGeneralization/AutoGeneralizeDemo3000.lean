@@ -29,7 +29,7 @@ Analogizing a theorem about an operator that uses commutativity and associativit
 ---------------------------------------------------------------------------/
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize _multPermute (.*.) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize _multPermute (HMul.hMul) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
   specialize _multPermute.Gen 1 2 3
@@ -73,8 +73,35 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
   sorry
 
 /---------------------------------------------------------------------------
-FAILED EXPERIMENT -- sqrt(2)+3 is irrational.  the "instNatAtLeast2" is confused with the 2 we want to generalize.
+DEMO OF SUCCESS-- sqrt(2)+3 is irrational.
 ---------------------------------------------------------------------------/
+
+example : Irrational (sqrt 4 + 4) := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  -- autogeneralize _sum_irrat 2
+  autogeneralize _sum_irrat (4:ℕ)
+
+
+
+  specialize _sum_irrat.Gen 4
+  assumption
+  -- simp at _sum_irrat.Gen
+  -- replacePatternWithHoles _sum_irrat (2:ℕ)
+  -- simp
+
+
+example : True := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  autogeneralize _sum_irrat 2
+
+  specialize _sum_irrat.Gen 5
+  replacePatternWithHoles _sum_irrat (2:ℕ)
+  simp
+
+/- --------------------------------------------------------------------------
+TRASH the "instNatAtLeast2" is confused with the 2 we want to generalize.
+---------------------------------------------------------------------------/
+
 example : Irrational (Real.sqrt 2+5) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat (2:ℕ)
@@ -82,16 +109,9 @@ example : Irrational (Real.sqrt 2+5) := by
   -- specialize _sum_irrat
   sorry
 
-#print Irrational.add_nat
-#print Nat.prime_two
-example : True := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
-  -- autogeneralize _sum_irrat 2
-  replacePatternWithHoles _sum_irrat (2:ℕ)
-  simp
-
 example : True := by
   let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+
   replacePatternWithHoles _sqrt2Irrational (2:)
   simp
 
