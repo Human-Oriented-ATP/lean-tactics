@@ -363,7 +363,12 @@ partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : 
   let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
     let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
       match e with
-      | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+      | .app f a         =>
+                            let fAbs ← visit f offset
+                            let aAbs ← visit a offset
+                            let .forallE _ fDomain _ _ ← inferType fAbs | throwError m!"Expected {fAbs} to have a `forall` type."
+                            guard <| ← isDefEq fDomain (← inferType aAbs)
+                            return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b offset)
       | .proj _ _ b      => return e.updateProj! (← visit b offset)
       | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
@@ -558,10 +563,12 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- -- Get the generalized theorem (with those additional hypotheses)
   let genThmProof ← autogeneralizeProof thmProof f; logInfo ("Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("Generalized Type: " ++ genThmType)
+  let genThmType  ← instantiateMVars genThmType
 
   -- get the generalized type from user
   let userThmType ← kabstract thmType f.oldValue (occs:= .pos [1])
   let userThmType := userThmType.instantiate1 (← mkFreshExprMVar f.type)
+
   -- compare
   let unif ← isDefEq genThmType userThmType
   logInfo m!"Do they unify? {unif}"
@@ -601,7 +608,8 @@ def turnAllOccurencesIntoDifferentMetavariables (pattern : Expr) (e : Expr) : Ta
 /- For any mvars in e2 that unify with mvars in e1, replace them to be the ones in e1 -/
 -- def linkMVars (e1 : Expr) (e2 : Expr) : MetaM Expr := do
 --   return e1
-
+#check mkAppM
+#eval do  (mkAppM `Nat.Prime.irrational_sqrt #[.const `Nat.prime_two []])
 elab "replacePatternWithHoles" h:ident pattern:term : tactic => withMainContext do
   let hType ← getHypothesisType h.getId
   let hTerm ← getHypothesisProof h.getId

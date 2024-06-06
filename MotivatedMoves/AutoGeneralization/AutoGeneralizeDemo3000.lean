@@ -102,8 +102,6 @@ example : Irrational (Real.sqrt 3 + 3) := by
   -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
   -- assumption
 
-
-
 /- --------------------------------------------------------------------------
 EXPERIMENTATION
 ---------------------------------------------------------------------------/
