@@ -90,33 +90,18 @@ example : Irrational (sqrt 3 + 4) := by
   specialize _sum_irrat.Gen 3 (Nat.prime_three)
   assumption
 
-/---------------------------------------------------------------------------
+/- --------------------------------------------------------------------------
 DEMO OF SUBOPTIMALITY -- sqrt(2)+2 is irrational, generalizes to something over-specific -- prime f -> sqrt(f)+f is irrational
----------------------------------------------------------------------------/
+-------------------------------------------------------------------------- -/
 
+#check Irrational.add_nat
 example : Irrational (Real.sqrt 3 + 3) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
-  autogeneralize _sum_irrat 2
-
-  specialize _sum_irrat.Gen 3 (Nat.prime_three)
-  assumption
-
-/- --------------------------------------------------------------------------
-TRASH the "instNatAtLeast2" is confused with the 2 we want to generalize.
----------------------------------------------------------------------------/
-
-example : Irrational (Real.sqrt 2+5) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (4:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat (2:ℕ)
-  -- simp at _sum_irrat.Gen
-  -- specialize _sum_irrat
-  sorry
 
-example : True := by
-  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  -- assumption
 
-  replacePatternWithHoles _sqrt2Irrational (2:)
-  simp
 
 
 /- --------------------------------------------------------------------------

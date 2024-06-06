@@ -340,24 +340,71 @@ structure Modifier where
   oldName : Name                    -- name that exists in the context e.g. Nat.mul_assoc
   newName : Name := mkAbstractedName oldName -- usually something like gen_mul_assoc
   oldType : Expr                    -- the type that has the ungeneralized "f"
-  newType : Expr                    -- the type that has the placeholder of "f"
+  -- newType : Expr                    -- the type that has the placeholder of "f"
 deriving Inhabited
 
-def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List Expr) : Array Modifier :=
+def makeModifiers (oldNames : List Name) (oldTypes: List Expr)  : Array Modifier :=
   let modifiers : Array Modifier := oldNames.length.fold (fun i (modifiers : Array Modifier) =>
     let modifier : Modifier := {
       oldName := oldNames.get! i,
       oldType := oldTypes.get! i
-      newType := newTypes.get! i
+      -- newType := newTypes.get! i
     };
     modifiers.push modifier
   ) #[] ;
   modifiers
 
 
+partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+  let e ← instantiateMVars e
+  let pType ← inferType p
+  -- let pHeadIdx := p.toHeadIndex
+  -- let pNumArgs := p.headNumArgs
+  let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
+    let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+      match e with
+      | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+      | .mdata _ b       => return e.updateMData! (← visit b offset)
+      | .proj _ _ b      => return e.updateProj! (← visit b offset)
+      | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+      | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
+      | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+      | .const n _       => let constType ← getTheoremStatement n
+                            if (← containsExpr p constType) then
+                              let genConstType ← visit constType offset
+                              let m ← mkFreshExprMVar genConstType
+                              return m
+                            else
+                              return e
+      | e                => return e
+    if e.hasLooseBVars then
+      visitChildren ()
+    -- -- kabstract usually checks if the heads of the expressions are same before bothering to check definition equality
+    -- -- this makes teh code more efficient, but it's not necessarily true that "heads not equal => not definitionally equal"
+    -- else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+    --   visitChildren ()
+    else
+      -- We save the metavariable context here,
+      -- so that it can be rolled back unless `occs.contains i`.
+      let mctx ← getMCtx
+      if (← isDefEq e p) then
+        let i ← get
+        set (i+1)
+        if occs.contains i then
+          return ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
+        else
+          -- Revert the metavariable context,
+          -- so that other matches are still possible.
+          setMCtx mctx
+          visitChildren ()
+      else
+        visitChildren ()
+  visit e 0 |>.run' 1
+
 /- A slower, but more accurate version of kabstract.  It doesn't check if heads of expressions are equal before checking definitional equality. -/
 def kabstractSlow (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
   let e ← instantiateMVars e
+  let pType ← inferType p
   if p.isFVar && occs == Occurrences.all then
     return e.abstract #[p] -- Easy case
   else
@@ -387,7 +434,7 @@ def kabstractSlow (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Exp
           let i ← get
           set (i+1)
           if occs.contains i then
-            return mkBVar offset
+            return ← mkFreshExprMVar pType
           else
             -- Revert the metavariable context,
             -- so that other matches are still possible.
@@ -452,42 +499,46 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
   logInfo m!"Filtered identifier types {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
-  let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
+  -- let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
 
   -- return             old names     old types                  new types
   -- e.g.               mul_comm      ∀ n m : ℕ, n⬝m = m⬝n        ∀ n m : ℕ, f n m = f m n
-  return makeModifiers identifierNames identifierTypes generalizedIdentifierTypes
+  return makeModifiers identifierNames identifierTypes --generalizedIdentifierTypes
 
 /-- Find the proof of the new auto-generalized theorem -/
-def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : GeneralizedTerm) : MetaM Expr := do
-  -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
-  let modifiers := modifiers.reverse
+def autogeneralizeProof (thmProof : Expr) (f : GeneralizedTerm) : MetaM Expr := do
+  let abstractedProof ← kabstractConst thmProof f.oldValue -- replace instances of f's old value with metavariables
 
-  logInfo m!"The original proof: {thmProof}"
+  return abstractedProof
 
-  -- add in the hypotheses, replacing old hypotheses names
-  let genThmProof ← (modifiers.size).foldM
-    (fun i acc => do
-      let mod := modifiers.get! i
-      logInfo m!"New hypothesis to add: {mod.oldType}"
-      let body ← replaceWithBVarWhere (fun e => e.isConstOf mod.oldName) acc
-      return .lam mod.newName mod.oldType body .default
+  -- -- if the types has hypotheses in the order [h1, h2], then in the proof term they look like (fun h1 => ...(fun h2 => ...)), so h2 is done first.
+  -- let modifiers := modifiers.reverse
 
-    ) thmProof ;
-  logInfo m!"Proof with all added hypotheses {genThmProof}"
+  -- logInfo m!"The original proof: {thmProof}"
 
-  -- add in f, replacing the old f
-  --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
-  let genThmProof ← withLocalDecl f.name .default f.type (fun placeholder => do
-    logInfo m!"Before kabstract {genThmProof}"
-    let body ← kabstractSlow genThmProof f.oldValue  -- turn f.oldValue into loose bvars
-    logInfo m!"After kabstract {body}"
-    let body := body.instantiate1 placeholder -- turn the loose bvars to the mvar placeholder
-    mkLambdaFVars #[placeholder] body
-  )
-  logInfo m!"Proof with abstracted 'f' {genThmProof}"
+  -- -- add in the hypotheses, replacing old hypotheses names
+  -- let genThmProof ← (modifiers.size).foldM
+  --   (fun i acc => do
+  --     let mod := modifiers.get! i
+  --     logInfo m!"New hypothesis to add: {mod.oldType}"
+  --     let body ← replaceWithBVarWhere (fun e => e.isConstOf mod.oldName) acc
+  --     return .lam mod.newName mod.oldType body .default
 
-  return genThmProof
+  --   ) thmProof ;
+  -- logInfo m!"Proof with all added hypotheses {genThmProof}"
+
+  -- -- add in f, replacing the old f
+  -- --"withLocalDecl" temporarily adds "f.name : f.type" to context, storing the fvar in placeholder
+  -- let genThmProof ← withLocalDecl f.name .default f.type (fun placeholder => do
+  --   logInfo m!"Before kabstract {genThmProof}"
+  --   let body ← kabstractSlow genThmProof f.oldValue  -- turn f.oldValue into loose bvars
+  --   logInfo m!"After kabstract {body}"
+  --   let body := body.instantiate1 placeholder -- turn the loose bvars to the mvar placeholder
+  --   mkLambdaFVars #[placeholder] body
+  -- )
+  -- logInfo m!"Proof with abstracted 'f' {genThmProof}"
+
+  -- return genThmProof
 
 
 
@@ -501,16 +552,25 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   logInfo m!"The term to be generalized is {f.oldValue} with type {f.type}"
 
   -- Do the next bit of generalization -- figure out which hypotheses we need to add to make the generalization true
-  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
+  -- let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
   -- logInfo m!"The number of hypotheses needed to generalize this theorem is {modifiers.size}"
 
-  -- Get the generalized theorem (with those additional hypotheses)
-  let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
+  -- -- Get the generalized theorem (with those additional hypotheses)
+  let genThmProof ← autogeneralizeProof thmProof f; logInfo ("Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("Generalized Type: " ++ genThmType)
 
-  createHypothesis genThmType genThmProof (thmName++`Gen)
+  -- get the generalized type from user
+  let userThmType ← kabstract thmType f.oldValue (occs:= .pos [1])
+  let userThmType := userThmType.instantiate1 (← mkFreshExprMVar f.type)
+  -- compare
+  let unif ← isDefEq genThmType userThmType
+  logInfo m!"Do they unify? {unif}"
+  logInfo m!"Instantiated genThmType: {← instantiateMVars genThmType}"
+  logInfo m!"Instantiated userThmType: {← instantiateMVars userThmType}"
+  logInfo m!"Instantiated proof after type was inferred: {← instantiateMVars genThmProof}"
+  -- createHypothesis genThmType genThmProof (thmName++`Gen)
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
+  -- logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
 
 /- Autogeneralize term "t" in hypothesis "h"-/
 elab "autogeneralize" h:ident f:term : tactic => do
