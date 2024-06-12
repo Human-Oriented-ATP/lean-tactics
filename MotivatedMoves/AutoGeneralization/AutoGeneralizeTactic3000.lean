@@ -59,10 +59,6 @@ def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Na
   let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
 
-/-- Print out an expression in a human-readable way  --/
-def printPrettyExpression (e : Expr) : MetaM Unit := do
-  dbg_trace "{←ppExpr e}"
-
 /- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : List Expr :=
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
@@ -165,9 +161,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences :=
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-
   return abstractedProof
-
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
@@ -183,10 +177,10 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   let genThmType  ← instantiateMVars genThmType
 
   -- get the generalized type from user
-  let userThmType ← kabstract thmType fExpr (occs:= .pos [1])
+  let userThmType ← kabstract thmType fExpr (occs:= .pos [1]) -- generalize the first occurrence of the expression in the type
   let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
 
-  -- compare
+  -- compare and unify mvars
   let unif ← isDefEq genThmType userThmType
   logInfo m!"Do they unify? {unif}"
   logInfo m!"Instantiated genThmType: {← instantiateMVars genThmType}"
@@ -196,7 +190,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
     -- turn mvars in abstracted proof into a lambda
   let mvarArray ← getMVars genThmProof
   let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-  -- let genThmProof ← mkForallFVars' (mvarArray.map Expr.mvar) genThmProof
   logInfo m!"Proof with fvars instead of mvars: {genThmProof}"
   let genThmType ← inferType genThmProof
   logInfo m!"Type with fvars instead of mvars: {genThmType}"
