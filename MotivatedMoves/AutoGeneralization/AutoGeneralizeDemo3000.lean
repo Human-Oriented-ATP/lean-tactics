@@ -18,6 +18,7 @@ open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues true
+-- set_option profiler true
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false
@@ -29,7 +30,10 @@ Analogizing a theorem about an operator that uses commutativity and associativit
 ---------------------------------------------------------------------------/
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize _multPermute (.*. : ℕ → ℕ → ℕ) -- adds multPermute.Gen to list of hypotheses
+  /-
+  unexpected bound variable #2
+  -/
+  autogeneralize _multPermute (HMul.hMul : ℕ → ℕ → ℕ) -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
   specialize _multPermute.Gen 1 2 3
@@ -49,10 +53,10 @@ example : Irrational (Real.sqrt 3) := by
 
 
 #check Irrational.add_nat
-example : Irrational (Real.sqrt 3 + 2) := by
+example : Irrational (Real.sqrt 3 + 5) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat (2:ℕ)
   -- autogeneralize _sum_irrat.Gen (2:ℕ)
 
-  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 5
   assumption
