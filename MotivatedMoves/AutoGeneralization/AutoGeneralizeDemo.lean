@@ -17,7 +17,7 @@ open Lean Elab Tactic Meta Term Command
 
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues false
+set_option pp.showLetValues true
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false
@@ -42,6 +42,13 @@ example : True := by
   let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
 
   autogeneralize _sqrt2Irrational 2 -- adds _sqrt2Irrational.Gen to list of hypotheses
+
+  simp
+
+example : True := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize _sum_irrat 2 -- adds _sqrt2Irrational.Gen to list of hypotheses
 
   simp
 

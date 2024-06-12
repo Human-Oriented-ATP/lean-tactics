@@ -29,7 +29,7 @@ Analogizing a theorem about an operator that uses commutativity and associativit
 ---------------------------------------------------------------------------/
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize _multPermute (.*.)-- adds multPermute.Gen to list of hypotheses
+  autogeneralize _multPermute (.*. : ℕ → ℕ → ℕ) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
   specialize _multPermute.Gen 1 2 3
@@ -94,38 +94,19 @@ example : Irrational (sqrt 3 + 4) := by
 DEMO OF SUBOPTIMALITY -- sqrt(2)+2 is irrational, generalizes to something over-specific -- prime f -> sqrt(f)+f is irrational
 -------------------------------------------------------------------------- -/
 
+example : Irrational (Real.sqrt 3) := by
+  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  autogeneralize _sqrt2Irrational (2 : ℕ) -- adds _sqrt2Irrational.Gen to list of hypotheses
+
+  specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
+  assumption
+
+
+
 #check Irrational.add_nat
-example : Irrational (Real.sqrt 3 + 3) := by
+example : Irrational (Real.sqrt 3 + 2) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat (2:ℕ)
 
-  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
-  -- assumption
-
-/- --------------------------------------------------------------------------
-EXPERIMENTATION
----------------------------------------------------------------------------/
-example : Irrational (Real.sqrt 2 + 2) := by
-  apply Irrational.add_int
-  apply Nat.prime_two.irrational_sqrt
-
-
-#eval (toExpr 2).occurs (toExpr 2)
-
-example : True := by
-  let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
-  -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
-  replacePatternWithHoles _hyp 2
-  sorry
-
-example : True := by
-  let _hyp : Fin 2 → Fin 2 → ℕ := fun (x y : Fin 2) => 2
-  -- let _hyp : Fin 2 → ℕ := fun (x : Fin 2) => 2
-  replacePatternWithHoles _hyp 2
-  sorry
-
-example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
-  let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
-  replacePatternWithHoles _distance (2:)
-
-  sorry
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
