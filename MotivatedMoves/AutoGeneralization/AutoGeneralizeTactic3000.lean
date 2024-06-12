@@ -33,11 +33,6 @@ def getHypothesisByName (h : Name) : TacticM LocalDecl := do
       return ldecl
   throwError m!"No hypothesis by name '{h}'."
 
-/-- Get the FVarID for a hypothesis (given its name) -/
-def getHypothesisFVarId (h : Name) : TacticM FVarId := do
-  let hyp ← getHypothesisByName h
-  return hyp.fvarId
-
 /-- Get the statement of a given hypothesis (given its name) -/
 def getHypothesisType (h : Name) : TacticM Expr := do
   let hyp ← getHypothesisByName h
@@ -211,26 +206,19 @@ structure GeneralizedTerm where
   placeholder : Expr              -- e.g. .mvar #2383...to uniquely identify where it is
 deriving Repr
 
-/--These are the properties the generalized term needs to adhere to in order for the proof to still hold -/
-structure Modifier where
-  oldName : Name                    -- name that exists in the context e.g. Nat.mul_assoc
-  newName : Name := mkAbstractedName oldName -- usually something like gen_mul_assoc
-  oldType : Expr                    -- the type that has the ungeneralized "f"
-  -- newType : Expr                    -- the type that has the placeholder of "f"
-deriving Inhabited
+/- Given a theorem name n, returns the theorem statement with each instance of "p" -/
+-- def replaceTheoremNameWithAbstractedTheoremStatement (n : Name) (p : Expr) : MetaM Expr :=
+-- do
 
-def makeModifiers (oldNames : List Name) (oldTypes: List Expr)  : Array Modifier :=
-  let modifiers : Array Modifier := oldNames.length.fold (fun i (modifiers : Array Modifier) =>
-    let modifier : Modifier := {
-      oldName := oldNames.get! i,
-      oldType := oldTypes.get! i
-      -- newType := newTypes.get! i
-    };
-    modifiers.push modifier
-  ) #[] ;
-  modifiers
 
-partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+/- Replaces all instances of "p" in "e" with a metavariable.
+Roughly implemented like kabstract, with the following differences:
+  kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
+  kabstract replaces "p" with the same bvar, while this replaces each instance with a different mvar
+  kabstract doesn't perform unification to make sure different mvars that will ultimately unify are this same, this does
+  kabstract doesn't look for instances of "p" in the types of constants, this does
+-/
+partial def abstract (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let pType ← inferType p
   -- let pHeadIdx := p.toHeadIndex
@@ -292,7 +280,7 @@ partial def kabstractConst (e : Expr) (p : Expr) (occs : Occurrences := .all) : 
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (f : GeneralizedTerm) : MetaM Expr := do
-  let abstractedProof ← kabstractConst thmProof f.oldValue -- replace instances of f's old value with metavariables
+  let abstractedProof ← abstract thmProof f.oldValue -- replace instances of f's old value with metavariables
 
   return abstractedProof
 
