@@ -153,7 +153,7 @@ partial def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : Meta
 
 #check Exception
 
-partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let pType ← inferType p
   -- let pHeadIdx := p.toHeadIndex
@@ -215,17 +215,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences :=
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let i ← get
-        set (i+1)
-        if occs.contains i then
-          let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
-          return m
-        else
-          -- Revert the metavariable context,
-          -- so that other matches are still possible.
-          setMCtx mctx
-          visitChildren ()
+        let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
+        return m
       else
+        -- Revert the metavariable context,
+        -- so that other matches are still possible.
+        setMCtx mctx
         visitChildren ()
   visit e |>.run' 1
 
