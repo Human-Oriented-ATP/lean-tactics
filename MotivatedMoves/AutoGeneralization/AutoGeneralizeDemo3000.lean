@@ -53,10 +53,10 @@ example : Irrational (Real.sqrt 3) := by
 
 
 #check Irrational.add_nat
-example : Irrational (Real.sqrt 3 + 5) := by
+example : Irrational (Real.sqrt 3 + 6) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize _sum_irrat (2:ℕ)
   -- autogeneralize _sum_irrat.Gen (2:ℕ)
 
-  specialize _sum_irrat.Gen 3 (Nat.prime_three) 5
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
   assumption

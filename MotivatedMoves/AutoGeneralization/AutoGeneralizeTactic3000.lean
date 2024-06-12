@@ -158,7 +158,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences :=
   -- let pHeadIdx := p.toHeadIndex
   -- let pNumArgs := p.headNumArgs
   let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
-    logInfo m!"next visit"
     let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
@@ -184,17 +183,15 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences :=
                               return m
                             else
                               return e
-      | e                => logInfo "matched here"; return e
+      | e                => return e
 
     if e.hasLooseBVars then
-      logInfo m!"visiting children of {e} of type {e.ctorName}"
       visitChildren ()
     -- -- kabstract usually checks if the heads of the expressions are same before bothering to check definition equality
     -- -- this makes teh code more efficient, but it's not necessarily true that "heads not equal => not definitionally equal"
     -- else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
     --   visitChildren ()
     else
-      logInfo m!"No loose bvars in {e}"
       -- We save the metavariable context here,
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
@@ -215,8 +212,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (occs : Occurrences :=
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
-  -- let abstractedProof ← replacePatternWithMVars (.bvar 0) fExpr -- replace instances of f's old value with metavariables
-  -- let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
 
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
   return abstractedProof
@@ -229,31 +224,26 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
-  -- Get the generalized type from user
-  let userThmType ← kabstract thmType fExpr (occs:= .pos [1]) -- generalize the first occurrence of the expression in the type
-  let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
-  logInfo m!"The type to be generalized is {userThmType}"
-
-  -- Get the generalized theorem
+  -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let genThmProof ← autogeneralizeProof thmProof fExpr; logInfo ("Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("Generalized Type: " ++ genThmType)
-  let genThmType  ← instantiateMVars genThmType
-  let genThmType  ← instantiateMVars genThmProof
-
+  logInfo m!"Proof with mvars: {genThmProof}"
 
   -- compare and unify mvars
-  let unif ← isDefEq genThmType userThmType
-  logInfo m!"Do they unify? {unif}"
-  let genThmType  ← instantiateMVars genThmType
-  let userThmType ← instantiateMVars userThmType
-  logInfo m!"Instantiated genThmType: {genThmType}"
-  logInfo m!"Instantiated userThmType: {userThmType}"
-  logInfo m!"Instantiated proof after type was inferred: {genThmProof}"
+  -- let unif ← isDefEq genThmType userThmType
+  -- logInfo m!"Do they unify? {unif}"
+  -- let genThmType  ← instantiateMVars genThmType
+  -- let userThmType ← instantiateMVars userThmType
+  -- logInfo m!"Instantiated genThmType: {genThmType}"
+  -- logInfo m!"Instantiated userThmType: {userThmType}"
+  -- logInfo m!"Instantiated proof after type was inferred: {genThmProof}"
 
-    -- turn mvars in abstracted proof into a lambda
+  -- Get mvars (the abstracted fExpr & all hypotheses on it)
   let mvarArray ← getMVars genThmProof
+
+ -- Turn the abstracted fExpr & all hypotheses into a chained implication
   let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
   logInfo m!"Proof with fvars instead of mvars: {genThmProof}"
+
   let genThmType ← inferType genThmProof
   logInfo m!"Type with fvars instead of mvars: {genThmType}"
 
