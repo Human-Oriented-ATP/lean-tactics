@@ -55,6 +55,8 @@ def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name 
 /-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
 def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
   let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
+  let check ← isDefEq (hypType) (← inferType hypProof)
+  if !check then throwError "Hypothesis type {hypType} doesn't match proof {hypProof}"
   let new_goal ← (←getGoalVar).define hypName hypType hypProof
   let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
@@ -98,78 +100,32 @@ Roughly implemented like kabstract, with the following differences:
 
 #check kabstract
 
-partial def kabstract' (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
-  let e ← instantiateMVars e
-  let pType ← inferType p
-  logInfo m!"pType {pType}"
-  if p.isFVar && occs == Occurrences.all then
-    return e.abstract #[p] -- Easy case
-  else
-    let pHeadIdx := p.toHeadIndex
-    let pNumArgs := p.headNumArgs
-    let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
-      let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
-        match e with
-        | .app f a         => let fAbs ← visit f offset
-                              let aAbs ← visit a offset
-                              if !fAbs.hasLooseBVars && !aAbs.hasLooseBVars then
-                                let .forallE _ fDomain _ _ ← inferType fAbs | throwError m!"Expected {fAbs} to have a `forall` type."
-                                guard <| ← isDefEq fDomain (← inferType aAbs)
-                              return e.updateApp! fAbs aAbs
-        | .mdata _ b       => return e.updateMData! (← visit b offset)
-        | .proj _ _ b      => return e.updateProj! (← visit b offset)
-        | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
-        | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
-        | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
-        -- | .const n _       => let constType ← getTheoremStatement n
-        --                       if (← containsExpr p constType) then
-        --                         let genConstType ← visit constType offset -- expr for generalized proof statment
-        --                         let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-        --                         return m
-        --                       else
-        --                         return e
-        | e                => return e
-      if e.hasLooseBVars then
-        visitChildren ()
-      else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
-        visitChildren ()
-      else
-        -- We save the metavariable context here,
-        -- so that it can be rolled back unless `occs.contains i`.
-        let mctx ← getMCtx
-        if (← isDefEq e p) then
-          let i ← get
-          set (i+1)
-          if occs.contains i then
-            return ← mkFreshExprMVar none--pType
-          else
-            -- Revert the metavariable context,
-            -- so that other matches are still possible.
-            setMCtx mctx
-            visitChildren ()
-        else
-          visitChildren ()
-    visit e 0 |>.run' 1
-
 #check Exception
 
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
+
   let pType ← inferType p
   -- let pHeadIdx := p.toHeadIndex
   -- let pNumArgs := p.headNumArgs
   let rec visit (e : Expr) : StateRefT Nat MetaM Expr := do
+    -- let e ← whnf e
     let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => let fAbs ← visit f
                             let aAbs ← visit a
-                            let .forallE _ fDomain _ _ ← inferType fAbs | throwError m!"Expected {fAbs} to have a `forall` type."
+                            -- reducible transparency lets you see that reducible types that don't seem like forall statements actually are forall statements
+                            let t  ← whnf $ ← inferType fAbs
+                            let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
                             -- if !aAbs.hasLooseBVars  then
-                            -- try
-                            guard <| ← isDefEq fDomain (← inferType aAbs)
-                            -- catch err => logInfo m!"Defeq failed because of loose bvars when examining {e}. Error: {err.toMessageData}"
+                            let aAbsType ← inferType aAbs
+                            unless ← isDefEq fDomain aAbsType do
+                              logInfo m!"The domain of the function application: {fDomain}"
+                              logInfo m!"The type of the argument: {aAbsType}"
+                              throwError m!"Defeq failed on comparing the domain and argument type on {e}."
+
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b)
       | .proj _ _ b      => return e.updateProj! (← visit b)
@@ -234,41 +190,48 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
 
-  -- Get new mvars (the abstracted fExpr & all hypotheses on it)
-  let mvarArray ← getMVars abstractedProof
-
- -- Turn the abstracted fExpr & all hypotheses into a chained implication
-  let abstractedProof ← mkLambdaFVars (mvarArray.map Expr.mvar) abstractedProof (binderInfoForMVars := .default)
-  logInfo m!"Proof with fvars instead of mvars: {abstractedProof}"
 
   return abstractedProof
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
+
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
+
+  logInfo ("Ungeneralized Proof: " ++ thmProof)
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
-  let genThmProof ← autogeneralizeProof thmProof fExpr; logInfo ("Generalized Proof: " ++ genThmProof)
-  logInfo m!"Proof with mvars: {genThmProof}"
-  let genThmType ← inferType genThmProof
+  let genThmProof ← autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
   let userThmType ← kabstract thmType fExpr (occs:= .pos [1]) -- generalize the first occurrence of the expression in the type
   let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
-  logInfo m!"The type to be generalized is {userThmType}"
+  logInfo m!"User Generalized Type: {userThmType}"
 
   -- compare and unify mvars
+  -- let mctx ← getMCtx
   let unif ← isDefEq genThmType userThmType
   logInfo m!"Do they unify? {unif}"
-  let userThmType ← instantiateMVars userThmType
+  -- setMCtx mctx
+
+
   let genThmType  ← instantiateMVars genThmType
   let genThmProof  ← instantiateMVars genThmProof
   -- logInfo m!"Instantiated genThmType: {genThmType}"
   -- logInfo m!"Instantiated userThmType: {userThmType}"
+
+     -- Get new mvars (the abstracted fExpr & all hypotheses on it)
+  let mvarArray ← getMVars genThmProof
+ -- Turn the abstracted fExpr & all hypotheses into a chained implication
+  let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
+  let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
+
   logInfo m!"Instantiated proof after type was inferred: {genThmProof}"
+
 
 
   -- let genThmType ← inferType genThmProof
