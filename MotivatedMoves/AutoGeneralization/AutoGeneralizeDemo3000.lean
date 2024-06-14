@@ -52,14 +52,13 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum F
 /---------------------------------------------------------------------------
 Analogizing a theorem about an operator that uses commutativity and associativity
 ---------------------------------------------------------------------------/
-example :  1 + 2 = 2 + 1 := by
+example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
   let _multComm :  ∀ (n m : ℕ), n * m = m * n := Nat.mul_comm
 
   autogeneralize _multComm (@HMul.hMul ℕ ℕ  ℕ instHMul) -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
-  specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
-  specialize _multPermute.Gen 1 2 3
+  specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
