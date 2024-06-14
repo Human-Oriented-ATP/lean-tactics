@@ -240,28 +240,29 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- compare and unify mvars
   -- let mctx ← getMCtx
+  -- let _ ← Elab.Term.synthesizeSyntheticMVarsNoPostponing
   let unif ← isDefEq userThmType genThmType
   logInfo m!"Do they unify? {unif}"
-  -- let _ ← Elab.Term.synthesizeSyntheticMVarsNoPostponing
   -- let userThmType  ← instantiateMVars userThmType
   -- logInfo m!"User type with instantiated mvars: {genThmProof}"
   let genThmProof  ← instantiateMVars genThmProof
   logInfo m!"Proof with instantiated mvars: {genThmProof}"
   -- setMCtx mctx
 
-     -- Get new mvars (the abstracted fExpr & all hypotheses on it)
-  let mvarArray ←  getMVars genThmProof
-  let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
+
+  -- Get new mvars (the abstracted fExpr & all hypotheses on it)
+  -- Turn the abstracted fExpr & all hypotheses into a chained implication
+  let genThmProof := (← abstractMVars genThmProof).expr--← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
 
   -- resolve any mvars that are now newly in the type
-  let mvarArray ←  getMVars genThmProof
-  let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
+  -- let mvarArray ←  getMVars genThmProof
+  -- let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
+
   logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
 
   -- logInfo m!"mvars {mvarArray.map (fun m => m.name)}"
   -- logInfo m!"mvar types {mvarArray}"
 
-  -- -- Turn the abstracted fExpr & all hypotheses into a chained implication
   -- let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
   -- logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
   let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
