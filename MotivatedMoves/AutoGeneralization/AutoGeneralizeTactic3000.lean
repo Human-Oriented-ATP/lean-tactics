@@ -154,8 +154,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .const n _       => let constType ← getTheoremStatement n
                             if (← containsExpr p constType) then
                               let genConstType ← visit constType  -- expr for generalized proof statment
-                              -- let m ← mkFreshExprMVarAt lctx linst genConstType -- mvar for generalized proof
-                              let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
+                              let m ← mkFreshExprMVarAt lctx linst genConstType -- mvar for generalized proof
+                              -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                               return m
                             else
                               return e
@@ -215,9 +215,12 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
 
 --   return filledMVars
 
-/-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
 
+deriving instance Repr for Occurrences
+
+/-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
+def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) : TacticM Unit := withMainContext do
+  -- logInfo m!"these occurrences {repr occs}"
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -230,14 +233,18 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
-  let userThmType ← kabstract thmType fExpr (occs:= .pos [1]) -- generalize the first occurrence of the expression in the type
-  let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
+  -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
+  let userThmType ← kabstract thmType fExpr occs -- generalize the first occurrence of the expression in the type
+  let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr) (kind := .syntheticOpaque))
   logInfo m!"User Generalized Type: {userThmType}"
 
   -- compare and unify mvars
   -- let mctx ← getMCtx
-  let unif ← isDefEq genThmType userThmType
+  let unif ← isDefEq userThmType genThmType
   logInfo m!"Do they unify? {unif}"
+  -- let _ ← Elab.Term.synthesizeSyntheticMVarsNoPostponing
+  -- let userThmType  ← instantiateMVars userThmType
+  -- logInfo m!"User type with instantiated mvars: {genThmProof}"
   let genThmProof  ← instantiateMVars genThmProof
   logInfo m!"Proof with instantiated mvars: {genThmProof}"
   -- setMCtx mctx
@@ -245,14 +252,11 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
      -- Get new mvars (the abstracted fExpr & all hypotheses on it)
   let mvarArray ←  getMVars genThmProof
   let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-  logInfo m!"mvars round 1{mvarArray.map (fun m => m.name)}"
-  logInfo m!"pf round 1 {genThmProof}"
 
   -- resolve any mvars that are now newly in the type
   let mvarArray ←  getMVars genThmProof
   let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-  logInfo m!"mvars round 2 {mvarArray.map (fun m => m.name)}"
-  logInfo m!"pf round 2 {genThmProof}"
+  logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
 
   -- logInfo m!"mvars {mvarArray.map (fun m => m.name)}"
   -- logInfo m!"mvar types {mvarArray}"
@@ -278,9 +282,28 @@ def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
 
+def elabOccs (occs : Option $ TSyntax `Lean.Parser.Tactic.Conv.occs) : MetaM Occurrences := do
+  match occs with
+    | none => pure (.pos [])
+    | some occs => match occs with
+      | `(Parser.Tactic.Conv.occsWildcard| *) => pure .all
+      | `(Parser.Tactic.Conv.occsIndexed| $ids*) => do
+        let ids ← ids.mapIdxM fun i id =>
+          match id.getNat with
+          | 0 => throwErrorAt id "positive integer expected"
+          | n+1 => pure (n+1, i.1) -- the occurrences & list index
+        let ids := ids.qsort (·.1 < ·.1)
+        unless @Array.allDiff _ ⟨(·.1 == ·.1)⟩ ids do
+          throwError "occurrence list is not distinct"
+        pure (.pos $ ids.toList.map (·.1)) -- get just the occurrences
+      | _ => throwUnsupportedSyntax
+
 /- Autogeneralize term "t" in hypothesis "h"-/
+-- elab "autogeneralize" h:ident f:term "(" "occs" ":=" occs:num+ ")": tactic => do
+-- elab "autogeneralize" h:ident f:term occs:num+: tactic => do
 elab "autogeneralize" h:ident f:term : tactic => do
   let f ← (Lean.Elab.Term.elabTerm f none)
+  -- let occs ← elabOccs occs
   autogeneralize h.getId f
 
 end Autogeneralize

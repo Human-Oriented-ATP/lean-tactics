@@ -25,8 +25,23 @@ set_option pp.showLetValues true
 -- set_option pp.proofs.withType true
 -- set_option pp.instanceTypes true
 
+/- --------------------------------------------------------------------------
+DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+-------------------------------------------------------------------------- -/
 
 
+variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
+theorem fun_set : (Fintype.card α = 3) → (Fintype.card β = 3) → Fintype.card (α → β) = 3^3 := by
+  intros fa fb
+  rw [Fintype.card_fun, fa, fb]
+
+#print fun_set
+
+example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+  let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
+
+  autogeneralize _fun_set (3:)
+  specialize _fun_set.Gen
 /- --------------------------------------------------------------------------
 DEMO OF HARD & EASY CASE -- The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
 -------------------------------------------------------------------------- -/
@@ -44,7 +59,7 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
 -- attribute [reducible] WithLp
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
   let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
-  autogeneralize _distance (3:)
+  autogeneralize _distance (3:ℕ)
 
   intros x y
   specialize _distance.Gen 4 x y
@@ -63,13 +78,10 @@ example :  1 * 2 = 2 * 1 := by
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  /-
-  unexpected bound variable #2
-  -/
   autogeneralize _multPermute (HMul.hMul : ℕ → ℕ → ℕ) -- (.*.) -- adds multPermute.Gen to list of hypotheses
-
-  specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm
-  specialize _multPermute.Gen 1 2 3
+  -- specialize _multPermute.Gen (.+.) (.+.) (.+.)-- Nat.add_assoc (.+.) Nat.add_comm Nat.add_assoc 1 2 3
+  --                            f:+, then f+ and g++ and assoc, then h+ and comm, ...
+  specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
 
 /- --------------------------------------------------------------------------
