@@ -86,22 +86,6 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
 
-/- Given a theorem name n, returns the theorem statement with each instance of "p" -/
--- def replaceTheoremNameWithAbstractedTheoremStatement (n : Name) (p : Expr) : MetaM Expr :=
--- do
-
-/- Replaces all instances of "p" in "e" with a metavariable.
-Roughly implemented like kabstract, with the following differences:
-  kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
-  kabstract replaces "p" with the same bvar, while this replaces each instance with a different mvar
-  kabstract doesn't perform unification to make sure different mvars that will ultimately unify are this same, this does
-  kabstract doesn't look for instances of "p" in the types of constants, this does
--/
-
-#check kabstract
-
-#check Exception
-
 def unifyMVars (e : Expr) : MetaM Expr := do
   match e with
     -- unify types of metavariables as soon as we get a chance in .app
@@ -121,6 +105,13 @@ def unifyMVars (e : Expr) : MetaM Expr := do
                           return e.updateApp! fAbs aAbs
     | _ => return e
 
+/- Replaces all instances of "p" in "e" with a metavariable.
+Roughly implemented like kabstract, with the following differences:
+  kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
+  kabstract replaces "p" with the same bvar, while this replaces each instance with a different mvar
+  kabstract doesn't perform unification to make sure different mvars that will ultimately unify are this same, this does
+  kabstract doesn't look for instances of "p" in the types of constants, this does
+-/
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
@@ -141,7 +132,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
                             -- if !aAbs.hasLooseBVars  then
                             let aAbsType ← inferType aAbs
-                            unless ← withTransparency .instances (isDefEq fDomain aAbsType) do
+                            let mctx ← getMCtx
+                            unless ← withTransparency .all (isDefEqNoConstantApprox fDomain aAbsType) do
+                              setMCtx mctx
                               logInfo m!"The domain of the function application: {fDomain}"
                               logInfo m!"The type of the argument: {aAbsType}"
                               logInfo m!"Defeq failed on comparing the domain and argument type on {e}."
@@ -240,7 +233,6 @@ deriving instance Repr for Occurrences
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) : TacticM Unit := withMainContext do
-  -- logInfo m!"these occurrences {repr occs}"
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -249,7 +241,9 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
-  let genThmProof ← autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  let mut genThmProof := thmProof
+  -- while ← containsExpr fExpr thmProof do
+  genThmProof ← autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
@@ -258,47 +252,16 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr) (kind := .syntheticOpaque))
   logInfo m!"User Generalized Type: {userThmType}"
 
-  -- compare and unify mvars
-  -- let mctx ← getMCtx
-  -- let _ ← Elab.Term.synthesizeSyntheticMVarsNoPostponing
+  -- compare and unify mvars between user type and our generalized type
   let unif ← isDefEq userThmType genThmType
   logInfo m!"Do they unify? {unif}"
-  -- let userThmType  ← instantiateMVars userThmType
-  -- logInfo m!"User type with instantiated mvars: {genThmProof}"
-  let genThmProof  ← instantiateMVars genThmProof
+
+  genThmProof  ← instantiateMVars genThmProof
   logInfo m!"Proof with instantiated mvars: {genThmProof}"
-  -- setMCtx mctx
 
-
-  -- Get new mvars (the abstracted fExpr & all hypotheses on it)
-  -- Turn the abstracted fExpr & all hypotheses into a chained implication
-  let genThmProof := (← abstractMVars genThmProof).expr--← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-
-  -- resolve any mvars that are now newly in the type
-  -- let mvarArray ←  getMVars genThmProof
-  -- let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-
-  logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
-
-  -- logInfo m!"mvars {mvarArray.map (fun m => m.name)}"
-  -- logInfo m!"mvar types {mvarArray}"
-
-  -- let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)
-  -- logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
+  -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
+  genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
-
-
-  -- logInfo m!"mvar initial {  mvarArray[0]!}"
-  -- logInfo m!"first mvar dependency { (← mvarArray[0]!.getMVarDependencies).toList}"
-  -- let mvarArray ← getMVars genThmProof
-  -- logInfo m!"mvars {mvarArray.map (fun m => m.name)}"
-  -- let genThmProof ← mkLambdaFVars (mvarArray.map Expr.mvar) genThmProof (binderInfoForMVars := .default)  (usedLetOnly := false)
-  -- logInfo m!"Proof with mvars abstracted into quantifiers: {genThmProof}"
-
-
-  -- let genThmType ← inferType genThmProof
-  -- logInfo m!"Type with fvars instead of mvars: {genThmType}"
-
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
@@ -320,11 +283,8 @@ def elabOccs (occs : Option $ TSyntax `Lean.Parser.Tactic.Conv.occs) : MetaM Occ
       | _ => throwUnsupportedSyntax
 
 /- Autogeneralize term "t" in hypothesis "h"-/
--- elab "autogeneralize" h:ident f:term "(" "occs" ":=" occs:num+ ")": tactic => do
--- elab "autogeneralize" h:ident f:term occs:num+: tactic => do
 elab "autogeneralize" h:ident f:term : tactic => do
   let f ← (Lean.Elab.Term.elabTerm f none)
-  -- let occs ← elabOccs occs
   autogeneralize h.getId f
 
 end Autogeneralize
