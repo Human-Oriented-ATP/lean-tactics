@@ -17,13 +17,13 @@ open Lean Elab Tactic Meta Term Command
 
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false
 -- set_option pp.proofs.withType true
--- set_option pp.instanceTypes true
+set_option pp.instanceTypes true
 
 /- --------------------------------------------------------------------------
 DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
@@ -31,11 +31,6 @@ DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 
 
 
 variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
--- theorem fun_set : (Fintype.card α = 3) → (Fintype.card β = 3) → Fintype.card (α → β) = 3^3 := by
---   intros fa fb
---   rw [Fintype.card_fun, fa, fb]
-
--- #print fun_set
 
 example : Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 := by
   let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
@@ -83,7 +78,7 @@ example :  1 * 2 = 2 * 1 := by
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize _multPermute (@HMul.hMul ℕ ℕ  ℕ instHMul) -- (.*.) -- adds multPermute.Gen to list of hypotheses
-  -- specialize _multPermute.Gen (.+.) (.+.) (.+.) Nat.add_assoc (.+.) Nat.add_comm Nat.add_assoc 1 2 3
+  specialize _multPermute.Gen (.+.) (.+.) (.+.)
   --                            f:+, then f+ and g++ and assoc, then h+ and comm, ...
   -- specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
