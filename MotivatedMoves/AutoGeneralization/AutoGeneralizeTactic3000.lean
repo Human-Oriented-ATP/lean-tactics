@@ -92,6 +92,8 @@ def unifyMVars (e : Expr) : MetaM Expr := do
     -- that is, ensure that fAbs and aAbs are in sync about their metavariables
     | .app f a         => let fAbs ← unifyMVars f
                           let aAbs ← unifyMVars a
+
+                          throwError "hi"
                           -- reducible transparency lets you see that reducible types that don't seem like forall statements actually are forall statements
                           let t  ← whnf $ ← inferType fAbs
                           let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
@@ -100,7 +102,7 @@ def unifyMVars (e : Expr) : MetaM Expr := do
                           unless ← withTransparency .instances (isDefEq fDomain aAbsType) do
                             logInfo m!"The domain of the function application: {fDomain}"
                             logInfo m!"The type of the argument: {aAbsType}"
-                            logInfo m!"Defeq failed on comparing the domain and argument type on {e}."
+                            throwError "Defeq failed on comparing the domain and argument type on {e}."
 
                           return e.updateApp! fAbs aAbs
     | _ => return e
@@ -133,11 +135,14 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             -- if !aAbs.hasLooseBVars  then
                             let aAbsType ← inferType aAbs
                             let mctx ← getMCtx
+
+                            let aAbsType ← whnf aAbsType
+                            let fDomain ← whnf fDomain
                             unless ← withTransparency .all (isDefEqNoConstantApprox fDomain aAbsType) do
                               setMCtx mctx
                               logInfo m!"The domain of the function application: {fDomain}"
                               logInfo m!"The type of the argument: {aAbsType}"
-                              logInfo m!"Defeq failed on comparing the domain and argument type on {e}."
+                              throwError m!"Defeq failed on comparing the domain and argument type on {e}."
 
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b)
@@ -163,7 +168,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- when we encounter a theorem used in the proof
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
-      | .const n _       => let constType ← getTheoremStatement n
+      | .const n _       => let constType ← inferType e --getTheoremStatement n
                             if (← containsExpr p constType) then
                               let genConstType ← visit constType  -- expr for generalized proof statment
                               let m ← mkFreshExprMVarAt lctx linst genConstType -- mvar for generalized proof
@@ -200,7 +205,7 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
   -- let abstractedProof ← liftTermElabM synthesizeSyntheticMVarsNoPostponing abstractedProof
-  let abstractedProof ← unifyMVars abstractedProof
+  -- let abstractedProof ← unifyMVars abstractedProof
   return abstractedProof
 
 /-- Get all mvars in an expression, as well as all mvars that each mvar depends on. -/
