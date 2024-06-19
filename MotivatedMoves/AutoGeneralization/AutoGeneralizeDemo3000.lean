@@ -8,6 +8,7 @@ import Mathlib.Data.Real.Irrational
 import Mathlib.Data.Nat.Prime
 import Mathlib.RingTheory.Coprime.Lemmas
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
+import Qq
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic3000
 
@@ -17,7 +18,7 @@ open Lean Elab Tactic Meta Term Command
 
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option pp.explicit true
 
@@ -28,10 +29,32 @@ set_option pp.instanceTypes true
 /- --------------------------------------------------------------------------
 DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
 -------------------------------------------------------------------------- -/
+open Qq
 
+-- #eval show MetaM Bool from do
+--   let e1 := q(∀ {a : Type} [inst: BEq a], a)
+--   let e2 := q(∀ (a : Type) (inst : BEq a), a)
+--   isDefEq e1 e2
+
+-- the following expressions aren't unifying! aha it was just synthetic opaqueness
+-- #check q(∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
+--   Fintype.card α = (2 : ℕ) → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
+
+-- #check q(∀ (α β : Type) (inst : Fintype α) (inst_1 : Fintype β) (inst_2 : DecidableEq α),
+--   Fintype.card α = ?m.4944 → Fintype.card β = ?m.4943 → Fintype.card (α → β) = ?m.4943 ^ ?m.4944)
+
+-- #eval show MetaM Bool from do
+--   let e1 := q(∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
+--   Fintype.card α = (2 : ℕ) → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
+
+--   let e2 := q(∀ (α β : Type) (inst : Fintype α) (inst_1 : Fintype β) (inst_2 : DecidableEq α),
+--   Fintype.card α = 2 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
+
+--   isDefEq e1 e2
 
 variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
 
+set_option trace.Meta.isDefEq true in
 example : Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 := by
   let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
                   Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
@@ -39,6 +62,7 @@ example : Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → �
 
   specialize _fun_set.Gen 4 5
   apply _fun_set.Gen
+
 
 /- --------------------------------------------------------------------------
 DEMO OF HARD & EASY CASE -- The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
@@ -75,13 +99,6 @@ example :  1 * 2 = 2 * 1 := by
 
   specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
-
-
-
-
-
-
-
 
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
