@@ -97,5 +97,8 @@ theorem grasshopper_ih
   jumps.sizeOf < main_jumps.length →
   jumps.Nodup →
   jumps.sum = mines.length+1 →
-  jumps.sizeOf > mines.countMines
+  jumps.sizeOf > mines.countMines →
+  ∃ (jumps_ih : Jumps),
+  jumps = jumps_ih.s ∧
+  (∀ (x : ℤ), ¬jumps_ih.landings[x] ∨ ¬mines[x])
 := by sorry
