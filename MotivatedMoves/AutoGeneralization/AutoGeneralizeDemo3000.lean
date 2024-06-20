@@ -1,24 +1,18 @@
 /-
-Proof-dependent generalization,
-As described in paper 'Generalization in Type Theory Based Proof Assistants'
+Proof-based generalization
 -/
 
 import Mathlib.FieldTheory.Finite.Basic
-import Mathlib.Data.Real.Irrational
-import Mathlib.Data.Nat.Prime
-import Mathlib.RingTheory.Coprime.Lemmas
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
-import Qq
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic3000
+open Autogeneralize
 
 open Real
-open Autogeneralize
 open Lean Elab Tactic Meta Term Command
 
-
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option pp.explicit true
 
@@ -27,13 +21,8 @@ set_option pp.showLetValues true
 set_option pp.instanceTypes true
 
 /- --------------------------------------------------------------------------
-DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
 -------------------------------------------------------------------------- -/
-open Qq
-
--- variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
-
--- set_option trace.Meta.isDefEq true in
 example :
   ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 4 :=
 by
@@ -61,10 +50,8 @@ by
   autogeneralize _distance (2:ℕ)  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
   intros x y
-  specialize _distance.Gen 3 (_) x y -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
-  swap
+  specialize _distance.Gen 3 (EuclideanSpace.dist_eq) x y -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
   assumption
-  sorry
 
 -- attribute [reducible] WithLp
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
@@ -89,10 +76,12 @@ example :  1 * 2 = 2 * 1 := by
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize _multPermute (@HMul.hMul ℕ ℕ  ℕ instHMul) -- (.*.) -- adds multPermute.Gen to list of hypotheses
-  specialize _multPermute.Gen (.+.) (.+.) (.+.)
-  --                            f:+, then f+ and g++ and assoc, then h+ and comm, ...
-  -- specialize _multPermute.Gen (@HAdd.hAdd ℕ ℕ ℕ instHAdd) Nat.add_assoc Nat.add_comm 1 2 3
+  autogeneralize _multPermute (@HMul.hMul ℕ ℕ  ℕ instHMul) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize _multPermute.Gen (@HMul.hMul ℕ ℕ  ℕ instHMul)
+  autogeneralize _multPermute.Gen.Gen (@HMul.hMul ℕ ℕ  ℕ instHMul)
+  autogeneralize _multPermute.Gen.Gen.Gen (@HMul.hMul ℕ ℕ  ℕ instHMul)
+
+  specialize _multPermute.Gen.Gen.Gen.Gen (.+.) (.+.) (.+.) (.+.) (.+.) (.+.) Nat.add_assoc (.+.) Nat.add_comm Nat.add_assoc 1 2 3
   assumption
 
 /- --------------------------------------------------------------------------

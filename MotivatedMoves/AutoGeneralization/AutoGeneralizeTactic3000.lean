@@ -244,10 +244,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-  check abstractedProof
-
-  -- let abstractedProof ← liftTermElabM synthesizeSyntheticMVarsNoPostponing abstractedProof
-  -- let abstractedProof ← unifyMVars abstractedProof
   return abstractedProof
 
 /-- Get all mvars in an expression, as well as all mvars that each mvar depends on. -/
@@ -260,9 +256,6 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
     allMVars := allMVars ++ deps
 
   return allMVars.toList.eraseDups.toArray
-
--- def withAssignableSyntheticOpaque : MetaM α → MetaM α :=
---   withReader (fun ctx => {ctx with config := {ctx.config with assignSyntheticOpaque := true}} )
 
 deriving instance Repr for Occurrences
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
@@ -285,10 +278,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
   let userThmType ← kabstract thmType fExpr occs -- generalize the first occurrence of the expression in the type
-
-  -- let _ ← withLocalDecl `userSelected .default (← inferType fExpr) (fun placeholder => do
-    -- return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
-  -- withNewMCtxDepth do
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
@@ -300,9 +289,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  -- logInfo m!"User Type with instantiated mvars: {← instantiateMVars userThmType}"
-  -- logInfo m!"Gen Type with instantiated mvars: {← instantiateMVars genThmType}"
-  -- logInfo m!"Proof with instantiated mvars: {← instantiateMVars  genThmProof}"
   logInfo m!"mvars in gen proof {(← getMVars genThmProof).map MVarId.name}"
 
   let userSelectedMVar ← getMVarContainingMData
