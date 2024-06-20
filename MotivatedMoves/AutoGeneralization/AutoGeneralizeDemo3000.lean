@@ -24,25 +24,22 @@ set_option pp.instanceTypes true
 DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
 -------------------------------------------------------------------------- -/
 example :
-  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 4 :=
+  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 :=
 by
   let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
                   Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
 
   autogeneralize _fun_set (3:ℕ)
+  autogeneralize _fun_set.Gen (3:ℕ)
 
-  specialize @_fun_set.Gen 4
+  specialize @_fun_set.Gen.Gen 5 4
 
-  apply _fun_set.Gen
-
+  assumption
 
 /- --------------------------------------------------------------------------
 DEMO OF HARD & EASY CASE -- The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize
 -------------------------------------------------------------------------- -/
 
--- #check EuclideanSpace.dist_eq.{0,0} ℝ
-
--- attribute [reducible] WithLp
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) :=
 by
   let _distance : ∀ (x y : EuclideanSpace (ℝ:Type) (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq.{0,0} x y
