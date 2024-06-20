@@ -115,34 +115,43 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => let fAbs ← visit f
                             let aAbs ← visit a
-                            -- reducible transparency lets you see that reducible types that don't seem like forall statements actually are forall statements
-                            -- let t  ← whnf $ ← inferType fAbs
-                            -- let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
-                            -- -- if !aAbs.hasLooseBVars  then
-                            -- let aAbsType ← inferType aAbs
-                            -- let mctx ← getMCtx
+                            --reducible transparency lets you see that reducible types that don't seem like forall statements actually are forall statements
+                            let t  ← whnf $ ← inferType fAbs
+                            let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
+                            -- if !aAbs.hasLooseBVars  then
+                            let aAbsType ← inferType aAbs
+                            let mctx ← getMCtx
 
-                            -- let aAbsType ← whnf aAbsType
-                            -- let fDomain ← whnf fDomain
-                            -- unless ← withTransparency .all (isDefEqNoConstantApprox fDomain aAbsType) do
-                            --   setMCtx mctx
-                            --   logInfo m!"The domain of the function application: {fDomain}"
-                            --   logInfo m!"The type of the argument: {aAbsType}"
-                            --   throwError m!"Defeq failed on comparing the domain and argument type on {e}."
+                            let aAbsType ← whnf aAbsType
+                            let fDomain ← whnf fDomain
+                            unless ← withTransparency .all (isDefEqNoConstantApprox fDomain aAbsType) do
+                              setMCtx mctx
+                              logInfo m!"The domain of the function application: {fDomain}"
+                              logInfo m!"The type of the argument: {aAbsType}"
+                              throwError m!"Defeq failed on comparing the domain and argument type on {e}."
 
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b)
       | .proj _ _ b      => return e.updateProj! (← visit b)
       | .letE _ t v b _  => return e.updateLet! (← visit t) (← visit v) (← visit b)
       | .lam n d b bi     =>
-                            let dAbs ← visit d
-                            --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
-                            let updatedLambda ← withLocalDecl n .default dAbs (fun placeholder => do
-                              let b := b.instantiate1 placeholder
-                              let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
-                              return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
-                            )
-                            return updatedLambda
+                            -- if bi.isInstImplicit then
+                            --   let updatedLambda ← lambdaTelescope e (fun fvars b => do
+                            --     let placeholder := fvars[0]!
+                            --     let b := b.instantiate1 placeholder
+                            --     let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
+                            --     return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
+                            --   )
+                            --   return updatedLambda
+                            -- else
+                              let dAbs ← visit d
+                              --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
+                              let updatedLambda ← withLocalDecl n .default dAbs (fun placeholder => do
+                                let b := b.instantiate1 placeholder
+                                let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
+                                return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
+                              )
+                              return updatedLambda
       | .forallE n d b bi => let dAbs ← visit d
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedForAll ← withLocalDecl n .default dAbs (fun placeholder => do
@@ -184,9 +193,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
         -- so that other matches are still possible.
         setMCtx mctx
         visitChildren ()
-  let e ← visit e |>.run' 1
-  check e
-  return ← instantiateMVars e
+  visit e |>.run' 1
+  -- check e
+  -- return ← instantiateMVars e
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
