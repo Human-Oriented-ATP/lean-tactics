@@ -139,6 +139,9 @@ def getMVarContainingMData : MetaM MVarId := do
       return mvarId
   throwError "No metavariable assigned to an expression with metadata found"
 
+def lambdaBoundedTelescope (e : Expr) (n : Nat) (f : Array Expr → Expr → MetaM α) : MetaM α :=
+  lambdaTelescope e fun xs e => do f xs[:n] (← mkLambdaFVars xs[n:] e)
+
 
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
@@ -155,9 +158,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   let pType ← inferType p
   -- let pHeadIdx := p.toHeadIndex
   -- let pNumArgs := p.headNumArgs
-  let rec visit (e : Expr) : StateRefT Nat MetaM Expr := do
+  let rec visit (e : Expr) : MetaM Expr := do
     -- let e ← whnf e
-    let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+    let visitChildren : Unit → MetaM Expr := fun _ => do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
@@ -170,9 +173,16 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .letE _ t v b _  => return e.updateLet! (← visit t) (← visit v) (← visit b)
       | .lam n d b bi     =>
                             -- if bi.isInstImplicit then
-                            --   let updatedLambda ← lambdaTelescope e (fun fvars b => do
+                            --   let (_, tempinst) := (← getLCtx, ← getLocalInstances)
+                            --   logInfo m!"temporary instances before telescope {tempinst.map LocalInstance.className}"
+
+                            --   let updatedLambda ← lambdaBoundedTelescope e 1 (fun fvars b => do
+                            --     logInfo m!"fvars are {fvars}"
+                            --     logInfo m!"body is {b}"
                             --     let placeholder := fvars[0]!
-                            --     let b := b.instantiate1 placeholder
+                            --     let (_, tempinst) := (← getLCtx, ← getLocalInstances)
+                            --     logInfo m!"temporary instances after telescope {tempinst.map LocalInstance.className}"
+                            --     -- let b := b.instantiate1 placeholder
                             --     let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
                             --     return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                             --   )
@@ -180,7 +190,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             -- else
                               let dAbs ← visit d
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
-                              let updatedLambda ← withLocalDecl n .default dAbs (fun placeholder => do
+                              let updatedLambda ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
                                 let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
                                 return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
@@ -188,7 +198,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               return updatedLambda
       | .forallE n d b bi => let dAbs ← visit d
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
-                              let updatedForAll ← withLocalDecl n .default dAbs (fun placeholder => do
+                              let updatedForAll ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
                                 let bAbs ← visit b  -- now it's safe to recurse on b (no loose bvars)
                                 return ← mkForallFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
@@ -227,14 +237,15 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
         -- so that other matches are still possible.
         setMCtx mctx
         visitChildren ()
-  visit e |>.run' 1
-  -- check e
-  -- return ← instantiateMVars e
+  visit e
+
 
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+  check abstractedProof
+
   -- let abstractedProof ← liftTermElabM synthesizeSyntheticMVarsNoPostponing abstractedProof
   -- let abstractedProof ← unifyMVars abstractedProof
   return abstractedProof

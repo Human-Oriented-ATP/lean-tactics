@@ -18,7 +18,7 @@ open Lean Elab Tactic Meta Term Command
 
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues false
+set_option pp.showLetValues true
 -- set_option profiler true
 -- set_option pp.explicit true
 
@@ -31,14 +31,18 @@ DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 
 -------------------------------------------------------------------------- -/
 open Qq
 
-variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
+-- variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
 
 -- set_option trace.Meta.isDefEq true in
-example : Fintype.card α = 4 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 4 := by
+example :
+  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 4 :=
+by
   let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
                   Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
+
   autogeneralize _fun_set (3:ℕ)
-  specialize _fun_set.Gen 4
+
+  specialize @_fun_set.Gen 4
 
   apply _fun_set.Gen
 
