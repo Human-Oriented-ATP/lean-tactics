@@ -6,6 +6,17 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
+def printMVarsAssignmentsInContext : MetaM Unit := do
+  let m ← getMCtx
+  logInfo m!"MVar Context:
+    {(m.eAssignment.toList.map (fun d =>
+    m!"Mvar:
+      {d.fst.name}
+    Assignment:
+      {repr d.snd}"
+
+  ))}"
+
 def printMVarContext : MetaM Unit := do
   let m ← getMCtx
   logInfo m!"MVar Context: {(m.decls.toList.map (fun d =>
@@ -16,6 +27,18 @@ def printLocalContext : MetaM Unit := do
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   logInfo m!"Local context {lctx.decls.toList.filterMap (fun oplocdec => oplocdec.map (LocalDecl.userName))}"
   logInfo m!"Local instances {linst.map LocalInstance.className}"
+
+
+/- Instantiates all mvars in e except the mvar given by m -/
+def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
+  -- remove the assignment
+  let mctx ← getMCtx
+  let mctxassgn := mctx.eAssignment.erase mv
+  setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
+  -- instantiate mvars
+  -- let e ← instantiateMVars e
+  return e
+
 
 /--  Tactic get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
@@ -92,6 +115,31 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
 
+/- Replaces all subexpressions where "condition" holds with the "replacement" in the expression e -/
+def containsExprWhere (condition : Expr → Bool) (e : Expr)   : MetaM Bool := do
+  let e_subexprs := getSubexpressionsIn e
+  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return condition e_subexpr)
+  return firstExprContainingSubexpr.isSome
+
+
+def containsMData (e : Expr): MetaM Bool := do
+  return ← containsExprWhere (Expr.isMData) e
+
+def getMVarAssignedToMData : MetaM MVarId := do
+  let mctx ← getMCtx
+  for (mvarId, expr) in mctx.eAssignment do
+    if Expr.isMData expr then
+      return mvarId
+  throwError "No metavariable assigned to an expression with metadata found"
+
+def getMVarContainingMData : MetaM MVarId := do
+  let mctx ← getMCtx
+  for (mvarId, expr) in mctx.eAssignment do
+    if ← containsMData expr then
+      return mvarId
+  throwError "No metavariable assigned to an expression with metadata found"
+
+
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
@@ -166,7 +214,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .const n _       => let constType ← inferType e --getTheoremStatement n
                             if (← containsExpr p constType) then
                               let genConstType ← visit constType  -- expr for generalized proof statment
-                              let m ← mkFreshExprMVarAt lctx linst genConstType -- mvar for generalized proof
+                              let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic)-- mvar for generalized proof
                               -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                               return m
                             else
@@ -216,11 +264,6 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
 
   return allMVars.toList.eraseDups.toArray
 
-
-#check LocalDecl.userName
-#check LocalInstances
-
-#check withAssignableSyntheticOpaque
 -- def withAssignableSyntheticOpaque : MetaM α → MetaM α :=
 --   withReader (fun ctx => {ctx with config := {ctx.config with assignSyntheticOpaque := true}} )
 
@@ -239,7 +282,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- let genThmProof := thmProof
   -- while ← containsExpr fExpr thmProof do
-  let genThmProof ←  autogeneralizeProof thmProof fExpr; --logInfo ("Proof w/o instantiated mvars: " ++ genThmProof)
+  let genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
@@ -249,19 +292,31 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- let _ ← withLocalDecl `userSelected .default (← inferType fExpr) (fun placeholder => do
     -- return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
   -- withNewMCtxDepth do
-
-  let userThmType := userThmType.instantiate1 (← mkFreshExprMVar (← inferType fExpr) (kind := .syntheticOpaque))
+  let userMVar ←  mkFreshExprMVar (← inferType fExpr)
+  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+  let userThmType := userThmType.instantiate1 annotatedMVar
   logInfo m!"!User Generalized Type: {userThmType}"
-
+  logInfo m!"mvars in user type {(← getMVars userThmType).map MVarId.name}"
+  logInfo m!"mvars in gen type {(← getMVars genThmType).map MVarId.name}"
 
   -- compare and unify mvars between user type and our generalized type
-  let unif ← isDefEq userThmType genThmType
+  let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  -- printMVarContext
-  let genThmProof  ← instantiateMVars genThmProof
-  -- let userThmType  ← instantiateMVars userThmType
-  logInfo m!"Proof with instantiated mvars: {genThmProof}"
+  -- logInfo m!"User Type with instantiated mvars: {← instantiateMVars userThmType}"
+  -- logInfo m!"Gen Type with instantiated mvars: {← instantiateMVars genThmType}"
+  -- logInfo m!"Proof with instantiated mvars: {← instantiateMVars  genThmProof}"
+  logInfo m!"mvars in gen proof {(← getMVars genThmProof).map MVarId.name}"
+
+  let userSelectedMVar ← getMVarContainingMData
+  if !(← userMVar.mvarId!.isAssigned) then
+    userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+
+  logInfo m!"assingned mvar {userSelectedMVar.name}"
+  let genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+  logInfo m!"Proof with reabstracted mvars: {genThmProof}"
+  logInfo m!"mvars in rebastracted proof {(← getMVars genThmProof).map MVarId.name}"
+
   -- logInfo m!"Type with instantiated mvars: {userThmType}"
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication

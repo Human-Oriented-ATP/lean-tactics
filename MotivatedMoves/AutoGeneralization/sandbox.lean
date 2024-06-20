@@ -48,6 +48,36 @@ def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   let e ← instantiateMVars e
   return e
 
+elab "test''" : tactic => do
+  let userSelected ← mkFreshExprMVarQ q(Nat)
+  let userMVarId := userSelected.mvarId!
+  let userSelectedAnnotated := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ .mvar userMVarId
+  let e := mkLambda `x .default q(Nat) $ mkApp2 q(@HAdd.hAdd Nat Nat Nat instHAdd) userSelectedAnnotated q(3 + 3)
+  let x ← mkFreshExprMVarQ q(Nat)
+  let y ← mkFreshExprMVarQ q(Nat)
+  let e' := mkLambda `x .default q(Nat) q($y + ($y + $x))
+  logInfo m!"mvar e {e}"
+  logInfo m!"mvar e' {e'}"
+  logInfo m!"def eq {← isDefEq e' e }" -- the one that comes second is the one that gets its mvar borrowed in assignments
+  -- let e' ← instantiateMVarsExcept userMVarId e'
+  logInfo m!"instantiated e {e}"
+  logInfo m!"instantiated e' {e'}"
+  -- printMVarsAssignmentsInContext
+  let m ← getMVarAssignedToMData
+  logInfo m!"the assigned one is {m.name}"
+  -- absract anything with metadata
+  let e' ← instantiateMVarsExcept m e'
+
+  -- let e' ← replaceWhere (Expr.isMData) (← mkFreshExprMVar none) e'
+  logInfo m!"replaced e' {e'}"
+  -- logInfo m!"full e' {repr e'}"
+  return
+
+example :True := by
+  test''
+
+  simp
+
 elab "test'" : tactic => do
   let userSelected ← mkFreshExprMVarQ q(Nat)
   let userMVarId := userSelected.mvarId!
@@ -76,6 +106,7 @@ elab "test'" : tactic => do
 
 example : True := by
   test'
+
   simp
 
 elab "test" : tactic => do

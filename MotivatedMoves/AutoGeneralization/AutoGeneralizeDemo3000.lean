@@ -55,12 +55,12 @@ open Qq
 variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
 
 -- set_option trace.Meta.isDefEq true in
-example : Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 := by
+example : Fintype.card α = 4 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 4 := by
   let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
                   Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
   autogeneralize _fun_set (3:ℕ)
+  specialize _fun_set.Gen 4
 
-  specialize _fun_set.Gen 4 5
   apply _fun_set.Gen
 
 
@@ -77,7 +77,7 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
   autogeneralize _distance (2:ℕ)  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
   intros x y
-  specialize _distance.Gen 3 2 (fun _ _ _ _ => EuclideanSpace.dist_eq) x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
+  specialize _distance.Gen 3 x-- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
   sorry
 
 -- attribute [reducible] WithLp
@@ -93,7 +93,7 @@ Analogizing a theorem about an operator that uses commutativity and associativit
 ---------------------------------------------------------------------------/
 example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
-  let _multComm :  ∀ (n m : ℕ), n * m = m * n := Nat.mul_comm
+  let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
 
   autogeneralize _multComm (@HMul.hMul ℕ ℕ  ℕ instHMul) -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
