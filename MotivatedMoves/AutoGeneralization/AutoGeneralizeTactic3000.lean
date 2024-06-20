@@ -163,21 +163,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => let fAbs ← visit f
                             let aAbs ← visit a
-                            --reducible transparency lets you see that reducible types that don't seem like forall statements actually are forall statements
-                            let t  ← whnf $ ← inferType fAbs
-                            let .forallE _ fDomain _ _ := t | throwError m!"yyExpected {fAbs} to have a `forall` type in {e} with body of type {t}."
-                            -- if !aAbs.hasLooseBVars  then
-                            let aAbsType ← inferType aAbs
-                            let mctx ← getMCtx
-
-                            let aAbsType ← whnf aAbsType
-                            let fDomain ← whnf fDomain
-                            unless ← withTransparency .all (isDefEqNoConstantApprox fDomain aAbsType) do
-                              setMCtx mctx
-                              logInfo m!"The domain of the function application: {fDomain}"
-                              logInfo m!"The type of the argument: {aAbsType}"
-                              throwError m!"Defeq failed on comparing the domain and argument type on {e}."
-
+                            check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b)
       | .proj _ _ b      => return e.updateProj! (← visit b)

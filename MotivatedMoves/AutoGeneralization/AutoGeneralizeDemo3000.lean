@@ -31,27 +31,6 @@ DEMO OF REALLY HARD CASE -- four 3s in the theorem statement.  2 are related, 2 
 -------------------------------------------------------------------------- -/
 open Qq
 
--- #eval show MetaM Bool from do
---   let e1 := q(∀ {a : Type} [inst: BEq a], a)
---   let e2 := q(∀ (a : Type) (inst : BEq a), a)
---   isDefEq e1 e2
-
--- the following expressions aren't unifying! aha it was just synthetic opaqueness
--- #check q(∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
---   Fintype.card α = (2 : ℕ) → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
-
--- #check q(∀ (α β : Type) (inst : Fintype α) (inst_1 : Fintype β) (inst_2 : DecidableEq α),
---   Fintype.card α = ?m.4944 → Fintype.card β = ?m.4943 → Fintype.card (α → β) = ?m.4943 ^ ?m.4944)
-
--- #eval show MetaM Bool from do
---   let e1 := q(∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
---   Fintype.card α = (2 : ℕ) → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
-
---   let e2 := q(∀ (α β : Type) (inst : Fintype α) (inst_1 : Fintype β) (inst_2 : DecidableEq α),
---   Fintype.card α = 2 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3)
-
---   isDefEq e1 e2
-
 variable {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α]
 
 -- set_option trace.Meta.isDefEq true in
@@ -71,13 +50,16 @@ DEMO OF HARD & EASY CASE -- The formula for the distance between any two points 
 -- #check EuclideanSpace.dist_eq.{0,0} ℝ
 
 -- attribute [reducible] WithLp
-example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) :=
+by
   let _distance : ∀ (x y : EuclideanSpace (ℝ:Type) (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq.{0,0} x y
 
   autogeneralize _distance (2:ℕ)  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
   intros x y
-  specialize _distance.Gen 3 x-- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
+  specialize _distance.Gen 3 (_) x y -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
+  swap
+  assumption
   sorry
 
 -- attribute [reducible] WithLp
