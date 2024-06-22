@@ -1,17 +1,17 @@
-import Lean
-import Qq
+-- import Lean.Widget
+-- import ProofWidgets
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Image
 import Mathlib.Tactic
-
-open Lean Elab Qq Meta Tactic
 
 abbrev Jump := PNat
 abbrev MineField := List Bool
 abbrev Jumps := List Jump
 abbrev JumpSet := Multiset Jump
 
-def Jump.length (j : Jump) : Int := j
 abbrev Jumps.length (jumps : Jumps) := List.length jumps
 abbrev MineField.length (mineField : MineField) := List.length mineField
+def Jump.length (j : Jump) : Int := j
 
 def List.getIndexD [Inhabited α] (l : List α) (idx : Int) : α :=
   match idx with
@@ -30,38 +30,231 @@ def Jumps.landings (jumps : Jumps) : MineField := jumps.bind (fun j => (jumpOver
 def Jumps.s (jumps : Jumps) : JumpSet := .ofList jumps
 def Jumps.sum (jumps : Jumps) : Int := jumps.s.sum
 
-def Expr.exportTerm : {α : Q(Type)} → Q($α) → MetaM String
-  | ~q(Int), ~q(($a : Int) + ($b : Int)) => return s!"add({toString a}, {toString b})"
-  | ~q(Nat), ~q(Multiset.sizeOf ($j : JumpSet)) => return s!"size({toString j})"
-  | _, e => return toString e
+section Auto
 
-partial def Expr.exportTheorem : Q(Prop) → TacticM (Array String)
-  | ~q($P ∧ $Q) => return (← exportTheorem P) ++ (← exportTheorem Q)
-  | ~q($P ∨ $Q) => return #[s!"or({← exportTheorem P}, {← exportTheorem Q})"]
-  | ~q(¬$P) => return #[s!"not({← exportTheorem P})"]
+open Lean Elab Qq Meta Tactic
+
+set_option pp.notation false
+set_option pp.tagAppFns true
+set_option pp.analyze.typeAscriptions true
+set_option pp.explicit false
+set_option pp.coercions false
+set_option pp.structureProjections false
+
+elab f:ident noWs "(" args:term,* ")" : term => do
+  let args ← args.getElems.mapM (Term.elabTerm · none)
+  mkAppM f.getId args
+
+@[app_unexpander HAppend.hAppend]
+def appendUnexpander : PrettyPrinter.Unexpander
+  | `($(_) $l $l') => `(List.append($l, $l'))
+  | _ => throw ()
+
+@[app_unexpander HAdd.hAdd]
+def addUnexpander : PrettyPrinter.Unexpander
+  | `($(_) $a $b) => `(Add.add($a, $b))
+  | _ => throw ()
+
+@[app_unexpander GetElem.getElem]
+def getElemUnexpander : PrettyPrinter.Unexpander
+  | `($(_) $arr $idx $_) => `(List.getIndexD($arr, $idx))
+  | _ => throw ()
+
+@[app_unexpander List.cons]
+def listConsUnexpander : PrettyPrinter.Unexpander
+  | `($(_) $h []) =>  `(List.singleton($h))
+  | _ => throw ()
+
+
+-- abbrev Qq.Quoted.render {α : Q(Type $u)} (e : Q($α)) : MetaM String := do
+def Expr.render (e : Expr) : MetaM String := do
+  return toString (← ppExpr e)
+
+def Expr.exportTerm : {α : Q(Type)} → Q($α) → MetaM String
+  -- | ~q(Int), ~q(($a : Int) + ($b : Int)) => return s!"add({← Expr.render a}, {← Expr.render b})"
+  -- | ~q(Nat), ~q(Multiset.sizeOf ($j : JumpSet)) => return s!"size({← Expr.render j})"
+  -- | ~q(MineField), ~q((($l) : MineField) ++ (($l') : MineField)) => return s!"Minefield.concat({← Expr.render l}, {← Expr.render l'})"
+  -- | ~q(List Jump), ~q(@HAppend.hAppend _ _ _ (@instHAppend (List Jump) (@List.instAppendList Jump)) $l $l') => return s!"Jumps.concat({← Expr.render l}, {← Expr.render l'})"
+  -- | ~q(Jump), ~q((($jumps) : Jumps)[($idx : Int)]) => return s!"elem({← Expr.render jumps}, {← Expr.render idx})"
+  -- | ~q(Bool), ~q((($mineField) : MineField)[($idx : Int)]) => return s!"elem({← Expr.render mineField}, {← Expr.render idx})"
+  -- | ~q(JumpSet), ~q(Jumps.s $jumps) => return s!"s({← Expr.render jumps})"
+  -- | ~q(Int), ~q(Jump.length ($jump : Jump)) => return s!"Jump.length({← Expr.render jump})"
+  -- | ~q(Int), ~q(Jumps.length ($jumps : Jumps)) =>return s!"Jumps.length({← Expr.render jumps})"
+  -- | ~q(Int), ~q(MineField.length ($mineField : MineField)) =>return s!"MineField.length({← Expr.render mineField})"
+  -- | ~q(Int), ~q(Jumps.sum ($jumps : Jumps)) => return s!"Jumps.sum({← Expr.render jumps})"
+  -- | ~q(Int), ~q(JumpSet.sum ($jumpSet : JumpSet)) => return s!"JumpSet.sum({← Expr.render jumpSet})"
+  -- | ~q(Int), ~q(MineField.countMines ($mineField : MineField)) => return s!"MineField.countMines({← Expr.render mineField})"
+  -- | ~q(MineField), ~q(jumpOver ($jump : Jump)) => return s!"jumpOver({← Expr.render jump})"
+  -- | ~q(MineField), ~q(Jumps.landings ($jumps : Jumps)) => return s!"Jumps.landings({← Expr.render jumps})"
+  | _, e => Expr.render e
+
+partial def Expr.exportTheorem : Q(Prop) → TacticM String
+  | ~q($P ∧ $Q) => return s!"and({← exportTheorem P}, {← exportTheorem Q})"
+  | ~q($P ∨ $Q) => return s!"or({← exportTheorem P}, {← exportTheorem Q})"
+  | ~q(¬$P) => return s!"not({← exportTheorem P})"
   | ~q(∃ (a : $α), $P a) =>
       withLocalDeclQ `a .default α fun var ↦ do
-      return #[s!"exists({`a.toString}, {← exportTheorem q($P $var)}"]
+      return s!"exists({`a.toString}, {← Expr.render α}, {← exportTheorem q($P $var)}"
   | .forallE name domain body bi =>
     withLocalDecl name bi domain fun var ↦ do
-      return #[s!"forall({name.toString}, {← exportTheorem (body.instantiate1 var)}"]
-  | ~q((($P) : Prop) → $Q) => return #[s!"implies({← exportTheorem P}, {← exportTheorem Q})"]
-  | ~q(@LT.lt ($α : Type) (_ : LT $α) $a $b) => return #[s!"lt({← Expr.exportTerm a}, {← Expr.exportTerm b})"]
-  | ~q(@LE.le ($α : Type) (_ : LE $α) $a $b) => return #[s!"le({← Expr.exportTerm a}, {← Expr.exportTerm b})"]
-  | _ => panic! "Expected a proposition as argument to `exportTheorem`."
+      return s!"forall({name.getRoot.toString}, {← Expr.render domain}, {← exportTheorem (body.instantiate1 var)}"
+  | ~q((($P) : Prop) → $Q) => return s!"implies({← exportTheorem P}, {← exportTheorem Q})"
+  | ~q(@Eq ($α : Type) $x $y) => return s!"equals({← exportTerm x}, {← exportTerm y})"
+  | ~q(@LT.lt ($α : Type) (_ : LT $α) $a $b) => return s!"lt({← Expr.exportTerm a}, {← Expr.exportTerm b})"
+  | ~q(@LE.le ($α : Type) (_ : LE $α) $a $b) => return s!"le({← Expr.exportTerm a}, {← Expr.exportTerm b})"
+  | e => Expr.render e
 
 elab "auto" fileName?:(str)? : tactic => withMainContext do
-  let lctxTypes := (← getLCtx).decls.toArray.filterMap (·.map LocalDecl.type)
-  let hypotheses : Array String ← lctxTypes.filter Expr.isProp |>.concatMapM Expr.exportTheorem
-  let decls : Array String := lctxTypes.filter (!·.isProp) |>.map toString
+  let forbidden := #[`grasshopper_ih]
+  let localDecls := (← getLCtx).decls.toArray.filterMap id |>.filter fun decl ↦ !(decl.kind == .implDetail || forbidden.contains decl.userName.getRoot)
+  let context : Array String ← localDecls.filterMapM fun decl ↦ do
+    if (← inferType decl.type).isProp then
+      return none
+    else
+      return s!"{decl.userName.getRoot.toString} : {← Expr.render decl.type}"
+  logInfo m!"Local context: {context}"
+  let hypotheses : Array String ← localDecls.filterMapM fun decl ↦ do
+    if (← inferType decl.type).isProp then
+      Expr.exportTheorem decl.type
+    else return none
+  logInfo m!"Hypotheses: {hypotheses}"
   let mainGoal ← Expr.exportTheorem (← getMainTarget)
-  let output : String := (hypotheses ++ #["\n---"] ++ decls ++ #["¬--"] ++ mainGoal)
+  let output : String := (context ++ #["\n---"] ++ hypotheses ++ #["\n---"] ++ #[mainGoal])
     |>.map (String.push · '\n') |>.foldl (init := "") String.append
   logInfo output
   if let some fileName := fileName? then
     IO.FS.writeFile fileName.getString output
+  evalTactic <| ← `(tactic| sorry)
 
-example (h : 3 = 3) : 1 = 1 := by
-  auto
-  -- auto "test_output.txt"
-  rfl
+end Auto
+
+
+section Theorems
+
+  theorem order_jumps
+  : ∀ jumps : JumpSet,
+    ∃ jumpso : Jumps,
+    jumps = jumpso.s
+  := by sorry
+
+  theorem pop_max_jump
+    (jumps : JumpSet)
+    (_ : jumps.sizeOf > 0 := by auto)
+  : ∃ (j : Jump) (jumpsr : JumpSet),
+    jumps = .cons j jumpsr ∧
+    (∀ x ∈ jumps, x.length <= j.length)
+  := by sorry
+
+  theorem pop_first_jump
+    (jumps : Jumps)
+    (_ : jumps.length > 0 := by auto)
+  : ∃ (j : Jump) (jumpsr : Jumps),
+    jumps = .cons j jumpsr
+  := by sorry
+
+  theorem split_mines
+    (mines : MineField) (i : ℤ)
+    (_ : i >= 0 := by auto)
+    (_ : i <= mines.length := by auto)
+  : ∃ (mines0 mines1 : MineField),
+    mines = mines0 ++ mines1 ∧
+    mines0.length = i
+  := by sorry
+
+  theorem split_first_mine
+    (mines : MineField)
+    (_ : mines.countMines > 0 := by auto)
+  : ∃ (mines0 mines1 : MineField),
+    mines = mines0 ++ [true] ++ mines1 ∧
+    mines0.countMines = 0
+  := by sorry
+
+  theorem split_jump_landings
+    (jumps : Jumps) (i : Int)
+    (_ : i >= 0 := by auto)
+    (_ : i < jumps.sum := by auto)
+  : ∃ (jumps0 : Jumps) (j : Jump) (jumps1 : Jumps),
+    jumps = jumps0 ++ [j] ++ jumps1 ∧
+    jumps0.sum <= i ∧
+    jumps0.sum + j.length > i
+  := by sorry
+
+  theorem union_mines
+    (mines1 mines2 : MineField)
+    (_ : mines1.length = mines2.length := by auto)
+  : ∃ (mines : MineField),
+    mines1.length = mines.length ∧
+    mines2.length = mines.length ∧
+    mines1.countMines <= mines.countMines ∧
+    mines2.countMines <= mines.countMines ∧
+    (∀ x : ℤ, mines1[x] → mines[x]) ∧
+    (∀ x : ℤ, mines2[x] → mines[x]) ∧
+    mines.countMines <= mines1.countMines + mines2.countMines
+  := by sorry
+
+end Theorems
+
+example
+  (main_jumps : JumpSet)
+  (main_mines : MineField)
+  (grasshopper_ih
+  : ∀ (jumps : JumpSet) (mines : MineField),
+    jumps.sizeOf < main_jumps.sizeOf →
+    jumps.Nodup →
+    jumps.sum = mines.length+1 →
+    jumps.sizeOf > mines.countMines →
+    ∃ (jumps_ih : Jumps),
+    jumps = jumps_ih.s ∧
+    (∀ (x : ℤ), ¬jumps_ih.landings[x] ∨ ¬mines[x])
+  ) :
+  main_jumps.Nodup →
+  main_jumps.sum = main_mines.length+1 →
+  main_jumps.sizeOf > main_mines.countMines →
+  ∃ (jumpso : Jumps),
+  main_jumps = jumpso.s ∧
+  (∀ (x : ℤ), ¬jumpso.landings[x] ∨ ¬main_mines[x])
+:= by
+  intros
+  by_cases main_mines.countMines = 0
+  -- mines are nonempty
+  · let ⟨jumpso, _⟩ := order_jumps main_jumps
+    use jumpso
+    clear grasshopper_ih
+    auto
+  -- no mine on the first jump
+  · let ⟨J, jumps, _, _⟩ := pop_max_jump main_jumps
+    let ⟨mines0, mines1, _, _⟩ := split_mines main_mines J.length
+    let ⟨mines00, mines01, _, _⟩ := split_mines main_mines (J.length-1)
+    by_cases ¬ mines01.getIndexD 0
+    · by_cases mines0.countMines ≠ 0
+      -- mine before the first jump
+      · let ⟨jumpso, _, _⟩ := grasshopper_ih jumps mines1 (by auto) (by auto) (by auto) (by auto)
+        use ([J] : Jumps) ++ jumpso
+        auto
+      -- no mine before the first jump
+      · let ⟨mines10, mines11, _, _⟩ := split_first_mine mines1
+        let ⟨jumpso, _, _⟩ := grasshopper_ih jumps (mines10 ++ [false] ++ mines11) (by auto) (by auto) (by auto) (by auto)
+        by_cases ¬ jumpso.landings.getIndexD mines10.length
+        -- no landing at the removed mine
+        · use [J] ++ jumpso
+          auto
+        -- landing at the removed mine
+        · let ⟨jumps0, J2, jumps1, _, _⟩ := split_jump_landings jumpso (mines10.length+1)
+          use jumps0 ++ [J2] ++ [J] ++ jumps1
+          auto
+    -- mine on the first jump
+    · by_cases mines00.length <= mines1.length
+      -- the first segment is smaller than the rest
+      · let ⟨mines10, mines11, _, _⟩ := split_mines mines1 mines00.length
+        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines10
+        let ⟨jumpso, _, _⟩ := grasshopper_ih jumps (mines_un ++ mines11) (by auto) (by auto) (by auto) (by auto)
+        let ⟨J2, jumpso, _⟩ := pop_first_jump jumpso
+        use [J2] ++ [J] ++ jumpso
+        auto
+      -- the first segment is bigger than the rest
+      · let ⟨mines00, _, _, _⟩ := split_mines mines00 mines1.length
+        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines1
+        let ⟨jumpso, _, _⟩ := grasshopper_ih jumps mines_un (by auto) (by auto) (by auto) (by auto)
+        let ⟨J2, jumpso, _⟩ := pop_first_jump jumpso
+        use [J2] ++ [J] ++ jumpso
+        auto
