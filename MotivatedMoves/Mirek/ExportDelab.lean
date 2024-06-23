@@ -73,10 +73,11 @@ def delabAppImplicit : Delab := do
     <|> pure stx
   else pure stx
 
+section ForallNotation
+
 open Parser.Term
 
 macro (name := fol_forall) "Forall" noWs "(" "[" binders:bracketedBinder,* "]" "," ppSpace body:term ")" : term =>
-  -- let binders := binders.getElems
   `(∀ $binders:bracketedBinder*, $body)
 
 /--
@@ -84,59 +85,53 @@ Similar to `delabBinders`, but tracking whether `forallE` is dependent or not.
 
 See issue #1571
 -/
-private partial def delabForallBinders (delabGroup : TSyntaxArray `ident → Bool → Term → Delab) (curNames : TSyntaxArray `ident := #[]) (curDep := false) : Delab := do
+private partial def delabForallBinders (delabGroup : TSyntaxArray `ident → Term → Delab) (curNames : TSyntaxArray `ident := #[]) (curDep := false) : Delab := do
   let dep := !(← getExpr).isArrow
   if !curNames.isEmpty && dep != curDep then
     -- don't group
-    delabGroup curNames curDep (← delab)
+    delabGroup curNames (← delab)
   else
-    let curDep := dep
     -- don't group => delab body and prepend current binder group
     let (stx, stxN) ← withBindingBodyUnusedName fun stxN => return (← delab, stxN)
-    delabGroup (curNames.push (TSyntax.mk stxN)) curDep stx
+    delabGroup (curNames.push (TSyntax.mk stxN)) stx
 
 open Parser.Term in
 @[delab forallE]
 def delabForall : Delab := do
-  delabForallBinders fun curNames dependent stxBody => do
-    let e ← getExpr
-    let prop ← try isProp e catch _ => pure false
+  delabForallBinders fun curNames stxBody => do
     let stxT ← withBindingDomain delab
-    let group ← match e.binderInfo with
-    | .implicit       => `(bracketedBinderF|{$curNames* : $stxT})
-    | .strictImplicit => `(bracketedBinderF|⦃$curNames* : $stxT⦄)
-    -- here `curNames.size == 1`
-    | .instImplicit   => `(bracketedBinderF|[$curNames.back : $stxT])
-    | .default                         =>
-        -- if prop && !(← getPPOption getPPPiBinderTypes) then
-        --   return ← `(∀ $curNames:ident*, $stxBody)
-        -- else
-        `(bracketedBinderF|($curNames* : $stxT))
+    let group ← `(bracketedBinderF|($curNames* : $stxT))
     match stxBody with
     | `(Forall([$groups,*], $stxBody)) => `(Forall([$group, $groups,*], $stxBody))
     | _                       => `(Forall([$group], $stxBody))
+
+end ForallNotation
+
+section ThereExistsNotation
+
+macro (name := fol_exists) "ThereExists" noWs "(" "[" binders:bracketedExplicitBinders,* "]" "," ppSpace body:term ")" : term =>
+  `(∃ $binders:bracketedExplicitBinders*, $body)
+
+@[app_unexpander Exists] def unexpandExists' : Lean.PrettyPrinter.Unexpander
+  | `($(_) fun ($x:ident : $t:term) => ThereExists([$xs:bracketedExplicitBinders,*], $b)) =>
+      `(ThereExists([($x:ident : $t), $xs:bracketedExplicitBinders,*], $b))
+  | `($(_) fun ($x:ident : $t:term) => $b)              => `(ThereExists([($x:ident : $t)], $b))
+  | _                                              => throw ()
+
+end ThereExistsNotation
+
 
 example {P Q : Prop} : P → Q := by
   sorry
 
 @[app_unexpander List.cons]
 def listConsUnexpander : PrettyPrinter.Unexpander
-  | `($(_) $h []) =>  `((singleton($h) : List _))
+  | `($(_) $h []) =>  `((singleton $h : List _))
   | _ => throw ()
 
-macro (name := fol_exists) "Exists" noWs "(" "[" binders:bracketedExplicitBinder,* "]" "," ppSpace body:term ")" : term =>
-  `(∃ $binders:bracketedExplicitBinder*, $body)
-
-@[app_unexpander Exists] def unexpandExists' : Lean.PrettyPrinter.Unexpander
-  | `($(_) fun $x:ident => Exists([$xs:binderIdent,*], $b)) => `(Exists([$x:ident, $xs:binderIdent,*], $b))
-  | `($(_) fun $x:ident => $b)                     => `(Exists([$x:ident], $b))
-  | `($(_) fun ($x:ident : $t) => $b)              => `(Exists([($x:ident : $t)], $b))
-  | _                                              => throw ()
-
-set_option pp.notation false
 set_option pp.funBinderTypes true
-set_option pp.notation false
 set_option pp.tagAppFns true
-set_option pp.coercions false
 set_option pp.analyze.typeAscriptions true
 set_option pp.proofs.withType false
+
+example : [1] = [2 + 2] := by
