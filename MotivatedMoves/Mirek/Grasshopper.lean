@@ -122,7 +122,7 @@ example
   -- no mine on the first jump
   · let ⟨J, jumps, _⟩ := pop_max_jump main_jumps
     let ⟨mines0, mines1, _⟩ := split_mines main_mines J.length
-    let ⟨mines00, mines01, _⟩ := split_mines main_mines (J.length-1)
+    let ⟨mines00, mines01, _⟩ := split_mines mines0 (J.length-1)
     by_cases ¬ mines01.getIndexD 0
     · by_cases mines0.countMines ≠ 0
       -- mine before the first jump
