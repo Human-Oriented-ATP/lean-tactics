@@ -84,7 +84,10 @@ elab stx:"auto" : tactic => do
       if ← isProp decl.type then
         return none
       else
-        return s!"{decl.userName.toString} : {← Expr.render decl.type}"
+        let nameComponents := decl.userName.componentsRev
+        let varNameRoot := decl.userName.getRoot
+        let varName := s!"{varNameRoot}{if nameComponents[1]? = some `_hyg then s!".{nameComponents[0]!}" else ""}"
+        return s!"{varName} : {← Expr.render decl.type}"
     -- logInfo m!"Local context: {context}"
     let hypotheses : Array String ← localDecls.filterMapM fun decl ↦ do
       if (← isProp decl.type) then
@@ -102,7 +105,7 @@ elab stx:"auto" : tactic => do
         s!"auto-at-line-{line}-character-{char}"
       | none => toString output.length
     let fileName := s!"./{fileStem}.txt"
-    if False then
+    if True then
       IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 

@@ -1,0 +1,27 @@
+main_jumps : JumpSet
+main_mines : MineField
+J : Jump
+jumps : JumpSet
+mines0 : MineField
+mines1 : MineField
+mines00 : MineField
+mines01 : MineField
+mines10 : MineField
+mines11 : MineField
+
+---
+Multiset.Nodup(main_jumps)
+EQUALS(JumpSet.sum(main_jumps), HAdd.hAdd(↑(MineField.length(main_mines)), 1))
+LT(MineField.countMines(main_mines), ↑(Multiset.sizeOf(main_jumps)))
+NOT(EQUALS(MineField.countMines(main_mines), 0))
+EQUALS(main_jumps, Multiset.cons(J, jumps))
+x : Jump :: IMPLIES(Membership.mem(x, main_jumps), LE(Jump.length(x), Jump.length(J)))
+EQUALS(main_mines, HAppend.hAppend(mines0, mines1))
+EQUALS(↑(MineField.length(mines0)), Jump.length(J))
+EQUALS(mines0, HAppend.hAppend(mines00, mines01))
+EQUALS(↑(MineField.length(mines00)), HSub.hSub(Jump.length(J), 1))
+NOT(EQUALS(List.getIndexD(mines01, 0), true))
+EQUALS(mines1, HAppend.hAppend(HAppend.hAppend(mines10, singleton(true)), mines11))
+EQUALS(MineField.countMines(mines10), 0)
+NOT(EQUALS(JumpSet.sum(jumps), HAdd.hAdd(↑(MineField.length(HAppend.hAppend(HAppend.hAppend(mines10, singleton(false)), mines11))), 1)))
+EQUALS(MineField.countMines(mines0), 0)
