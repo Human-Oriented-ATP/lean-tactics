@@ -94,7 +94,8 @@ elab stx:"auto" : tactic => do
       |>.map (String.push · '\n') |>.foldl (init := "") String.append
     logInfo output
     let fileName := s!"./{stx.getHeadInfo.getPos?.getD ⟨output.length⟩}.txt"
-    IO.FS.writeFile fileName output
+    if False then
+      IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
 end Auto
