@@ -112,10 +112,29 @@ section ThereExistsNotation
 macro (name := fol_exists) "ThereExists" noWs "(" "[" binders:bracketedExplicitBinders,* "]" "," ppSpace body:term ")" : term =>
   `(∃ $binders:bracketedExplicitBinders*, $body)
 
+partial def delabExistsBinders (binders : TSyntaxArray ``bracketedExplicitBinders := #[]) : Delab := do
+  match (← getExpr) with
+  | .app (.app (.const ``Exists _) _) (.lam binderName _ _ _) =>
+    withAppArg do
+      let binder : TSyntax ``binderIdent := ⟨mkIdent binderName⟩
+      let stxT ← withBindingDomain delab
+      let binderStx : TSyntax ``bracketedExplicitBinders ← `(bracketedExplicitBinders| ($binder:binderIdent : $stxT))
+      withBindingBody binderName do
+        delabExistsBinders (binders.push binderStx)
+  | _ =>
+    let body ← delab
+    `(ThereExists([$binders,*], $body))
+
+@[delab Exists.app]
+def delabExists : Delab := do
+  let expr ← getExpr
+  guard <| expr.isAppOfArity' ``Exists 2
+  delabExistsBinders
+
 @[app_unexpander Exists] def unexpandExists' : Lean.PrettyPrinter.Unexpander
   | `($(_) fun ($x:ident : $t:term) => ThereExists([$xs:bracketedExplicitBinders,*], $b)) =>
       `(ThereExists([($x:ident : $t), $xs:bracketedExplicitBinders,*], $b))
-  | `($(_) fun ($x:ident : $t:term) => $b)              => `(ThereExists([($x:ident : $t)], $b))
+  | `($(_) fun ($x:ident : $t:term) => $b) => `(ThereExists([($x:ident : $t)], $b))
   | _                                              => throw ()
 
 end ThereExistsNotation
