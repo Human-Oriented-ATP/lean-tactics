@@ -94,8 +94,15 @@ elab stx:"auto" : tactic => do
     let output : String := (context ++ #["\n---"] ++ hypotheses)
       |>.map (String.push · '\n') |>.foldl (init := "") String.append
     logInfo output
-    let fileName := s!"./{stx.getHeadInfo.getPos?.getD ⟨output.length⟩}.txt"
-    if False then
+    let fileMap ← getFileMap
+    let fileStem :=
+      match stx.getHeadInfo.getPos? with
+      | .some pos =>
+        let ⟨line, char⟩ := fileMap.utf8PosToLspPos pos
+        s!"auto-at-line-{line}-character-{char}"
+      | none => toString output.length
+    let fileName := s!"./{fileStem}.txt"
+    if True then
       IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
