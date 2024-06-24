@@ -140,7 +140,7 @@ section Theorems
     (mines : MineField)
     (_ : mines.countMines > 0 := by auto)
   : ∃ (mines0 mines1 : MineField),
-    mines = mines0 ++ [true] ++ mines1 ∧
+    mines = mines0 ++ singleton true ++ mines1 ∧
     mines0.countMines = 0
   := by sorry
 
@@ -149,7 +149,7 @@ section Theorems
     (_ : i >= 0 := by auto)
     (_ : i < jumps.sum := by auto)
   : ∃ (jumps0 : Jumps) (j : Jump) (jumps1 : Jumps),
-    jumps = jumps0 ++ [j] ++ jumps1 ∧
+    jumps = jumps0 ++ singleton j ++ jumps1 ∧
     jumps0.sum <= i ∧
     jumps0.sum + j.length > i
   := by sorry
@@ -162,8 +162,8 @@ section Theorems
     mines2.length = mines.length ∧
     mines1.countMines <= mines.countMines ∧
     mines2.countMines <= mines.countMines ∧
-    (∀ x : ℤ, mines1[x] → mines[x]) ∧
-    (∀ x : ℤ, mines2[x] → mines[x]) ∧
+    (∀ x : ℤ, mines1.getIndexD x → mines.getIndexD x) ∧
+    (∀ x : ℤ, mines2.getIndexD x → mines.getIndexD x) ∧
     mines.countMines <= mines1.countMines + mines2.countMines
   := by sorry
 
@@ -180,14 +180,14 @@ example
     jumps.sizeOf > mines.countMines →
     ∃ (jumps_ih : Jumps),
     jumps = jumps_ih.s ∧
-    (∀ (x : ℤ), ¬jumps_ih.landings[x] ∨ ¬mines[x])
+    (∀ (x : ℤ), ¬jumps_ih.landings.getIndexD x ∨ ¬mines.getIndexD x)
   ) :
   main_jumps.Nodup →
   main_jumps.sum = main_mines.length+1 →
   main_jumps.sizeOf > main_mines.countMines →
   ∃ (jumpso : Jumps),
   main_jumps = jumpso.s ∧
-  (∀ (x : ℤ), ¬jumpso.landings[x] ∨ ¬main_mines[x])
+  (∀ (x : ℤ), ¬jumpso.landings.getIndexD x ∨ ¬main_mines.getIndexD x)
 := by
   intros
   by_cases main_mines.countMines = 0
