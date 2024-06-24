@@ -102,7 +102,7 @@ elab stx:"auto" : tactic => do
         s!"auto-at-line-{line}-character-{char}"
       | none => toString output.length
     let fileName := s!"./{fileStem}.txt"
-    if True then
+    if False then
       IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
