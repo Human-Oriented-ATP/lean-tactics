@@ -40,6 +40,7 @@ set_option pp.funBinderTypes true
 set_option pp.tagAppFns true
 set_option pp.analyze.typeAscriptions true
 set_option pp.proofs.withType false
+set_option pp.sanitizeNames false
 
 -- abbrev Qq.Quoted.render {α : Q(Type $u)} (e : Q($α)) : MetaM String := do
 def Expr.render (e : Expr) : MetaM String :=
@@ -49,6 +50,7 @@ def Expr.render (e : Expr) : MetaM String :=
     |>.insert `pp.tagAppFns true
     |>.insert `pp.analyze.typeAscriptions true
     |>.insert `pp.proofs.withType false
+    |>.insert `pp.sanitizeNames false
   withOptions (options.mergeBy fun _ opt _ ↦ opt) <| do
     return toString (← ppExpr e)
 
@@ -64,7 +66,7 @@ partial def Expr.exportTheorem : Q(Prop) → TacticM String
     Meta.forallTelescope e fun args body ↦ do
       let proofArgs ← args.filterM fun arg ↦ do isProp (← inferType arg)
       let termArgs ← args.filterM fun arg ↦ do return !(← isProp (← inferType arg))
-      let termArgs ← termArgs.mapM fun arg ↦ do return s!"{(← arg.fvarId!.getUserName).getRoot} : {← (Expr.exportTheorem <| ← inferType arg)}"
+      let termArgs ← termArgs.mapM fun arg ↦ do return s!"{(← arg.fvarId!.getUserName)} : {← (Expr.exportTheorem <| ← inferType arg)}"
       let propBody ← mkForallFVars proofArgs body
       return s!"{termArgs |>.toList |>.intersperse "," |> String.join} :: {← Expr.exportTheorem propBody}"
   | ~q(@Eq ($α : Type) $x $y) => return s!"EQUALS({← Expr.render x}, {← Expr.render y})"
@@ -82,11 +84,10 @@ elab stx:"auto" : tactic => do
       if ← isProp decl.type then
         return none
       else
-        return s!"{decl.userName.getRoot.toString} : {← Expr.render decl.type}"
+        return s!"{decl.userName.toString} : {← Expr.render decl.type}"
     -- logInfo m!"Local context: {context}"
     let hypotheses : Array String ← localDecls.filterMapM fun decl ↦ do
-      if (← isProp decl.type) && !forbidden.contains decl.userName.getRoot then
-        -- logInfo s!"Local hypothesis: {decl.userName.getRoot}"
+      if (← isProp decl.type) then
         Expr.exportTheorem decl.type
       else return none
     -- logInfo m!"Hypotheses: {hypotheses}"
