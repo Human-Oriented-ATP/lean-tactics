@@ -32,6 +32,8 @@ EQUALS(jumps, Jumps.s(jumpso))
 x : ℤ :: OR(NOT(EQUALS(List.getIndexD(Jumps.landings(jumpso), x), true)), NOT(EQUALS(List.getIndexD(HAppend.hAppend(HAppend.hAppend(mines10, singleton(false)), mines11), x), true)))
 EQUALS(jumpso, HAppend.hAppend(HAppend.hAppend(jumps0, singleton(J2)), jumps1))
 AND(LE(Jumps.sum(jumps0), HAdd.hAdd(↑(MineField.length(mines10)), 1)), LT(HAdd.hAdd(↑(MineField.length(mines10)), 1), HAdd.hAdd(Jumps.sum(jumps0), Jump.length(J2))))
-NOT(OR(NOT(EQUALS(List.getIndexD(Jumps.landings(HAppend.hAppend(HAppend.hAppend(HAppend.hAppend(jumps0, singleton(J2)), singleton(J)), jumps1)), x), true)), NOT(EQUALS(List.getIndexD(main_mines, x), true))))
+NOT(OR(NOT(EQUALS(List.getIndexD(Jumps.landings(HAppend.hAppend(HAppend.hAppend(HAppend.hAppend(jumps0, singleton(J2)), singleton(J)),
+      jumps1)),
+  x), true)), NOT(EQUALS(List.getIndexD(main_mines, x), true))))
 EQUALS(MineField.countMines(mines0), 0)
 EQUALS(List.getIndexD(Jumps.landings(jumpso), ↑(MineField.length(mines10))), true)

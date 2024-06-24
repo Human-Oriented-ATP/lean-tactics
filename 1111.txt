@@ -7,7 +7,7 @@ mines1 : MineField
 mines00 : MineField
 mines01 : MineField
 mines00 : MineField
-w : MineField
+w._@.MotivatedMoves.Mirek.GrasshopperTacticStateProcessing._hyg.5740 : MineField
 
 ---
 Multiset.Nodup(main_jumps)
@@ -18,10 +18,10 @@ EQUALS(main_jumps, Multiset.cons(J, jumps))
 x : Jump :: IMPLIES(Membership.mem(x, main_jumps), LE(Jump.length(x), Jump.length(J)))
 EQUALS(main_mines, HAppend.hAppend(mines0, mines1))
 EQUALS(↑(MineField.length(mines0)), Jump.length(J))
-EQUALS(main_mines, HAppend.hAppend(mines00✝, mines01))
-EQUALS(↑(MineField.length(mines00✝)), HSub.hSub(Jump.length(J), 1))
-EQUALS(mines00✝, HAppend.hAppend(mines00, w✝))
+EQUALS(main_mines, HAppend.hAppend(mines00, mines01))
+EQUALS(↑(MineField.length(mines00)), HSub.hSub(Jump.length(J), 1))
+EQUALS(mines00, HAppend.hAppend(mines00, w.5740))
 EQUALS(↑(MineField.length(mines00)), ↑(MineField.length(mines1)))
 NOT(EQUALS(MineField.length(mines00), MineField.length(mines1)))
 EQUALS(List.getIndexD(mines01, 0), true)
-LT(MineField.length(mines1), MineField.length(mines00✝))
+LT(MineField.length(mines1), MineField.length(mines00))
