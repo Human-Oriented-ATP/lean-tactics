@@ -1,0 +1,9 @@
+main_jumps : JumpSet
+main_mines : MineField
+
+---
+Multiset.Nodup(main_jumps)
+EQUALS(JumpSet.sum(main_jumps), HAdd.hAdd(↑(MineField.length(main_mines)), 1))
+LT(MineField.countMines(main_mines), ↑(Multiset.sizeOf(main_jumps)))
+NOT(EQUALS(MineField.countMines(main_mines), 0))
+LE(Multiset.sizeOf(main_jumps), 0)

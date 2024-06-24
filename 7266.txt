@@ -1,0 +1,12 @@
+main_jumps : JumpSet
+main_mines : MineField
+jumpso : Jumps
+x : ℤ
+
+---
+Multiset.Nodup(main_jumps)
+EQUALS(JumpSet.sum(main_jumps), HAdd.hAdd(↑(MineField.length(main_mines)), 1))
+LT(MineField.countMines(main_mines), ↑(Multiset.sizeOf(main_jumps)))
+EQUALS(MineField.countMines(main_mines), 0)
+EQUALS(main_jumps, Jumps.s(jumpso))
+NOT(OR(NOT(EQUALS(List.getIndexD(Jumps.landings(jumpso), x), true)), NOT(EQUALS(List.getIndexD(main_mines, x), true))))
