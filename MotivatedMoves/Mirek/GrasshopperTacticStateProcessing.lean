@@ -40,8 +40,6 @@ set_option pp.funBinderTypes true
 set_option pp.tagAppFns true
 set_option pp.analyze.typeAscriptions true
 set_option pp.proofs.withType false
-set_option pp.notation false
-set_option pp.coercions false
 
 -- abbrev Qq.Quoted.render {α : Q(Type $u)} (e : Q($α)) : MetaM String := do
 def Expr.render (e : Expr) : MetaM String :=
@@ -51,8 +49,6 @@ def Expr.render (e : Expr) : MetaM String :=
     |>.insert `pp.tagAppFns true
     |>.insert `pp.analyze.typeAscriptions true
     |>.insert `pp.proofs.withType false
-    |>.insert `pp.notation false
-    |>.insert `pp.coercions false
   withOptions (options.mergeBy fun _ opt _ ↦ opt) <| do
     return toString (← ppExpr e)
 
@@ -76,7 +72,7 @@ partial def Expr.exportTheorem : Q(Prop) → TacticM String
   | ~q(@LE.le ($α : Type) (_ : LE $α) $a $b) => return s!"LE({← Expr.render a}, {← Expr.render b})"
   | e => Expr.render e
 
-elab "auto" fileName?:(str)? : tactic => do
+elab stx:"auto" : tactic => do
   evalTactic <| ← `(tactic| by_contra) -- negating the goal and adding it as a hypothesis
   evalTactic <| ← `(tactic| simp only [not_imp, not_and, not_forall, not_exists, not_not, not_true, not_false_iff, not_le, not_lt] at *)
   withMainContext do
@@ -97,8 +93,8 @@ elab "auto" fileName?:(str)? : tactic => do
     let output : String := (context ++ #["\n---"] ++ hypotheses)
       |>.map (String.push · '\n') |>.foldl (init := "") String.append
     logInfo output
-    if let some fileName := fileName? then
-      IO.FS.writeFile fileName.getString output
+    let fileName := s!"./{stx.getHeadInfo.getPos?.getD ⟨output.length⟩}.txt"
+    IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
 end Auto

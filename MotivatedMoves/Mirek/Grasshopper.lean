@@ -10,6 +10,8 @@ abbrev Jumps := List Jump
 abbrev JumpSet := Multiset Jump
 
 def Jump.length (j : Jump) : Int := j
+abbrev Jumps.length (jumps : Jumps) := List.length jumps
+abbrev MineField.length (mineField : MineField) := List.length mineField
 
 def List.getIndexD [Inhabited α] (l : List α) (idx : Int) : α :=
   match idx with
