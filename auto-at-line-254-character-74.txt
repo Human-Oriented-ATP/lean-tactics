@@ -6,7 +6,7 @@ mines0 : MineField
 mines1 : MineField
 mines00 : MineField
 mines01 : MineField
-mines00 : MineField
+mines00' : MineField
 w.5826 : MineField
 mines_un : MineField
 
@@ -21,8 +21,8 @@ EQUALS(main_mines, HAppend.hAppend(mines0, mines1))
 EQUALS(↑(MineField.length(mines0)), Jump.length(J))
 EQUALS(mines0, HAppend.hAppend(mines00, mines01))
 EQUALS(↑(MineField.length(mines00)), HSub.hSub(Jump.length(J), 1))
-EQUALS(mines00, HAppend.hAppend(mines00, w.5826))
-EQUALS(↑(MineField.length(mines00)), ↑(MineField.length(mines1)))
+EQUALS(mines00, HAppend.hAppend(mines00', w.5826))
+EQUALS(↑(MineField.length(mines00')), ↑(MineField.length(mines1)))
 EQUALS(MineField.length(mines00), MineField.length(mines_un))
 EQUALS(MineField.length(mines1), MineField.length(mines_un))
 LE(MineField.countMines(mines00), MineField.countMines(mines_un))

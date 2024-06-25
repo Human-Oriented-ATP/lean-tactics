@@ -6,8 +6,8 @@ mines0 : MineField
 mines1 : MineField
 mines00 : MineField
 mines01 : MineField
-mines10 : MineField
-mines11 : MineField
+mines00' : MineField
+w.5826 : MineField
 
 ---
 Multiset.Nodup(main_jumps)
@@ -20,8 +20,8 @@ EQUALS(main_mines, HAppend.hAppend(mines0, mines1))
 EQUALS(↑(MineField.length(mines0)), Jump.length(J))
 EQUALS(mines0, HAppend.hAppend(mines00, mines01))
 EQUALS(↑(MineField.length(mines00)), HSub.hSub(Jump.length(J), 1))
-LE(MineField.length(mines00), MineField.length(mines1))
-EQUALS(mines1, HAppend.hAppend(mines10, mines11))
-EQUALS(↑(MineField.length(mines10)), ↑(MineField.length(mines00)))
-NOT(EQUALS(MineField.length(mines00), MineField.length(mines10)))
+EQUALS(mines00, HAppend.hAppend(mines00', w.5826))
+EQUALS(↑(MineField.length(mines00')), ↑(MineField.length(mines1)))
+NOT(EQUALS(MineField.length(mines00), MineField.length(mines1)))
 EQUALS(List.getIndexD(mines01, 0), true)
+LT(MineField.length(mines1), MineField.length(mines00))
