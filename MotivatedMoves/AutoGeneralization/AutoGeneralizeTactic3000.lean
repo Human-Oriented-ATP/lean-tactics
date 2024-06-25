@@ -258,7 +258,7 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
   return allMVars.toList.eraseDups.toArray
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr) (occs : List ℕ := [1]) : TacticM Unit := withMainContext do
+def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -276,7 +276,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : List ℕ := [1]) : Ta
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
-  let userThmType ← kabstract thmType fExpr (.pos occs) -- generalize the first occurrence of the expression in the type
+  let userThmType ← kabstract thmType fExpr (occs) -- generalize the first occurrence of the expression in the type
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
@@ -305,14 +305,28 @@ def decodeOccurrences : TSyntax `Autogeneralize.occurrences → List Nat
   | `(occurrences| at occurrences [$occs*]) => (occs.map TSyntax.getNat).toList
   | _ => unreachable!
 
-/- Autogeneralize term "t" in hypothesis "h"-/
-elab "autogeneralize" pattern:term "in" h:ident occs:(occurrences)? : tactic => do
+
+/- Autogeneralize term "pattern" in hypothesis "h" -/
+elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
   let occs := occs.map decodeOccurrences
   logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
   if occs.isSome then
-    autogeneralize h pattern (← occs)
+    autogeneralize h pattern (Occurrences.pos $ ← occs)
   else
-    autogeneralize h pattern
+    autogeneralize h pattern -- generalize first occurrence
+
+
+/-  Autogeneralize term "pattern" in hypothesis "h", but generalize all occurrences.
+    Behaves as in (Pons, 2000 )
+    Either "naive_autogeneralize" or "basic_autogeneralize" or "autogeneralize_v0"
+-/
+elab "autogeneralize_basic" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
+  let pattern ← (Lean.Elab.Term.elabTerm pattern none)
+  let h := h.getId
+  let occs := occs.map decodeOccurrences
+  logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
+  autogeneralize h pattern (.all)
+
 end Autogeneralize

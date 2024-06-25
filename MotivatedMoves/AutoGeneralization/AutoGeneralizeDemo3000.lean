@@ -16,6 +16,41 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
 
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example:
+sqrt(2) is irrational generalizes to sqrt(prime) is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+example : Irrational (Real.sqrt 3) := by
+  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+  autogeneralize_basic (2:ℕ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
+
+  specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example of a naive, over-specialized generalization:
+sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+example : Irrational (Real.sqrt 3 + 3) := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  autogeneralize_basic (2:ℕ) in _sum_irrat
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example of a better, constant-aware generalization:
+sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+example : Irrational (Real.sqrt 3 + 6) := by
+  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  autogeneralize (2:ℕ) in _sum_irrat
+  autogeneralize (2:ℕ) in _sum_irrat.Gen
+
+  specialize _sum_irrat.Gen.Gen 6 3 (Nat.prime_three)
+  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
+
 /- --------------------------------------------------------------------------
 DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
 -------------------------------------------------------------------------- -/
@@ -74,24 +109,4 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
   autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen.Gen
 
   specialize _multPermute.Gen.Gen.Gen.Gen (.+.) (.+.) (.+.) (.+.) (.+.) (.+.) Nat.add_assoc (.+.) Nat.add_comm Nat.add_assoc 1 2 3
-  assumption
-
-/- --------------------------------------------------------------------------
-DEMO OF EASY & HARD CASE -- sqrt(2)+2 is irrational, generalizes to something over-specific -- prime f -> sqrt(f)+f is irrational
--------------------------------------------------------------------------- -/
-
-example : Irrational (Real.sqrt 3) := by
-  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
-  autogeneralize (2:ℕ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
-
-  specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
-  assumption
-
-example : Irrational (Real.sqrt 3 + 6) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
-  autogeneralize (2:ℕ) in _sum_irrat
-  autogeneralize (2:ℕ)  in _sum_irrat.Gen
-
-  specialize _sum_irrat.Gen.Gen 6 3 (Nat.prime_three)
-  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
   assumption
