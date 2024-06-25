@@ -311,26 +311,16 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- )
 
+syntax occurrences :="at" "occurrences" "[" num+ "]"
 
-def elabOccs (occs : Option $ TSyntax `Lean.Parser.Tactic.Conv.occs) : MetaM Occurrences := do
-  match occs with
-    | none => pure (.pos [])
-    | some occs => match occs with
-      | `(Parser.Tactic.Conv.occsWildcard| *) => pure .all
-      | `(Parser.Tactic.Conv.occsIndexed| $ids*) => do
-        let ids ← ids.mapIdxM fun i id =>
-          match id.getNat with
-          | 0 => throwErrorAt id "positive integer expected"
-          | n+1 => pure (n+1, i.1) -- the occurrences & list index
-        let ids := ids.qsort (·.1 < ·.1)
-        unless @Array.allDiff _ ⟨(·.1 == ·.1)⟩ ids do
-          throwError "occurrence list is not distinct"
-        pure (.pos $ ids.toList.map (·.1)) -- get just the occurrences
-      | _ => throwUnsupportedSyntax
+def decodeOccurrences : TSyntax `Autogeneralize.occurrences → Array Nat
+  | `(occurrences| at occurrences [$occs*]) => occs.map TSyntax.getNat
+  | _ => unreachable!
 
 /- Autogeneralize term "t" in hypothesis "h"-/
-elab "autogeneralize" h:ident f:term : tactic => do
-  let f ← (Lean.Elab.Term.elabTerm f none)
-  autogeneralize h.getId f
+elab "autogeneralize" pattern:term "in" h:ident occs:(occurrences)? : tactic => do
+  let pattern ← (Lean.Elab.Term.elabTerm pattern none)
+  autogeneralize h.getId pattern
+  -- logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {e} in {thmName} ..."
 
 end Autogeneralize
