@@ -105,7 +105,7 @@ elab stx:"auto" : tactic => do
         s!"auto-at-line-{line}-character-{char}"
       | none => toString output.length
     let fileName := s!"./{fileStem}.txt"
-    if True then
+    if False then
       IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
@@ -243,17 +243,17 @@ example
       · let ⟨mines10, mines11, _, _⟩ := split_mines mines1 mines00.length
         let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines10
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps (mines_un ++ mines11) (by auto) (by auto) (by auto) (by auto)
-        let ⟨J2, jumpso, _⟩ := pop_first_jump jumpso
+        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso
         use singleton J2 ++ singleton J ++ jumpso
         refine' ⟨_, _⟩
         · auto
         · intro x
           auto
       -- the first segment is bigger than the rest
-      · let ⟨mines00, _, _, _⟩ := split_mines mines00 mines1.length
+      · let ⟨mines00', _, _, _⟩ := split_mines mines00 mines1.length
         let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines1
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps mines_un (by auto) (by auto) (by auto) (by auto)
-        let ⟨J2, jumpso, _⟩ := pop_first_jump jumpso
+        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso
         use singleton J2 ++ singleton J ++ jumpso
         refine' ⟨_, _⟩
         · auto
