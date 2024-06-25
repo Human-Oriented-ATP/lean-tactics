@@ -254,7 +254,7 @@ example
         let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00' mines1 (by auto)
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps mines_un (by auto) (by auto) (by auto) (by auto)
         let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso (by auto)
-        use singleton J2 ++ singleton J ++ jumpso
+        use singleton J2 ++ singleton J ++ jumpso'
         refine' ⟨_, _⟩
         · auto
         · intro x
