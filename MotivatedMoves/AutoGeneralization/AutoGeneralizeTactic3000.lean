@@ -257,8 +257,15 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
 
   return allMVars.toList.eraseDups.toArray
 
+def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
+  return ← kabstract thmType fExpr (occs)
+
+
+def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
+  return ← kabstract thmType fExpr (occs)
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) : TacticM Unit := withMainContext do
+def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -267,8 +274,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
-
-
   -- let genThmProof := thmProof
   -- while ← containsExpr fExpr thmProof do
   let genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
@@ -276,7 +281,11 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
-  let userThmType ← kabstract thmType fExpr (occs) -- generalize the first occurrence of the expression in the type
+
+  let userThmType ← if consolidate then
+    abstractToOneMVar thmType fExpr occs
+  else
+    abstractToDiffMVars thmType fExpr occs
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
