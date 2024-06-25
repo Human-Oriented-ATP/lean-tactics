@@ -105,7 +105,7 @@ elab stx:"auto" : tactic => do
         s!"auto-at-line-{line}-character-{char}"
       | none => toString output.length
     let fileName := s!"./{fileStem}.txt"
-    if False then
+    if True then
       IO.FS.writeFile fileName output
     evalTactic <| ← `(tactic| sorry)
 
@@ -122,7 +122,7 @@ section Theorems
 
   theorem pop_max_jump
     (jumps : JumpSet)
-    (_ : jumps.sizeOf > 0 := by auto)
+    (_ : jumps.sizeOf > 0)
   : ∃ (j : Jump) (jumpsr : JumpSet),
     jumps = .cons j jumpsr ∧
     (∀ x ∈ jumps, x.length <= j.length)
@@ -130,15 +130,15 @@ section Theorems
 
   theorem pop_first_jump
     (jumps : Jumps)
-    (_ : jumps.length > 0 := by auto)
+    (_ : jumps.length > 0)
   : ∃ (j : Jump) (jumpsr : Jumps),
     jumps = .cons j jumpsr
   := by sorry
 
   theorem split_mines
     (mines : MineField) (i : ℤ)
-    (_ : i >= 0 := by auto)
-    (_ : i <= mines.length := by auto)
+    (_ : i >= 0)
+    (_ : i <= mines.length)
   : ∃ (mines0 mines1 : MineField),
     mines = mines0 ++ mines1 ∧
     mines0.length = i
@@ -146,7 +146,7 @@ section Theorems
 
   theorem split_first_mine
     (mines : MineField)
-    (_ : mines.countMines > 0 := by auto)
+    (_ : mines.countMines > 0)
   : ∃ (mines0 mines1 : MineField),
     mines = mines0 ++ singleton true ++ mines1 ∧
     mines0.countMines = 0
@@ -154,8 +154,8 @@ section Theorems
 
   theorem split_jump_landings
     (jumps : Jumps) (i : Int)
-    (_ : i >= 0 := by auto)
-    (_ : i < jumps.sum := by auto)
+    (_ : i >= 0)
+    (_ : i < jumps.sum)
   : ∃ (jumps0 : Jumps) (j : Jump) (jumps1 : Jumps),
     jumps = jumps0 ++ singleton j ++ jumps1 ∧
     jumps0.sum <= i ∧
@@ -164,7 +164,7 @@ section Theorems
 
   theorem union_mines
     (mines1 mines2 : MineField)
-    (_ : mines1.length = mines2.length := by auto)
+    (_ : mines1.length = mines2.length)
   : ∃ (mines : MineField),
     mines1.length = mines.length ∧
     mines2.length = mines.length ∧
@@ -208,9 +208,9 @@ example
     · intro x
       auto
   -- no mine on the first jump
-  · let ⟨J, jumps, _, _⟩ := pop_max_jump main_jumps
-    let ⟨mines0, mines1, _, _⟩ := split_mines main_mines J.length
-    let ⟨mines00, mines01, _, _⟩ := split_mines mines0 (J.length-1)
+  · let ⟨J, jumps, _, _⟩ := pop_max_jump main_jumps (by auto)
+    let ⟨mines0, mines1, _, _⟩ := split_mines main_mines J.length (by auto) (by auto)
+    let ⟨mines00, mines01, _, _⟩ := split_mines mines0 (J.length-1) (by auto) (by auto)
     by_cases ¬ mines01.getIndexD 0
     · by_cases mines0.countMines ≠ 0
       -- mine before the first jump
@@ -221,7 +221,7 @@ example
         · intro x
           auto
       -- no mine before the first jump
-      · let ⟨mines10, mines11, _, _⟩ := split_first_mine mines1
+      · let ⟨mines10, mines11, _, _⟩ := split_first_mine mines1 (by auto)
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps (mines10 ++ singleton false ++ mines11) (by auto) (by auto) (by auto) (by auto)
         by_cases ¬ jumpso.landings.getIndexD mines10.length
         -- no landing at the removed mine
@@ -231,7 +231,7 @@ example
           · intro x
             auto
         -- landing at the removed mine
-        · let ⟨jumps0, J2, jumps1, _, _⟩ := split_jump_landings jumpso (mines10.length+1)
+        · let ⟨jumps0, J2, jumps1, _, _⟩ := split_jump_landings jumpso (mines10.length+1) (by auto) (by auto)
           use jumps0 ++ singleton J2 ++ singleton J ++ jumps1
           refine' ⟨_, _⟩
           · auto
@@ -240,20 +240,20 @@ example
     -- mine on the first jump
     · by_cases mines00.length <= mines1.length
       -- the first segment is smaller than the rest
-      · let ⟨mines10, mines11, _, _⟩ := split_mines mines1 mines00.length
-        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines10
+      · let ⟨mines10, mines11, _, _⟩ := split_mines mines1 mines00.length (by auto) (by auto)
+        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines10 (by auto)
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps (mines_un ++ mines11) (by auto) (by auto) (by auto) (by auto)
-        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso
+        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso (by auto)
         use singleton J2 ++ singleton J ++ jumpso
         refine' ⟨_, _⟩
         · auto
         · intro x
           auto
       -- the first segment is bigger than the rest
-      · let ⟨mines00', _, _, _⟩ := split_mines mines00 mines1.length
-        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines1
+      · let ⟨mines00', _, _, _⟩ := split_mines mines00 mines1.length (by auto) (by auto)
+        let ⟨mines_un, _, _, _, _, _, _, _⟩ := union_mines mines00 mines1 (by auto)
         let ⟨jumpso, _, _⟩ := grasshopper_ih jumps mines_un (by auto) (by auto) (by auto) (by auto)
-        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso
+        let ⟨J2, jumpso', _⟩ := pop_first_jump jumpso (by auto)
         use singleton J2 ++ singleton J ++ jumpso
         refine' ⟨_, _⟩
         · auto
