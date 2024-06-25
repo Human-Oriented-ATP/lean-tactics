@@ -40,6 +40,20 @@ def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   return e
 
 
+/--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
+def getHypotheses : TacticM (List LocalDecl) := do
+  let mut hypotheses : List LocalDecl := []
+  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
+  for ldecl in (← goal.getDecl).lctx do
+    if ldecl.isImplementationDetail then continue
+    hypotheses := ldecl :: hypotheses
+  return hypotheses
+
+/--  Tactic to return hypotheses names-/
+def getHypothesesNames : TacticM (List Name) := do
+    return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
+
+
 /--  Tactic get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
@@ -142,6 +156,23 @@ def getMVarContainingMData : MetaM MVarId := do
 def lambdaBoundedTelescope (e : Expr) (n : Nat) (f : Array Expr → Expr → MetaM α) : MetaM α :=
   lambdaTelescope e fun xs e => do f xs[:n] (← mkLambdaFVars xs[n:] e)
 
+/-- Helper for incrementing idx when creating pretty names-/
+-- partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
+--   let candidate := base.appendIndexAfter i ++ `_gen
+--   if (hypNames).contains candidate then
+--     mkPrettyNameHelper hypNames base (i+1)
+--   else
+--     candidate
+
+-- /-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
+-- def mkPrettyName (baseName : Name) : TacticM Name := do
+--   return mkPrettyNameHelper (← getHypothesesNames) baseName 0
+
+def mkAbstractedName (n : Name) : Name :=
+    match n with
+    | (.str _ s) => s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
+    | _ => `unknown
+
 
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
@@ -172,22 +203,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .proj _ _ b      => return e.updateProj! (← visit b)
       | .letE _ t v b _  => return e.updateLet! (← visit t) (← visit v) (← visit b)
       | .lam n d b bi     =>
-                            -- if bi.isInstImplicit then
-                            --   let (_, tempinst) := (← getLCtx, ← getLocalInstances)
-                            --   logInfo m!"temporary instances before telescope {tempinst.map LocalInstance.className}"
-
-                            --   let updatedLambda ← lambdaBoundedTelescope e 1 (fun fvars b => do
-                            --     logInfo m!"fvars are {fvars}"
-                            --     logInfo m!"body is {b}"
-                            --     let placeholder := fvars[0]!
-                            --     let (_, tempinst) := (← getLCtx, ← getLocalInstances)
-                            --     logInfo m!"temporary instances after telescope {tempinst.map LocalInstance.className}"
-                            --     -- let b := b.instantiate1 placeholder
-                            --     let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
-                            --     return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
-                            --   )
-                            --   return updatedLambda
-                            -- else
                               let dAbs ← visit d
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedLambda ← withLocalDecl n bi dAbs (fun placeholder => do
@@ -210,7 +225,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .const n _       => let constType ← inferType e --getTheoremStatement n
                             if (← containsExpr p constType) then
                               let genConstType ← visit constType  -- expr for generalized proof statment
-                              let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic)-- mvar for generalized proof
+                              let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                               -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                               return m
                             else
@@ -245,17 +260,6 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
   return abstractedProof
-
-/-- Get all mvars in an expression, as well as all mvars that each mvar depends on. -/
-def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
-  let mvars : Array MVarId ← getMVars e
-
-  let mut allMVars : Array MVarId := mvars
-  for mvar in mvars do
-    let deps := (← mvar.getMVarDependencies).toArray
-    allMVars := allMVars ++ deps
-
-  return allMVars.toList.eraseDups.toArray
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
@@ -336,6 +340,6 @@ elab "autogeneralize_basic" pattern:term "in" h:ident occs:(Autogeneralize.occur
   let h := h.getId
   let occs := occs.map decodeOccurrences
   logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
-  autogeneralize h pattern (.all)
+  autogeneralize h pattern (occs:=.all) (consolidate:=true)
 
 end Autogeneralize
