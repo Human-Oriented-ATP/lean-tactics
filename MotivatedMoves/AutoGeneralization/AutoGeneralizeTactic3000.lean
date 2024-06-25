@@ -257,9 +257,8 @@ def getMVarsRecursive (e : Expr) : MetaM (Array MVarId) := do
 
   return allMVars.toList.eraseDups.toArray
 
-deriving instance Repr for Occurrences
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) : TacticM Unit := withMainContext do
+def autogeneralize (thmName : Name) (fExpr : Expr) (occs : List ℕ := [1]) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -277,30 +276,21 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
-  let userThmType ← kabstract thmType fExpr occs -- generalize the first occurrence of the expression in the type
+  let userThmType ← kabstract thmType fExpr (.pos occs) -- generalize the first occurrence of the expression in the type
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
   logInfo m!"!User Generalized Type: {userThmType}"
-  logInfo m!"mvars in user type {(← getMVars userThmType).map MVarId.name}"
-  logInfo m!"mvars in gen type {(← getMVars genThmType).map MVarId.name}"
 
   -- compare and unify mvars between user type and our generalized type
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  logInfo m!"mvars in gen proof {(← getMVars genThmProof).map MVarId.name}"
-
   let userSelectedMVar ← getMVarContainingMData
   if !(← userMVar.mvarId!.isAssigned) then
     userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
 
-  logInfo m!"assingned mvar {userSelectedMVar.name}"
   let genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
-  logInfo m!"Proof with reabstracted mvars: {genThmProof}"
-  logInfo m!"mvars in rebastracted proof {(← getMVars genThmProof).map MVarId.name}"
-
-  -- logInfo m!"Type with instantiated mvars: {userThmType}"
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
   let genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
@@ -309,18 +299,20 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
 
-  -- )
-
 syntax occurrences :="at" "occurrences" "[" num+ "]"
 
-def decodeOccurrences : TSyntax `Autogeneralize.occurrences → Array Nat
-  | `(occurrences| at occurrences [$occs*]) => occs.map TSyntax.getNat
+def decodeOccurrences : TSyntax `Autogeneralize.occurrences → List Nat
+  | `(occurrences| at occurrences [$occs*]) => (occs.map TSyntax.getNat).toList
   | _ => unreachable!
 
 /- Autogeneralize term "t" in hypothesis "h"-/
 elab "autogeneralize" pattern:term "in" h:ident occs:(occurrences)? : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
-  autogeneralize h.getId pattern
-  -- logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {e} in {thmName} ..."
-
+  let h := h.getId
+  let occs := occs.map decodeOccurrences
+  logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
+  if occs.isSome then
+    autogeneralize h pattern (← occs)
+  else
+    autogeneralize h pattern
 end Autogeneralize

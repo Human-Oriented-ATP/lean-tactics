@@ -82,7 +82,7 @@ DEMO OF EASY & HARD CASE -- sqrt(2)+2 is irrational, generalizes to something ov
 
 example : Irrational (Real.sqrt 3) := by
   let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
-  autogeneralize 2 in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
+  autogeneralize (2:ℕ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
 
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
   assumption
