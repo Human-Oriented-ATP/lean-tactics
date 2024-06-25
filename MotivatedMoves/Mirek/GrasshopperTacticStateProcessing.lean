@@ -88,26 +88,46 @@ elab stx:"auto" : tactic => do
         let varNameRoot := decl.userName.getRoot
         let varName := s!"{varNameRoot}{if nameComponents[1]? = some `_hyg then s!".{nameComponents[0]!}" else ""}"
         return s!"{varName} : {← Expr.render decl.type}"
-    -- logInfo m!"Local context: {context}"
     let hypotheses : Array String ← localDecls.filterMapM fun decl ↦ do
       if (← isProp decl.type) then
         Expr.exportTheorem decl.type
       else return none
-    -- logInfo m!"Hypotheses: {hypotheses}"
     let output : String := (context ++ #["\n---"] ++ hypotheses)
       |>.map (String.push · '\n') |>.foldl (init := "") String.append
     logInfo output
-    let fileMap ← getFileMap
-    let fileStem :=
-      match stx.getHeadInfo.getPos? with
-      | .some pos =>
-        let ⟨line, char⟩ := fileMap.utf8PosToLspPos pos
-        s!"auto-at-line-{line}-character-{char}"
-      | none => toString output.length
-    let fileName := s!"./{fileStem}.txt"
-    if True then
-      IO.FS.writeFile fileName output
+    -- let fileMap ← getFileMap
+    -- let fileStem :=
+    --   match stx.getHeadInfo.getPos? with
+    --   | .some pos =>
+    --     let ⟨line, char⟩ := fileMap.utf8PosToLspPos pos
+    --     s!"auto-at-line-{line}-character-{char}"
+    --   | none => toString output.length
+    -- let fileName := s!"./{fileStem}.txt"
+    unless (← System.FilePath.pathExists ("." / "grasshopper" / "check_exported_lean.py")) do
+      throwError s!"Invalid file path to Python script."
+    let child ← IO.Process.spawn {
+      cmd := "./check_exported_lean.py",
+      args := #[],
+      cwd := some ("." / "grasshopper"),
+      stdin := .piped,
+      stdout := .piped,
+      stderr := .piped
+    }
+    child.stdin.putStr (output ++ "---\n")
+    child.stdin.flush
+    -- child.stdin.truncate
+    let stdout ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
+    let stderr ← child.stderr.readToEnd
+    let exitCode ← child.wait
+    let result ← IO.ofExcept stdout.get
+    if exitCode != 0 then
+      throwError s!"process exited with code {exitCode} and error {stderr}"
+    logInfo result
+    guard <| result.trim == "Proven"
     evalTactic <| ← `(tactic| sorry)
+    -- if False then
+    --   IO.FS.writeFile fileName output
+
 
 end Auto
 
