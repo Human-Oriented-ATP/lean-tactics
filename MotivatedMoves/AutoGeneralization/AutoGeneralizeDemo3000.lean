@@ -13,12 +13,8 @@ open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
--- set_option profiler true
 -- set_option pp.explicit true
-
--- set_option pp.proofs false
--- set_option pp.proofs.withType true
-set_option pp.instanceTypes true
+-- set_option profiler true
 
 /- --------------------------------------------------------------------------
 DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
@@ -50,7 +46,6 @@ by
   specialize _distance.Gen 3 (EuclideanSpace.dist_eq) x y -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
   assumption
 
--- attribute [reducible] WithLp
 example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
   let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
   autogeneralize _distance (3:ℕ)

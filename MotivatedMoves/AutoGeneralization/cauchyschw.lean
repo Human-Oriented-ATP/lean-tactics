@@ -28,16 +28,55 @@ open BigOperators
 --   sorry
 
 def dp (v w : Fin n → ℝ) : ℝ := ∑ i, v i * w i
+infix:70 " ⬝ " => dp
+
+@[simps]
 instance : HMul (Fin n → ℝ) ℝ (Fin n → ℝ) where
   hMul v s := fun i => v i * s
 
-infix:70 " ⬝ " => dp
+@[simps]
+instance : HMul  ℝ (Fin n → ℝ) (Fin n → ℝ) where
+  hMul s v := fun i => v i * s
+
+/- Bilinearity Part 1 -/
+theorem dp_distrib : ∀ a b c : Fin n → ℝ,
+  (a+b) ⬝ (c) = (a ⬝ c + b ⬝ c) :=
+by
+  dsimp [dp]
+  simp [← Finset.sum_add_distrib]
+  intros a b c
+  congr
+  conv =>
+    lhs
+    intro i
+    rw [add_mul]
+
+/- Bilinearity Part 2 -/
+theorem dp_scal : ∀ (v w : Fin n → ℝ) (s : ℝ),
+  ((v*s) ⬝ w) = (v ⬝ w)*s :=
+by
+  dsimp [dp];
+  intro v w s
+  rw [Finset.sum_mul]
+  congr
+  conv =>
+    lhs
+    intro i
+    rw [mul_assoc]
+    rw [mul_comm s (w i)]
+    rw [← mul_assoc]
+
+
+/- Symmetry -/
+theorem dp_symm : ∀ a b : Fin n → ℝ,
+  a ⬝ b = b ⬝ a := by {dsimp [dp]; simp [mul_comm]}
+
 theorem cauchy_schwartz_inequality (n : ℕ) (u v : Fin n → ℝ) :
   (u ⬝ v) ^ 2 ≤ (u ⬝ u) * (v ⬝ v) :=
 by
   let P (x : ℝ) := (u * x + v) ⬝ (u * x + v)
 
-  /- P is a polynomial which is always >= 0... i.e. pos definiteness-/
+  /- P is a polynomial which is always >= 0... i.e. pos semi-definiteness-/
   have P_nonneg : ∀ x, 0 ≤ P x:= by
     intro x
     dsimp
@@ -46,7 +85,6 @@ by
     apply Finset.sum_nonneg
     intro i hi
     apply sq_nonneg
-
 
   /- Rewrite P in the form Ax^2 + Bx + C -/
   let A := u ⬝ u
@@ -57,11 +95,23 @@ by
     intro x
     dsimp
 
-    have dp_foil : ∀ a b c d : Fin n → ℝ,
-      (a+b) ⬝ (c+d) = (a ⬝ c + a ⬝ d + b ⬝ c + a ⬝ d) := sorry
+    rw [dp_distrib]
+    rw [dp_symm]
+    rw [dp_distrib]
 
+    nth_rewrite 3 [dp_symm]
+    rw [dp_distrib]
+    nth_rewrite 3 [dp_symm]
+    ring_nf
 
-    sorry
+    rw [dp_scal]
+    rw [dp_symm]
+    rw [dp_scal]
+    ring_nf
+
+    nth_rewrite 2 [dp_symm]
+    rw [dp_scal]
+    ring_nf
 
   have P_nonneg_alt : ∀ (x : ℝ), 0 ≤ A * x * x + B * x + C := by
     intro x
