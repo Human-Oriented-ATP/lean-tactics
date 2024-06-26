@@ -27,6 +27,22 @@ example : Irrational (Real.sqrt 3) := by
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
   assumption
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example of a naive, over-specialized generalization:
 sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
@@ -37,6 +53,19 @@ example : Irrational (Real.sqrt 3 + 3) := by
 
   specialize _sum_irrat.Gen 3 (Nat.prime_three)
   assumption
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example of a better, constant-aware generalization:
@@ -50,6 +79,37 @@ example : Irrational (Real.sqrt 3 + 6) := by
   specialize _sum_irrat.Gen.Gen 6 3 (Nat.prime_three)
   -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
   assumption
+
+
+
+
+
+
+
+
+
+/- --------------------------------------------------------------------------
+DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+-------------------------------------------------------------------------- -/
+example :
+  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 4 → Fintype.card (α → β) = 4 ^ 4 :=
+by
+  let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
+                  Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := fun {α β} [Fintype α] [Fintype β] [DecidableEq α] fa fb => Eq.mpr (id (congrArg (fun _a => _a = 3 ^ 3) Fintype.card_fun)) (Eq.mpr (id (congrArg (fun _a => Fintype.card β ^ _a = 3 ^ 3) fa)) (Eq.mpr (id (congrArg (fun _a => _a ^ 3 = 3 ^ 3) fb)) (Eq.refl (3 ^ 3))))
+  autogeneralize_basic 3 in _fun_set
+  specialize @_fun_set.Gen 4
+  assumption
+
+
+
+
+
+
+
+
+
+
+
 
 /- --------------------------------------------------------------------------
 DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
@@ -66,6 +126,15 @@ by
   specialize @_fun_set.Gen.Gen 5 4
 
   assumption
+
+
+
+
+
+
+
+
+
 
 /- --------------------------------------------------------------------------
 DEMO OF HARD & EASY CASE -- The formula for the distance between any two points in ℝ² -- autogeneralize works fine when there's only one instance of what to generalize

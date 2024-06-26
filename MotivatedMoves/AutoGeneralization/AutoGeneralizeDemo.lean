@@ -17,7 +17,7 @@ open Lean Elab Tactic Meta Term Command
 
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option pp.explicit true
 
 -- set_option pp.proofs false

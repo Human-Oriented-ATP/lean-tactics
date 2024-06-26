@@ -153,9 +153,6 @@ def getMVarContainingMData : MetaM MVarId := do
       return mvarId
   throwError "No metavariable assigned to an expression with metadata found"
 
-def lambdaBoundedTelescope (e : Expr) (n : Nat) (f : Array Expr → Expr → MetaM α) : MetaM α :=
-  lambdaTelescope e fun xs e => do f xs[:n] (← mkLambdaFVars xs[n:] e)
-
 /-- Helper for incrementing idx when creating pretty names-/
 -- partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
 --   let candidate := base.appendIndexAfter i ++ `_gen
@@ -172,6 +169,7 @@ def mkAbstractedName (n : Name) : Name :=
     match n with
     | (.str _ s) => s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
+
 
 
 /- Replaces all instances of "p" in "e" with a metavariable.
@@ -197,7 +195,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => let fAbs ← visit f
                             let aAbs ← visit a
-                            check $ .app fAbs aAbs
+                            -- check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b)
       | .proj _ _ b      => return e.updateProj! (← visit b)
@@ -225,6 +223,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .const n _       => let constType ← inferType e --getTheoremStatement n
                             if (← containsExpr p constType) then
                               let genConstType ← visit constType  -- expr for generalized proof statment
+                              -- check genConstType
+                              -- let genConstType ← instantiateMVars genConstType
                               let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                               -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                               return m
@@ -259,11 +259,25 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+  check abstractedProof
+  let abstractedProof ← instantiateMVars abstractedProof
   return abstractedProof
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
-
+  -- match occs with
+  -- | .all =>
+  --     let mut thmType := thmType
+  --     while (← containsExpr thmType fExpr) do
+  --       thmType ← kabstract thmType fExpr (.pos [1])
+  --     return thmType
+  -- | .pos idx =>
+  --     let mut thmType := thmType
+  --     for i in idx do
+  --       thmType ← kabstract thmType fExpr (.pos [i])
+  --     logInfo m!"abstractToDiffMVars: we have now abstracted thmtype {thmType}"
+  --     return thmType
+  -- | .neg _ => throwError "Putting in negative occurrences is not supported in this tactic."
 
 def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
@@ -278,37 +292,41 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
-  -- let genThmProof := thmProof
-  -- while ← containsExpr fExpr thmProof do
-  let genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
+  let mut genThmProof := thmProof
+  for i in [1] do
+    -- let genThmProof := thmProof
+    -- while ← containsExpr fExpr thmProof do
+    genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+    let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
 
-  -- Get the generalized type from user
-  -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
+    -- Get the generalized type from user
+    -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
 
-  let userThmType ← if consolidate then
-    abstractToOneMVar thmType fExpr occs
-  else
-    abstractToDiffMVars thmType fExpr occs
-  let userMVar ←  mkFreshExprMVar (← inferType fExpr)
-  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
-  let userThmType := userThmType.instantiate1 annotatedMVar
-  logInfo m!"!User Generalized Type: {userThmType}"
+    let userThmType ← if consolidate then
+      abstractToOneMVar thmType fExpr occs
+    else
+      abstractToDiffMVars thmType fExpr occs
+    let userMVar ←  mkFreshExprMVar (← inferType fExpr)
+    let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+    let userThmType := userThmType.instantiate1 annotatedMVar
+    logInfo m!"!User Generalized Type: {userThmType}"
 
-  -- compare and unify mvars between user type and our generalized type
-  let unif ← isDefEq  genThmType userThmType
-  logInfo m!"Do they unify? {unif}"
+    -- compare and unify mvars between user type and our generalized type
+    let unif ← isDefEq  genThmType userThmType
+    logInfo m!"Do they unify? {unif}"
 
-  let userSelectedMVar ← getMVarContainingMData
-  if !(← userMVar.mvarId!.isAssigned) then
-    userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+    let userSelectedMVar ← getMVarContainingMData
+    if !(← userMVar.mvarId!.isAssigned) then
+      userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
 
-  let genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+    genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
-  -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
-  let genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
-  createLetHypothesis genThmType genThmProof (thmName++`Gen)
+    -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
+    genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+    let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
+
+    if i == 1 then
+      createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
 
@@ -324,16 +342,18 @@ elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
   let occs := occs.map decodeOccurrences
-  logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
+  -- logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
   if occs.isSome then
     autogeneralize h pattern (Occurrences.pos $ ← occs)
   else
-    autogeneralize h pattern -- generalize first occurrence
+    autogeneralize h pattern --(.all) -- generalize all occurrences (default: to different mvars)
 
 
 /-  Autogeneralize term "pattern" in hypothesis "h", but generalize all occurrences.
     Behaves as in (Pons, 2000 )
     Either "naive_autogeneralize" or "basic_autogeneralize" or "autogeneralize_v0"
+    Maybe autogeneralize vs autogenerlize+
+    Or autogeneralize_all vs autogeneralize_linked / autogeneralize_selective
 -/
 elab "autogeneralize_basic" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
