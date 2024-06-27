@@ -176,8 +176,8 @@ def mkAbstractedName (n : Name) : Name :=
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
   kabstract replaces "p" with the same bvar, while this replaces each instance with a different mvar
-  kabstract doesn't perform unification to make sure different mvars that will ultimately unify are this same, this does
   kabstract doesn't look for instances of "p" in the types of constants, this does
+  kabstract doesn't look under loose bvars, but this creates localdecls so we can still look under bvars
 -/
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
@@ -193,10 +193,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => let fAbs ← visit f
-                            let aAbs ← visit a
-                            -- check $ .app fAbs aAbs
-                            return e.updateApp! fAbs aAbs
+      | .app f a         => return e.updateApp! (← visit f) (← visit a)
       | .mdata _ b       => return e.updateMData! (← visit b)
       | .proj _ _ b      => return e.updateProj! (← visit b)
       | .letE _ t v b _  => return e.updateLet! (← visit t) (← visit v) (← visit b)
@@ -233,12 +230,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | e                => return e
 
     if e.hasLooseBVars then
-      -- logInfo m!"loose bvars found in {e}"
       visitChildren ()
-    -- -- kabstract usually checks if the heads of the expressions are same before bothering to check definition equality
-    -- -- this makes teh code more efficient, but it's not necessarily true that "heads not equal => not definitionally equal"
-    -- else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
-    --   visitChildren ()
     else
       -- We save the metavariable context here,
       -- so that it can be rolled back unless `occs.contains i`.
@@ -259,8 +251,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
   let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+
+  -- unify "linked" mvars in proof
   check abstractedProof
   let abstractedProof ← instantiateMVars abstractedProof
+
   return abstractedProof
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
