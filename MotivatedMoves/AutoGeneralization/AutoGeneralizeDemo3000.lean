@@ -34,23 +34,23 @@ example : True:= by
 
     rw [ab] at asq
 
-    have num_sq_even : 2 ∣ x.num * x.num := by
+    have num_sq_even : (2:ℤ) ∣ x.num * x.num := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use ↑(x *x).den
       rw [asq]
 
-    have num_even : 2 ∣ x.num := by
+    have num_even : (2:ℤ) ∣ x.num := by
       have := Iff.mp (Prime.dvd_mul (Int.prime_two)) num_sq_even
       cases this with
       | inl h => exact h
       | inr h => exact h
 
-    have num_abs_even : 2 ∣ (Int.natAbs x.num) := by
-      have mp := (Iff.mpr $ dvd_abs 2 x.num) num_even
+    have num_abs_even : (2:ℤ) ∣ (Int.natAbs x.num) := by
+      have mp := (Iff.mpr $ dvd_abs (2:ℤ) x.num) num_even
       rw [Int.abs_eq_natAbs] at mp
       norm_cast at *
 
-    have num_is_2k : ∃ k,  x.num = 2*k := by
+    have num_is_2k : ∃ k,  x.num = (2:ℤ)*k := by
       apply (Iff.mp dvd_iff_exists_eq_mul_right)
       exact num_even
 
@@ -60,30 +60,44 @@ example : True:= by
     -- simp [] at asq
     simp [mul_comm k, mul_assoc, mul_left_cancel] at asq
 
-    have den_sq_even : 2 ∣ ((x.den * x.den) : ℤ) := by
+    have den_sq_even : (2:ℤ) ∣ ((x.den * x.den) : ℤ) := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use (k*k)
 
-    have den_even : 2 ∣ x.den := by
+    have den_even : (2:ℤ) ∣ x.den := by
       have := Iff.mp (Prime.dvd_mul (Int.prime_two)) den_sq_even
       norm_cast at this
       cases this with
-      | inl h => exact h
-      | inr h => exact h
+      | inl h => norm_cast
+      | inr h => norm_cast
 
-    -- unfold Nat.Coprime at ab_copr
+    unfold Nat.Coprime at ab_copr
 
-    have two_dvd_gcd : 2 ∣ gcd (Int.natAbs x.num) x.den  := by
-      have := Iff.mpr (dvd_gcd_iff 2  (Int.natAbs x.num) x.den)
-      apply this
+    have two_dvd_gcd : (2:ℤ) ∣ (gcd ((Int.natAbs x.num):ℕ) x.den) := by
+
+      apply Iff.mpr (dvd_gcd_iff _ _ _)
       constructor
 
       exact num_abs_even
       exact den_even
 
-    rw [gcd_eq_nat_gcd] at two_dvd_gcd
 
-    simp [ab_copr] at two_dvd_gcd
+    clear ab bsq num_sq_even k hk asq  den_sq_even  num_even hx
+    clear num_abs_even den_even
+    simp [← gcd_eq_nat_gcd] at ab_copr
+
+    have ab_copr_int : gcd (Int.natAbs x.num) x.den = (1 : ℤ) := by
+      rw [ab_copr]
+      rfl
+    have ab_copr_int' : gcd ((Int.natAbs x.num):ℤ) x.den = (1 : ℤ) := by
+      rw [← ab_copr_int]
+      rfl
+
+    clear ab_copr
+
+    rw_mod_cast [ab_copr_int'] at two_dvd_gcd
+    norm_num at two_dvd_gcd
+
 
 
   autogeneralize_basic (2:ℤ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
