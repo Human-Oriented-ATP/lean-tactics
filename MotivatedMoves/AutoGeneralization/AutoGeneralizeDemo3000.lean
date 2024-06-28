@@ -20,7 +20,7 @@ set_option pp.showLetValues false
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : True:= by
+example : ¬∃x : ℚ, x*x = (2:ℤ) := by
   let irr : ¬∃x : ℚ, x*x = (2:ℤ) := by
     intro h
     obtain ⟨x, hx⟩ := h
@@ -102,8 +102,9 @@ example : True:= by
 
   autogeneralize_basic (2:ℤ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
   -- a → (b → (a → conclusion))
-  simp at irr.Gen
-  simp
+  -- simp at irr.Gen
+  specialize irr.Gen (Int.prime_two) (Int.prime_two)
+  exact irr.Gen
 
 
 
