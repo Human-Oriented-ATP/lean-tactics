@@ -20,8 +20,8 @@ set_option pp.showLetValues false
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : ¬∃x : ℚ, x*x = (2:ℤ) := by
-  let irr : ¬∃x : ℚ, x*x = (2:ℤ) := by
+example : ¬∃x : ℚ, x*x = (3:ℤ ) := by
+  let irr : ¬∃x : ℚ, x*x = (3:ℤ ) := by
     intro h
     obtain ⟨x, hx⟩ := h
     have ab := (Iff.mp Rat.eq_iff_mul_eq_mul) hx
@@ -34,23 +34,37 @@ example : ¬∃x : ℚ, x*x = (2:ℤ) := by
 
     rw [ab] at asq
 
-    have num_sq_even : (2:ℤ) ∣ x.num * x.num := by
-      apply (Iff.mpr dvd_iff_exists_eq_mul_right)
-      use ↑(x *x).den
+    have nse : ∃ c, x.num * x.num = 3 * c := by
+      -- simp [asq]
+      -- rw [← asq]
+      use ((x *x).den : ℤ)
       rw [asq]
+      -- norm_cast
+      -- apply Eq.symm
 
-    have num_even : (2:ℤ) ∣ x.num := by
-      have := Iff.mp (Prime.dvd_mul (Int.prime_two)) num_sq_even
+      -- rw [asq]
+      -- apply Eq.symm
+      -- assumption
+
+    have num_sq_even : (3:ℤ ) ∣ x.num * x.num :=
+      dvd_iff_exists_eq_mul_right.mpr (nse)
+      -- apply ( dvd_iff_exists_eq_mul_right.mpr)
+      -- use ↑(x *x).den
+      -- rw [asq]
+
+    have num_even : (3:ℤ ) ∣ x.num := by
+      have := Iff.mp (Prime.dvd_mul (Int.prime_three)) num_sq_even
       cases this with
       | inl h => exact h
       | inr h => exact h
 
-    have num_abs_even : (2:ℤ) ∣ (Int.natAbs x.num) := by
-      have mp := (Iff.mpr $ dvd_abs (2:ℤ) x.num) num_even
-      rw [Int.abs_eq_natAbs] at mp
-      norm_cast at *
+    have num_abs_even : (3:ℤ ) ∣ (Int.natAbs x.num) := by
+      rwa [Int.dvd_natAbs]
+      -- have mp := (Iff.mpr $ dvd_abs (3:ℤ ) x.num) num_even
+      -- rw [Int.abs_eq_natAbs] at mp
+      -- norm_cast at *
 
-    have num_is_2k : ∃ k,  x.num = (2:ℤ)*k := by
+    have num_is_2k : ∃ k,  x.num = (3:ℤ )*k := by
       apply (Iff.mp dvd_iff_exists_eq_mul_right)
       exact num_even
 
@@ -60,12 +74,12 @@ example : ¬∃x : ℚ, x*x = (2:ℤ) := by
     -- simp [] at asq
     simp [mul_comm k, mul_assoc, mul_left_cancel] at asq
 
-    have den_sq_even : (2:ℤ) ∣ ((x.den * x.den) : ℤ) := by
+    have den_sq_even : (3:ℤ ) ∣ ((x.den * x.den) : ℤ) := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use (k*k)
 
-    have den_even : (2:ℤ) ∣ x.den := by
-      have := Iff.mp (Prime.dvd_mul (Int.prime_two)) den_sq_even
+    have den_even : (3:ℤ ) ∣ x.den := by
+      have := Iff.mp (Prime.dvd_mul (Int.prime_three)) den_sq_even
       norm_cast at this
       cases this with
       | inl h => norm_cast
@@ -73,7 +87,7 @@ example : ¬∃x : ℚ, x*x = (2:ℤ) := by
 
     unfold Nat.Coprime at ab_copr
 
-    have two_dvd_gcd : (2:ℤ) ∣ (gcd ((Int.natAbs x.num):ℕ) x.den) := by
+    have two_dvd_gcd : (3:ℤ ) ∣ (gcd ((Int.natAbs x.num):ℕ) x.den) := by
 
       apply Iff.mpr (dvd_gcd_iff _ _ _)
       constructor
@@ -100,12 +114,11 @@ example : ¬∃x : ℚ, x*x = (2:ℤ) := by
 
 
 
-  autogeneralize_basic (2:ℤ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
+  autogeneralize_basic (3:ℤ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
   -- a → (b → (a → conclusion))
   -- simp at irr.Gen
-  specialize irr.Gen (Int.prime_two) (Int.prime_two)
+  specialize irr.Gen (Int.prime_three) (Int.prime_three)
   exact irr.Gen
-
 
 
 
