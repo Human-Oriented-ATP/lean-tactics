@@ -150,7 +150,7 @@ def getMVarContainingMData : MetaM MVarId := do
   let mctx ← getMCtx
   for (mvarId, expr) in mctx.eAssignment do
     if ← containsMData expr then
-      logInfo m!"this expr contains mdata {expr}"
+      logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {expr}"
       return mvarId
   throwError "No metavariable assigned to an expression with metadata found"
 

@@ -23,7 +23,25 @@ sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
   let _irr : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     intro h
-    obtain ⟨x, hx⟩ := h
+
+    have assume_pos : (∃q : ℚ, q^2 = (3:ℕ)) → ∃q : ℚ,  0 ≤ q ∧ q^2 = (3:ℕ) := by
+      intros gen
+      obtain ⟨q, hq⟩ := gen
+      by_cases h : 0 > q
+
+      use -q
+      constructor
+      linarith
+      simp [hq]
+
+      use q
+      simp at h
+      exact ⟨h, hq⟩
+
+    apply assume_pos at h
+    clear assume_pos
+
+    obtain ⟨x, ⟨x_pos, hx⟩ ⟩ := h
     have ab := (Iff.mp Rat.eq_iff_mul_eq_mul) hx
     simp at ab
     have ab_copr := x.reduced
@@ -34,41 +52,32 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     ring_nf at asq
     ring_nf at bsq
     rw [ab, bsq] at asq
-    clear bsq
+    clear bsq ab
 
-    -- have : x.num ≥ 0 := by sorry
+    have num_pos : 0 ≤ x.num := Rat.num_nonneg_iff_zero_le.mpr x_pos
+    clear x_pos
+    have num_is_nat: x.num = x.num.natAbs :=
+      Int.eq_natAbs_of_zero_le num_pos
+    rw [num_is_nat] at asq
+    norm_cast at asq
+    clear num_is_nat num_pos
 
-    have nse : ∃ c,    x.num^2 =(3:ℕ ) * c := by
+    have num_sq_even : (3:ℕ) ∣ (Int.natAbs x.num)^2  := by
+      apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use (x.den^2)
       apply Eq.symm
-      norm_cast
-
-    have num_sq_even : ((3:ℕ):ℤ) ∣ x.num^2  :=
-      dvd_iff_exists_eq_mul_right.mpr (nse)
-      -- apply ( dvd_iff_exists_eq_mul_right.mpr)
-      -- use ↑(x *x).den
-      -- rw [asq]
-
-    have num_even : ((3:ℕ):ℤ) ∣ x.num := by
-      -- have p3 : Prime ((3:ℕ):ℤ)  := Nat.Prime.prime Nat.prime_three
-      apply Prime.dvd_of_dvd_pow Int.prime_three num_sq_even
-
-    have num_abs_even : ((3:ℕ):ℤ) ∣ (Int.natAbs x.num) := by
-      rwa [Int.dvd_natAbs]
-      -- have mp := (Iff.mpr $ dvd_abs (3:ℤ ) x.num) num_even
-      -- rw [Int.abs_eq_natAbs] at mp
-      -- norm_cast at *
-
-    have num_is_2k : ∃ k,  x.num = ((3:ℕ):ℤ)*k := by
+      rw [asq]
+    have num_abs_even : (3:ℕ) ∣ (Int.natAbs x.num) := by
+      apply Nat.Prime.dvd_of_dvd_pow (Nat.prime_three) num_sq_even
+    have num_is_2k : ∃ k,  (Int.natAbs x.num)= (3:ℕ)*k := by
       apply (Iff.mp dvd_iff_exists_eq_mul_right)
-      exact num_even
+      exact num_abs_even
+    clear num_sq_even
 
     obtain ⟨k, hk⟩ := num_is_2k
     rw [hk] at asq
-    -- rw [mul_assoc] at asq
-    -- simp [] at asq
+    clear hk
 
-    -- ring_nf at asq
     simp [mul_pow, mul_comm k, mul_assoc, mul_left_cancel, mul_right_cancel ] at asq
     rw [← Nat.pred_succ 2] at asq
     rw [Nat.succ_eq_add_one] at asq
@@ -76,50 +85,32 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     rw [pow_succ 3 1] at asq
     rw [mul_assoc] at asq
     simp [mul_left_cancel] at asq
-    have den_sq_even : ((3:ℕ):ℤ) ∣ ((x.den^2) : ℤ) := by
+
+    have den_sq_even : (3:ℕ) ∣ (x.den^2)  := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
-      apply Exists.intro
-      apply asq
-
-      --  (k^2)
-
-    have den_even : ((3:ℕ):ℤ) ∣ x.den := by
-      apply Prime.dvd_of_dvd_pow (Int.prime_three) den_sq_even
+      use (k^2)
+    have den_even : (3:ℕ) ∣ x.den := by
+      apply Nat.Prime.dvd_of_dvd_pow (Nat.prime_three) den_sq_even
+    clear den_sq_even k asq
 
     unfold Nat.Coprime at ab_copr
 
-    have two_dvd_gcd : ((3:ℕ):ℤ)∣ (gcd ((Int.natAbs x.num):ℕ) x.den) := by
-
+    have two_dvd_gcd : (3:ℕ) ∣ gcd (Int.natAbs x.num) x.den := by
       apply Iff.mpr (dvd_gcd_iff _ _ _)
       constructor
-
       exact num_abs_even
       exact den_even
-
-
-    clear ab  num_sq_even k hk asq  den_sq_even  num_even hx
     clear num_abs_even den_even
+
     simp [← gcd_eq_nat_gcd] at ab_copr
-
-    have ab_copr_int : gcd (Int.natAbs x.num) x.den = (1 : ℤ) := by
-      rw [ab_copr]
-      rfl
-    have ab_copr_int' : gcd ((Int.natAbs x.num):ℤ) x.den = (1 : ℤ) := by
-      rw [← ab_copr_int]
-      rfl
-
-    clear ab_copr
-
-    rw_mod_cast [ab_copr_int'] at two_dvd_gcd
-    norm_num at two_dvd_gcd
-
-
-
+    rw [ab_copr] at two_dvd_gcd
+    have := Nat.dvd_one.mp two_dvd_gcd
+    linarith
 
   autogeneralize_basic (3:ℕ ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
   -- a → (b → (a → conclusion))
-  specialize irr.Gen (Int.prime_three) (Int.prime_three)
-  exact irr.Gen
+  specialize _irr.Gen (Int.prime_three) (Int.prime_three)
+  exact _irr.Gen
 
 
 
