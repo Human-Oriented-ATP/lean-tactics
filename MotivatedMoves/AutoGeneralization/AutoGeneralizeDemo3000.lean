@@ -104,12 +104,13 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
 
     simp [← gcd_eq_nat_gcd] at ab_copr
     rw [ab_copr] at two_dvd_gcd
-    have := Nat.dvd_one.mp two_dvd_gcd
-    linarith
+    have pr_eq_one := Nat.dvd_one.mp two_dvd_gcd
+    have pr_neq_one := Nat.Prime.ne_one Nat.prime_three
+    exact pr_neq_one pr_eq_one
 
   autogeneralize_basic (3:ℕ ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
   -- a → (b → (a → conclusion))
-  specialize _irr.Gen (Int.prime_three) (Int.prime_three)
+  specialize _irr.Gen (Nat.prime_three) (Nat.prime_three) (Nat.prime_three)
   exact _irr.Gen
 
 

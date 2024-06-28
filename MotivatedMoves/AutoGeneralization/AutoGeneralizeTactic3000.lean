@@ -193,7 +193,10 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => return e.updateApp! (← visit f depth) (← visit a depth)
+      | .app f a         => let fAbs ← visit f depth
+                            let aAbs ← visit a depth
+                            -- check $ .app fAbs aAbs
+                            return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE _ t v b _  => return e.updateLet! (← visit t depth) (← visit v depth) (← visit b depth)
