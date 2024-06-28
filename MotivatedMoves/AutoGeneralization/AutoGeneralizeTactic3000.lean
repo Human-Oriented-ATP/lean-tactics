@@ -150,6 +150,7 @@ def getMVarContainingMData : MetaM MVarId := do
   let mctx ← getMCtx
   for (mvarId, expr) in mctx.eAssignment do
     if ← containsMData expr then
+      logInfo m!"this expr contains mdata {expr}"
       return mvarId
   throwError "No metavariable assigned to an expression with metadata found"
 
@@ -288,7 +289,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
-  logInfo ("Ungeneralized Proof: " ++ thmProof)
+  -- logInfo ("Ungeneralized Proof: " ++ thmProof)
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
@@ -317,7 +318,10 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   let userSelectedMVar ← getMVarContainingMData
   if !(← userMVar.mvarId!.isAssigned) then
-    userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+    try
+      userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+    catch _ =>
+      throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
   genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
