@@ -21,7 +21,7 @@ Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
-  let irr : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
+  let _irr : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     intro h
     obtain ⟨x, hx⟩ := h
     have ab := (Iff.mp Rat.eq_iff_mul_eq_mul) hx
@@ -37,21 +37,21 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     clear bsq
 
     -- have : x.num ≥ 0 := by sorry
-    have abs_is_num: Int.natAbs x.num = x.num  := by sorry
 
     have nse : ∃ c,    x.num^2 =(3:ℕ ) * c := by
       use (x.den^2)
       apply Eq.symm
       norm_cast
 
-    have num_sq_even : ((3:ℕ):ℤ) ∣ x.num^(2)  :=
+    have num_sq_even : ((3:ℕ):ℤ) ∣ x.num^2  :=
       dvd_iff_exists_eq_mul_right.mpr (nse)
       -- apply ( dvd_iff_exists_eq_mul_right.mpr)
       -- use ↑(x *x).den
       -- rw [asq]
 
-    have num_even : ((3:ℕ):ℤ) ∣ x.num :=
-     Prime.dvd_of_dvd_pow (Int.prime_three) num_sq_even
+    have num_even : ((3:ℕ):ℤ) ∣ x.num := by
+      -- have p3 : Prime ((3:ℕ):ℤ)  := Nat.Prime.prime Nat.prime_three
+      apply Prime.dvd_of_dvd_pow Int.prime_three num_sq_even
 
     have num_abs_even : ((3:ℕ):ℤ) ∣ (Int.natAbs x.num) := by
       rwa [Int.dvd_natAbs]
@@ -116,7 +116,7 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
 
 
 
-  autogeneralize_basic (3:ℕ ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
+  autogeneralize_basic (3:ℕ ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
   -- a → (b → (a → conclusion))
   specialize irr.Gen (Int.prime_three) (Int.prime_three)
   exact irr.Gen
