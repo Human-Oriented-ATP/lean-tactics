@@ -21,8 +21,8 @@ Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 example : True:= by
-  let irr : ¬∃x : ℚ, x*x = (2:ℕ) := by
-    by_contra h
+  let irr : ¬∃x : ℚ, x*x = (2:ℤ) := by
+    intro h
     obtain ⟨x, hx⟩ := h
     have ab := (Iff.mp Rat.eq_iff_mul_eq_mul) hx
     simp at ab
@@ -57,8 +57,8 @@ example : True:= by
     obtain ⟨k, hk⟩ := num_is_2k
     rw [hk, bsq] at asq
     rw [mul_assoc] at asq
-    simp [mul_left_cancel] at asq
-    rw [mul_comm k, mul_assoc] at asq
+    -- simp [] at asq
+    simp [mul_comm k, mul_assoc, mul_left_cancel] at asq
 
     have den_sq_even : 2 ∣ ((x.den * x.den) : ℤ) := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
@@ -71,7 +71,7 @@ example : True:= by
       | inl h => exact h
       | inr h => exact h
 
-    unfold Nat.Coprime at ab_copr
+    -- unfold Nat.Coprime at ab_copr
 
     have two_dvd_gcd : 2 ∣ gcd (Int.natAbs x.num) x.den  := by
       have := Iff.mpr (dvd_gcd_iff 2  (Int.natAbs x.num) x.den)
@@ -86,8 +86,9 @@ example : True:= by
     simp [ab_copr] at two_dvd_gcd
 
 
-  autogeneralize_basic (2:ℕ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
-
+  autogeneralize_basic (2:ℤ) in irr -- adds _sqrt2Irrational.Gen to list of hypotheses
+  -- a → (b → (a → conclusion))
+  simp at irr.Gen
   simp
 
 

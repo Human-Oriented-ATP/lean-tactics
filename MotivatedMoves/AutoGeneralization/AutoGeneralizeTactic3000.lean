@@ -185,32 +185,31 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- printLocalContext
 
   let pType ← inferType p
-  -- let pHeadIdx := p.toHeadIndex
-  -- let pNumArgs := p.headNumArgs
-  let rec visit (e : Expr) : MetaM Expr := do
+  -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
+  let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
     -- let e ← whnf e
     let visitChildren : Unit → MetaM Expr := fun _ => do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => return e.updateApp! (← visit f) (← visit a)
-      | .mdata _ b       => return e.updateMData! (← visit b)
-      | .proj _ _ b      => return e.updateProj! (← visit b)
-      | .letE _ t v b _  => return e.updateLet! (← visit t) (← visit v) (← visit b)
+      | .app f a         => return e.updateApp! (← visit f depth) (← visit a depth)
+      | .mdata _ b       => return e.updateMData! (← visit b depth)
+      | .proj _ _ b      => return e.updateProj! (← visit b depth)
+      | .letE _ t v b _  => return e.updateLet! (← visit t depth) (← visit v depth) (← visit b depth)
       | .lam n d b bi     =>
-                              let dAbs ← visit d
+                              let dAbs ← visit d depth
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedLambda ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
-                                let bAbs ← visit b -- now it's safe to recurse on b (no loose bvars)
+                                let bAbs ← visit b depth-- now it's safe to recurse on b (no loose bvars)
                                 return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               return updatedLambda
-      | .forallE n d b bi => let dAbs ← visit d
+      | .forallE n d b bi => let dAbs ← visit d depth
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedForAll ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
-                                let bAbs ← visit b  -- now it's safe to recurse on b (no loose bvars)
+                                let bAbs ← visit b depth  -- now it's safe to recurse on b (no loose bvars)
                                 return ← mkForallFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               return updatedForAll
@@ -218,15 +217,17 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n _       => let constType ← inferType e --getTheoremStatement n
-                            if (← containsExpr p constType) then
-                              let genConstType ← visit constType  -- expr for generalized proof statment
-                              -- check genConstType
-                              -- let genConstType ← instantiateMVars genConstType
-                              let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                              -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-                              return m
+                            if depth ≥ 1 then return e
                             else
-                              return e
+                              if (← containsExpr p constType) then
+                                let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
+                                -- check genConstType
+                                -- let genConstType ← instantiateMVars genConstType
+                                let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
+                                -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
+                                return m
+                              else
+                                return e
       | e                => return e
 
     if e.hasLooseBVars then
@@ -315,6 +316,12 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
       userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
 
     genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+
+    -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
+    let hyps ← getMVars genThmProof
+    logInfo m!"hyps {hyps}"
+    -- for hyp in hyps do
+
 
     -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
     genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
