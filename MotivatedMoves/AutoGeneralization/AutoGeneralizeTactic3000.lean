@@ -319,14 +319,14 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  let userSelectedMVar ← getMVarContainingMData
-  if !(← userMVar.mvarId!.isAssigned) then
-    try
-      userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
-    catch _ =>
-      throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
+  -- let userSelectedMVar ← getMVarContainingMData
+  -- if !(← userMVar.mvarId!.isAssigned) then
+  --   try
+  --     userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+  --   catch _ =>
+  --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
-  genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+  -- genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
   let hyps ← getMVars genThmProof
