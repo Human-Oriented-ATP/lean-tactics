@@ -14,14 +14,15 @@ open Lean Elab Tactic Meta Term Command
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
 -- set_option pp.explicit true
+-- set_option pp.all true
 -- set_option profiler true
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
-  let _irr : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
+example : ¬∃x : ℚ, x^2 = (3:ℕ) := by
+  let _irr : ¬∃x : ℚ, x^2 = (3:ℕ) := by
     intro h
 
     have assume_pos : (∃q : ℚ, q^2 = (3:ℕ)) → ∃q : ℚ,  0 ≤ q ∧ q^2 = (3:ℕ) := by
@@ -31,7 +32,9 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
 
       use -q
       constructor
-      linarith
+      simp at h
+      simp
+      exact le_of_lt h
       simp [hq]
 
       use q
@@ -41,7 +44,10 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     apply assume_pos at h
     clear assume_pos
 
+
+    -- THE BELOW LINE IS THE ONE THAT CAUSES 1+2 TO SHOW UP
     obtain ⟨x, ⟨x_pos, hx⟩ ⟩ := h
+
     have ab := (Iff.mp Rat.eq_iff_mul_eq_mul) hx
     simp at ab
     have ab_copr := x.reduced
@@ -77,6 +83,7 @@ example : ¬∃x : ℚ, x^2 = ((3:ℕ):ℤ) := by
     obtain ⟨k, hk⟩ := num_is_2k
     rw [hk] at asq
     clear hk
+
 
     simp [mul_pow, mul_comm k, mul_assoc, mul_left_cancel, mul_right_cancel ] at asq
     rw [← Nat.pred_succ 2] at asq
