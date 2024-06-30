@@ -16,13 +16,61 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
-#synth IsLeftCancelMulZero Int
-#synth IsCancelMulZero Int
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : True := by
+---lemma :
+
+-- theorem irrat_def' : (¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 3 * b^2) → Irrational (sqrt 3):= by
+--   rintro ⟨a,b, ⟨copr,h ⟩⟩
+
+
+
+theorem irrat_def : ¬Irrational (sqrt (3:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (3:ℤ) * b^2:= by
+  intro h
+  unfold Irrational at h
+  simp at h
+
+  obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
+
+  use x.num
+  use x.den
+  constructor
+
+  have coprim := x.reduced
+  unfold Nat.Coprime at coprim
+  rw [← Int.natAbs_cast x.den] at coprim
+  rw [← Int.gcd_eq_natAbs] at coprim
+  unfold Int.gcd at coprim
+  rw [← gcd_eq_nat_gcd] at coprim
+  have copr_int : gcd (Int.natAbs x.num) (Int.natAbs x.den) = (1 : ℤ) := by
+    rw [coprim]
+    rfl
+  have copr_int' : gcd (x.num) x.den = (1 : ℤ) := by
+    rw [← copr_int]
+    rfl
+  rw [copr_int']
+
+  have hx_sq : (x : ℝ) ^ 2 = 3 := by
+    rw [hx]
+    exact Real.sq_sqrt (by norm_num : 0 ≤ (3 : ℝ))
+  clear hx
+
+  rw [← Rat.cast_pow] at hx_sq
+  norm_cast at hx_sq
+  apply Rat.eq_iff_mul_eq_mul.mp at hx_sq
+
+  rw [pow_two]
+  rw [pow_two]
+  rw [pow_two] at hx_sq
+  rw [Rat.mul_self_num] at hx_sq
+  rw [Rat.mul_self_den] at hx_sq
+  simp at *
+  norm_cast
+
+
+example  : ¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 2 * b^2  := by
   let _irr : ¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 3 * b^2 := by
     intro h
 
@@ -71,9 +119,8 @@ example : True := by
     apply Prime.not_dvd_one (Int.prime_three) p_dvd_gcd
 
   autogeneralize_basic (3:ℤ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
-  simp
-
-#print
+  specialize _irr.Gen (2:ℤ) (Int.prime_two) (Int.prime_two) (Int.prime_two) (Int.prime_two)
+  assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example:
