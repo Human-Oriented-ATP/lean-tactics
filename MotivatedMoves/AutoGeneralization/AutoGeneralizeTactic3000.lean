@@ -327,8 +327,8 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   else
     abstractToDiffMVars thmType fExpr occs
 
-  let hyps ← getMVars genThmProof
-  logInfo m!"hyps {hyps}"
+  let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
+  logInfo m!"hyps {mvarsInProof.map (fun e => e.name)}"
 
 
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
@@ -340,9 +340,9 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  let mvarsInProof ← getMVars genThmProof
-  logInfo m!"Mvars in proof {mvarsInProof}"
-  let userSelectedMVar ← getMVarContainingMData' hyps
+  -- let mvarsInProof ← getMVars genThmProof
+  -- logInfo m!"mvarsInProof {mvarsInProof.map (fun e => e.name)}"
+  let userSelectedMVar ← getMVarContainingMData' mvarsInProof
   logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
   if !(← userMVar.mvarId!.isAssigned) then
     try
