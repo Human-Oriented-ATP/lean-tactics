@@ -275,6 +275,13 @@ example :  1 * 2 = 2 * 1 := by
   specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
 
+example :  1 + (2 + 3) = 2 + (1 + 3) := by
+  let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
+
+  specialize _multPermute.Gen (.+.) Nat.add_assoc Nat.add_comm 1 2 3
+  assumption
+
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
@@ -282,6 +289,8 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
   autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen
   autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen
   autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen.Gen
+  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen.Gen.Gen
 
-  specialize _multPermute.Gen.Gen.Gen.Gen (.+.) (.+.) (.+.) (.+.) (.+.) (.+.) Nat.add_assoc (.+.) Nat.add_comm Nat.add_assoc 1 2 3
+  -- specialize all 4 of the instances
+  specialize _multPermute.Gen.Gen.Gen.Gen.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
