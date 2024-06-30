@@ -340,8 +340,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  -- let mvarsInProof ← getMVars genThmProof
-  -- logInfo m!"mvarsInProof {mvarsInProof.map (fun e => e.name)}"
   let userSelectedMVar ← getMVarContainingMData' mvarsInProof
   logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
   if !(← userMVar.mvarId!.isAssigned) then
@@ -354,15 +352,22 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
 
-  -- hyps.mapM fun hyp1 => do
-  --   hyps.mapM fun hyp2 => do
-  --     if hyp1 != hyp2 then do
-  --       let type1 ← hyp1.getType
-  --       let type2 ← hyp2.getType
-  --       if (← isDefEq type1 type2) then
-  --         hyp1.assign (.mvar hyp2)
+  let hyps ← getMVars genThmProof
+  for hyp1 in hyps do
+    let mctx ← getMCtx
+    let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
+    setMCtx mctx
+    if repeatingHyp.isSome then
+      let repeatingHyp ← repeatingHyp
+      logInfo m!"reapeater {repeatingHyp.name} with {← repeatingHyp.getType}"
+      try
+        if !(← repeatingHyp.isAssigned) then do
+          logInfo "and its not assigned"
+          hyp1.assignIfDefeq (.mvar repeatingHyp)
+      catch _ =>
+        throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
 
-
+  -- genThmProof ← instantiateMVars genThmProof
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
   genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)

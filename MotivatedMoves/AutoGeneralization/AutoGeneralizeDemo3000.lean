@@ -119,7 +119,7 @@ example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
     apply Prime.not_dvd_one (Int.prime_three) p_dvd_gcd
 
   autogeneralize_basic (3:ℤ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
-  specialize _irr.Gen (2:ℤ) (Int.prime_two) (Int.prime_two) (Int.prime_two) (Int.prime_two)
+  specialize _irr.Gen (2:ℤ) (Int.prime_two)
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
