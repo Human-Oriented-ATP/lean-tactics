@@ -6,13 +6,14 @@ import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic3000
-open Autogeneralize
+import MotivatedMoves.AutoGeneralization.library
+open Autogeneralize library
 
 open Real
 open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues false
+set_option pp.showLetValues true
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
@@ -20,59 +21,10 @@ set_option pp.showLetValues false
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
----lemma :
-
--- theorem irrat_def' : (¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 3 * b^2) → Irrational (sqrt 3):= by
---   rintro ⟨a,b, ⟨copr,h ⟩⟩
-
-
-
-theorem irrat_def (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
-  intro h
-  obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
-
-  use x.num
-  use x.den
-  constructor
-
-  have coprim := x.reduced
-  unfold Nat.Coprime at coprim
-  rw [← Int.natAbs_cast x.den] at coprim
-  rw [← Int.gcd_eq_natAbs] at coprim
-  unfold Int.gcd at coprim
-  rw [← gcd_eq_nat_gcd] at coprim
-  have copr_int : gcd (Int.natAbs x.num) (Int.natAbs x.den) = (1 : ℤ) := by
-    rw [coprim]
-    rfl
-  have copr_int' : gcd (x.num) x.den = (1 : ℤ) := by
-    rw [← copr_int]
-    rfl
-  rw [copr_int']
-
-  norm_cast at hx
-  apply Rat.eq_iff_mul_eq_mul.mp at hx
-
-  rw [pow_two]
-  rw [pow_two]
-  rw [pow_two] at hx
-  rw [Rat.mul_self_num] at hx
-  rw [Rat.mul_self_den] at hx
-  simp at *
-  norm_cast
-
-theorem irrat_def' (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ ¬(∃ x : ℚ, x^2 = (n:ℤ)) := by
-  contrapose
-  simp
-  have := irrat_def
-  simp at this
-  apply this
-
-
-example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
+example  : ¬ ∃ x : ℚ, x^2 = (2:ℤ)  := by
   let _irr : ¬ ∃ x : ℚ, x^2 = (3:ℤ) := by
     apply irrat_def'
     intros h
-
 
     obtain ⟨a,b, ⟨copr, h ⟩⟩ := h
 
@@ -94,17 +46,13 @@ example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
 
     have p_not_zero: (3:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_three)
 
-    rw [← Nat.pred_succ 2, Nat.succ_eq_add_one, Nat.pred_eq_sub_one] at h
     rw [pow_succ (3:ℤ) 1, mul_assoc] at h
     apply Iff.mp (Int.mul_eq_mul_left_iff p_not_zero) at h
     rw [pow_one ] at h
-    -- simp at h
 
 
     have b_pow_div : 3 ∣ b^2  := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
-      -- apply Exists.intro
-      -- exact h
       use (k^2)
 
     have b_div : 3 ∣ b  := by
