@@ -3,7 +3,7 @@ import Mathlib.FieldTheory.Finite.Basic
 
 namespace library
 
-theorem irrat_def (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
+theorem irrat_def' (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
   intro h
   obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
 
@@ -36,10 +36,10 @@ theorem irrat_def (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, gcd 
   simp at *
   norm_cast
 
-theorem irrat_def' (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ ¬(∃ x : ℚ, x^2 = (n:ℤ)) := by
+theorem irrat_def (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ ¬(∃ x : ℚ, x^2 = (n:ℤ)) := by
   contrapose
   simp
-  have := irrat_def
+  have := irrat_def'
   simp at this
   apply this
 

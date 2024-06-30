@@ -21,21 +21,21 @@ set_option pp.showLetValues true
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example  : ¬ ∃ x : ℚ, x^2 = (2:ℤ)  := by
-  let _irr : ¬ ∃ x : ℚ, x^2 = (3:ℤ) := by
-    apply irrat_def'
+example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
+  let _irr : ¬ ∃ x : ℚ, x^2 = (2:ℤ) := by
+    apply irrat_def
     intros h
 
     obtain ⟨a,b, ⟨copr, h ⟩⟩ := h
 
-    have a_pow_div : 3 ∣ a^2  := by
+    have a_pow_div : 2 ∣ a^2  := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use (b^2)
 
-    have a_div : 3 ∣ a  := by
-      apply Prime.dvd_of_dvd_pow (Int.prime_three) a_pow_div
+    have a_div : 2 ∣ a  := by
+      apply Prime.dvd_of_dvd_pow (Int.prime_two) a_pow_div
 
-    have a_is_pk : ∃ k,  a = 3*k := by
+    have a_is_pk : ∃ k,  a = 2*k := by
       apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div
     obtain ⟨k, hk⟩ := a_is_pk
     rw [hk] at h
@@ -44,30 +44,30 @@ example  : ¬ ∃ x : ℚ, x^2 = (2:ℤ)  := by
     rw [mul_pow] at h
     replace h := Eq.symm h
 
-    have p_not_zero: (3:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_three)
+    have p_not_zero: (2:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_two)
 
-    rw [pow_succ (3:ℤ) 1, mul_assoc] at h
+    rw [pow_succ (2:ℤ) 1, mul_assoc] at h
     apply Iff.mp (Int.mul_eq_mul_left_iff p_not_zero) at h
     rw [pow_one ] at h
 
 
-    have b_pow_div : 3 ∣ b^2  := by
+    have b_pow_div : 2 ∣ b^2  := by
       apply (Iff.mpr dvd_iff_exists_eq_mul_right)
       use (k^2)
 
-    have b_div : 3 ∣ b  := by
-      apply Prime.dvd_of_dvd_pow (Int.prime_three) b_pow_div
+    have b_div : 2 ∣ b  := by
+      apply Prime.dvd_of_dvd_pow (Int.prime_two) b_pow_div
     clear h k b_pow_div
 
-    have p_dvd_gcd : 3 ∣ gcd a b := by
+    have p_dvd_gcd : 2 ∣ gcd a b := by
       apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩
     clear a_div b_div
 
     rw [copr] at p_dvd_gcd
-    apply Prime.not_dvd_one (Int.prime_three) p_dvd_gcd
+    apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
 
-  autogeneralize_basic (3:ℤ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
-  specialize _irr.Gen (2:ℤ) (Int.prime_two)
+  autogeneralize_basic (2:ℤ) in _irr -- adds _sqrt2Irrational.Gen to list of hypotheses
+  specialize _irr.Gen (3:ℤ) (Int.prime_three)
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
