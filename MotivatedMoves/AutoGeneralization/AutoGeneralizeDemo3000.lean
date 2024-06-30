@@ -27,7 +27,7 @@ sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 
 
 
-theorem irrat_def : ¬Irrational (sqrt (3:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (3:ℤ) * b^2:= by
+theorem irrat_def (n: ℤ) : ¬Irrational (sqrt (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
   intro h
   unfold Irrational at h
   simp at h
@@ -52,9 +52,13 @@ theorem irrat_def : ¬Irrational (sqrt (3:ℤ)) → ∃a b : ℤ, gcd a b = 1 �
     rfl
   rw [copr_int']
 
-  have hx_sq : (x : ℝ) ^ 2 = 3 := by
+  by_cases n_sign : n < 0
+  sorry
+  simp at n_sign
+
+  have hx_sq : (x : ℝ) ^ 2 = n := by
     rw [hx]
-    exact Real.sq_sqrt (by norm_num : 0 ≤ (3 : ℝ))
+    exact Real.sq_sqrt (by assumption_mod_cast)
   clear hx
 
   rw [← Rat.cast_pow] at hx_sq
@@ -71,8 +75,14 @@ theorem irrat_def : ¬Irrational (sqrt (3:ℤ)) → ∃a b : ℤ, gcd a b = 1 �
 
 
 example  : ¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 2 * b^2  := by
-  let _irr : ¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 3 * b^2 := by
-    intro h
+  let _irr : Irrational (sqrt (3:ℤ)) := by
+    have := irrat_def 3
+    contrapose this
+    intros h
+    specialize h this
+    clear this
+
+    -- intro h
 
     obtain ⟨a,b, ⟨copr, h ⟩⟩ := h
 
