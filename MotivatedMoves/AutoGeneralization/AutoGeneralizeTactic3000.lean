@@ -150,8 +150,24 @@ def getMVarContainingMData : MetaM MVarId := do
   let mctx ← getMCtx
   for (mvarId, expr) in mctx.eAssignment do
     if ← containsMData expr then
-      logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {expr}"
+      logInfo m!"this mvar {mvarId.name} contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {expr}"
       return mvarId
+  throwError "No metavariable assigned to an expression with metadata found"
+
+def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
+  let e ← getExprMVarAssignment? m
+  return e
+
+def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
+  for m in a do
+    let m_assignment ← getAssignmentFor m
+    logInfo m!"finding assignment for {m.name}..."
+    if (m_assignment.isSome) then
+      logInfo m!"assignment exists..."
+      if(← containsMData (← m_assignment)) then
+        logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {m}"
+        return m
+    logInfo m!"found no assignment"
   throwError "No metavariable assigned to an expression with metadata found"
 
 /-- Helper for incrementing idx when creating pretty names-/
@@ -310,6 +326,11 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
     abstractToOneMVar thmType fExpr occs
   else
     abstractToDiffMVars thmType fExpr occs
+
+  let hyps ← getMVars genThmProof
+  logInfo m!"hyps {hyps}"
+
+
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
@@ -319,19 +340,28 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let unif ← isDefEq  genThmType userThmType
   logInfo m!"Do they unify? {unif}"
 
-  -- let userSelectedMVar ← getMVarContainingMData
-  -- if !(← userMVar.mvarId!.isAssigned) then
-  --   try
-  --     userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
-  --   catch _ =>
-  --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
+  let mvarsInProof ← getMVars genThmProof
+  logInfo m!"Mvars in proof {mvarsInProof}"
+  let userSelectedMVar ← getMVarContainingMData' hyps
+  logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
+  if !(← userMVar.mvarId!.isAssigned) then
+    try
+      userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+    catch _ =>
+      throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
-  -- genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+  genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
-  let hyps ← getMVars genThmProof
-  logInfo m!"hyps {hyps}"
-  -- for hyp in hyps do
+
+  -- hyps.mapM fun hyp1 => do
+  --   hyps.mapM fun hyp2 => do
+  --     if hyp1 != hyp2 then do
+  --       let type1 ← hyp1.getType
+  --       let type2 ← hyp2.getType
+  --       if (← isDefEq type1 type2) then
+  --         hyp1.assign (.mvar hyp2)
+
 
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
