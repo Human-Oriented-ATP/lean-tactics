@@ -161,11 +161,9 @@ def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
 def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
   for m in a do
     let m_assignment ← getAssignmentFor m
-    logInfo m!"finding assignment for {m.name}..."
     if (m_assignment.isSome) then
-      logInfo m!"assignment exists..."
       if(← containsMData (← m_assignment)) then
-        logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {m}"
+        --logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {m}"
         return m
     logInfo m!"found no assignment"
   throwError "No metavariable assigned to an expression with metadata found"
@@ -257,7 +255,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
@@ -276,7 +274,7 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
   -- logInfo m!"abstracted "
 
-  logInfo m!"Generalized proof before linking mvars {abstractedProof}"
+  -- logInfo m!"Generalized proof before linking mvars {abstractedProof}"
 
   -- unify "linked" mvars in proof
   check abstractedProof
@@ -311,13 +309,13 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- logInfo ("Ungeneralized Proof: " ++ thmProof)
 
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
-  logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
+  -- logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
 
   let mut genThmProof := thmProof
   -- let genThmProof := thmProof
   -- while ← containsExpr fExpr thmProof do
-  genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
+  genThmProof ←  autogeneralizeProof thmProof fExpr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  let genThmType ← inferType genThmProof; --logInfo ("!Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
@@ -328,20 +326,19 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
     abstractToDiffMVars thmType fExpr occs
 
   let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
-  logInfo m!"hyps {mvarsInProof.map (fun e => e.name)}"
 
 
   let userMVar ←  mkFreshExprMVar (← inferType fExpr)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
-  logInfo m!"!User Generalized Type: {userThmType}"
+  --logInfo m!"!User Generalized Type: {userThmType}"
 
   -- compare and unify mvars between user type and our generalized type
   let unif ← isDefEq  genThmType userThmType
-  logInfo m!"Do they unify? {unif}"
+  --logInfo m!"Do they unify? {unif}"
 
   let userSelectedMVar ← getMVarContainingMData' mvarsInProof
-  logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
+  --logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
   if !(← userMVar.mvarId!.isAssigned) then
     try
       userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
@@ -359,10 +356,8 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
     setMCtx mctx
     if repeatingHyp.isSome then
       let repeatingHyp ← repeatingHyp
-      logInfo m!"reapeater {repeatingHyp.name} with {← repeatingHyp.getType}"
       try
         if !(← repeatingHyp.isAssigned) then do
-          logInfo "and its not assigned"
           hyp1.assignIfDefeq (.mvar repeatingHyp)
       catch _ =>
         throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
@@ -370,12 +365,12 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   -- genThmProof ← instantiateMVars genThmProof
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
-  genThmProof := (← abstractMVars genThmProof).expr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("Tactic Generalized Type: " ++ genThmType)
+  genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting \n  {← ppExpr fExpr}."
+  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."
 
 syntax occurrences :="at" "occurrences" "[" num+ "]"
 
@@ -406,7 +401,6 @@ elab "autogeneralize_basic" pattern:term "in" h:ident occs:(Autogeneralize.occur
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
   let occs := occs.map decodeOccurrences
-  logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
   autogeneralize h pattern (occs:=.all) (consolidate:=true)
 
 end Autogeneralize
