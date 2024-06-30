@@ -27,11 +27,8 @@ sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 
 
 
-theorem irrat_def (n: ℤ) : ¬Irrational (sqrt (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
+theorem irrat_def (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2:= by
   intro h
-  unfold Irrational at h
-  simp at h
-
   obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
 
   use x.num
@@ -52,37 +49,30 @@ theorem irrat_def (n: ℤ) : ¬Irrational (sqrt (n:ℤ)) → ∃a b : ℤ, gcd a
     rfl
   rw [copr_int']
 
-  by_cases n_sign : n < 0
-  sorry
-  simp at n_sign
-
-  have hx_sq : (x : ℝ) ^ 2 = n := by
-    rw [hx]
-    exact Real.sq_sqrt (by assumption_mod_cast)
-  clear hx
-
-  rw [← Rat.cast_pow] at hx_sq
-  norm_cast at hx_sq
-  apply Rat.eq_iff_mul_eq_mul.mp at hx_sq
+  norm_cast at hx
+  apply Rat.eq_iff_mul_eq_mul.mp at hx
 
   rw [pow_two]
   rw [pow_two]
-  rw [pow_two] at hx_sq
-  rw [Rat.mul_self_num] at hx_sq
-  rw [Rat.mul_self_den] at hx_sq
+  rw [pow_two] at hx
+  rw [Rat.mul_self_num] at hx
+  rw [Rat.mul_self_den] at hx
   simp at *
   norm_cast
 
+theorem irrat_def' (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ ¬(∃ x : ℚ, x^2 = (n:ℤ)) := by
+  contrapose
+  simp
+  have := irrat_def
+  simp at this
+  apply this
 
-example  : ¬∃a b : ℤ, gcd a b = 1 ∧ a^2 = 2 * b^2  := by
-  let _irr : Irrational (sqrt (3:ℤ)) := by
-    have := irrat_def 3
-    contrapose this
+
+example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
+  let _irr : ¬ ∃ x : ℚ, x^2 = (3:ℤ) := by
+    apply irrat_def'
     intros h
-    specialize h this
-    clear this
 
-    -- intro h
 
     obtain ⟨a,b, ⟨copr, h ⟩⟩ := h
 

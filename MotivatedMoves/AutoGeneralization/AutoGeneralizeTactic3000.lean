@@ -221,7 +221,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n _       => let constType ← inferType e --getTheoremStatement n
-                            if depth ≥ 3 then return e
+                            if depth ≥ 1 then return e
                             else
                               if (← containsExpr p constType) then
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
