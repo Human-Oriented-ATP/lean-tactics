@@ -314,8 +314,8 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
   let mut genThmProof := thmProof
   -- let genThmProof := thmProof
   -- while ← containsExpr fExpr thmProof do
-  genThmProof ←  autogeneralizeProof thmProof fExpr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; --logInfo ("!Tactic Generalized Type: " ++ genThmType)
+  genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
