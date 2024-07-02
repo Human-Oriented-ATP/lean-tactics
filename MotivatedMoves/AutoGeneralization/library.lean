@@ -45,6 +45,16 @@ theorem irrat_def (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b
   simp at this
   apply this
 
+-- theorem irrat_def_aux'_nat (n: ℕ) : (∃ x : ℚ, x*x = (n:ℕ)) → ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n:ℕ) * b*b:= by
+--   intro h
+--   obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
+
+--   -- use x.num
+--   -- use x.den
+--   -- constructor
+--   sorry
+
+
 theorem irrat_def_aux' (n: ℤ) : (∃ x : ℚ, x*x = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a*a = (n:ℤ) * b*b:= by
   intro h
   obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
@@ -184,6 +194,14 @@ theorem irrat_def' (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a*a = (n:ℤ) * 
   have := irrat_def_aux'
   simp at this
   apply this
+
+  -- theorem irrat_def'_nat (n: ℕ) : (¬ ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n:ℕ) * b*b )→ ¬(∃ x : ℚ, x*x = (n:ℕ)) := by
+  -- contrapose
+  -- simp
+  -- have := irrat_def_aux'
+  -- simp at this
+  -- apply this
+
 -- theorem def_irrat (n: ℤ) (n_pos : n ≥ 0): (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ Irrational (sqrt (n:ℤ)) := by
 --   contrapose
 --   simp
@@ -288,6 +306,40 @@ theorem _sqrt2Irrational_xx_aa_full : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by
   clear a_div b_div
   rw [copr] at p_dvd_gcd
   apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
+
+-- theorem _sqrt2Irrational_xx_aa_full_nat_natprime : ¬ ∃ x : ℚ, x*x = (2:ℕ) := by
+--   apply irrat_def'
+--   intros h
+--   obtain ⟨a, b, ⟨copr, h⟩⟩ := h
+--   have a_div : 2 ∣ a := by
+--     have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by
+--     apply (Iff.mpr dvd_iff_exists_eq_mul_right)
+--     use (b*b)
+--     rw [← mul_assoc]
+--     rw [h];
+--     rfl
+--     ): 2 ∣ a*a)
+--     cases c; assumption; assumption
+--   have a_is_pk : ∃ k, a = 2 * k := by
+--     apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div
+--   obtain ⟨k, hk⟩ := a_is_pk
+--   rw [hk] at h
+--   replace h := Eq.symm h
+--   rw [mul_assoc] at h
+--   rw [mul_assoc] at h
+--   apply Iff.mp (Int.mul_eq_mul_left_iff (Prime.ne_zero (Int.prime_two): (2:ℤ) ≠ 0)) at h
+--   rw [mul_comm 2 k, ← mul_assoc] at h
+--   have b_div : 2 ∣ b := by
+--     have c := (Prime.dvd_mul (Int.prime_two)).mp ((by
+--     apply (Iff.mpr dvd_iff_exists_eq_mul_left)
+--     use (k*k)):2 ∣ b*b)
+--     cases c; assumption; assumption
+--   have p_dvd_gcd : 2 ∣ gcd a b := by
+--     apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩
+--   clear a_div b_div
+--   rw [copr] at p_dvd_gcd
+--   apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
+
 
 theorem _sqrt2Irrational_xx_aa_full_nat : ¬ ∃ x : ℚ, x*x = (2:ℕ) := by
   apply irrat_def'

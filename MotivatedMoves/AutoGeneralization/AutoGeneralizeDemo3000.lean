@@ -14,9 +14,17 @@ open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
+set_option pp.coercions true
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
+
+open  PrettyPrinter Delaborator in
+@[app_unexpander OfNat.ofNat]
+def unexpandOfNat : Unexpander
+  | `($(_) $a) => `($a)
+  | _ => throw ()
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
