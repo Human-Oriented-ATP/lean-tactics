@@ -146,9 +146,8 @@ sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
 example : Irrational (Real.sqrt 3 + 6) := by
   let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize (2:ℕ) in _sum_irrat
-  autogeneralize (2:ℕ) in _sum_irrat.Gen
 
-  specialize _sum_irrat.Gen.Gen 6 3 (Nat.prime_three)
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
   -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
   assumption
 
@@ -194,9 +193,8 @@ by
                   Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
 
   autogeneralize 3 in _fun_set
-  autogeneralize 3 in _fun_set.Gen
 
-  specialize @_fun_set.Gen.Gen 5 4
+  specialize @_fun_set.Gen 4 5
 
   assumption
 
@@ -217,7 +215,7 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum F
 by
   let _distance : ∀ (x y : EuclideanSpace (ℝ:Type) (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq.{0,0} x y
 
-  autogeneralize 2 in _distance  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
+  autogeneralize 2 in _distance at occurrences [1 2 3 4]  -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
   intros x y
   specialize _distance.Gen 3 (EuclideanSpace.dist_eq) x y -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
@@ -237,7 +235,7 @@ example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
   let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
 
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
@@ -253,11 +251,7 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen.Gen
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute.Gen.Gen.Gen.Gen
 
   -- specialize all 4 of the instances
-  specialize _multPermute.Gen.Gen.Gen.Gen.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
+  specialize _multPermute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
