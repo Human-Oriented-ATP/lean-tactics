@@ -274,7 +274,7 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
   -- logInfo m!"abstracted "
 
-  -- logInfo m!"Generalized proof before linking mvars {abstractedProof}"
+  logInfo m!"Generalized proof before linking mvars {abstractedProof}"
 
   -- unify "linked" mvars in proof
   check abstractedProof
@@ -302,7 +302,7 @@ def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : Met
   return ← kabstract thmType fExpr (occs)
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [1]) (consolidate : Bool := false) : TacticM Unit := withMainContext do
+def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
@@ -319,48 +319,49 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .pos [
 
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
+  unless occs == .all do
+    let userThmType ← if consolidate then
+      abstractToOneMVar thmType fExpr occs
+    else
+      abstractToDiffMVars thmType fExpr occs
 
-  let userThmType ← if consolidate then
-    abstractToOneMVar thmType fExpr occs
-  else
-    abstractToDiffMVars thmType fExpr occs
-
-  let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
+    let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
 
 
-  let userMVar ←  mkFreshExprMVar (← inferType fExpr)
-  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
-  let userThmType := userThmType.instantiate1 annotatedMVar
-  --logInfo m!"!User Generalized Type: {userThmType}"
+    let userMVar ←  mkFreshExprMVar (← inferType fExpr)
+    let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+    let userThmType := userThmType.instantiate1 annotatedMVar
+    --logInfo m!"!User Generalized Type: {userThmType}"
 
-  -- compare and unify mvars between user type and our generalized type
-  let unif ← isDefEq  genThmType userThmType
-  --logInfo m!"Do they unify? {unif}"
+    -- compare and unify mvars between user type and our generalized type
+    let unif ← isDefEq  genThmType userThmType
+    --logInfo m!"Do they unify? {unif}"
 
-  let userSelectedMVar ← getMVarContainingMData' mvarsInProof
-  --logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
-  if !(← userMVar.mvarId!.isAssigned) then
-    try
-      userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
-    catch _ =>
-      throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
+    let userSelectedMVar ← getMVarContainingMData' mvarsInProof
+    --logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
+    if !(← userMVar.mvarId!.isAssigned) then
+      try
+        userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+      catch _ =>
+        throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
-  genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+    genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
 
   let hyps ← getMVars genThmProof
   for hyp1 in hyps do
-    let mctx ← getMCtx
-    let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
-    setMCtx mctx
-    if repeatingHyp.isSome then
-      let repeatingHyp ← repeatingHyp
-      try
-        if !(← repeatingHyp.isAssigned) then do
-          hyp1.assignIfDefeq (.mvar repeatingHyp)
-      catch _ =>
-        throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
+    if consolidate || (← isProp (← hyp1.getType)) then
+      let mctx ← getMCtx
+      let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
+      setMCtx mctx
+      if repeatingHyp.isSome then
+        let repeatingHyp ← repeatingHyp
+        try
+          if !(← repeatingHyp.isAssigned) then do
+            hyp1.assignIfDefeq (.mvar repeatingHyp)
+        catch _ =>
+          throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
 
   -- genThmProof ← instantiateMVars genThmProof
 
