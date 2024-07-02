@@ -13,7 +13,7 @@ open Real
 open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
-set_option pp.showLetValues true
+set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
@@ -28,11 +28,35 @@ sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 #check Prime.dvd_mul
 #check Int.prime_two
 
+-- def Irrational' (y : ℝ) :  ∀ y: ℝ, y*y=(2:ℝ)
+
+-- OPTION 1 def square_root (y : ℝ ) :
+-- theorem sqrt2irr : ∀ y: ℝ, y*y=(2:ℝ) → Irrational y := sorry
+-- theorem sqrt2plus2irr : ∀ y: ℝ, y*y=(2:ℝ) → Irrational (2+y) := sorry
+
+-- OPTION 2 square root of absolute value of 2..
+
+-- option 3 - -2 is still prime
+
+-- option 4 - fix the proof for nats to not involve 1 + 2
+
+example  : True  := by
+
+  let _sqrt2Irrational : ¬ ∃ x : ℚ, x*x = (2:ℕ) := by {apply irrat_def'; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h]): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff (Prime.ne_zero (Int.prime_two): (2:ℤ) ≠ 0)) at h; rw [mul_comm 2 k, ← mul_assoc] at h; have b_div : 2 ∣ b := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k)):2 ∣ b*b); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd}
+
+  autogeneralize_basic (2:ℕ) in _sqrt2Irrational
+  simp at _sqrt2Irrational.Gen
+  specialize _sqrt2Irrational.Gen 3 Int.prime_three
+
+  simp
+
+
+
 example  : True  := by
 
   let _sqrt2Irrational : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by {apply irrat_def'; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h]): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff (Prime.ne_zero (Int.prime_two): (2:ℤ) ≠ 0)) at h; rw [mul_comm 2 k, ← mul_assoc] at h; have b_div : 2 ∣ b := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k)):2 ∣ b*b); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd}
 
-  autogeneralize_basic (2:ℤ) in _sqrt2Irrational
+  autogeneralize_basic (2:ℤ ) in _sqrt2Irrational
 
 
 
