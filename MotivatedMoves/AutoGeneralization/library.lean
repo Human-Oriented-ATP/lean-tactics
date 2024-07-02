@@ -289,6 +289,40 @@ theorem _sqrt2Irrational_xx_aa_full : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by
   rw [copr] at p_dvd_gcd
   apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
 
+theorem _sqrt2Irrational_xx_aa_full_nat : ¬ ∃ x : ℚ, x*x = (2:ℕ) := by
+  apply irrat_def'
+  intros h
+  obtain ⟨a, b, ⟨copr, h⟩⟩ := h
+  have a_div : 2 ∣ a := by
+    have c := (Prime.dvd_mul (Int.prime_two)).mp ((by
+    apply (Iff.mpr dvd_iff_exists_eq_mul_right)
+    use (b*b)
+    rw [← mul_assoc]
+    rw [h];
+    rfl
+    ): 2 ∣ a*a)
+    cases c; assumption; assumption
+  have a_is_pk : ∃ k, a = 2 * k := by
+    apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div
+  obtain ⟨k, hk⟩ := a_is_pk
+  rw [hk] at h
+  replace h := Eq.symm h
+  rw [mul_assoc] at h
+  rw [mul_assoc] at h
+  apply Iff.mp (Int.mul_eq_mul_left_iff (Prime.ne_zero (Int.prime_two): (2:ℤ) ≠ 0)) at h
+  rw [mul_comm 2 k, ← mul_assoc] at h
+  have b_div : 2 ∣ b := by
+    have c := (Prime.dvd_mul (Int.prime_two)).mp ((by
+    apply (Iff.mpr dvd_iff_exists_eq_mul_left)
+    use (k*k)):2 ∣ b*b)
+    cases c; assumption; assumption
+  have p_dvd_gcd : 2 ∣ gcd a b := by
+    apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩
+  clear a_div b_div
+  rw [copr] at p_dvd_gcd
+  apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
+
+
 theorem _sqrt2Irrational_xx_aa_one_line : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by {apply irrat_def'; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h]): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff (Prime.ne_zero (Int.prime_two): (2:ℤ) ≠ 0)) at h; rw [mul_comm 2 k, ← mul_assoc] at h; have b_div : 2 ∣ b := by {have c := (Prime.dvd_mul (Int.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k)):2 ∣ b*b); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd}
 
 theorem _sqrt2Irrational_xx_oneline : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by {apply irrat_def''; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_pow_div : 2 ∣ a^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b^2)}; have a_div : 2 ∣ a := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) a_pow_div}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; clear a_pow_div hk; rw [mul_pow] at h; replace h := Eq.symm h; have p_not_zero : (2:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_two); rw [pow_succ (2:ℤ) 1, mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff p_not_zero) at h; rw [pow_one] at h; have b_pow_div : 2 ∣ b^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (k^2)}; have b_div : 2 ∣ b := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) b_pow_div}; clear h k b_pow_div; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd}
