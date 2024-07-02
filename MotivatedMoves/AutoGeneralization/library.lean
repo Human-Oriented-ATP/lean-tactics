@@ -245,6 +245,21 @@ theorem irrat_def' (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a*a = (n:ℤ) * 
 --   rw [copr] at p_dvd_gcd
 --   apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd
 
+-- theorem irrat_def (n: ℕ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a*a = (n: ℕ) * b*b ) → Irrational (Real.sqrt n) := by
+--   contrapose
+--   simp
+--   intros irr
+--   unfold Irrational at irr
+--   simp at irr
+--   have := irrat_def_aux'
+--   obtain ⟨x, irr⟩ := irr
+--   sorry
+--   -- rw [← Real.sqrt_mul_self] at irr
+--   -- specialize this n
+
+--   -- simp at this
+--   -- apply this
+
 theorem _sqrt2Irrational_xx_aa : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by
   apply irrat_def'
   intros h

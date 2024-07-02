@@ -77,23 +77,42 @@ example  : True  := by
 
 
 
+  simp
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example:
+sqrt(2) is irrational generalizes to sqrt(prime) is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+
+example : True := by
+
+  let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
+
+  autogeneralize_basic 2 in _sqrt2Irrational
+
+
 
 
 
 
   simp
-example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
-  let _sqrt2Irrational : ¬ ∃ x : ℚ, x^2 = (2:ℤ) := by {apply irrat_def; intros h; obtain ⟨a,b, ⟨copr, h ⟩⟩ := h; have a_pow_div : 2 ∣ a^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b^2)}; have a_div : 2 ∣ a := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) a_pow_div}; have a_is_pk : ∃ k, a = 2*k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; clear a_pow_div hk; rw [mul_pow] at h; replace h := Eq.symm h; have p_not_zero: (2:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_two); rw [pow_succ (2:ℤ) 1, mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff p_not_zero) at h; rw [pow_one] at h; have b_pow_div : 2 ∣ b^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (k^2)}; have b_div : 2 ∣ b := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) b_pow_div}; clear h k b_pow_div; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd;}
-  autogeneralize_basic (2:ℤ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
-  specialize _sqrt2Irrational.Gen (3:ℤ) (Int.prime_three)
-  assumption
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Example:
-sqrt(2) is irrational generalizes to sqrt(prime) is irrational
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3) := by
-  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+example : Irrational (sqrt 3) := by
+  let _sqrt2Irrational : Irrational (sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
   autogeneralize_basic (2:ℕ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
 
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
@@ -119,8 +138,29 @@ example : Irrational (Real.sqrt 3) := by
 Example of a naive, over-specialized generalization:
 sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3 + 3) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+
+example : True := by
+
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize_basic (2:ℕ) in _sum_irrat
+
+
+
+
+
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  simp
+
+
+
+
+
+
+example : Irrational (sqrt 3 + 3) := by
+  let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize_basic (2:ℕ) in _sum_irrat
 
   specialize _sum_irrat.Gen 3 (Nat.prime_three)
@@ -143,8 +183,28 @@ example : Irrational (Real.sqrt 3 + 3) := by
 Example of a better, constant-aware generalization:
 sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3 + 6) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+
+example : True := by
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize (2:ℕ) in _sum_irrat
+
+
+
+
+
+
+
+
+
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
+  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  simp
+
+example : Irrational (sqrt 3 + 6) := by
+  let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize (2:ℕ) in _sum_irrat
 
   specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
@@ -235,14 +295,14 @@ example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
   let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
 
-  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize_basic (.*.) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
+  autogeneralize_basic (.*.) in _multPermute  -- adds multPermute.Gen to list of hypotheses
 
   specialize _multPermute.Gen (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
@@ -250,7 +310,7 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
+  autogeneralize (.*.) in _multPermute  -- adds multPermute.Gen to list of hypotheses
 
   -- specialize all 4 of the instances
   specialize _multPermute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3

@@ -49,9 +49,20 @@ def getHypotheses : TacticM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
+def getHypothesesMeta : MetaM (List LocalDecl) := do
+  let mut hypotheses : List LocalDecl := []
+  for ldecl in ← getLCtx do
+    if ldecl.isImplementationDetail then continue
+    hypotheses := ldecl :: hypotheses
+  return hypotheses
+
 /--  Tactic to return hypotheses names-/
 def getHypothesesNames : TacticM (List Name) := do
     return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
+
+def getHypothesesNamesMeta : MetaM (List Name) := do
+    return (← getHypothesesMeta).map (fun hypothesis => hypothesis.userName)
+
 
 
 /--  Tactic get a hypothesis by its name -/
@@ -81,6 +92,20 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
           else
             return hyp.value -- works if proved directly with a proof term like `:= fun ...`
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
+
+partial def mkPrettyNameHelper (hypNames : List Name)  (i : Nat) : Name :=
+  let names : List Name := [`n,`m,`p] -- order in which to prioritize names
+  if i < names.length then
+    if (hypNames).contains (names.get! i) then
+      mkPrettyNameHelper hypNames (i+1)
+    else
+      names.get! i
+  else
+    `fresh_name
+
+/-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
+def mkPrettyName (idx : Nat := 0) : MetaM Name := do
+  return mkPrettyNameHelper (← getHypothesesNamesMeta) idx
 
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
@@ -280,6 +305,9 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   check abstractedProof
   let abstractedProof ← instantiateMVars abstractedProof
 
+  -- if there are two metavariables with fExpr's type in the proof with the same name...rename.
+  let mvarsInProof ← getMVars abstractedProof
+
   return abstractedProof
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
@@ -362,6 +390,12 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
             hyp1.assignIfDefeq (.mvar repeatingHyp)
         catch _ =>
           throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
+
+  -- rename hypotheses
+  -- let hyps ← getMVars genThmProof
+  -- for hyp1 in hyps do
+  --   let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && hyp1.name == hyp2.name)
+  --   hyp1.assignIfDefeq (← mkFreshExprMVarWithId hyp1 (userName := `m))
 
   -- genThmProof ← instantiateMVars genThmProof
 
