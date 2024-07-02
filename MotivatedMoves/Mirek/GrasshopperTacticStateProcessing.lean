@@ -89,8 +89,8 @@ elab stx:"auto" : tactic => do
         let varName := s!"{varNameRoot}{if nameComponents[1]? = some `_hyg then s!".{nameComponents[0]!}" else ""}"
         return s!"{varName} : {← Expr.render decl.type}"
     let hypotheses : Array String ← localDecls.filterMapM fun decl ↦ do
-      if (← isProp decl.type) then
-        Expr.exportTheorem decl.type
+      if (← isProp decl.type) then do
+        return (← Expr.exportTheorem decl.type).filter (· = '\n')
       else return none
     let output : String := (context ++ #["\n---"] ++ hypotheses)
       |>.map (String.push · '\n') |>.foldl (init := "") String.append
