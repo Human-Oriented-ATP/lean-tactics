@@ -30,11 +30,68 @@ Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-#check dvd_iff_exists_eq_mul_right.mpr
-#check Eq.symm
-#check Prime.dvd_of_dvd_pow
-#check Prime.dvd_mul
-#check Int.prime_two
+
+example : True := by
+  let _sqrt2Irrational : Irrational (sqrt 2) := by
+    apply irrat_def
+    intros h
+    obtain ⟨a, b, ⟨copr, h⟩⟩ := h
+    have a_div : 2 ∣ a := by
+      have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by
+      apply (Iff.mpr dvd_iff_exists_eq_mul_right)
+      use (b*b)
+      rw [← mul_assoc]
+      rw [h];
+      ): 2 ∣ a*a)
+      cases c; assumption; assumption
+    have a_is_pk : ∃ k, a = 2 * k := by
+      apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div
+    obtain ⟨k, hk⟩ := a_is_pk
+    rw [hk] at h
+    replace h := Eq.symm h
+    rw [mul_assoc] at h
+    rw [mul_assoc] at h
+    rw [mul_comm 2 k] at h
+    rw [mul_eq_mul_left_iff] at h
+    rw [← mul_assoc k k 2] at h
+    have := Nat.Prime.ne_zero Nat.prime_two
+    cases h with
+    | inl =>
+        have b_div : 2 ∣ b := by
+          have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by
+          apply (Iff.mpr dvd_iff_exists_eq_mul_left)
+          use (k*k)))
+          cases c; assumption; assumption
+        have p_dvd_gcd : 2 ∣ gcd a b := by
+          apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩
+        clear a_div b_div
+        rw [copr] at p_dvd_gcd
+        apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd
+      | inr => apply this; assumption
+
+  autogeneralize (2:ℕ) in _sqrt2Irrational
+
+
+
+
+
+example : True := by
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize (2:ℕ) in _sum_irrat
+
+
+
+
+
+
+
+
+
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
+  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  simp
 
 -- def Irrational' (y : ℝ) :  ∀ y: ℝ, y*y=(2:ℝ)
 
@@ -185,23 +242,7 @@ sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 
-example : True := by
-  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
 
-  autogeneralize (2:ℕ) in _sum_irrat
-
-
-
-
-
-
-
-
-
-
-  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
-  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
-  simp
 
 example : Irrational (sqrt 3 + 6) := by
   let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}

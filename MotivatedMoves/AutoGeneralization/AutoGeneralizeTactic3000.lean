@@ -280,7 +280,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
