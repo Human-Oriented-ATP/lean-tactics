@@ -49,9 +49,20 @@ def getHypotheses : TacticM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 
+def getHypothesesMeta : MetaM (List LocalDecl) := do
+  let mut hypotheses : List LocalDecl := []
+  for ldecl in ← getLCtx do
+    if ldecl.isImplementationDetail then continue
+    hypotheses := ldecl :: hypotheses
+  return hypotheses
+
 /--  Tactic to return hypotheses names-/
 def getHypothesesNames : TacticM (List Name) := do
     return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
+
+def getHypothesesNamesMeta : MetaM (List Name) := do
+    return (← getHypothesesMeta).map (fun hypothesis => hypothesis.userName)
+
 
 
 /--  Tactic get a hypothesis by its name -/
@@ -81,6 +92,20 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
           else
             return hyp.value -- works if proved directly with a proof term like `:= fun ...`
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
+
+partial def mkPrettyNameHelper (hypNames : List Name)  (i : Nat) : Name :=
+  let names : List Name := [`n,`m,`p] -- order in which to prioritize names
+  if i < names.length then
+    if (hypNames).contains (names.get! i) then
+      mkPrettyNameHelper hypNames (i+1)
+    else
+      names.get! i
+  else
+    `fresh_name
+
+/-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
+def mkPrettyName (idx : Nat := 0) : MetaM Name := do
+  return mkPrettyNameHelper (← getHypothesesNamesMeta) idx
 
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
@@ -255,7 +280,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType (userName := `f) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
@@ -275,10 +300,14 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- logInfo m!"abstracted "
 
   logInfo m!"Generalized proof before linking mvars {abstractedProof}"
+  -- logInfo m!"Generalized type before linking mvars {← inferType (← abstractMVars abstractedProof).expr}"
 
   -- unify "linked" mvars in proof
   check abstractedProof
   let abstractedProof ← instantiateMVars abstractedProof
+
+  -- if there are two metavariables with fExpr's type in the proof with the same name...rename.
+  -- let mvarsInProof ← getMVars abstractedProof
 
   return abstractedProof
 
@@ -331,7 +360,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
     let userMVar ←  mkFreshExprMVar (← inferType fExpr)
     let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
     let userThmType := userThmType.instantiate1 annotatedMVar
-    --logInfo m!"!User Generalized Type: {userThmType}"
+    logInfo m!"!User Generalized Type: {userThmType}"
 
     -- compare and unify mvars between user type and our generalized type
     let unif ← isDefEq  genThmType userThmType
@@ -361,12 +390,19 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
         catch e =>
           throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType};\n Encountered error {e.toMessageData}"
 
+  -- rename hypotheses
+  -- let hyps ← getMVars genThmProof
+  -- for hyp1 in hyps do
+  --   let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && hyp1.name == hyp2.name)
+  --   hyp1.assignIfDefeq (← mkFreshExprMVarWithId hyp1 (userName := `m))
+
   -- genThmProof ← instantiateMVars genThmProof
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
+  -- genThmProof ← Lean.Meta.simp genThmProof
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."

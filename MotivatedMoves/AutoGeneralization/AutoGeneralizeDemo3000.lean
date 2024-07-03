@@ -18,6 +18,10 @@ set_option pp.coercions true
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
+set_option linter.unusedVariables false
+set_option pp.instances true
+set_option pp.instanceTypes false
+set_option pp.structureInstances true
 
 open  PrettyPrinter Delaborator in
 @[app_unexpander OfNat.ofNat]
@@ -25,16 +29,118 @@ def unexpandOfNat : Unexpander
   | `($(_) $a) => `($a)
   | _ => throw ()
 
+  -- let fun_set : ∀ {α β : Finset ℝ},
+  --                 α.card = 3 → β.card = 3 → Finset.card (α → β) = 3 ^ 3 :=
+  --                 by
+  --                   intros α β
+  --                   rw [Fintype.card_pi, Finset.prod_const];
+  --                   congr
+
+
+/- --------------------------------------------------------------------------
+DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+-------------------------------------------------------------------------- -/
+variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+
+example :=
+by
+  let fun_set : Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
+
+
+
+  autogeneralize 3 in fun_set
+
+
+
+
+
+
+
+  specialize @fun_set.Gen 4
+  assumption
+
+
+
+example :=
+by
+  let fun_set : Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
+
+  autogeneralize 3 in fun_set at occurrences [1]
+
+
+
+
+
+
+
+  specialize @fun_set.Gen 4
+  assumption
+
+
+
+
+
+
+/- --------------------------------------------------------------------------
+DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+-------------------------------------------------------------------------- -/
+example :
+  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 :=
+by
+  let fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
+                  Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
+
+  autogeneralize 3 in fun_set
+
+  specialize @fun_set.Gen 4 5
+
+  assumption
+
+
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-#check dvd_iff_exists_eq_mul_right.mpr
-#check Eq.symm
-#check Prime.dvd_of_dvd_pow
-#check Prime.dvd_mul
-#check Int.prime_two
+
+example : True := by
+  let sum_irrat : Irrational (sqrt (2:ℕ) + 2) := by {apply Irrational.add_nat; apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
+
+  autogeneralize (2:ℕ) in sum_irrat
+  simp
+
+
+example :
+  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 :=
+by
+  let fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
+                  Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
+
+  autogeneralize 3 in fun_set
+
+  specialize @fun_set.Gen 4 5
+
+  assumption
+
+
+example : True := by
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize (2:ℕ) in _sum_irrat
+
+
+
+
+
+
+
+
+
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
+  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  simp
 
 -- def Irrational' (y : ℝ) :  ∀ y: ℝ, y*y=(2:ℝ)
 
@@ -77,23 +183,42 @@ example  : True  := by
 
 
 
+  simp
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example:
+sqrt(2) is irrational generalizes to sqrt(prime) is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+
+example : True := by
+
+  let _sqrt2Irrational : Irrational (sqrt 2) := by apply Nat.prime_two.irrational_sqrt
+
+  autogeneralize_basic 2 in _sqrt2Irrational
+
+
 
 
 
 
   simp
-example  : ¬ ∃ x : ℚ, x^2 = (3:ℤ)  := by
-  let _sqrt2Irrational : ¬ ∃ x : ℚ, x^2 = (2:ℤ) := by {apply irrat_def; intros h; obtain ⟨a,b, ⟨copr, h ⟩⟩ := h; have a_pow_div : 2 ∣ a^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b^2)}; have a_div : 2 ∣ a := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) a_pow_div}; have a_is_pk : ∃ k, a = 2*k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; clear a_pow_div hk; rw [mul_pow] at h; replace h := Eq.symm h; have p_not_zero: (2:ℤ) ≠ 0 := Prime.ne_zero (Int.prime_two); rw [pow_succ (2:ℤ) 1, mul_assoc] at h; apply Iff.mp (Int.mul_eq_mul_left_iff p_not_zero) at h; rw [pow_one] at h; have b_pow_div : 2 ∣ b^2 := by {apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (k^2)}; have b_div : 2 ∣ b := by {apply Prime.dvd_of_dvd_pow (Int.prime_two) b_pow_div}; clear h k b_pow_div; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Prime.not_dvd_one (Int.prime_two) p_dvd_gcd;}
-  autogeneralize_basic (2:ℤ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
-  specialize _sqrt2Irrational.Gen (3:ℤ) (Int.prime_three)
-  assumption
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Example:
-sqrt(2) is irrational generalizes to sqrt(prime) is irrational
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3) := by
-  let _sqrt2Irrational : Irrational (Real.sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+example : Irrational (sqrt 3) := by
+  let _sqrt2Irrational : Irrational (sqrt (2: ℕ)) := by apply Nat.prime_two.irrational_sqrt
   autogeneralize_basic (2:ℕ) in _sqrt2Irrational -- adds _sqrt2Irrational.Gen to list of hypotheses
 
   specialize _sqrt2Irrational.Gen 3 (Nat.prime_three)
@@ -119,8 +244,29 @@ example : Irrational (Real.sqrt 3) := by
 Example of a naive, over-specialized generalization:
 sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3 + 3) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+
+example : True := by
+
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+  autogeneralize_basic (2:ℕ) in _sum_irrat
+
+
+
+
+
+
+  specialize _sum_irrat.Gen 3 (Nat.prime_three)
+  simp
+
+
+
+
+
+
+example : Irrational (sqrt 3 + 3) := by
+  let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize_basic (2:ℕ) in _sum_irrat
 
   specialize _sum_irrat.Gen 3 (Nat.prime_three)
@@ -143,8 +289,12 @@ example : Irrational (Real.sqrt 3 + 3) := by
 Example of a better, constant-aware generalization:
 sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-example : Irrational (Real.sqrt 3 + 6) := by
-  let _sum_irrat : Irrational (Real.sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+
+
+
+
+example : Irrational (sqrt 3 + 6) := by
+  let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
   autogeneralize (2:ℕ) in _sum_irrat
 
   specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
@@ -158,45 +308,6 @@ example : Irrational (Real.sqrt 3 + 6) := by
 
 
 
-
-/- --------------------------------------------------------------------------
-DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
--------------------------------------------------------------------------- -/
-example :
-  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 4 → Fintype.card (α → β) = 4 ^ 4 :=
-by
-  let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
-                  Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
-
-  autogeneralize_basic 3 in _fun_set
-  specialize @_fun_set.Gen 4
-  assumption
-
-
-
-
-
-
-
-
-
-
-
-
-/- --------------------------------------------------------------------------
-DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
--------------------------------------------------------------------------- -/
-example :
-  ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 :=
-by
-  let _fun_set : ∀ {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α],
-                  Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
-
-  autogeneralize 3 in _fun_set
-
-  specialize @_fun_set.Gen 4 5
-
-  assumption
 
 
 
@@ -235,23 +346,30 @@ example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
   let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
 
-  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize_basic (.*.) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
   specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
   assumption
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
-  let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize_basic (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
+  let mult_permute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize_basic Mul.mul in mult_permute
+  simp at mult_permute.Gen
 
-  specialize _multPermute.Gen (.+.) Nat.add_assoc Nat.add_comm 1 2 3
+  specialize mult_permute.Gen (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
 
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
-  let _multPermute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize (@HMul.hMul ℕ ℕ  ℕ instHMul) in _multPermute  -- adds multPermute.Gen to list of hypotheses
+  let mult_permute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize Mul.mul in mult_permute
 
-  -- specialize all 4 of the instances
-  specialize _multPermute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
+  specialize mult_permute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
+  assumption
+
+example :  1 + (2 + 3) = 2 + (1 + 3) := by
+  let mult_permute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
+  autogeneralize Mul.mul in mult_permute
+
+  specialize mult_permute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
