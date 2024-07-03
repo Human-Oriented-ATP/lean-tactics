@@ -280,7 +280,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType (userName := `f) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
@@ -300,13 +300,14 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- logInfo m!"abstracted "
 
   logInfo m!"Generalized proof before linking mvars {abstractedProof}"
+  -- logInfo m!"Generalized type before linking mvars {← inferType (← abstractMVars abstractedProof).expr}"
 
   -- unify "linked" mvars in proof
   check abstractedProof
   let abstractedProof ← instantiateMVars abstractedProof
 
   -- if there are two metavariables with fExpr's type in the proof with the same name...rename.
-  let mvarsInProof ← getMVars abstractedProof
+  -- let mvarsInProof ← getMVars abstractedProof
 
   return abstractedProof
 
@@ -359,7 +360,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
     let userMVar ←  mkFreshExprMVar (← inferType fExpr)
     let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
     let userThmType := userThmType.instantiate1 annotatedMVar
-    --logInfo m!"!User Generalized Type: {userThmType}"
+    logInfo m!"!User Generalized Type: {userThmType}"
 
     -- compare and unify mvars between user type and our generalized type
     let unif ← isDefEq  genThmType userThmType
@@ -403,6 +404,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
+  -- genThmProof ← Lean.Meta.simp genThmProof
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."
