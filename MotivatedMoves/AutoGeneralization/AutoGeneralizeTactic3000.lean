@@ -382,15 +382,13 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   for hyp1 in hyps do
     if consolidate || (← isProp (← hyp1.getType)) then
       let mctx ← getMCtx
-      let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
+      let repeatingHyps ← hyps.filterM (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
       setMCtx mctx
-      if repeatingHyp.isSome then
-        let repeatingHyp ← repeatingHyp
+      for repeatingHyp in repeatingHyps do
         try
-          if !(← repeatingHyp.isAssigned) then do
             hyp1.assignIfDefeq (.mvar repeatingHyp)
-        catch _ =>
-          throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType}"
+        catch e =>
+          throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType};\n Encountered error {e.toMessageData}"
 
   -- rename hypotheses
   -- let hyps ← getMVars genThmProof
