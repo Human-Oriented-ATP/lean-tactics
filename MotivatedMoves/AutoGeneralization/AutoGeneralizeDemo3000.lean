@@ -76,17 +76,6 @@ by
   specialize @fun_set.Gen 4
   assumption
 
-example :
-  Fintype.card α = 4 → Fintype.card β = 4 → Fintype.card (α → β) = 4 ^ 4 :=
-by
-  let fun_set : Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α β _ _ _ α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
-
-  autogeneralize_basic 3 in fun_set
-  specialize @fun_set.Gen 4
-  assumption
-
-
-
 
 
 
@@ -382,7 +371,5 @@ example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let mult_permute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
   autogeneralize Mul.mul in mult_permute
 
-  specialize mult_permute.Gen (.+.) (.+.) (.+.) (.*.)
-  simp at
-  Nat.add_assoc Nat.add_comm 1 2 3
+  specialize mult_permute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
