@@ -36,7 +36,7 @@ def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   let mctxassgn := mctx.eAssignment.erase mv
   setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
   -- instantiate mvars
-  -- let e ← instantiateMVars e
+  let e ← instantiateMVars e
   return e
 
 
@@ -219,6 +219,7 @@ Roughly implemented like kabstract, with the following differences:
   kabstract doesn't look for instances of "p" in the types of constants, this does
   kabstract doesn't look under loose bvars, but this creates localdecls so we can still look under bvars
 -/
+-- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
@@ -379,22 +380,15 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
 
   let hyps ← getMVars genThmProof
-  for hyp1 in hyps do
-    if consolidate || (← isProp (← hyp1.getType)) then
-      let mctx ← getMCtx
-      let repeatingHyps ← hyps.filterM (fun hyp2 => return hyp1 != hyp2 && (← isDefEq (← hyp1.getType) (← hyp2.getType)) && !(← hyp2.isAssigned))
-      setMCtx mctx
-      for repeatingHyp in repeatingHyps do
-        try
-            hyp1.assignIfDefeq (.mvar repeatingHyp)
-        catch e =>
-          throwError m!"Tried to assign mvars that are not defeq {hyp1.name} with {← hyp1.getType} and {repeatingHyp.name} with {← repeatingHyp.getType};\n Encountered error {e.toMessageData}"
-
-  -- rename hypotheses
-  -- let hyps ← getMVars genThmProof
-  -- for hyp1 in hyps do
-  --   let repeatingHyp ← hyps.findM? (fun hyp2 => return hyp1 != hyp2 && hyp1.name == hyp2.name)
-  --   hyp1.assignIfDefeq (← mkFreshExprMVarWithId hyp1 (userName := `m))
+  for hyp₁ in hyps do
+    for hyp₂ in hyps do
+      -- this always tries to perform unification when `consolidate` is set to `true`,
+      -- and does it only for propositions otherwise
+      if consolidate || (← isProp <| ← hyp₁.getType') then do
+        -- `discard` ignores the result of its argument (but retains modifications to the state)
+        -- this code tries to unify the meta-variables "as much as possible"
+        -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
+        discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
 
   -- genThmProof ← instantiateMVars genThmProof
 
@@ -432,10 +426,9 @@ elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences
     Maybe autogeneralize vs autogenerlize+
     Or autogeneralize_all vs autogeneralize_linked / autogeneralize_selective
 -/
-elab "autogeneralize_basic" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
+elab "autogeneralize_basic" pattern:term "in" h:ident : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
-  let occs := occs.map decodeOccurrences
   autogeneralize h pattern (occs:=.all) (consolidate:=true)
 
 end Autogeneralize

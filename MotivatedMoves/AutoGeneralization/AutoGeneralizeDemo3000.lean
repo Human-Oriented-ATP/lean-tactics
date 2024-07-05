@@ -346,9 +346,9 @@ example :  1 * 2 = 2 * 1 := by
   -- let _multComm :  ∀ (n m : ℕ), n * m = m * n := by {intros n m; apply Nat.mul_comm}
   let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
 
-  autogeneralize_basic (.*.) in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
+  autogeneralize_basic Mul.mul in _multComm  -- (.*.) -- adds multPermute.Gen to list of hypotheses
 
-  specialize _multComm.Gen ( fun a b => b * a) (fun _ _ => rfl) 1 2
+  specialize _multComm.Gen Mul.mul Mul.mul Nat.mul_comm 1 2
   assumption
 
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
