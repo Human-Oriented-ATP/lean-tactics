@@ -396,8 +396,11 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
-  -- genThmProof ← Lean.Meta.simp genThmProof
-  createLetHypothesis genThmType genThmProof (thmName++`Gen)
+  let (result, _) ← Lean.Meta.simp genThmType {}
+  let genThmTypeSimp := result.expr
+  let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
+
+  createLetHypothesis genThmTypeSimp genThmProofSimp (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."
 
