@@ -37,6 +37,7 @@ def MotivatedProofMovePanel.rpc (props : MotivatedProofPanelProps) : RequestM (R
 
 syntax (name := motivatedProofMode) "motivated_proof" tacticSeq : tactic
 
+-- Optional TODO: Synchronize the widget output with the current cursor position using `InfoTree`s
 @[tactic motivatedProofMode]
 def motivatedProofModeImpl : Tactic
   | stx@`(tactic| motivated_proof $seq) => withMainContext do
@@ -44,7 +45,9 @@ def motivatedProofModeImpl : Tactic
     -- this turns the goal into a tree initially
     MotivatedTree.workOnTreeDefEq pure
     evalTacticSeq seq
-    unless (← getUnsolvedGoals).isEmpty do
+    if (← getUnsolvedGoals).isEmpty then
+      logInfo "Goals accomplished 🎉\nThe proof tree is rendered only when there are open goals left."
+    else do
       let e ← getMainTarget
       let (t, _) ← MotivatedTree.toDisplayTree
             |>.run { optionsPerPos := ∅, currNamespace := (← getCurrNamespace), openDecls := (← getOpenDecls), subExpr := ⟨e, .root⟩ }
