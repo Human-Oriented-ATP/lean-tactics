@@ -20,7 +20,7 @@ def treeApplyMove : MotivatedProof.Suggestion
       description := "Apply",
       code := do
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
-        return s!"tree_apply{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+        return s!"tree_apply{if keepHyp then "" else "'"} {pos₁.toArray.toList} {pos₂.toArray.toList}"
     }
   | _ => failure
 
@@ -92,7 +92,7 @@ def treeContraposeMove : MotivatedProof.Suggestion
       description := "Contrapose",
       code := do
         let keepHyp ← askUserBool 0 <p>Would you like to keep the selected hypothesis?</p>
-        return s!"tree_contrapose{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+        return s!"tree_contrapose{if keepHyp then "" else "'"} {pos₁.toArray.toList} {pos₂.toArray.toList}"
     }
   | _ => failure
 
@@ -165,7 +165,7 @@ def treeRewriteMove : MotivatedProof.Suggestion
       description := "Rewrite",
       code := do
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
-        return s!"tree_rewrite{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+        return s!"tree_rewrite{if keepHyp then "" else "'"} {pos₁.toArray.toList} {pos₂.toArray.toList}"
     }
   | _ => failure
 
@@ -235,7 +235,7 @@ def treeRewriteOrdMove : MotivatedProof.Suggestion
       description := "Ordered Rewrite",
       code := do
         let keepHyp ← askUserBool 0 <p>Would you like to preserve the selected hypothesis?</p>
-        return s!"tree_rewrite_ord{if keepHyp then "" else "'"} {pos₁} {pos₂}"
+        return s!"tree_rewrite_ord{if keepHyp then "" else "'"} {pos₁.toArray.toList} {pos₂.toArray.toList}"
     }
   | _ => failure
 
