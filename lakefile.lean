@@ -11,6 +11,8 @@ require mathlib from git
 require webeditor from git
   "https://github.com/hhu-adam/lean4web-tools.git" @ "main"
 
+require leanaide from git "https://github.com/siddhartha-gadgil/LeanAide" @ "main"
+
 @[default_target]
 lean_lib MotivatedMoves
 
