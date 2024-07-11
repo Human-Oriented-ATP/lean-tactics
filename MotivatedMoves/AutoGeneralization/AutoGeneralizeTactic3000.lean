@@ -281,7 +281,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType (userName := `f) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
@@ -295,16 +295,19 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
-  let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-  -- let abstractedProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
-  -- let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
+  -- let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+  let abstractedProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
+  let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
   -- logInfo m!"abstracted "
 
-  logInfo m!"Generalized proof before linking mvars {abstractedProof}"
+  -- logInfo m!"Generalized proof before linking mvars {abstractedProof}"
   -- logInfo m!"Generalized type before linking mvars {← inferType (← abstractMVars abstractedProof).expr}"
 
   -- unify "linked" mvars in proof
+  -- try
   check abstractedProof
+  -- catch e =>
+    -- throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   let abstractedProof ← instantiateMVars abstractedProof
 
   -- if there are two metavariables with fExpr's type in the proof with the same name...rename.

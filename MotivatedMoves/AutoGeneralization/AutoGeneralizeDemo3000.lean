@@ -1,9 +1,10 @@
-/-
+/- - - - - - - - - - - - - - - - - - - -
 Proof-based generalization
--/
+- - - - - - - - - - - - - - - - - - - -/
 
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
+import Mathlib.Data.Finset.Basic
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic3000
 import MotivatedMoves.AutoGeneralization.library
@@ -14,14 +15,10 @@ open Lean Elab Tactic Meta Term Command
 
 -- Uncomment below to hide proofs of "let" statements in the LeanInfoview
 set_option pp.showLetValues false
-set_option pp.coercions true
 -- set_option pp.explicit true
 -- set_option pp.all true
 -- set_option profiler true
 set_option linter.unusedVariables false
-set_option pp.instances true
-set_option pp.instanceTypes false
-set_option pp.structureInstances true
 
 open  PrettyPrinter Delaborator in
 @[app_unexpander OfNat.ofNat]
@@ -29,18 +26,109 @@ def unexpandOfNat : Unexpander
   | `($(_) $a) => `($a)
   | _ => throw ()
 
-  -- let fun_set : ∀ {α β : Finset ℝ},
-  --                 α.card = 3 → β.card = 3 → Finset.card (α → β) = 3 ^ 3 :=
-  --                 by
-  --                   intros α β
-  --                   rw [Fintype.card_pi, Finset.prod_const];
-  --                   congr
+variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
+-- #synth Union (Finset Nat)
+
+theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
+  (A ∪ B).card ≤ 4 :=
+by
+  have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
+  have h2 : A.card + B.card = 4 := by simp [hA, hB]
+  rwa [h2] at h1
+
+
+example : True := by
+  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
+  (A ∪ B).card ≤ 4 := by
+    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
+    have h2 : A.card + B.card = 4 := by simp [hA, hB]
+    rwa [h2] at h1
+
+  autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets.Gen
+
+  simp
+
+
+/---------------------------------------------------------------------------
+An example where "3" doesn't show up in the proof term, so the proof doesn't generalize.
+I.e. compatible proofs must use deduction rules, not computation rules
+---------------------------------------------------------------------------/
+
+example := by
+  let two_times_three_is_even: Even (2*3) := by
+    simp only [Nat.reduceMul]
+    unfold Even
+    use 3
+
+  autogeneralize (3:ℕ) in two_times_three_is_even
+
+example := by
+  let two_times_three_is_six : 2*3=6 := by simp only [Nat.reduceMul]
+
+  autogeneralize 3 in two_times_three_is_six
+  assumption
+
+
+example := by
+  let two_times_three_is_six : 2*3=6 := by simp only [Nat.reduceMul]
+  autogeneralize 3 in two_times_three_is_six
+  assumption
+
+/---------------------------------------------------------------------------
+Another example where "3" doesn't show up in the proof term, so the proof doesn't generalize.
+I.e. compatible proofs must use deduction rules, not computation rules
+---------------------------------------------------------------------------/
+example : True := by
+  let two_times_three_is_even : Even (2*3) := @of_decide_eq_true (@Even.{0} Nat instAddNat
+    (@HMul.hMul.{0, 0, 0} Nat Nat Nat (@instHMul.{0} Nat instMulNat) (@OfNat.ofNat.{0} Nat 2 (instOfNatNat 2))
+      (@OfNat.ofNat.{0} Nat 3 (instOfNatNat 3))))
+
+  autogeneralize 3 in two_times_three_is_even
+
+  assumption
 
 /- --------------------------------------------------------------------------
-DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
+An example where "=3" is a required property, so the proof doesn't generalize.
 -------------------------------------------------------------------------- -/
-variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+
+theorem six_is_even : Even 6 := by
+  unfold Even
+  use 3
+
+example := by
+  let two_times_three_is_even : Even (2*3) := by
+    unfold Even; apply Exists.intro 3; rw [two_mul]
+
+  autogeneralize 3 in two_times_three_is_even
+
+
+
+  assumption
+
+example := by
+  let two_times_three_is_even : Even (2*3) := by
+    simp only [Nat.reduceMul]; apply six_is_even
+
+  autogeneralize 3 in two_times_three_is_even
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  assumption
+
+
 
 example :=
 by
@@ -84,6 +172,7 @@ by
 /- --------------------------------------------------------------------------
 DEMO OF HARD CASE -- four 3s in the theorem statement.  2 are related, 2 not.
 -------------------------------------------------------------------------- -/
+
 example :
   ∀ {α β : Type} [Fintype α] [Fintype β]  [DecidableEq α], Fintype.card α = 4 → Fintype.card β = 5 → Fintype.card (α → β) = 5 ^ 4 :=
 by
@@ -248,7 +337,7 @@ sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
 
 example : True := by
 
-  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + 2) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
+  let _sum_irrat : Irrational ((sqrt (2:ℕ)) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
 
   autogeneralize_basic (2:ℕ) in _sum_irrat
 
