@@ -304,10 +304,10 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- logInfo m!"Generalized type before linking mvars {← inferType (← abstractMVars abstractedProof).expr}"
 
   -- unify "linked" mvars in proof
-  -- try
-  check abstractedProof
-  -- catch e =>
-    -- throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
+  try
+    check abstractedProof
+  catch e =>
+    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   let abstractedProof ← instantiateMVars abstractedProof
 
   -- if there are two metavariables with fExpr's type in the proof with the same name...rename.
