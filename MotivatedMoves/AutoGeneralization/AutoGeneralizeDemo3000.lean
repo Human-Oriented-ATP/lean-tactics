@@ -26,29 +26,6 @@ def unexpandOfNat : Unexpander
   | `($(_) $a) => `($a)
   | _ => throw ()
 
-variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
-
--- #synth Union (Finset Nat)
-
-theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
-  (A ∪ B).card ≤ 4 :=
-by
-  have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-  have h2 : A.card + B.card = 4 := by simp [hA, hB]
-  rwa [h2] at h1
-
-
-example : True := by
-  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
-  (A ∪ B).card ≤ 4 := by
-    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    have h2 : A.card + B.card = 4 := by simp [hA, hB]
-    rwa [h2] at h1
-
-  autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets.Gen
-
-  simp
 
 
 /---------------------------------------------------------------------------
@@ -58,35 +35,13 @@ I.e. compatible proofs must use deduction rules, not computation rules
 
 example := by
   let two_times_three_is_even: Even (2*3) := by
-    simp only [Nat.reduceMul]
-    unfold Even
-    use 3
-
-  autogeneralize (3:ℕ) in two_times_three_is_even
-
-example := by
-  let two_times_three_is_six : 2*3=6 := by simp only [Nat.reduceMul]
-
-  autogeneralize 3 in two_times_three_is_six
+    simp only [Nat.reduceMul]; unfold Even; use 3
+  -- autogeneralize (3:ℕ) in two_times_three_is_even -- throws error
   assumption
-
 
 example := by
   let two_times_three_is_six : 2*3=6 := by simp only [Nat.reduceMul]
   autogeneralize 3 in two_times_three_is_six
-  assumption
-
-/---------------------------------------------------------------------------
-Another example where "3" doesn't show up in the proof term, so the proof doesn't generalize.
-I.e. compatible proofs must use deduction rules, not computation rules
----------------------------------------------------------------------------/
-example : True := by
-  let two_times_three_is_even : Even (2*3) := @of_decide_eq_true (@Even.{0} Nat instAddNat
-    (@HMul.hMul.{0, 0, 0} Nat Nat Nat (@instHMul.{0} Nat instMulNat) (@OfNat.ofNat.{0} Nat 2 (instOfNatNat 2))
-      (@OfNat.ofNat.{0} Nat 3 (instOfNatNat 3))))
-
-  autogeneralize 3 in two_times_three_is_even
-
   assumption
 
 /- --------------------------------------------------------------------------
@@ -104,30 +59,15 @@ example := by
   autogeneralize 3 in two_times_three_is_even
 
 
-
   assumption
 
 example := by
   let two_times_three_is_even : Even (2*3) := by
     simp only [Nat.reduceMul]; apply six_is_even
-
-  autogeneralize 3 in two_times_three_is_even
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  -- autogeneralize 3 in two_times_three_is_even -- throws error
   assumption
 
+variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
 
 example :=

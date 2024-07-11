@@ -295,9 +295,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 /-- Find the proof of the new auto-generalized theorem -/
 def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
   -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
-  -- let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-  let abstractedProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
-  let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
+  let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+  -- let abstractedProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
+  -- let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
   -- logInfo m!"abstracted "
 
   -- logInfo m!"Generalized proof before linking mvars {abstractedProof}"
