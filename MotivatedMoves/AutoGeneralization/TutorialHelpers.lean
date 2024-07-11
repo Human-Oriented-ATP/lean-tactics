@@ -148,3 +148,34 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
 def getTheoremProof (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
   return thm.value! -- return the theorem statement
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Getting metavariables in the context
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+def printMVarsAssignmentsInContext : MetaM Unit := do
+  let m ← getMCtx
+  logInfo m!"MVar Context:
+    {(m.eAssignment.toList.map (fun d =>
+    m!"Mvar:
+      {d.fst.name}
+    Assignment:
+      {repr d.snd}"
+
+  ))}"
+
+def printMVarContext : MetaM Unit := do
+  let m ← getMCtx
+  logInfo m!"MVar Context: {(m.decls.toList.map (fun d =>
+    m!"Name: {d.fst.name} Kind:{repr d.snd.kind} "
+  ))}"
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Getting all variables and instances in local context
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+
+def printLocalContext : MetaM Unit := do
+  let (lctx, linst) := (← getLCtx, ← getLocalInstances)
+  logInfo m!"Local context {lctx.decls.toList.filterMap (fun oplocdec => oplocdec.map (LocalDecl.userName))}"
+  logInfo m!"Local instances {linst.map LocalInstance.className}"
