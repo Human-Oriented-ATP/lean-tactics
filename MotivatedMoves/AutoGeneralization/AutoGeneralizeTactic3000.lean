@@ -6,29 +6,6 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
-def printMVarsAssignmentsInContext : MetaM Unit := do
-  let m ← getMCtx
-  logInfo m!"MVar Context:
-    {(m.eAssignment.toList.map (fun d =>
-    m!"Mvar:
-      {d.fst.name}
-    Assignment:
-      {repr d.snd}"
-
-  ))}"
-
-def printMVarContext : MetaM Unit := do
-  let m ← getMCtx
-  logInfo m!"MVar Context: {(m.decls.toList.map (fun d =>
-    m!"Name: {d.fst.name} Kind:{repr d.snd.kind} "
-  ))}"
-
-def printLocalContext : MetaM Unit := do
-  let (lctx, linst) := (← getLCtx, ← getLocalInstances)
-  logInfo m!"Local context {lctx.decls.toList.filterMap (fun oplocdec => oplocdec.map (LocalDecl.userName))}"
-  logInfo m!"Local instances {linst.map LocalInstance.className}"
-
-
 /- Instantiates all mvars in e except the mvar given by m -/
 def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   -- remove the assignment
@@ -40,14 +17,6 @@ def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   return e
 
 
-/--  Tactic to return hypotheses declarations (including dynamically generated ones)-/
-def getHypotheses : TacticM (List LocalDecl) := do
-  let mut hypotheses : List LocalDecl := []
-  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
-  for ldecl in (← goal.getDecl).lctx do
-    if ldecl.isImplementationDetail then continue
-    hypotheses := ldecl :: hypotheses
-  return hypotheses
 
 def getHypothesesMeta : MetaM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
@@ -55,10 +24,6 @@ def getHypothesesMeta : MetaM (List LocalDecl) := do
     if ldecl.isImplementationDetail then continue
     hypotheses := ldecl :: hypotheses
   return hypotheses
-
-/--  Tactic to return hypotheses names-/
-def getHypothesesNames : TacticM (List Name) := do
-    return (← getHypotheses).map (fun hypothesis => hypothesis.userName)
 
 def getHypothesesNamesMeta : MetaM (List Name) := do
     return (← getHypothesesMeta).map (fun hypothesis => hypothesis.userName)
@@ -93,32 +58,10 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
             return hyp.value -- works if proved directly with a proof term like `:= fun ...`
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
-partial def mkPrettyNameHelper (hypNames : List Name)  (i : Nat) : Name :=
-  let names : List Name := [`n,`m,`p] -- order in which to prioritize names
-  if i < names.length then
-    if (hypNames).contains (names.get! i) then
-      mkPrettyNameHelper hypNames (i+1)
-    else
-      names.get! i
-  else
-    `fresh_name
-
-/-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
-def mkPrettyName (idx : Nat := 0) : MetaM Name := do
-  return mkPrettyNameHelper (← getHypothesesNamesMeta) idx
-
 /--  Tactic to return goal variable -/
 def getGoalVar : TacticM MVarId := do
   return ← getMainGoal
 
-/-- Create a new hypothesis using a "have" statement -/
-def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
-  let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
-  let hyp : Hypothesis := { userName := hypName, type := hypType, value := hypProof }
-  let check ← isDefEq (hypType) (← inferType hypProof)
-  if !check then throwError "Hypothesis type {hypType} doesn't match proof {hypProof}"
-  let (_, new_goal) ← (←getGoalVar).assertHypotheses (List.toArray [hyp])
-  setGoals [new_goal]
 
 /-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
 def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
@@ -164,21 +107,6 @@ def containsExprWhere (condition : Expr → Bool) (e : Expr)   : MetaM Bool := d
 def containsMData (e : Expr): MetaM Bool := do
   return ← containsExprWhere (Expr.isMData) e
 
-def getMVarAssignedToMData : MetaM MVarId := do
-  let mctx ← getMCtx
-  for (mvarId, expr) in mctx.eAssignment do
-    if Expr.isMData expr then
-      return mvarId
-  throwError "No metavariable assigned to an expression with metadata found"
-
-def getMVarContainingMData : MetaM MVarId := do
-  let mctx ← getMCtx
-  for (mvarId, expr) in mctx.eAssignment do
-    if ← containsMData expr then
-      logInfo m!"this mvar {mvarId.name} contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {expr}"
-      return mvarId
-  throwError "No metavariable assigned to an expression with metadata found"
-
 def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
   let e ← getExprMVarAssignment? m
   return e
@@ -192,18 +120,6 @@ def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
         return m
     logInfo m!"found no assignment"
   throwError "No metavariable assigned to an expression with metadata found"
-
-/-- Helper for incrementing idx when creating pretty names-/
--- partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
---   let candidate := base.appendIndexAfter i ++ `_gen
---   if (hypNames).contains candidate then
---     mkPrettyNameHelper hypNames base (i+1)
---   else
---     candidate
-
--- /-- Names a function baseName_idx if that is available.  otherwise, names it baseName_idx+1 if available...and so on. -/
--- def mkPrettyName (baseName : Name) : TacticM Name := do
---   return mkPrettyNameHelper (← getHypothesesNames) baseName 0
 
 def mkAbstractedName (n : Name) : Name :=
     match n with
@@ -317,19 +233,6 @@ def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
-  -- match occs with
-  -- | .all =>
-  --     let mut thmType := thmType
-  --     while (← containsExpr thmType fExpr) do
-  --       thmType ← kabstract thmType fExpr (.pos [1])
-  --     return thmType
-  -- | .pos idx =>
-  --     let mut thmType := thmType
-  --     for i in idx do
-  --       thmType ← kabstract thmType fExpr (.pos [i])
-  --     logInfo m!"abstractToDiffMVars: we have now abstracted thmtype {thmType}"
-  --     return thmType
-  -- | .neg _ => throwError "Putting in negative occurrences is not supported in this tactic."
 
 def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
@@ -428,9 +331,6 @@ elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences
 
 /-  Autogeneralize term "pattern" in hypothesis "h", but generalize all occurrences.
     Behaves as in (Pons, 2000 )
-    Either "naive_autogeneralize" or "basic_autogeneralize" or "autogeneralize_v0"
-    Maybe autogeneralize vs autogenerlize+
-    Or autogeneralize_all vs autogeneralize_linked / autogeneralize_selective
 -/
 elab "autogeneralize_basic" pattern:term "in" h:ident : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
