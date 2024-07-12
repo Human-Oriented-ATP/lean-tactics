@@ -5,7 +5,7 @@ Authors: J. W. Gerbscheid
 -/
 import MotivatedMoves.ProofState.Tree
 import MotivatedMoves.LibrarySearch.StateList
-import Batteries.Data.List.Basic
+import Std.Data.List.Basic
 import Lean.Meta
 import Mathlib.Algebra.Group.Pi.Basic
 

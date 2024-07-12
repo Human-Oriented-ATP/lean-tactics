@@ -121,7 +121,7 @@ def processLemma (name : Name) (cinfo : ConstantInfo) (ds : DiscrTrees) : MetaM 
     else ds))
   return ⟨f a' a, f b' b, f c' c, f d' d, f e' e⟩
 
-open Batteries.Tactic
+open Std.Tactic
 
 @[reducible] def DiscrTreesCache : Type :=
   DeclCache (DiscrTrees × DiscrTrees)
@@ -167,26 +167,26 @@ def countingHeartbeats  (x : MetaM α) : MetaM ℕ := do
   let numHeartbeats ← IO.getNumHeartbeats
   _ ← x
   return ((← IO.getNumHeartbeats) - numHeartbeats) / 1000
-elab "hiii" : tactic => do
-  let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
-    fun name constInfo (tree₁, tree₂) => do
-      return (tree₁, ← processLemma name constInfo tree₂)
-  -- let n := ``HasDerivAt.add
-  let x ← ( countingHeartbeats do
-      (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => do
-        try
-          addLibraryDecl n c a
-        catch err =>
-          logInfo m! "{n}, {err.toMessageData}"
-          return a)
-  logInfo m! "{x}"
-set_option maxHeartbeats 1000000
-set_option profiler true
--- set_option trace.Meta.isDefEq true in
--- set_option pp.explicit true in
-example : True := by
-  hiii
-  trivial
+-- elab "hiii" : tactic => do
+--   let addLibraryDecl : Name → ConstantInfo → DiscrTrees × DiscrTrees → MetaM (DiscrTrees × DiscrTrees) :=
+--     fun name constInfo (tree₁, tree₂) => do
+--       return (tree₁, ← processLemma name constInfo tree₂)
+--   -- let n := ``HasDerivAt.add
+--   let x ← ( countingHeartbeats do
+--       (← getEnv).constants.map₁.foldM (init := ({}, {})) fun a n c => do
+--         try
+--           addLibraryDecl n c a
+--         catch err =>
+--           logInfo m! "{n}, {err.toMessageData}"
+--           return a)
+--   logInfo m! "{x}"
+-- set_option maxHeartbeats 1000000
+-- set_option profiler true
+-- -- set_option trace.Meta.isDefEq true in
+-- -- set_option pp.explicit true in
+-- example : True := by
+--   hiii
+--   trivial
 
 
 

@@ -1,6 +1,6 @@
 import Lean
 import ProofWidgets
-import Batteries
+import Std
 
 open ProofWidgets.Jsx
 open Lean ProofWidgets Server
