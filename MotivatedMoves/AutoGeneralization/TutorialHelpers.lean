@@ -69,7 +69,7 @@ def getHypothesisByName (h : Name) : TacticM LocalDecl := do
   throwError "No hypothesis by that name."
 
 /-- Get the FVarID for a hypothesis (given its name) -/
-def getHypothesisFVarId (h : Name) : TacticM FVarId := do
+def getHypothesisId (h : Name) : TacticM FVarId := do
   let hyp ← getHypothesisByName h
   return hyp.fvarId
 
