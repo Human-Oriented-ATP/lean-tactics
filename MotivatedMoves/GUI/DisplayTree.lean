@@ -181,7 +181,7 @@ deriving RpcEncodable
 /-- The number of pixels occupied by each row in the tree display. -/
 def rowSize := 30
 /-- The approximate width, in pixels, of a Unicode character in the chosen font. -/
-def charWidth := 8
+def charWidth := 10
 /-- The amount of horizontal padding to add around text in text bubbles. -/
 def padding := 4
 
