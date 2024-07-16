@@ -1,7 +1,5 @@
 /- Helper functions that make Lean 4 Metaprogramming a bit more intuitive. -/
 
-import Lean
-import Mathlib.Tactic
 import Qq open Qq
 open Lean Elab Tactic Meta Term Command
 
@@ -39,7 +37,9 @@ def getInitialHypotheses : MetaM (List LocalDecl) := do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 elab "getInitialHypotheses": tactic => do {let hList ← getInitialHypotheses; for lDecl in hList do logInfo lDecl.userName}
-example (P : Prop) (Q : Prop) := by {getInitialHypotheses; have R := True; getInitialHypotheses; assumption}
+example (P : Prop) (Q : Prop) := by
+  getInitialHypotheses;
+  have R := True; getInitialHypotheses; assumption
 
 /--  Return hypotheses declarations associated to the main goal -/
 def getHypotheses : TacticM (List LocalDecl) := withMainContext do
@@ -49,7 +49,9 @@ def getHypotheses : TacticM (List LocalDecl) := withMainContext do
     hypotheses := ldecl :: hypotheses
   return hypotheses
 elab "getHypotheses": tactic => do {let hList ← getHypotheses; for lDecl in hList do logInfo lDecl.userName}
-example (P : Prop) (Q : Prop) := by {getHypotheses; have R := True; getHypotheses; assumption}
+example (P : Prop) (Q : Prop) := by
+  getHypotheses;
+  have R := True; getHypotheses; assumption
 
 /--  Get a hypothesis declaration by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
@@ -95,15 +97,11 @@ def createHaveHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option N
   setGoals [new_goal]
 
 /-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
-def createHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
+def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
   let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
   let new_goal ← (←getGoalVar).define hypName hypType hypProof
   let (_, new_goal) ← new_goal.intro1
   setGoals [new_goal]
-
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Converting expressions to code (evaluation)
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Converting code to expressions (elaboration)
@@ -122,7 +120,10 @@ elab "#term_to_expr" t:term : command => do
 #term_to_expr (2+3=5)
 
 /- - Turn Lean terms into an expression, using Qq -/
-#eval (q(2+3=5) : Expr)
+#eval (q(2+3=5) : Expr)     -- create expressions
+#check (Q(Nat) : Type)      -- create types
+#eval (q(3) : Q(Nat))       -- create an expression of a certain type
+#eval (q(2+3=5) : Q(Prop))  -- create an expression of another type
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Checking types of expressions
@@ -133,6 +134,13 @@ def getExprConstructor (e: Expr): MetaM String := do
   return e.ctorName
 #eval getExprConstructor (.bvar 0)      -- bvar
 #eval getExprConstructor (.const `n []) -- const
+
+/-- Tells you if an expression is a Float (for debugging purposes) -/
+def isFloat (e: Expr): MetaM Bool := do
+  let type_expr ← inferType e
+  return type_expr.isConstOf `Float
+#eval isFloat (q(3))    -- false
+#eval isFloat (q(3.3))  -- true
 
 /-- Tells you if an expression is a Nat (for debugging purposes) -/
 def isNat (e: Expr): MetaM Bool := do
@@ -145,12 +153,12 @@ def isNat (e: Expr): MetaM Bool := do
 Printing expressions in varying degrees of detail
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/-- What the expression fully looks like --/
+/-- Print what the expression fully looks like (compatible with #eval, unlike logInfo) --/
 def logExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{repr e}"
 #eval logExpression (toExpr 2)
 
-/-- What the expression looks like, but with details hidden, so its prettier --/
+/-- What the expression looks like, but with details hidden, so its prettier (compatible with #eval, unlike logInfo) --/
 def logPrettyExpression (e : Expr) : MetaM Unit := do
   dbg_trace "{←ppExpr e}"
 #eval logPrettyExpression (toExpr 2)
@@ -175,79 +183,107 @@ def getTheoremProof (n : Name) : MetaM Expr := do
 Getting subexpressions
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/- Get (in a list) all subexpressions in an expression -/
-def getSubexpressionsIn (e : Expr) : MetaM (List Expr) :=
-  let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : MetaM (List Expr) :=
+/-- Get (in a list) all subexpressions in an expression -/
+def getSubexpressionsIn (e : Expr) : List Expr :=
+  let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
     match e with
-    | Expr.forallE _ d b _   => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.lam _ d b _       => return [e] ++ (← getSubexpressionsInRec d acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.letE _ t v b _    => return [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
-    | Expr.app f a           => return [e] ++ (← getSubexpressionsInRec f acc) ++ (← getSubexpressionsInRec a acc)
-    | Expr.mdata _ b         => return [e] ++ (← getSubexpressionsInRec b acc)
-    | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
-    | _                      => return acc
-  getSubexpressionsInRec e []
-#eval do {let e ← getTheoremStatement ``Nat.add_comm; for subexpr in (← getSubexpressionsIn e) do logPrettyExpression subexpr}
+    | Expr.forallE _ d b _   => [e] ++ (getSubexpressionsInRec d acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.lam _ d b _       => [e] ++ (getSubexpressionsInRec d acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.letE _ t v b _    => [e] ++ (getSubexpressionsInRec t acc) ++ (getSubexpressionsInRec v acc) ++ (getSubexpressionsInRec b acc)
+    | Expr.app f a           => [e] ++ (getSubexpressionsInRec f acc) ++ (getSubexpressionsInRec a acc)
+    | Expr.mdata _ b         => [e] ++ (getSubexpressionsInRec b acc)
+    | Expr.proj _ _ b        => [e] ++ (getSubexpressionsInRec b acc)
+    | Expr.mvar _            => [e] ++ acc
+    | Expr.bvar _            => [e] ++ acc
+    | e                      => [e] ++ acc
+  let subexprs := getSubexpressionsInRec e [];
+  let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones with loose bvars (will cause PANIC when using isDefEq)
+  subexprs
+#eval do {let e ← getTheoremStatement ``Nat.add_comm; for subexpr in (getSubexpressionsIn e) do logPrettyExpression subexpr}
+#eval do {let e := q(∀a,a+a=2*a); for subexpr in (getSubexpressionsIn e) do logPrettyExpression subexpr}
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let mctx ← getMCtx -- save metavar context before using isDefEq
-  let e_subexprs ← getSubexpressionsIn e
+  let e_subexprs := getSubexpressionsIn e
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
   setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
+#eval containsExpr (q(2)) q(∀a,a+a=2*a) -- true
+#eval containsExpr (q(3)) q(∀a,a+a=2*a) -- false
 
-/- Returns all subexpressions where "condition" holds -/
-def containsExprWhere (condition : Expr → Bool) (e : Expr)   : MetaM Bool := do
-  let e_subexprs ← getSubexpressionsIn e
-  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return condition e_subexpr)
+/-- Returns all subexpressions in "e" where "condition" holds -/
+def containsExprWhere (condition : Expr → MetaM Bool) (e : Expr)   : MetaM Bool := do
+  let e_subexprs := getSubexpressionsIn e
+  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← condition e_subexpr)
   return firstExprContainingSubexpr.isSome
+#eval containsExprWhere isNat   q(∀a,a+a=2*a)   -- true
+#eval containsExprWhere isFloat q(∀a,a+a=2*a)   -- false
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Replacing subexpressions
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/- Replaces all subexpressions in "e" definitionally equal to "original" with a bound variable -/
+/-- Replaces all subexpressions in "e" definitionally equal to "original" with a bound variable -/
 def replaceWithBVar (original : Expr) (e : Expr) : MetaM Expr :=
   return ← kabstract e original
 #eval do logPrettyExpression $ ← replaceWithBVar (q(2)) (q(2+3=5)) -- replace "2" with a bvar in "2+3=5"
 
-/- Replaces all subexpressions in "e" definitionally equal to "original" with "replacement" -/
-def replaceWith (original : Expr) (replacement : Expr)  (e : Expr) : MetaM Expr := do
+/-- Replaces all subexpressions in "e" definitionally equal to "original" with "replacement" -/
+def replace (original : Expr) (replacement : Expr)  (e : Expr) : MetaM Expr := do
   let abstractedExpr ← kabstract e original
   return abstractedExpr.instantiate1 replacement
-#eval do logPrettyExpression $ ← replaceWith  (q(2)) (q(3)) (q(2+3=5))-- replace "2" with a "3" in "2+3=5"
+#eval do logPrettyExpression $ ← replace  (q(2)) (q(999)) (q(2+3=5))-- replace "2" with a "999" in "2+3=5"
+
+/-- Replaces all subexpressions in "e" definitionally equal to "original" with a variable of type "replacementType" -/
+def replaceWithMVar (original : Expr) (replacementType : Expr)  (e : Expr) : MetaM Expr := do
+  let replacement ← mkFreshExprMVar replacementType
+  replace original replacement e
+#eval do logPrettyExpression $ ← replaceWithMVar  (q(2)) (.const `Nat []) (q(2+3=5))-- replace "2" with a "999" in "2+3=5"
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Getting metavariables in the context
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-
 /-- Returns all metavariable names and types in the context -/
 def printMVarContext : MetaM Unit := do
   let m ← getMCtx
-  logInfo m!"MVar Context: {(m.decls.toList.map (fun d =>
+  dbg_trace "MVar Context:"
+  for d in m.decls do
     let mvarId := d.fst
     let mvarDecl := d.snd
-    m!"Name: {mvarId.name} Type: {mvarDecl.type}"
-  ))}"
+    dbg_trace s!"\tName: {mvarId.name} \n\tUserName: {mvarDecl.userName} \n\tType: {mvarDecl.type}\n"
+#eval do
+  let _ ← mkFreshExprMVarQ q(Nat) (userName := `hole0);let hole1 ← mkFreshExprMVarQ q(Nat) (userName := `hole1);let hole2 ← mkFreshExprMVarQ q(Nat) (userName := `hole2);let _ ← isDefEq q($hole1+3) q(2+$hole2)
+  printMVarContext
 
 /-- Returns all ASSIGNED metavariable names and types -/
-def printMVarsAssignmentsInContext : MetaM Unit := do
+def printMVarAssignments : MetaM Unit := do
   let m ← getMCtx
-  logInfo m!"MVar Assignments: {(m.eAssignment.toList.map (fun d =>
-    m!"Mvar: {d.fst.name} Assignment: {d.snd}"
-  ))}"
+  dbg_trace "MVar Assingnments:"
+  for d in m.eAssignment do
+    let mvarId := d.fst
+    let assignment := d.snd
+    dbg_trace s!"\tName: {mvarId.name} \n\tAssignment: {← ppExpr assignment}\n"
+#eval do
+  let _ ← mkFreshExprMVarQ q(Nat) (userName := `hole0);let hole1 ← mkFreshExprMVarQ q(Nat) (userName := `hole1);let hole2 ← mkFreshExprMVarQ q(Nat) (userName := `hole2);let _ ← isDefEq q($hole1+3) q(2+$hole2)
+  printMVarAssignments
 
 /-- Returns the expression that an mvar has been assigned to (if it has been assigned) -/
 def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
   let e ← getExprMVarAssignment? m
   return e
+#eval do
+  let _ ← mkFreshExprMVarQ q(Nat) (userName := `hole0);let hole1 ← mkFreshExprMVarQ q(Nat) (userName := `hole1);let hole2 ← mkFreshExprMVarQ q(Nat) (userName := `hole2);let _ ← isDefEq q($hole1+3) q(2+$hole2)
+  getAssignmentFor hole1.mvarId!
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Getting all variables and instances in local context
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
+/-- Print local declarations (e.g. hypotheses) and local instances (e.g. typeclasses)-/
 def printLocalContext : MetaM Unit := do
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
-  logInfo m!"Local context {lctx.decls.toList.filterMap (fun oplocdec => oplocdec.map (LocalDecl.userName))}"
-  logInfo m!"Local instances {linst.map LocalInstance.className}"
+  logInfo s!"Local context {lctx.decls.toList.filterMap (fun oplocdec => oplocdec.map (LocalDecl.userName))}"
+  logInfo s!"Local instances {linst.map LocalInstance.className}"
+elab "printLocalContext": tactic => printLocalContext
+example (P : Prop) [Decidable P]:= by {printLocalContext; assumption}
