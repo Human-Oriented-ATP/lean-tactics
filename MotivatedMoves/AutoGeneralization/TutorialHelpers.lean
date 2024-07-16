@@ -30,15 +30,25 @@ def createGoal (goalType : Expr) : TacticM Unit := do
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving hypotheses
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-/--  Return hypotheses declarations associated to the main goal -/
-def getHypotheses : TacticM (List LocalDecl) := do
+/--  Return hypotheses declarations (not including dynamically generated ones associated to the main goal) -/
+def getInitialHypotheses : MetaM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
-  let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
-  for ldecl in (← goal.getDecl).lctx do
+  for ldecl in ← getLCtx do
     if ldecl.isImplementationDetail then continue
     hypotheses := ldecl :: hypotheses
   return hypotheses
+elab "getInitialHypotheses": tactic => do {let hList ← getInitialHypotheses; for lDecl in hList do logInfo lDecl.userName}
+example (P : Prop) (Q : Prop) := by {getInitialHypotheses; have R := True; getInitialHypotheses; assumption}
+
+/--  Return hypotheses declarations associated to the main goal -/
+def getHypotheses : TacticM (List LocalDecl) := withMainContext do
+  let mut hypotheses : List LocalDecl := []
+  for ldecl in ← getLCtx do
+    if ldecl.isImplementationDetail then continue
+    hypotheses := ldecl :: hypotheses
+  return hypotheses
+elab "getHypotheses": tactic => do {let hList ← getHypotheses; for lDecl in hList do logInfo lDecl.userName}
+example (P : Prop) (Q : Prop) := by {getHypotheses; have R := True; getHypotheses; assumption}
 
 /--  Get a hypothesis declaration by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
