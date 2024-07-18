@@ -124,62 +124,6 @@ elab "#term_to_expr" t:term : command => do
 #term_to_expr (2+3=5)
 #term_to_expr (Eq.refl 0)
 
-
-
-/-- Given the compiled code in the goal, _print_ the full raw format of an expression  --/
-elab "print_goal_as_expression" : tactic => do
-  let goal ← getGoalType
-  logInfo (toExpr goal) -- or logInfo (repr goalt)
-
-example :1+1=2 := by
-  print_goal_as_expression
-  ring
-
-theorem reflOfZero : 0=0:= by
-  print_goal_as_expression
-  simp
-
-theorem multPermute : ∀ (n m p : Nat), n * (m * p) = m * (n * p) := by
-  print_goal_as_expression
-  ring; simp
-
-/-- What the expression looks like --/
-def logExpression (e : Expr) : MetaM Unit := do
-  dbg_trace "{repr e}"
-
-/-- What the expression looks like, but prettier  --/
-def logFormattedExpression (e : Expr) : MetaM Unit := do
-  let s := Format.pretty (format e)
-  dbg_trace "{s}"
-
-/-- What the expression looks like, but prettier  --/
-def logPrettyExpression (e : Expr) : MetaM Unit := do
-  dbg_trace "{←ppExpr e}"
-
-/-- What the expression looks like, but prettier  --/
-def logDelabExpression (e : Expr) : MetaM Unit := do
-  dbg_trace "{← Lean.PrettyPrinter.delab e}"
-
-/-- What type the expression compiles to  --/
-def logExpressionType (e : Expr) : MetaM Unit :=
-  do
-    let t ← inferType e
-    dbg_trace t
-
-
-
-#eval do {let e ← getTheoremStatement ``multPermute; logExpression e}
-
-#eval getTheoremStatement ``multPermute
-#eval do {let e ← getTheoremStatement ``multPermute; logPrettyExpression e}
-
-#eval do {let e ← getTheoremStatement ``multPermute; logFormattedExpression e}
-#eval do {let e ← getTheoremStatement ``multPermute; logExpressionType e}
-
-#eval do {let e ← getTheoremProof ``reflOfZero; logExpression e}
-#eval do {let e ← getTheoremProof ``reflOfZero; logFormattedExpression e}
-#eval do {let e ← getTheoremProof ``reflOfZero; logPrettyExpression e}
-
 /- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : List Expr :=
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
@@ -196,10 +140,6 @@ def getSubexpressionsIn (e : Expr) : List Expr :=
   let subexprs := getSubexpressionsInRec e [];
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   subexprs
-
-
-
-
 
 /-- Helper for incrementing idx when creating pretty names-/
 partial def mkPrettyNameHelper(hypNames : List Name) (base : Name) (i : Nat) : Name :=
@@ -244,24 +184,6 @@ def generalizeTermInHypothesis (hypToGeneralize : FVarId) (e : Expr) (x? : Optio
 
     return (x, ← getHypothesisType x, ← getHypothesisFVarId x) -- name and type of new generalized variable
 
-
-
-elab "generalize2" : tactic => do
-  let e := (toExpr 2)
-  let x := `x
-  let h := `h
-  generalizeTerm e -- like the lean command "generalize h : e = x"
-
-elab "generalize4" : tactic => do
-  let e := (toExpr 4)
-  let x := `x
-  let h := `h
-  generalizeTerm e  -- like the lean command "generalize h : e = x"
-
-example : 2^4 % 5 = 1 := by
-  generalize2
-  generalize4
-  rw [← h_0, ← h_1]; rfl
 
 /-- Gets all identifier names in an expression -/
 def getFreeIdentifiers (e : Expr) : List Name := e.getUsedConstants.toList
@@ -343,14 +265,6 @@ def replaceWithBVarWhere (condition : Expr → Bool) (e : Expr) (depth : Nat := 
     | .forallE n a b bi => return .forallE n a (← replaceWithBVarWhere condition b (depth+1)) bi
     | x =>  replaceWhere (condition) (.bvar depth) x
 
-
--- def replaceWithBVar (original : Expr) (e : Expr) (depth : Nat := 0) : MetaM Expr := do
---   logInfo m!"About to replace {original} with a bound variable {depth} in the expression {e}"
---   match e with
---     | .lam n a b bi => return .lam n a (← replaceWithBVar original b (depth+1)) bi
---     | .forallE n a b bi => return .forallE n a (← replaceWithBVar original b (depth+1)) bi
---     | x =>  logInfo m!"Going in for the replace."; replaceCoarsely (original) (.bvar depth) x
-
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   let e_subexprs := getSubexpressionsIn e
@@ -385,7 +299,7 @@ def makeModifiers (oldNames : List Name) (oldTypes: List Expr) (newTypes: List E
   modifiers
 
 /-- Once you've generalized a term "f" to its type, get all the necessary modifiers -/
-def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
+def getNecessaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : GeneralizedTerm) : MetaM (Array Modifier) := do
   let identifiersInProofType := getFreeIdentifiers thmType
   let identifiersInProofTerm := getFreeIdentifiers thmProof
 
@@ -394,12 +308,8 @@ def getNecesaryHypothesesForAutogeneralization  (thmType thmProof : Expr) (f : G
   let identifierTypes ← liftMetaM (identifierNames.mapM getTheoremStatement)
 
   -- only keep the ones that contain "f" (e.g. the multiplication symbol *) in their type
-  logInfo m!"Old identifier names {identifierNames}"
-  logInfo m!"Old identifier types {identifierTypes}"
   let identifierNames ← identifierNames.filterM (fun i => do {let s ← getTheoremStatement i; containsExpr f.oldValue s})
   let identifierTypes ← identifierTypes.filterM (containsExpr f.oldValue)
-  logInfo m!"Filtered identifier names {identifierNames}"
-  logInfo m!"Filtered identifier types {identifierTypes}"
 
   -- Now we need to replace every occurence of the specialized f (e.g. *) with the generalized f (e.g. a placeholder) in those identifiers.
   let generalizedIdentifierTypes ← identifierTypes.mapM (replaceCoarsely f.oldValue f.placeholder)
@@ -435,69 +345,18 @@ def autogeneralizeProof (thmProof : Expr) (modifiers : Array Modifier) (f : Gene
 
   return genThmProof
 
-def replaceExpressionsWhere (f : Expr → Bool) (replacement : Expr) (e : Expr) : MetaM Expr := do
-  -- first check if true for larger expression
-
-  -- if not, check for smaller
-  let replaced_e ← Lean.Meta.traverseChildren (fun subexpr =>
-    if f subexpr then return replacement
-    else return subexpr
-  ) e
-  return replaced_e
-
-def unfoldConstantsInProof (e : Expr) (depth := 3) : MetaM Expr := do
-  logInfo m!"Before unfolding proof: {e}"
-  let constants := e.getUsedConstants.toList
-  logInfo m!"Used constants: {constants}"
-
-  let unfolded_e ← (constants.length).foldM (fun i acc => do
-    let cName := constants.get! i
-    unless ← isTheorem cName do return acc
-    let cProof ← getTheoremProof cName
-    let unfoldedProof ← replaceWhere (fun e => e.isConstOf cName) cProof acc
-    return unfoldedProof
-  ) e
-
-  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
-  --   let cName := constants.get! i
-  --   let cProof ← getTheoremProof cName
-  --   let unfoldedProof ← replaceCoarsely (.const cName []) cProof acc
-  --   return unfoldedProof
-  -- ) e
-
-  -- let unfolded_e ← (constants.length).foldM (fun i acc => do
-  --   let cName := constants.get! i
-  --   let cProof ← getTheoremProof cName
-  --   logInfo m!"cProof: {cProof}"
-  --   let unfoldedProof ← Lean.Meta.traverseChildren (fun e => -- only works on immediate children
-  --     if e.isConstOf cName then return cProof
-  --     else return e
-  --   ) acc
-  --   return unfoldedProof
-  -- ) e
-
-  logInfo m!"After unfolding proof: {unfolded_e}"
-  let constants := unfolded_e.getUsedConstants.toList
-  logInfo m!"Used constants after unfolding: {constants}"
-  return unfolded_e
-
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr): TacticM Unit := do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
-  -- Expose more details of the proof, recursing down
-  -- let thmProof ← unfoldConstantsInProof thmProof
-  -- let thmType ← inferType thmProof
-
   -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
   let f : GeneralizedTerm := {oldValue := fExpr, name := `f, type := ← inferType fExpr, placeholder := ← mkFreshExprMVar (some (← inferType fExpr))}
   logInfo m!"The term to be generalized is {f.oldValue} with type {f.type}"
 
   -- Do the next bit of generalization -- figure out which hypotheses we need to add to make the generalization true
-  let modifiers ← getNecesaryHypothesesForAutogeneralization thmType thmProof f
-  -- logInfo m!"The number of hypotheses needed to generalize this theorem is {modifiers.size}"
+  let modifiers ← getNecessaryHypothesesForAutogeneralization thmType thmProof f
 
   -- Get the generalized theorem (with those additional hypotheses)
   let genThmProof ← autogeneralizeProof thmProof modifiers f; logInfo ("Generalized Proof: " ++ genThmProof)
