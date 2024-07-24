@@ -297,23 +297,25 @@ def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
   return genThmProof
 
--- def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Expr) (occsToStayAbstracted : Occurrences) (consolidate : Bool) : MetaM Expr := do
+def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Expr) (occsToStayAbstracted : Occurrences) (consolidate : Bool) : MetaM Expr := do
 
---   -- Get the occurrences of the pattern (in the theorem statement) the user wants to specialize
---   let userThmType ← if consolidate then
---     abstractToOneMVar thmType pattern occsToStayAbstracted
---   else
---     abstractToDiffMVars thmType pattern occsToStayAbstracted
---   logInfo m!"!User Generalized Type: {userThmType}"
+  -- Get the occurrences of the pattern (in the theorem statement) the user wants to specialize
+  let userThmType ← if consolidate then
+    abstractToOneMVar thmType pattern occsToStayAbstracted
+  else
+    abstractToDiffMVars thmType pattern occsToStayAbstracted
+  logInfo m!"!User Generalized Type: {userThmType}"
 
---   -- Compare and unify mvars between user type and our generalized type
---   let genThmType ← inferType genThmProof
---   let _ ← isDefEq  genThmType userThmType
+  -- Keep a record of mvars to keep track of
+  let genThmType ← inferType genThmProof
+  let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
 
---   -- Instantiate the ones we don't want to generalize
---   let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
---   let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
---   return ← instantiateMVarsExcept userSelectedMVars genThmProof
+  -- Compare and unify mvars between user type and our generalized type
+  let _ ← isDefEq  genThmType userThmType
+
+  -- Instantiate the ones we don't want to generalize
+  let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
+  return ← instantiateMVarsExcept userSelectedMVars genThmProof
 
 def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr) := do
   let (result, _) ← Lean.Meta.simp genThmType {}
@@ -342,34 +344,9 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
 
   -- Re-specialize the occurrences of the pattern we are not interested in
   if !(occs == .all) then do
-    -- genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
-    -- logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
-    let userThmType ← if consolidate then
-      abstractToOneMVar thmType pattern occs
-    else
-      abstractToDiffMVars thmType pattern occs
+    genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
+    logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
-    let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
-
-    logInfo m!"!User Generalized Type: {userThmType}"
-
-    -- compare and unify mvars between user type and our generalized type
-    let unif ← isDefEq  genThmType userThmType
-    --logInfo m!"Do they unify? {unif}"
-
-    let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
-    -- for m in userSelectedMVars do
-    --   logInfo m.name
-    -- printMVarAssignments
-    --logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
-    -- for userMVar in userSelectedMVars do
-    -- if !(← userMVar.mvarId!.isAssigned) then
-    --   try
-    --     userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
-    --   catch _ =>
-    --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
-
-    genThmProof  ←  instantiateMVarsExcept userSelectedMVars genThmProof
 
   -- (If desired) make all abstracted instances of the pattern the same.
   if consolidate then do
