@@ -38,21 +38,6 @@ theorem irrat_def_aux (n: ℤ) : (∃ x : ℚ, x^2 = (n:ℤ)) → ∃a b : ℤ, 
   simp at *
   norm_cast
 
--- theorem irrat_def (n: ℤ) : (¬ ∃a b : ℤ, gcd a b = 1 ∧ a^2 = (n:ℤ) * b^2 )→ ¬(∃ x : ℚ, x^2 = (n:ℤ)) := by
---   contrapose
---   simp
---   have := irrat_def_aux
---   simp at this
---   apply this
-
--- theorem irrat_def_aux'_nat (n: ℕ) : (∃ x : ℚ, x*x = (n:ℕ)) → ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n:ℕ) * b*b:= by
---   intro h
---   obtain ⟨x,hx⟩ := h -- (∃ x : ℚ, x^2 = (3:ℤ))
-
---   -- use x.num
---   -- use x.den
---   -- constructor
---   sorry
 
 
 theorem irrat_def_aux' (n: ℤ) : (∃ x : ℚ, x*x = (n:ℤ)) → ∃a b : ℤ, gcd a b = 1 ∧ a*a = (n:ℤ) * b*b:= by
@@ -251,14 +236,30 @@ theorem irrat_def (n: ℕ) : (¬ ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n: ℕ) * 
   intros irr
   unfold Irrational at irr
   simp at irr
-  have := irrat_def_aux'
   obtain ⟨x, irr⟩ := irr
+  have x_pos : 0 ≤ (x:ℝ) := by
+    have sqrt_pos := Real.sqrt_nonneg (n: ℝ)
+    rw [← irr] at sqrt_pos
+    apply sqrt_pos
+  rw [← Real.sqrt_mul_self x_pos] at irr
+  have x_sq : sqrt (x * x) = sqrt n → x*x = n := by apply?
+  specialize x_sq irr; clear irr
+  norm_num at x_pos
+  have x_num_pos := (@Rat.num_nonneg_iff_zero_le x).mpr x_pos
+  clear x_pos
+  use Int.natAbs x.num
+  use x.den
+  constructor
+  apply x.reduced
+  -- rw [← Rat.num_div_den x] at x_sq
+  rw [Rat.eq_iff_mul_eq_mul] at x_sq
+  simp at x_sq
+
+  rw [Rat.mul_self_num] at x_sq
+  rw [Rat.mul_self_den] at x_sq
 
   sorry
-  -- rw [← Real.sqrt_mul_self] at irr
-  -- specialize this n
-
-  -- simp at this
+  -- rw [← Real.sqrt_mul_self] at irr]
   -- apply this
 
 theorem _sqrt2Irrational_xx_aa : ¬ ∃ x : ℚ, x*x = (2:ℤ) := by
