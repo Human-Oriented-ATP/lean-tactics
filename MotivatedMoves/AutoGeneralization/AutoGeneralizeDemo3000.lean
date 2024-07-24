@@ -27,10 +27,44 @@ def unexpandOfNat : Unexpander
   | _ => throw ()
 
 
-/---------------------------------------------------------------------------
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example:
+sqrt(2) is irrational generalizes to sqrt(prime) is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+example : Irrational (sqrt 3) := by
+  let sum_irrat : Irrational (sqrt (2:ℕ)) := by {apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
+  autogeneralize_basic (2:ℕ) in sum_irrat
+  specialize sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example of a naive, over-specialized generalization:
+sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+example : Irrational (sqrt 3 + 3) := by
+  let sum_irrat : Irrational (sqrt (2:ℕ) + 2) := by {apply Irrational.add_nat; apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
+  autogeneralize_basic (2:ℕ) in sum_irrat
+  specialize sum_irrat.Gen 3 (Nat.prime_three)
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Example of a better, constant-aware generalization:
+sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+
+example : Irrational (sqrt 3 + 6) := by
+  let sum_irrat : Irrational (sqrt (2:ℕ) + 2) := by {apply Irrational.add_nat; apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
+  autogeneralize (2:ℕ) in sum_irrat
+  specialize sum_irrat.Gen 3 (Nat.prime_three) 6
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 An example where "3" doesn't show up in the proof term, so the proof doesn't generalize.
 I.e. compatible proofs must use deduction rules, not computation rules
----------------------------------------------------------------------------/
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 example := by
   let two_times_three_is_even : Even (2*3) := by {unfold Even; apply Exists.intro 3; rw [two_mul]}
@@ -45,7 +79,6 @@ example := by
   assumption
 
 variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
-
 
 example :=
 by
@@ -69,15 +102,7 @@ by
 example :=
 by
   let fun_set : Fintype.card α = 3 → Fintype.card β = 3 → Fintype.card (α → β) = 3 ^ 3 := by {intros α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
-
   autogeneralize 3 in fun_set at occurrences [1]
-
-
-
-
-
-
-
   specialize @fun_set.Gen 4
   assumption
 
@@ -103,28 +128,6 @@ by
   assumption
 
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Example of a naive, over-specialized generalization:
-sqrt(2)+2 is irrational generalizes to sqrt(prime)+prime is irrational
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-example : Irrational (sqrt 3 + 3) := by
-  let sum_irrat : Irrational (sqrt (2:ℕ) + 2) := by {apply Irrational.add_nat; apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
-  autogeneralize_basic (2:ℕ) in sum_irrat
-  specialize sum_irrat.Gen 3 (Nat.prime_three)
-  assumption
-
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Example:
-sqrt(2) is irrational generalizes to sqrt(prime) is irrational
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-
-example : Irrational (sqrt 3 + 6) := by
-  let sum_irrat : Irrational (sqrt (2:ℕ) + 2) := by {apply Irrational.add_nat; apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
-  autogeneralize (2:ℕ) in sum_irrat
-  specialize sum_irrat.Gen 3 (Nat.prime_three) 6
-  assumption
 
 
 example :
@@ -138,32 +141,6 @@ by
   specialize @fun_set.Gen 4 5
 
   assumption
-
-
-
-
-
-
-
-
-
-
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Example of a better, constant-aware generalization:
-sqrt(2)+2 is irrational generalizes to sqrt(prime)+nat is irrational
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-
-
-
-example : Irrational (sqrt 3 + 6) := by
-  let _sum_irrat : Irrational (sqrt (2:ℕ) + (2:ℕ)) := by {apply Irrational.add_nat; apply Nat.prime_two.irrational_sqrt}
-  autogeneralize (2:ℕ) in _sum_irrat
-
-  specialize _sum_irrat.Gen 3 (Nat.prime_three) 6
-  -- specialize _sum_irrat.Gen 3 (Nat.prime_three)
-  assumption
-
 
 
 
