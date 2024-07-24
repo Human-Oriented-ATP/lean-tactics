@@ -115,7 +115,6 @@ def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
       if(← containsMData (← m_assignment)) then
         --logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {m}"
         return m
-    logInfo m!"found no assignment"
   throwError "No metavariable assigned to an expression with metadata found"
 
 def mkAbstractedName (n : Name) : Name :=
