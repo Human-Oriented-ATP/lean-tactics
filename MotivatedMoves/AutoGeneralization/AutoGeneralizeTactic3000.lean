@@ -297,6 +297,12 @@ def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
   return genThmProof
 
+def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr) := do
+  let (result, _) ← Lean.Meta.simp genThmType {}
+  let genThmTypeSimp := result.expr
+  let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
+  return (genThmTypeSimp, genThmProofSimp)
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
@@ -371,9 +377,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
-  let (result, _) ← Lean.Meta.simp genThmType {}
-  let genThmTypeSimp := result.expr
-  let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
+  let (genThmTypeSimp, genThmProofSimp) ← performSimp genThmType genThmProof
 
   createLetHypothesis genThmTypeSimp genThmProofSimp (thmName++`Gen)
 
