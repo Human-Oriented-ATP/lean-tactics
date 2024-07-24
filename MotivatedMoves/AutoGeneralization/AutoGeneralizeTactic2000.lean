@@ -4,7 +4,7 @@ import Mathlib.Data.Real.Irrational
 
 open Lean Elab Tactic Meta Term Command
 
-namespace Autogeneralize
+namespace Autogeneralize2000
 
 /-- Getting theorems from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
@@ -373,4 +373,4 @@ elab "autogeneralize" h:ident f:term : tactic => do
 
 
 
-end Autogeneralize
+end Autogeneralize2000

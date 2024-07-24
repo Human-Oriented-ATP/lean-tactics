@@ -9,10 +9,10 @@ import Mathlib.Data.Nat.Prime
 import Mathlib.RingTheory.Coprime.Lemmas
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
 
-import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
+import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic2000
 
 open Real
-open Autogeneralize
+open Autogeneralize2000
 open Lean Elab Tactic Meta Term Command
 
 
@@ -102,11 +102,12 @@ example :  ∀ (x y : EuclideanSpace ℝ (Fin 4)), dist x y = sqrt (Finset.sum F
 DEMO OF FAILURE -- The formula for the distance between any two points in ℝ² -- now there's two instances of what to generalize...and it overgeneralizes.
 ---------------------------------------------------------------------------/
 
-example :  ∀ (x y : EuclideanSpace ℝ (Fin 3)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := by
+example : True := by
   let _distance : ∀ (x y : EuclideanSpace ℝ (Fin 2)), dist x y = sqrt (Finset.sum Finset.univ fun i => dist (x i) (y i) ^ 2) := fun x y => EuclideanSpace.dist_eq x y
 
   autogeneralize _distance (2:) -- says this formula works for any f-dimensional space as long as distance is given by (∑ i, dist (x i) (y i) ^ f)
 
-  intros x y
-  specialize _distance.Gen 3 x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
-  sorry
+  -- intros x y
+  -- specialize _distance.Gen 3 x -- x is not a member of a 3-dimensional space such that the distance is given by (∑ i, dist (x i) (y i) ^3)
+
+  simp
