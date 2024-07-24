@@ -16,8 +16,6 @@ def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
   let e ← instantiateMVars e
   return e
 
-
-
 def getHypothesesMeta : MetaM (List LocalDecl) := do
   let mut hypotheses : List LocalDecl := []
   for ldecl in ← getLCtx do
@@ -27,7 +25,6 @@ def getHypothesesMeta : MetaM (List LocalDecl) := do
 
 def getHypothesesNamesMeta : MetaM (List Name) := do
     return (← getHypothesesMeta).map (fun hypothesis => hypothesis.userName)
-
 
 
 /--  Tactic get a hypothesis by its name -/
@@ -126,8 +123,6 @@ def mkAbstractedName (n : Name) : Name :=
     | (.str _ s) => s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
 
-
-
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
@@ -140,6 +135,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   -- printLocalContext
+
 
   let pType ← inferType p
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
@@ -197,7 +193,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
       if (← isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       else
@@ -208,28 +204,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   visit e
 
 
-/-- Find the proof of the new auto-generalized theorem -/
-def autogeneralizeProof (thmProof : Expr) (fExpr : Expr) : MetaM Expr := do
-  -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
-  let abstractedProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-  -- let abstractedProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
-  -- let abstractedProof := abstractedProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
-  -- logInfo m!"abstracted "
 
-  -- logInfo m!"Generalized proof before linking mvars {abstractedProof}"
-  -- logInfo m!"Generalized type before linking mvars {← inferType (← abstractMVars abstractedProof).expr}"
-
-  -- unify "linked" mvars in proof
-  try
-    check abstractedProof
-  catch e =>
-    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
-  let abstractedProof ← instantiateMVars abstractedProof
-
-  -- if there are two metavariables with fExpr's type in the proof with the same name...rename.
-  -- let mvarsInProof ← getMVars abstractedProof
-
-  return abstractedProof
 
 def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
   return ← kabstract thmType fExpr (occs)
@@ -242,17 +217,24 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
-  -- logInfo ("Ungeneralized Proof: " ++ thmProof)
-
-  -- Get details about the term we're going to generalize, to replace it with an arbitrary const of the same type
-  -- logInfo m!"The term to be generalized is {fExpr} with type {← inferType fExpr}"
-
   let mut genThmProof := thmProof
-  -- let genThmProof := thmProof
-  -- while ← containsExpr fExpr thmProof do
-  genThmProof ←  autogeneralizeProof thmProof fExpr; logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+
+  -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
+  genThmProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
+  -- genThmProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
+  -- genThmProof := genThmProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
+
+  try
+    check genThmProof
+  catch e =>
+    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
+  genThmProof ← instantiateMVars genThmProof
+
+
+  logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
 
+  -- Only run this section of occurrences are specified
   -- Get the generalized type from user
   -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
   unless occs == .all do
@@ -283,8 +265,16 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
 
     genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
 
-  -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
+  -- if consolidate, make all mvars with the type fExpr the same
+  if consolidate then do
+    let fType ← inferType fExpr
+    let m ← mkFreshExprMVar fType
+    let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
+    for mv in mvarsInProof do
+      if ← isDefEq (← mv.getType) fType then
+        if !(← mv.isAssigned) then mv.assignIfDefeq m
 
+  -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
   let hyps ← getMVars genThmProof
   for hyp₁ in hyps do
     for hyp₂ in hyps do
@@ -310,27 +300,31 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."
 
+/--
+Parse occurrences of the term as specified by the user.
+-/
 syntax occurrences :="at" "occurrences" "[" num+ "]"
-
 def decodeOccurrences : TSyntax `Autogeneralize.occurrences → List Nat
   | `(occurrences| at occurrences [$occs*]) => (occs.map TSyntax.getNat).toList
   | _ => unreachable!
 
-
-/- Autogeneralize term "pattern" in hypothesis "h" -/
+/--
+Autogeneralizes the "pattern" in the hypothesis "h",
+Default behavior is to generalizes all occurrences separately, but can generalize at specified occurences.
+-/
 elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
   let occs := occs.map decodeOccurrences
-  -- logInfo m!"Automatically generalizing the occurrences {occs} of the pattern {pattern} in {h} ..."
   if occs.isSome then
     autogeneralize h pattern (Occurrences.pos $ ← occs)
   else
-    autogeneralize h pattern --(.all) -- generalize all occurrences (default: to different mvars)
+    autogeneralize h pattern -- generalize all occurrences (default: to different mvars)
 
 
-/-  Autogeneralize term "pattern" in hypothesis "h", but generalize all occurrences.
-    Behaves as in (Pons, 2000 )
+/--
+Autogeneralizes the "pattern" in the hypothesis "h",
+But generalizes all occurrences in the same way.  Behaves as in (Pons, 2000)
 -/
 elab "autogeneralize_basic" pattern:term "in" h:ident : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)

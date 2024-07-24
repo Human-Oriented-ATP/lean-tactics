@@ -109,11 +109,20 @@ GENERALIZING FUNCTIONS
 /--
 Generalizing an operator that only requires commutativity.
 -/
+
 example :  1 + 2 = 2 + 1 := by
-  let _multComm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
-  autogeneralize_basic Mul.mul in _multComm  -- adds _multComm.Gen to list of hypotheses
-  specialize _multComm.Gen Add.add Add.add Nat.add_comm 1 2
+  let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
+  autogeneralize_basic Mul.mul in mult_comm
+  specialize mult_comm.Gen Add.add Nat.add_comm 1 2
   assumption
+
+example :  1 + 2 = 2 + 1 := by
+  let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
+  autogeneralize Mul.mul in mult_comm
+  specialize mult_comm.Gen Add.add Add.add Nat.add_comm 1 2
+  assumption
+
+
 
 /--
 Generalizing an operator that requires commutativity and associativity.
