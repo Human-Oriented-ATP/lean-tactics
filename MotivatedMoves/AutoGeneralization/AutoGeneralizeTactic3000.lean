@@ -130,16 +130,6 @@ def assignmentContainsMData (m : MVarId) : MetaM Bool := do
 def getAllMVarsContainingMData (a : Array MVarId): MetaM (Array MVarId) :=
    a.filterM assignmentContainsMData
 
-
-def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
-  for m in a do
-    let m_assignment ← getAssignmentFor m
-    if (m_assignment.isSome) then
-      if(← containsMData (← m_assignment)) then
-        --logInfo m!"this expr contains mdata.  if it looks too big, it might be that the mvar with mdat has already been assigned {m}"
-        return m
-  throwError "No metavariable assigned to an expression with metadata found"
-
 def mkAbstractedName (n : Name) : Name :=
     match n with
     | (.str _ s) => s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
@@ -285,6 +275,10 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
     if ← isDefEq (← mv.getType) t then
       if !(← mv.isAssigned) then mv.assignIfDefeq m
 
+/- Pull out mvars as hypotheses to create a chained implication-/
+def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
+  return (← abstractMVars proof).expr
+
 /- Unifies metavariables (which are hypotheses) when possible.  -/
 def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
   let hyps ← getMVars genThmProof
@@ -323,30 +317,30 @@ def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr)
   let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
   return (genThmTypeSimp, genThmProofSimp)
 
+def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
+  try
+    check proof
+  catch e =>
+    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
+  return ← instantiateMVars proof
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
-  let mut genThmProof := thmProof
-
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
-  genThmProof ← replacePatternWithMVars thmProof pattern -- replace instances of f's old value with metavariables
-  -- genThmProof ← kabstract thmProof pattern -- replace instances of f's old value with metavariables
-  -- genThmProof := genThmProof.instantiate1 (← mkFreshExprMVar (← inferType pattern))
+  let mut genThmProof := thmProof
+  genThmProof ← replacePatternWithMVars genThmProof pattern -- replace instances of f's old value with metavariables
 
-  try
-    check genThmProof
-  catch e =>
-    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
-  genThmProof ← instantiateMVars genThmProof
+  -- Consolidate mvars within proof term by running a typecheck
+  genThmProof ← consolidateWithTypecheck genThmProof
   let genThmType ← inferType genThmProof
 
   -- Re-specialize the occurrences of the pattern we are not interested in
   if !(occs == .all) then do
     genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
     logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
-
 
   -- (If desired) make all abstracted instances of the pattern the same.
   if consolidate then do
@@ -365,7 +359,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   genThmProof ← removeRepeatingHypotheses genThmProof
 
   -- Pull out the holes (the abstracted term & all hypotheses on it) into a chained implication.
-  genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
+  genThmProof ←  pullOutMissingHolesAsHypotheses genThmProof --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Run "simp".
