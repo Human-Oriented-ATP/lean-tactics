@@ -6,40 +6,21 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
-def printMVarAssignments : MetaM Unit := do
-  let m ← getMCtx
-  dbg_trace "MVar Assingnments:"
-  for d in m.eAssignment do
-    let mvarId := d.fst
-    let assignment := d.snd
-    logInfo s!"\tName: {mvarId.name} \n\tAssignment: {assignment}\n"
-
-
+/-- Remove the assignment of a metavariable from the context. -/
 def removeAssignment (mv : MVarId) : MetaM Unit := do
   -- remove the assignment
   let mctx ← getMCtx
   let mctxassgn := mctx.eAssignment.erase mv
   setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
 
-/- Instantiates all mvars in e except the mvar given by the array a -/
+/-- Instantiates all mvars in e except the mvar given by the array a -/
 def instantiateMVarsExcept (a : Array MVarId) (e : Expr)  : MetaM Expr := do
   for mv in a do
    removeAssignment mv -- remove the assignment
   let e ← instantiateMVars e -- instantiate mvars
   return e
 
-def getHypothesesMeta : MetaM (List LocalDecl) := do
-  let mut hypotheses : List LocalDecl := []
-  for ldecl in ← getLCtx do
-    if ldecl.isImplementationDetail then continue
-    hypotheses := ldecl :: hypotheses
-  return hypotheses
-
-def getHypothesesNamesMeta : MetaM (List Name) := do
-    return (← getHypothesesMeta).map (fun hypothesis => hypothesis.userName)
-
-
-/--  Tactic get a hypothesis by its name -/
+/-- Get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
   for ldecl in (← goal.getDecl).lctx do
@@ -71,7 +52,6 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
 def getGoalVar : TacticM MVarId := do
   return ← getMainGoal
 
-
 /-- Create a new hypothesis using a "let" statement (so its proof is accessible)-/
 def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Name := none) : TacticM Unit := do
   let hypName := hypName?.getD `h -- use the name given first, otherwise call it `h
@@ -81,7 +61,7 @@ def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Na
   let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
 
-/- Get (in a list) all subexpressions in an expression -/
+/-- Get (in a list) all subexpressions in an expression -/
 def getSubexpressionsIn (e : Expr) : List Expr :=
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : List Expr :=
     match e with
@@ -106,20 +86,22 @@ def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
   setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
   return firstExprContainingSubexpr.isSome
 
-/- Replaces all subexpressions where "condition" holds with the "replacement" in the expression e -/
+/-- Replaces all subexpressions where "condition" holds with the "replacement" in the expression e -/
 def containsExprWhere (condition : Expr → Bool) (e : Expr)   : MetaM Bool := do
   let e_subexprs := getSubexpressionsIn e
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return condition e_subexpr)
   return firstExprContainingSubexpr.isSome
 
-
+/-- Returns true if the expression contains metadata -/
 def containsMData (e : Expr): MetaM Bool := do
   return ← containsExprWhere (Expr.isMData) e
 
+/-- Returns the assignment of metavariable `m` -/
 def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
   let e ← getExprMVarAssignment? m
   return e
 
+/-- Returns true if the expression is assigned to another expression containing metadata -/
 def assignmentContainsMData (m : MVarId) : MetaM Bool := do
   let m_assignment ← getAssignmentFor m
   if (m_assignment.isSome) then
@@ -127,9 +109,11 @@ def assignmentContainsMData (m : MVarId) : MetaM Bool := do
       return True
   return False
 
+/-- Returns a list of all metavariables whose assignment contains metadata -/
 def getAllMVarsContainingMData (a : Array MVarId): MetaM (Array MVarId) :=
    a.filterM assignmentContainsMData
 
+/-- Turn a lemma name into its generalized version by prefixing it with `gen_` and truncating. -/
 def mkAbstractedName (n : Name) : Name :=
     match n with
     | (.str _ s) => s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
@@ -147,7 +131,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- let e ← instantiateMVars e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   -- printLocalContext
-
 
   let pType ← inferType p
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
@@ -215,12 +198,19 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
         visitChildren ()
   visit e
 
+/- Just like kabstract, except abstracts to mvars instead of bvars -/
+def abstractToOneMVar (thmType : Expr) (pattern : Expr) (occs : Occurrences) : MetaM Expr := do
+  let userThmType ← kabstract thmType pattern (occs)
 
+  let userMVar ←  mkFreshExprMVar (← inferType pattern)
+  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+  let userThmType := userThmType.instantiate1 annotatedMVar
 
+  return userThmType
 
+/- Just like kabstract, except abstracts to different variables instead of the same one -/
 def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr := do
   let pType ← inferType p
-
   let pHeadIdx := p.toHeadIndex
   let pNumArgs := p.headNumArgs
   let rec visit (e : Expr) : StateRefT Nat MetaM Expr := do
@@ -257,29 +247,18 @@ def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr 
         visitChildren ()
   visit e |>.run' 1
 
-
-
-def abstractToOneMVar (thmType : Expr) (pattern : Expr) (occs : Occurrences) : MetaM Expr := do
-  let userThmType ← kabstract thmType pattern (occs)
-
-  let userMVar ←  mkFreshExprMVar (← inferType pattern)
-  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
-  let userThmType := userThmType.instantiate1 annotatedMVar
-
-  return userThmType
-
-/- Make all mvars in mvarArray with the type t the same  -/
+/-- Make all mvars in mvarArray with the type t the same  -/
 def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit := do
   let m ← mkFreshExprMVar t -- new mvar to replace all others with the same type
   for mv in mvarArray do
     if ← isDefEq (← mv.getType) t then
       if !(← mv.isAssigned) then mv.assignIfDefeq m
 
-/- Pull out mvars as hypotheses to create a chained implication-/
+/-- Pull out mvars as hypotheses to create a chained implication-/
 def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
   return (← abstractMVars proof).expr
 
-/- Unifies metavariables (which are hypotheses) when possible.  -/
+/-- Unifies metavariables (which are hypotheses) when possible.  -/
 def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
   let hyps ← getMVars genThmProof
   for hyp₁ in hyps do
@@ -291,8 +270,8 @@ def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
   return genThmProof
 
+/-- Re-specialize the occurrences of the pattern we are not interested in -/
 def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Expr) (occsToStayAbstracted : Occurrences) (consolidate : Bool) : MetaM Expr := do
-
   -- Get the occurrences of the pattern (in the theorem statement) the user wants to specialize
   let userThmType ← if consolidate then
     abstractToOneMVar thmType pattern occsToStayAbstracted
@@ -311,12 +290,14 @@ def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Exp
   let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
   return ← instantiateMVarsExcept userSelectedMVars genThmProof
 
+/-- Run Lean's built-in "simp" tactic -/
 def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr) := do
   let (result, _) ← Lean.Meta.simp genThmType {}
   let genThmTypeSimp := result.expr
   let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
   return (genThmTypeSimp, genThmProofSimp)
 
+/-- Instantiate metavariables according to what unifies in a typecheck -/
 def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
   try
     check proof
@@ -370,18 +351,29 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
 
-/--
-Parse occurrences of the term as specified by the user.
--/
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Autogeneralizes the "pattern" in the hypothesis "h",
+But generalizes all occurrences in the same way.  Behaves as in (Pons, 2000)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/-- A tactic that generalizes all instances of `pattern` in a local hypotheses `h` by requiring `pattern` to have only the properties used in the proof of `h`. Behaves as in ("Generalization in Type Theory Based Proof Assistants" by Olivier Pons, 2000).-/
+elab "autogeneralize_basic" pattern:term "in" h:ident : tactic => do
+  let pattern ← (Lean.Elab.Term.elabTerm pattern none)
+  let h := h.getId
+  autogeneralize h pattern (occs:=.all) (consolidate:=true)
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Autogeneralizes the "pattern" in the hypothesis "h",
+Default behavior is to generalizes all occurrences separately, but can generalize at specified occurences.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+/- Parse occurrences of the term as specified by the user.-/
 syntax occurrences :="at" "occurrences" "[" num+ "]"
 def decodeOccurrences : TSyntax `Autogeneralize.occurrences → List Nat
   | `(occurrences| at occurrences [$occs*]) => (occs.map TSyntax.getNat).toList
   | _ => unreachable!
 
-/--
-Autogeneralizes the "pattern" in the hypothesis "h",
-Default behavior is to generalizes all occurrences separately, but can generalize at specified occurences.
--/
+/-- A tactic that generalizes all instances of `pattern` in a local hypotheses `h` by requiring `pattern` to have only the properties used in the proof of `h`.-/
 elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences)? : tactic => do
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
@@ -390,15 +382,5 @@ elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences
     autogeneralize h pattern (Occurrences.pos $ ← occs)
   else
     autogeneralize h pattern -- generalize all occurrences (default: to different mvars)
-
-
-/--
-Autogeneralizes the "pattern" in the hypothesis "h",
-But generalizes all occurrences in the same way.  Behaves as in (Pons, 2000)
--/
-elab "autogeneralize_basic" pattern:term "in" h:ident : tactic => do
-  let pattern ← (Lean.Elab.Term.elabTerm pattern none)
-  let h := h.getId
-  autogeneralize h pattern (occs:=.all) (consolidate:=true)
 
 end Autogeneralize
