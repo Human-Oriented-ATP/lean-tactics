@@ -118,14 +118,20 @@ example :  1 + 2 = 2 + 1 := by
 
 example :  1 + 2 = 2 + 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
-  autogeneralize Mul.mul in mult_comm -- generalize each
+  autogeneralize Mul.mul in mult_comm -- generalize all, separately
   specialize mult_comm.Gen Add.add Add.add Nat.add_comm 1 2
   assumption
 
 example :  1 * 2 = 2 * 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
-  autogeneralize (HMul.hMul) in mult_comm at occurrences [1] -- generalize at occurrence
+  autogeneralize (HMul.hMul) in mult_comm at occurrences [1] -- generalize at first occurrence
   specialize mult_comm.Gen Mul.mul Nat.mul_comm 1 2
+  assumption
+
+example :  1 + 2 = (2 + 1)*1 := by
+  let mult_comm :  ∀ (n m : ℕ), n * m = (m * n) * 1 :=  by {intros a b; rw [Nat.mul_one]; apply Nat.mul_comm}
+  autogeneralize (HMul.hMul) in mult_comm at occurrences [1 3] -- generalize just at first and third occurrences, separately
+  specialize mult_comm.Gen Add.add Add.add (Nat.mul_one) Nat.add_comm 1 2
   assumption
 
 /--

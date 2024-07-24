@@ -6,14 +6,32 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
-/- Instantiates all mvars in e except the mvar given by m -/
-def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
+def printMVarAssignments : MetaM Unit := do
+  let m ← getMCtx
+  dbg_trace "MVar Assingnments:"
+  for d in m.eAssignment do
+    let mvarId := d.fst
+    let assignment := d.snd
+    logInfo s!"\tName: {mvarId.name} \n\tAssignment: {assignment}\n"
+
+
+def removeAssignment (mv : MVarId) : MetaM Unit := do
   -- remove the assignment
   let mctx ← getMCtx
   let mctxassgn := mctx.eAssignment.erase mv
   setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
-  -- instantiate mvars
-  let e ← instantiateMVars e
+
+/- Instantiates all mvars in e except the mvar given by m -/
+def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
+  removeAssignment mv -- remove the assignment
+  let e ← instantiateMVars e -- instantiate mvars
+  return e
+
+/- Instantiates all mvars in e except the mvar given by the array a -/
+def instantiateMVarsExceptIn (a : Array MVarId) (e : Expr)  : MetaM Expr := do
+  for mv in a do
+   removeAssignment mv -- remove the assignment
+  let e ← instantiateMVars e -- instantiate mvars
   return e
 
 def getHypothesesMeta : MetaM (List LocalDecl) := do
@@ -107,6 +125,17 @@ def containsMData (e : Expr): MetaM Bool := do
 def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
   let e ← getExprMVarAssignment? m
   return e
+
+def assignmentContainsMData (m : MVarId) : MetaM Bool := do
+  let m_assignment ← getAssignmentFor m
+  if (m_assignment.isSome) then
+    if (← containsMData (← m_assignment)) then
+      return True
+  return False
+
+def getAllMVarsContainingMData (a : Array MVarId): MetaM (Array MVarId) :=
+   a.filterM assignmentContainsMData
+
 
 def getMVarContainingMData' (a : Array MVarId): MetaM MVarId := do
   for m in a do
@@ -205,11 +234,55 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
 
 
 
-def abstractToDiffMVars (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
-  return ← kabstract thmType fExpr (occs)
+def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr := do
+  let pType ← inferType p
+
+  let pHeadIdx := p.toHeadIndex
+  let pNumArgs := p.headNumArgs
+  let rec visit (e : Expr) : StateRefT Nat MetaM Expr := do
+    let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+      match e with
+      | .app f a         => return e.updateApp! (← visit f ) (← visit a )
+      | .mdata _ b       => return e.updateMData! (← visit b )
+      | .proj _ _ b      => return e.updateProj! (← visit b )
+      | .letE _ t v b _  => return e.updateLet! (← visit t ) (← visit v ) (← visit b )
+      | .lam _ d b _     => return e.updateLambdaE! (← visit d ) (← visit b )
+      | .forallE _ d b _ => return e.updateForallE! (← visit d ) (← visit b )
+      | e                => return e
+    if e.hasLooseBVars then
+      visitChildren ()
+    else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+      visitChildren ()
+    else
+      -- We save the metavariable context here,
+      -- so that it can be rolled back unless `occs.contains i`.
+      let mctx ← getMCtx
+      if (← isDefEq e p) then
+        let i ← get
+        set (i+1)
+        if occs.contains i then
+          let userMVar ← mkFreshExprMVar pType
+          let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+          return annotatedMVar
+        else
+          -- Revert the metavariable context,
+          -- so that other matches are still possible.
+          setMCtx mctx
+          visitChildren ()
+      else
+        visitChildren ()
+  visit e |>.run' 1
+
+
 
 def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
-  return ← kabstract thmType fExpr (occs)
+  let userThmType ← kabstract thmType fExpr (occs)
+
+  let userMVar ←  mkFreshExprMVar (← inferType fExpr)
+  let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
+  let userThmType := userThmType.instantiate1 annotatedMVar
+
+  return userThmType
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
@@ -244,25 +317,26 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
 
     let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
 
-
-    let userMVar ←  mkFreshExprMVar (← inferType fExpr)
-    let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
-    let userThmType := userThmType.instantiate1 annotatedMVar
     logInfo m!"!User Generalized Type: {userThmType}"
 
     -- compare and unify mvars between user type and our generalized type
     let unif ← isDefEq  genThmType userThmType
     --logInfo m!"Do they unify? {unif}"
 
-    let userSelectedMVar ← getMVarContainingMData' mvarsInProof
+    let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
+    -- for m in userSelectedMVars do
+    --   logInfo m.name
+    -- printMVarAssignments
     --logInfo m!"Mvars containing mdata {userSelectedMVar.name} with {userSelectedMVar}"
-    if !(← userMVar.mvarId!.isAssigned) then
-      try
-        userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
-      catch _ =>
-        throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
+    -- for userMVar in userSelectedMVars do
+    -- if !(← userMVar.mvarId!.isAssigned) then
+    --   try
+    --     userMVar.mvarId!.assignIfDefeq (.mvar userSelectedMVar)
+    --   catch _ =>
+    --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
-    genThmProof  ←  instantiateMVarsExcept userSelectedMVar genThmProof
+    genThmProof  ←  instantiateMVarsExceptIn userSelectedMVars genThmProof
+    logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
   -- if consolidate, make all mvars with the type fExpr the same
   if consolidate then do
@@ -284,8 +358,6 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
         -- this code tries to unify the meta-variables "as much as possible"
         -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
-
-  -- genThmProof ← instantiateMVars genThmProof
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
