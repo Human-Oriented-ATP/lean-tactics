@@ -278,6 +278,13 @@ def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : Met
 
   return userThmType
 
+/- Make all mvars in mvarArray with the type t the same  -/
+def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit := do
+  let m ← mkFreshExprMVar t -- new mvar to replace all others with the same type
+  for mv in mvarArray do
+    if ← isDefEq (← mv.getType) t then
+      if !(← mv.isAssigned) then mv.assignIfDefeq m
+
 /- Unifies metavariables (which are hypotheses) when possible.  -/
 def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
   let hyps ← getMVars genThmProof
@@ -346,12 +353,8 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
 
   -- if consolidate, make all mvars with the type fExpr the same
   if consolidate then do
-    let fType ← inferType fExpr
-    let m ← mkFreshExprMVar fType
     let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
-    for mv in mvarsInProof do
-      if ← isDefEq (← mv.getType) fType then
-        if !(← mv.isAssigned) then mv.assignIfDefeq m
+    setEqualAllMVarsOfType mvarsInProof (← inferType fExpr)
 
   -- remove hypotheses not involving the mvar
   -- this happens only when we specialize only at occurrences
