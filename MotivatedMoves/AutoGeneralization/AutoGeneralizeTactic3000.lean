@@ -269,10 +269,10 @@ def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr 
 
 
 
-def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : MetaM Expr := do
-  let userThmType ← kabstract thmType fExpr (occs)
+def abstractToOneMVar (thmType : Expr) (pattern : Expr) (occs : Occurrences) : MetaM Expr := do
+  let userThmType ← kabstract thmType pattern (occs)
 
-  let userMVar ←  mkFreshExprMVar (← inferType fExpr)
+  let userMVar ←  mkFreshExprMVar (← inferType pattern)
   let annotatedMVar := Expr.mdata {entries := [(`userSelected,.ofBool true)]} $ userMVar
   let userThmType := userThmType.instantiate1 annotatedMVar
 
@@ -297,6 +297,24 @@ def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
   return genThmProof
 
+-- def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Expr) (occsToStayAbstracted : Occurrences) (consolidate : Bool) : MetaM Expr := do
+
+--   -- Get the occurrences of the pattern (in the theorem statement) the user wants to specialize
+--   let userThmType ← if consolidate then
+--     abstractToOneMVar thmType pattern occsToStayAbstracted
+--   else
+--     abstractToDiffMVars thmType pattern occsToStayAbstracted
+--   logInfo m!"!User Generalized Type: {userThmType}"
+
+--   -- Compare and unify mvars between user type and our generalized type
+--   let genThmType ← inferType genThmProof
+--   let _ ← isDefEq  genThmType userThmType
+
+--   -- Instantiate the ones we don't want to generalize
+--   let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
+--   let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
+--   return ← instantiateMVarsExcept userSelectedMVars genThmProof
+
 def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr) := do
   let (result, _) ← Lean.Meta.simp genThmType {}
   let genThmTypeSimp := result.expr
@@ -304,35 +322,32 @@ def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr)
   return (genThmTypeSimp, genThmProofSimp)
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
-def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
+def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
 
   let mut genThmProof := thmProof
 
-  -- Get the generalized theorem (replace instances of fExpr with mvars, and unify mvars where possible)
-  genThmProof ← replacePatternWithMVars thmProof fExpr -- replace instances of f's old value with metavariables
-  -- genThmProof ← kabstract thmProof fExpr -- replace instances of f's old value with metavariables
-  -- genThmProof := genThmProof.instantiate1 (← mkFreshExprMVar (← inferType fExpr))
+  -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
+  genThmProof ← replacePatternWithMVars thmProof pattern -- replace instances of f's old value with metavariables
+  -- genThmProof ← kabstract thmProof pattern -- replace instances of f's old value with metavariables
+  -- genThmProof := genThmProof.instantiate1 (← mkFreshExprMVar (← inferType pattern))
 
   try
     check genThmProof
   catch e =>
     throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   genThmProof ← instantiateMVars genThmProof
+  let genThmType ← inferType genThmProof
 
-
-  logInfo ("Tactic Generalized Proof: " ++ genThmProof)
-  let genThmType ← inferType genThmProof; logInfo ("!Tactic Generalized Type: " ++ genThmType)
-
-  -- Only run this section of occurrences are specified
-  -- Get the generalized type from user
-  -- to do -- should also generalize any other occurrences in the type that unify with other occurrences in the type.
-  unless occs == .all do
+  -- Re-specialize the occurrences of the pattern we are not interested in
+  if !(occs == .all) then do
+    -- genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
+    -- logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
     let userThmType ← if consolidate then
-      abstractToOneMVar thmType fExpr occs
+      abstractToOneMVar thmType pattern occs
     else
-      abstractToDiffMVars thmType fExpr occs
+      abstractToDiffMVars thmType pattern occs
 
     let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
 
@@ -355,12 +370,11 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
     --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
     genThmProof  ←  instantiateMVarsExcept userSelectedMVars genThmProof
-    logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
-  -- if consolidate, make all mvars with the type fExpr the same
+  -- (If desired) make all abstracted instances of the pattern the same.
   if consolidate then do
     let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
-    setEqualAllMVarsOfType mvarsInProof (← inferType fExpr)
+    setEqualAllMVarsOfType mvarsInProof (← inferType pattern)
 
   -- remove hypotheses not involving the mvar
   -- this happens only when we specialize only at occurrences
@@ -370,18 +384,20 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
   -- for hyp in hyps do
   --   if
 
-  -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
+  -- Remove repeating hypotheses.
   genThmProof ← removeRepeatingHypotheses genThmProof
 
-  -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
+  -- Pull out the holes (the abstracted term & all hypotheses on it) into a chained implication.
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
+  -- Run "simp".
   let (genThmTypeSimp, genThmProofSimp) ← performSimp genThmType genThmProof
 
+  -- Add the generalized theorem to the context.
   createLetHypothesis genThmTypeSimp genThmProofSimp (thmName++`Gen)
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr fExpr}."
+  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
 
 /--
 Parse occurrences of the term as specified by the user.
