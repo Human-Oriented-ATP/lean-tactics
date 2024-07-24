@@ -21,14 +21,8 @@ def removeAssignment (mv : MVarId) : MetaM Unit := do
   let mctxassgn := mctx.eAssignment.erase mv
   setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
 
-/- Instantiates all mvars in e except the mvar given by m -/
-def instantiateMVarsExcept (mv : MVarId) (e : Expr)  : MetaM Expr := do
-  removeAssignment mv -- remove the assignment
-  let e ← instantiateMVars e -- instantiate mvars
-  return e
-
 /- Instantiates all mvars in e except the mvar given by the array a -/
-def instantiateMVarsExceptIn (a : Array MVarId) (e : Expr)  : MetaM Expr := do
+def instantiateMVarsExcept (a : Array MVarId) (e : Expr)  : MetaM Expr := do
   for mv in a do
    removeAssignment mv -- remove the assignment
   let e ← instantiateMVars e -- instantiate mvars
@@ -284,6 +278,18 @@ def abstractToOneMVar (thmType : Expr) (fExpr : Expr) (occs : Occurrences) : Met
 
   return userThmType
 
+/- Unifies metavariables (which are hypotheses) when possible.  -/
+def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
+  let hyps ← getMVars genThmProof
+  for hyp₁ in hyps do
+    for hyp₂ in hyps do
+      -- performs unificiation on propositions
+      if (← isProp <| ← hyp₁.getType') then do
+        -- `discard` ignores the result of its argument (but retains modifications to the state)
+        -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
+        discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
+  return genThmProof
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
@@ -335,7 +341,7 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
     --   catch _ =>
     --     throwError m!"Tried to assign mvars that are not defeq {userSelectedMVar} and {userMVar}"
 
-    genThmProof  ←  instantiateMVarsExceptIn userSelectedMVars genThmProof
+    genThmProof  ←  instantiateMVarsExcept userSelectedMVars genThmProof
     logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
   -- if consolidate, make all mvars with the type fExpr the same
@@ -347,17 +353,16 @@ def autogeneralize (thmName : Name) (fExpr : Expr) (occs : Occurrences := .all) 
       if ← isDefEq (← mv.getType) fType then
         if !(← mv.isAssigned) then mv.assignIfDefeq m
 
+  -- remove hypotheses not involving the mvar
+  -- this happens only when we specialize only at occurrences
+  -- which means we pull out hypotheses involving other occurrences, but then re-specialize them
+  -- so we don't need an extra hyp
+  -- let hyps ← getMVars genThmProof
+  -- for hyp in hyps do
+  --   if
+
   -- remove repeating hypotheses: if any of the mvars have the same type (but not pattern type), unify them
-  let hyps ← getMVars genThmProof
-  for hyp₁ in hyps do
-    for hyp₂ in hyps do
-      -- this always tries to perform unification when `consolidate` is set to `true`,
-      -- and does it only for propositions otherwise
-      if consolidate || (← isProp <| ← hyp₁.getType') then do
-        -- `discard` ignores the result of its argument (but retains modifications to the state)
-        -- this code tries to unify the meta-variables "as much as possible"
-        -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
-        discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
+  genThmProof ← removeRepeatingHypotheses genThmProof
 
   -- Get new mvars (the abstracted fExpr & all hypotheses on it), then pull them out into a chained implication
   genThmProof := (← abstractMVars genThmProof).expr; --logInfo ("Tactic Generalized Proof: " ++ genThmProof)
