@@ -53,6 +53,9 @@ def ProofStep.compose (step₁ step₂ : ProofStep pol) : ProofStep pol := fun t
 class PFunctor (f : Prop → Prop) where
   map {p q : Prop} : (p → q) → f p → f q
 
+class PFunctorContra (f : Prop → Prop) where
+  comap {p q : Prop} : (p → q) → f q → f p
+
 class PMonad (m : Prop → Prop) extends PFunctor m where
   pure {p : Prop} : p → m p
   bind {p q : Prop} : m p → (p → m q) → m q
@@ -62,6 +65,10 @@ class PComonad (m : Prop → Prop) extends PFunctor m where
   extract {p : Prop} : m p → p
   extend {p q : Prop} : m p → (m p → q) → m q
   map := fun f x ↦ extend x (f ∘ extract)
+
+class PMonadContra (m : Prop → Prop) extends PFunctorContra m where
+  pure {p : Prop} : p → m p
+  bind {p q : Prop} : m p → (m p → q) → m q
 
 class PropBinder (P : Q(Prop → Prop)) where
   bind {tree : Q(Tree)} : TreeProof tree pol → TreeProof q($P $tree) pol
@@ -75,11 +82,17 @@ instance {m : Q(Prop → Prop)} (_inst : Q(PMonad $m)) : PropBinder q($m) where
   | .treeForward newTree proof => .treeForward q($m $newTree) q(PFunctor.map $proof)
   | .treeBackward newTree proof => .treeBackward q($m $newTree) q(PFunctor.map $proof)
 
-instance {m : Q(Prop → Prop)} (_inst : Q(PComonad $m)) : PropBinder q($m) where
+instance {m : Q(Prop → Prop)} (_inst : Q(PFunctor $m)) : PropBinder q($m) where
   bind
   | .treeEnd treeProof => .treeForward q($m True) q(PFunctor.map <| fun _ ↦ $treeProof)
   | .treeForward newTree proof => .treeForward q($m $newTree) q(PFunctor.map $proof)
   | .treeBackward newTree proof => .treeBackward q($m $newTree) q(PFunctor.map $proof)
+
+instance {m : Q(Prop → Prop)} (_inst : Q(PFunctorContra $m)) : PropBinderContra q($m) where
+  bind
+  | .treeEnd treeProof => .treeBackward q($m True) q(PFunctorContra.comap <| fun _ ↦ $treeProof)
+  | .treeForward newTree proof => .treeBackward q($m $newTree) q(PFunctorContra.comap $proof)
+  | .treeBackward newTree proof => .treeForward q($m $newTree) q(PFunctorContra.comap $proof)
 
 instance (p : Prop) : PMonad (p → ·) where
   pure := fun x _ ↦ x
@@ -104,5 +117,8 @@ instance (p : Prop) : PMonad (· ∨ p) where
   bind
   | Or.inl x => fun f ↦ f x
   | Or.inr y => fun _ ↦ Or.inr y
+
+instance (p : Prop) : PFunctorContra (· → p) where
+  comap := fun f x y ↦ x (f y)
 
 end MotivatedTree
