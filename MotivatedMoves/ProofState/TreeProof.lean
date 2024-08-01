@@ -76,6 +76,9 @@ class PropBinder (P : Q(Prop → Prop)) where
 class PropBinderContra (P : Q(Prop → Prop)) where
   bind : TreeProof tree pol → TreeProof q($P $tree) !pol
 
+class DepPropBinder (hyp : Q(Prop)) (P : Q(Prop → Prop)) where
+  bind {tree : Q(Tree)} : (Q($hyp) → TreeProof tree pol) → TreeProof q($P $tree) pol
+
 instance {m : Q(Prop → Prop)} (_inst : Q(PMonad $m)) : PropBinder q($m) where
   bind
   | .treeEnd treeProof => .treeEnd q(PMonad.pure $treeProof)
@@ -120,5 +123,14 @@ instance (p : Prop) : PMonad (· ∨ p) where
 
 instance (p : Prop) : PFunctorContra (· → p) where
   comap := fun f x y ↦ x (f y)
+
+abbrev TreeHyp (p : Q(Prop)) (tree : Q(Tree)) (pol : Bool) := TreeProof q($tree) pol
+
+def addHyp {p : Q(Prop)} (hyp : Q($p)) (tree : Q(Tree)) : TreeProof tree pol → TreeHyp p tree pol
+  | .treeEnd treeProof => .treeForward q($p) q(fun _ ↦ $treeProof)
+  | .treeForward newTree proof => .treeForward q($p → $newTree) q(fun newTreeProof ↦ $proof (newTreeProof $hyp))
+  | .treeBackward newTree proof => .treeBackward q($p ∧ $newTree) q(fun treeProof ↦ ⟨$hyp, $proof treeProof⟩)
+
+
 
 end MotivatedTree
