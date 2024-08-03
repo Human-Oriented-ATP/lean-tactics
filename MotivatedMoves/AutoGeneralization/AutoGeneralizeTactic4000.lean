@@ -184,12 +184,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .const n _       => let constType ← inferType e --getTheoremStatement n
                             if depth ≥ 3 then return e
                             else
-                              if n == `CharZero.NeZero.two then do
-                                logInfo m!"found a const {n} with type {constType}"
-                                let subexprs ← getSubexpressionsIn constType
-                                logInfo m!"subexpressions {subexprs}"
+                              -- if n == `CharZero.NeZero.two then do
+                              --   logInfo m!"found a const {n} with type {constType}"
+                              --   let subexprs ← getSubexpressionsIn constType
+                              --   logInfo m!"subexpressions {subexprs}"
                               if (← containsExpr p constType) then
-                                logInfo m!"found a const that contains pattern: {n}"
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
                                 -- check genConstType
                                 -- let genConstType ← instantiateMVars genConstType
