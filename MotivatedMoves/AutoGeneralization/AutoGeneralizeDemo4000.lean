@@ -18,70 +18,27 @@ set_option pp.showLetValues false
 
 
 /--
-Fabian's case branching example
-A proof that DOES depend on the fact that x ≠ 0
+Fabian's example:
+  "hyp" is a proof that DOES NOT depend on the fact that x ≠ 0 to prove P  (even though x ≠ 0 is proven at some point on the proof)
+  and therefore generalizes to
+  "hyp.Gen" which is a proof that ∀ x, P x
 -/
-
-def P (x : ℝ) := ∀ y : ℝ, x * y = 0 ↔ y = 0
-example : P 2 :=
-by
-  intro y
-  constructor
-
-  have h :=  Ne.symm (@NeZero.ne' ℝ instZeroReal 2 CharZero.NeZero.two )
-
-  intro a; exact eq_zero_of_ne_zero_of_mul_left_eq_zero h a
-  intro a; exact mul_eq_zero_of_right 2 a
-
-example : P 1 :=
-by
-  intro y
-  constructor
-
-  have h : (1:ℝ) ≠ 0 := one_ne_zero
-
-  intro a; exact eq_zero_of_ne_zero_of_mul_left_eq_zero h a
-  intro a; exact mul_eq_zero_of_right 1 a
-
-example : P 3 :=
-by
-  intro y
-  constructor
-
-  have h : (3:ℝ) ≠ 0 := three_ne_zero
-
-  intro a; exact eq_zero_of_ne_zero_of_mul_left_eq_zero h a
-  intro a; exact mul_eq_zero_of_right 3 a
-
-example : P 7 :=
-by
-  intro y
-  constructor
-
-  have h : (7:ℝ) ≠ 0 := OfNat.ofNat_ne_zero 7
-
-  intro a; exact eq_zero_of_ne_zero_of_mul_left_eq_zero h a
-  intro a; exact mul_eq_zero_of_right 7 a
-
-
-#eval isDefEq (toExpr 2) (toExpr (2))
-
-/--
-Fabian's case branching example
-A proof that DOES NOT depend on the fact that x ≠ 0 (even though x ≠ 0 is proven at some point on the proof)
--/
-example :∀ x y : ℝ, y = 0 → x * y = 0 := by
+def P (x : ℝ) := ∀ y : ℝ, y = 0 → x * y = 0
+example : ∀ x : ℝ, P x := by
   let hyp :  ∀ y : ℝ, y = 0 → 2 * y = 0 := by {intro y h; have twoneq : (2:ℝ) ≠ 0 := two_ne_zero; apply mul_eq_zero_of_right; apply h};
-  autogeneralize (2:ℝ) in hyp -- generalizes to a statement that works for all x:ℝ, not requiring x ≠ 0
+  autogeneralize 2 in hyp -- generalizes to a statement that works for all x:ℝ, not requiring x ≠ 0
   assumption
 
 /--
-Fabian's case branching example
-A proof that DOES depend on the fact that x ≠ 0
+Fabian's example:
+  "hyp" is a proof that DOES depend on the fact that x ≠ 0 to prove P
+  and therefore generalizes to
+  "hyp.Gen" which is a proof that ∀ x, x ≠ 0 → P x
 -/
-example := by
+def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y=0
+example : ∀ x : ℝ, NeZero x → P' x := by
   let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  have oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp Complex.instNeZeroRealInstZeroRealOfNatToOfNat1InstOneReal;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
-  autogeneralize (1:ℝ) in hyp
+  autogeneralize 1 in hyp
   assumption
 
 
