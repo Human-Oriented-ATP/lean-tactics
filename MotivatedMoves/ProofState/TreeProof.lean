@@ -21,15 +21,17 @@ namespace MotivatedTree
 
 abbrev Tree := Prop
 
-inductive TreeProof (tree : Q(Tree)) : (polarity : Bool) → Sort _ where
-  | treeEnd (treeProof : Q($tree)) : TreeProof tree true
-  | treeForward (newTree : Q(Tree)) (proof : Q($newTree → $tree)) : TreeProof tree true
-  | treeBackward (newTree : Q(Tree)) (proof : Q($tree → $newTree)) : TreeProof tree false
+inductive TreeProof (m : Type _ → Type _) [Monad m] (tree : Q(Tree)) : (polarity : Bool) → Sort _ where
+  | treeEnd (treeProof : m Q($tree)) : TreeProof m tree true
+  | treeForward (newTree : Q(Tree)) (proof : m Q($newTree → $tree)) : TreeProof m tree true
+  | treeBackward (newTree : Q(Tree)) (proof : m Q($tree → $newTree)) : TreeProof m tree false
 
-abbrev ProofStep (polarity : Bool) := (tree : Q(Tree)) → MetaM (TreeProof tree polarity)
+variable (m : Type _ → Type _) [Monad m]
+
+abbrev ProofStep (polarity : Bool) := (tree : Q(Tree)) → MetaM (TreeProof m tree polarity)
 
 /-- Apply a proof step to an existing tree proof. -/
-def TreeProof.map (step : ProofStep pol) (proof : TreeProof tree pol) : MetaM (TreeProof tree pol) := do
+def TreeProof.map (step : ProofStep m pol) (proof : TreeProof m tree pol) : MetaM (TreeProof m tree pol) := do
   match pol, proof with
   | true, .treeEnd treeProof =>
     return .treeEnd treeProof
@@ -37,16 +39,16 @@ def TreeProof.map (step : ProofStep pol) (proof : TreeProof tree pol) : MetaM (T
     let newProof ← step newTree
     match newProof with
     | .treeEnd newTreeProof =>
-      return .treeEnd q($proof $newTreeProof)
+      return .treeEnd do return q($(← proof) $(← newTreeProof))
     | .treeForward newerTree newerTreeProof =>
-      return .treeForward newerTree q($proof ∘ $newerTreeProof)
+      return .treeForward newerTree do return q($(← proof) ∘ $(← newerTreeProof))
   | false, .treeBackward newTree proof =>
     let newProof ← step newTree
     match newProof with
     | .treeBackward newerTree newerTreeProof =>
-      return .treeBackward newerTree q($newerTreeProof ∘ $proof)
+      return .treeBackward newerTree do return q($(← newerTreeProof) ∘ $(← proof))
 
-def ProofStep.compose (step₁ step₂ : ProofStep pol) : ProofStep pol := fun tree ↦ do
+def ProofStep.compose (step₁ step₂ : ProofStep m pol) : ProofStep m pol := fun tree ↦ do
   let treeProof ← step₁ tree
   treeProof.map step₂
 
@@ -66,11 +68,10 @@ class PComonad (m : Prop → Prop) extends PFunctor m where
   extend {p q : Prop} : m p → (m p → q) → m q
   map := fun f x ↦ extend x (f ∘ extract)
 
-class PropBinder (P : Q(Prop → Prop)) (covariant := true) where
-  bind {tree : Q(Tree)} : TreeProof tree pol → TreeProof q($P $tree) (pol == covariant)
+class PropBinder (m m' : Type _ → Type _) [Monad m] [Monad m'] (P : Q(Prop → Prop)) (covariant := true) where
+  bind {tree : Q(Tree)} : (TreeProof m tree pol) → TreeProof m' q($P $tree) (pol == covariant)
 
-class DepPropBinder (m n : Q(Prop → Prop)) (covariant := true) where
-  bind {tree : Q(Tree)} : (TreeProof q($m $tree) pol) → TreeProof q($n $tree) (pol == covariant)
+#exit
 
 -- Alternative definition:
 -- `PropBinder P cov := DepPropBinder True P cov`
@@ -123,11 +124,11 @@ instance (p : Prop) : PFunctorContra (· → p) where
 instance : PFunctorContra ((¬ ·)) := inferInstanceAs <| PFunctorContra (· → False)
 
 
-instance {m n : Q(Prop → Prop)} (_inst : Q(PMonad $m)) (_inst : Q(PFunctor $n)) (h : Q({x : Prop} → ($n ($m x) → $n x))) : DepPropBinder m n where
-  bind
-    | .treeEnd treeProof => .treeForward q($n True) q($h ∘ (PFunctor.map <| fun _ ↦ $treeProof)) -- when `n` is also a monad, this simplifies to a full proof of `n tree`
-    | .treeForward newTree proof => .treeForward q($n $newTree) q($h ∘ (PFunctor.map $proof))
-    | .treeBackward newTree proof => .treeBackward q($n $newTree) q(PFunctor.map <| $proof ∘ PMonad.pure)
+-- instance {m n : Q(Prop → Prop)} (_inst : Q(PMonad $m)) (_inst : Q(PFunctor $n)) (h : Q({x : Prop} → ($n ($m x) → $n x))) : DepPropBinder m n where
+--   bind
+--     | .treeEnd treeProof => .treeForward q($n True) q($h ∘ (PFunctor.map <| fun _ ↦ $treeProof)) -- when `n` is also a monad, this simplifies to a full proof of `n tree`
+--     | .treeForward newTree proof => .treeForward q($n $newTree) q($h ∘ (PFunctor.map $proof))
+--     | .treeBackward newTree proof => .treeBackward q($n $newTree) q(PFunctor.map <| $proof ∘ PMonad.pure)
 
 -- abbrev TreeHyp (p : Q(Prop)) (tree : Q(Tree)) (pol : Bool) := TreeProof q($tree) pol
 
