@@ -20,57 +20,59 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
 
-#check Finset.map
-#check SimpleGraph.degree
-#check SimpleGraph.card_neighborSet_eq_degree
-
-#synth Fintype (Fin 4)
-
-variable (G : SimpleGraph V) (v : V)
-instance [Fintype V] : Fintype (G.neighborSet v) := sorry
+-- variable (V' : Type) (G' : SimpleGraph V') (v' : V') [DecidableRel G'.Adj] [DecidableRel G'ᶜ.Adj]
+-- instance [Fintype V'] : Fintype (G'.neighborSet v') := by
+--   apply Subtype.fintype _
+-- instance [Fintype V'] : Fintype (G'ᶜ.neighborSet v') := by
+--   apply Subtype.fintype _
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF DEGREE SEQUENCES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-/--
-For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}.
--/
-
--- macro (name := my_aesop_graph?) "my_aesop_graph?" c:Aesop.tactic_clause* : tactic =>
---   `(tactic|
---     aesop? $c*
---       (config := { introsTransparency? := some .default, terminal := true })
---       (rule_sets [$(Lean.mkIdent `SimpleGraph):ident]))
-
 
 /- A vertex with maximum possible degree must be adjacent to all other vertices -/
-theorem max_deg_imp_adj_all {V : Type} [Fintype V] (G : SimpleGraph V) (v : V) :
-  G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj v w := by
+theorem max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
+  G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
   intro hdeg w hne
   have hdeg_compl := G.degree_compl v
   rw [hdeg] at hdeg_compl
   simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
   rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
-  simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj, ne_eq, not_and, not_not] at hdeg_compl
-  exact hdeg_compl w hne.symm
+  simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
+  exact (hdeg_compl w hne.symm).symm
 
+/- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
-  rintro ⟨v, hv, hw⟩
-  have : G.degree v ≥ 3 := by
-    rw [← SimpleGraph.card_neighborSet_eq_degree]
-    unfold SimpleGraph.neighborSet
-    apply?
+  rintro ⟨v, hv_deg, hw_deg⟩
+  have hw_adj_all : ∀ w ≠ v, G.Adj v w := by
+    intros w wneqv
+    specialize hw_deg w wneqv
+    exact (max_deg_imp_adj_all hw_deg v wneqv.symm)
+  clear hw_deg
+
+  have hw_card : (Set.toFinset {w | w ≠ v}).card = 3 := by
+    -- have t := Finset.card_erase_of_mem v
+
     -- rw?
-    have h := SimpleGraph.neighborFinset_eq_filter G (v := v)
-    rw [h]
-    rw [← @SimpleGraph.card_incidenceFinset_eq_degree]
-    rw [← @Fintype.card_coe]
+    -- simp only [ne_eq, Set.mem_setOf_eq]
+    -- have  (Set.toFinset {w | w ≠ v}).card = 3 := by
+    sorry
+  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
+    -- simp only [Set.setOf_subset_setOf]
+    exact hw_adj_all
+  clear hw_adj_all
 
-    unfold SimpleGraph.degree
+  have : 3 ≤ G.degree v  := by
+    rw [← SimpleGraph.card_neighborFinset_eq_degree]
     unfold SimpleGraph.neighborFinset
-
-  sorry
+    unfold SimpleGraph.neighborSet
+    rw [← hw_card]
+    apply Finset.card_le_card
+    rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
+    apply neq_imp_adj
+  clear neq_imp_adj hw_card
+  linarith
 
 #exit
 
