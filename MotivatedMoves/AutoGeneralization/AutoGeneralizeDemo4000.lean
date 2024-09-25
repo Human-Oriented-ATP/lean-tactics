@@ -51,17 +51,18 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     simp
 
   have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
-  have : 3 ≤ G.degree v  := by
+  have hv_deg_geq : 3 ≤ G.degree v  := by
     rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
     apply Finset.card_le_card
     rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
     exact neq_imp_adj
 
-  linarith
+  rw [hv_deg] at hv_deg_geq
+  contradiction
 
+#print impossible_graph
 
-
--- #exit
+#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS
