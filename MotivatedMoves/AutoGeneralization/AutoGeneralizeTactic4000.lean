@@ -367,10 +367,10 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Run "simp".
-  let (genThmTypeSimp, genThmProofSimp) ← performSimp genThmType genThmProof
+  -- let (genThmType, genThmProof) ← performSimp genThmType genThmProof
 
   -- Add the generalized theorem to the context.
-  createLetHypothesis genThmTypeSimp genThmProofSimp (thmName++`Gen)
+  createLetHypothesis genThmType genThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
 
