@@ -43,14 +43,16 @@ def getHypothesisType (h : Name) : TacticM Expr := do
 def getHypothesisProof (h : Name) : TacticM Expr := do
   (← getMainGoal).withContext do
     let hyp ← getHypothesisByName h
+
     if hyp.hasValue
       then
-        if hyp.value.isMVar
-          then
-            let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
-            return ← liftOption val
-          else
-            return hyp.value -- works if proved directly with a proof term like `:= fun ...`
+
+        -- if hyp.value.isMVar
+        --   then
+        --     let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
+        --     return ← liftOption val
+        --   else
+        return ← instantiateMVars hyp.value
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 /--  Tactic to return goal variable -/
@@ -155,8 +157,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
     -- let e ← whnf e
+    -- logInfo m!"recursing on {e} with constructor {e.ctorName}"
     let visitChildren : Unit → MetaM Expr := fun _ => do
-      --logInfo m!"visiting children of {e} with constructor {e.ctorName}"
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
@@ -190,6 +192,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n _       => let constType ← getTheoremStatement n
+                            -- logInfo m!"const type {constType}"
                             if depth ≥ 10 then return e
                             else
                               -- if n == `CharZero.NeZero.two then do
@@ -197,6 +200,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               --   let subexprs ← getSubexpressionsIn constType
                               --   logInfo m!"subexpressions {subexprs}"
                               if (← containsExpr p constType) then
+                                -- logInfo m!"WARNING about to turn const {n} into an mvar"
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
                                 -- check genConstType
                                 -- let genConstType ← instantiateMVars genConstType
@@ -217,6 +221,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       let mctx ← getMCtx
       -- logInfo m!"Checking for 4 in \n {e}"
       if (← isDefEq e p) then
+        -- logInfo m!"WARNING found that {e} is defeq to {p}, so turning into mvar"
         let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
@@ -341,6 +346,8 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   logInfo m!"!Tactic Initial Proof: { thmProof}"
   -- logInfo m!"!Tactic Initial Type: { ← inferType thmProof}"
 
+
+  -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
   genThmProof ← replacePatternWithMVars genThmProof pattern -- replace instances of f's old value with metavariables

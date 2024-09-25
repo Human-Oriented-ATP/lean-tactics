@@ -37,6 +37,23 @@ by
 
 -- elab "showid" tac:tacticSeq : tactic =>
 
+-- this works
+example : True := by
+  let test  :  ∀ a b: ℤ, a + b = b + a := by {apply add_comm}
+
+  autogeneralize ℤ in test
+
+  simp
+
+-- this used to not work, now it does with new getHypothesisProof
+example : True := by
+  let test (a b : ℤ) :  a + b = b + a := by {apply add_comm}
+
+  autogeneralize ℤ in test
+
+  simp
+
+
 -- WORKS
 example : True := by
   let sum := fun x : ℕ => x + 4
