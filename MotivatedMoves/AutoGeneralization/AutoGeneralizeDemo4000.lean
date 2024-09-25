@@ -51,13 +51,10 @@ example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact (max_deg_imp_adj_all hw_deg v wneqv.symm)
   clear hw_deg
 
-  have hw_card : (Set.toFinset {w | w ≠ v}).card = 3 := by
-    -- have t := Finset.card_erase_of_mem v
+  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+    rw [@Set.toFinset_card]
+    simp
 
-    -- rw?
-    -- simp only [ne_eq, Set.mem_setOf_eq]
-    -- have  (Set.toFinset {w | w ≠ v}).card = 3 := by
-    sorry
   have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
     -- simp only [Set.setOf_subset_setOf]
     exact hw_adj_all
@@ -74,7 +71,7 @@ example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
   clear neq_imp_adj hw_card
   linarith
 
-#exit
+-- #exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS
