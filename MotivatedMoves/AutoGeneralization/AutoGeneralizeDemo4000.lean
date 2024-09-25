@@ -31,8 +31,9 @@ GENERALIZING PROOFS OF DEGREE SEQUENCES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
-example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
+theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
+
   have max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
     G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
     intro hdeg w hne
@@ -44,31 +45,21 @@ example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact (hdeg_compl w hne.symm).symm
 
   rintro ⟨v, hv_deg, hw_deg⟩
-  have hw_adj_all : ∀ w ≠ v, G.Adj v w := by
-    intros w wneqv
-    specialize hw_deg w wneqv
-    exact (max_deg_imp_adj_all hw_deg v wneqv.symm)
-  clear hw_deg
-
+  have hw_adj_all : ∀ w ≠ v, G.Adj v w := λ w wneqv => (max_deg_imp_adj_all (hw_deg w wneqv) v wneqv.symm)
   have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
     rw [@Set.toFinset_card]
     simp
 
-  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
-    -- simp only [Set.setOf_subset_setOf]
-    exact hw_adj_all
-  clear hw_adj_all
-
+  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
   have : 3 ≤ G.degree v  := by
-    rw [← SimpleGraph.card_neighborFinset_eq_degree]
-    unfold SimpleGraph.neighborFinset
-    unfold SimpleGraph.neighborSet
-    rw [← hw_card]
+    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
     apply Finset.card_le_card
     rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
-    apply neq_imp_adj
-  clear neq_imp_adj hw_card
+    exact neq_imp_adj
+
   linarith
+
+
 
 -- #exit
 
