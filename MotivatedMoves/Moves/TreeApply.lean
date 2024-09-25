@@ -1,6 +1,5 @@
 import MotivatedMoves.LibrarySearch.LibrarySearch
-
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta
 
@@ -341,7 +340,7 @@ where
       then
         fun k => do
         let kleiski ← k
-        let tree' := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``Tree.And) [])) p tree
+        let tree' := (if isRev then Function.swap else id) (mkApp2 (.const (if isImp then ``Imp else ``MotivatedTree.And) [])) p tree
         let {binders ..} ← get
         let (bindHyp, binders) := takeHypBinders true {} binders pol tree'
         modify fun s => { s with binders }
@@ -373,7 +372,7 @@ where
       let nonHypMVars := mfvarsState.MVarIds.filter (!boundMVars.contains ·)
       let nonHypBinders ← liftMetaM <| nonHypMVars.mapM mkMetaHypBinder
 
-      let tree' := mkApp2 (.const (if pol then ``Tree.Exists else ``Tree.Forall) [u]) domain tree
+      let tree' := mkApp2 (.const (if pol then ``MotivatedTree.Exists else ``MotivatedTree.Forall) [u]) domain tree
 
       let (bindHyp, binders) := (if hypInScope then takeHypBinders (nonHypMVars.size != 0) mfvarsState else takeMVarHypBinders mfvarsState.toCollectMVarsState) binders pol tree'
 
@@ -530,18 +529,15 @@ open RefinedDiscrTree in
 def librarySearchApply (saveClosed : Bool) (goalPos : List ℕ) (tree : Expr) : MetaM (Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) := do
   let (goalOuterPosition, []) := splitPosition goalPos | return #[]
   let discrTrees ← getLibraryLemmas
-  let results := if ← getPolarity tree goalOuterPosition then
-    (← getSubExprUnify discrTrees.2.apply tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply tree goalOuterPosition [])
+  let results : Array (Array LibraryLemma × Nat) ← if (← getPolarity tree goalOuterPosition) then
+    pure <| (← getSubExprUnify discrTrees.2.apply tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply tree goalOuterPosition [])
   else
-    (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
-
-  let results ← filterLibraryResults results fun {name, treePos, pos, ..} => do
+    pure <| (← getSubExprUnify discrTrees.2.apply_rev tree goalOuterPosition []) ++ (← getSubExprUnify discrTrees.1.apply_rev tree goalOuterPosition [])
+  let results ← filterLibraryResults results fun ({name, treePos, pos, ..} : LibraryLemma) => do
     _ ← applyUnbound name (fun hyp _ => return (← makeTreePath treePos hyp, treePos, pos)) goalOuterPosition [] treeApply tree saveClosed
-
 
   return results.map $ Bifunctor.fst $ Array.map fun {name, treePos, pos, diffs} => (name, diffs,
     s! "lib_apply {if saveClosed then "*" else ""} {printPosition treePos pos} {name} {goalPos}")
-
 
 def logLibrarySearch (result : Array (Array (Name × AssocList SubExpr.Pos Widget.DiffTag × String) × Nat)) : MetaM Unit := do
   let result ← result.mapM fun (candidates, specific) => return (specific, ← candidates.mapM fun (name, _) => return m! "{name} : {(← getConstInfo name).type}")
@@ -555,4 +551,4 @@ elab "try_lib_apply" goalPos:treePos : tactic => do
 
 /- this lemma can be used in combination with `lib_apply` to close a goal using type class inference. For example `Nonempty ℕ`. -/
 set_option checkBinderAnnotations false in
-abbrev Tree.infer {α : Prop} [i : α] := i
+abbrev infer {α : Prop} [i : α] := i

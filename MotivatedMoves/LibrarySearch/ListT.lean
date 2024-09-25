@@ -19,7 +19,10 @@ protected def pure (a : α) : ListT m α := ListT.mk do
 
 @[always_inline, inline]
 protected def bind (x : ListT m α) (f : α → ListT m β) : ListT m β := ListT.mk do
-  (← x).foldrM (fun a bs => (· ++ bs) <$> f a) []
+  match ← x with
+    | [] => return []
+    | [a] => f a
+    | x => x.foldrM (fun a bs => (· ++ bs) <$> f a) []
 
 @[always_inline, inline]
 protected def map (f : α → β) (x : ListT m α) : ListT m β := ListT.mk do
@@ -39,7 +42,7 @@ protected def orElse {α : Type u} (x : ListT m α) (y : Unit → ListT m α) : 
 protected def failure {α : Type u} : ListT m α := ListT.mk do
   pure []
 
-instance [Alternative m] : Alternative (ListT m) where
+instance : Alternative (ListT m) where
   failure := ListT.failure
   orElse  := ListT.orElse
 

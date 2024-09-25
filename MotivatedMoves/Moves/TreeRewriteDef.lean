@@ -1,7 +1,7 @@
 import MotivatedMoves.ProofState.Tree
 import ProofWidgets.Compat
 
-namespace Tree
+namespace MotivatedTree
 
 open Lean Meta ProofWidgets
 
