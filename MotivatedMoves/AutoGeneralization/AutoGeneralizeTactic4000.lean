@@ -327,6 +327,8 @@ def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
+  logInfo m!"!Tactic Initial Proof: { thmProof}"
+  -- logInfo m!"!Tactic Initial Type: { ← inferType thmProof}"
 
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
