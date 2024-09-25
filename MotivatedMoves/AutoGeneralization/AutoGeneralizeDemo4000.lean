@@ -30,20 +30,19 @@ set_option pp.showLetValues false
 GENERALIZING PROOFS OF DEGREE SEQUENCES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-/- A vertex with maximum possible degree must be adjacent to all other vertices -/
-theorem max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
-  G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
-  intro hdeg w hne
-  have hdeg_compl := G.degree_compl v
-  rw [hdeg] at hdeg_compl
-  simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
-  rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
-  simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
-  exact (hdeg_compl w hne.symm).symm
-
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
+  have max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
+    G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
+    intro hdeg w hne
+    have hdeg_compl := G.degree_compl v
+    rw [hdeg] at hdeg_compl
+    simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
+    rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
+    simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
+    exact (hdeg_compl w hne.symm).symm
+
   rintro ⟨v, hv_deg, hw_deg⟩
   have hw_adj_all : ∀ w ≠ v, G.Adj v w := by
     intros w wneqv
