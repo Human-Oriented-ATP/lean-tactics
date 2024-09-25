@@ -33,18 +33,80 @@ by
   have h2 : A.card + B.card = 4 := by simp [hA, hB]
   rwa [h2] at h1
 
+#check id
+
+-- elab "showid" tac:tacticSeq : tactic =>
+
+-- WORKS
+example : True := by
+  let sum := fun x : ℕ => x + 4
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+-- WORKS
+example : True := by
+  let sum : 2+ 2 ≤ 4 := by simp
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+-- !!!!!!  Rewriting 4 as 2 + 2
+example : True := by
+  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 := by intros A hA; rw [hA]
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+
+
+-- DOESN'T WORK
+example : True := by
+  let sum (A : ℕ): A = 2 → A + 2 = 4 := by intros hA; rw [hA]
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+-- DOESN'T WORK
+example : True := by
+  let sum (A : ℕ) (hA : A = 2): A + 2 = 4 := by rw [hA]
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+-- DOESN'T WORK
+example : True := by
+  let sum (A : ℕ) (hA : A = 2): A + 2 ≤ 4 := by simp [hA]
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
+
+-- DOESN'T WORK
+example : True := by
+  let sum (A : Finset α) (hA : A.card = 2): A.card + 2 ≤ 4 := by simp [hA]
+
+  autogeneralize (4:ℕ) in sum
+
+  simp
 
 example : True := by
   let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2)
-  --: (A ∪ B).card ≤ 4
-  := by
+  : (A ∪ B).card ≤ 4
+  := --id $
+  by
     have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    rwa [hA, hB] at h1
-    -- have h2 : A.card + B.card = 4 := by simp [hA, hB]
-    -- rwa [h2] at h1
+    -- rwa [hA, hB] at h1
+    have h2 : A.card + B.card = 4 := by simp [hA, hB]
+    rwa [h2] at h1
 
-  -- autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets
+  autogeneralize (4:ℕ) in union_of_finsets
+  -- autogeneralize (2:ℕ) in union_of_finsets
 
   simp
 

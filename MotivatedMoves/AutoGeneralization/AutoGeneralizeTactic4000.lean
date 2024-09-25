@@ -154,7 +154,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => let fAbs ← visit f depth
+      | .app f a         => logInfo m!"recursing under function {f}"
+                            let fAbs ← visit f depth
                             let aAbs ← visit a depth
                             -- check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
@@ -182,7 +183,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n _       => let constType ← inferType e --getTheoremStatement n
-                            if depth ≥ 3 then return e
+                            if depth ≥ 10 then return e
                             else
                               -- if n == `CharZero.NeZero.two then do
                               --   logInfo m!"found a const {n} with type {constType}"
@@ -197,14 +198,17 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                                 return m
                               else
                                 return e
-      | e                => return e
+      | e                => --logInfo m!"Can't recurse under this expression \n {e}"
+                            return e
 
     if e.hasLooseBVars then
+      logInfo "Loose BVars detected"
       visitChildren ()
     else
       -- We save the metavariable context here,
       -- so that it can be rolled back unless `occs.contains i`.
       let mctx ← getMCtx
+      -- logInfo m!"Checking for 4 in \n {e}"
       if (← isDefEq e p) then
         let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
