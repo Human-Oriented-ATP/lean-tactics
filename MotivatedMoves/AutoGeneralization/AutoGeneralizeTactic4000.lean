@@ -45,14 +45,7 @@ def getHypothesisProof (h : Name) : TacticM Expr := do
     let hyp ← getHypothesisByName h
 
     if hyp.hasValue
-      then
-
-        -- if hyp.value.isMVar
-        --   then
-        --     let val ← getExprMVarAssignment? hyp.value.mvarId! -- works if proved in tactic mode like `:= by ...`
-        --     return ← liftOption val
-        --   else
-        return ← instantiateMVars hyp.value
+      then return ← instantiateMVars hyp.value
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
 
 /--  Tactic to return goal variable -/

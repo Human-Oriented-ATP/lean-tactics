@@ -24,107 +24,6 @@ GENERALIZING PROOFS OF SET SUMS
 
 variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
--- #synth Union (Finset Nat)
-
-theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
-  (A ∪ B).card ≤ 4 :=
-by
-  have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-  have h2 : A.card + B.card = 4 := by simp [hA, hB]
-  rwa [h2] at h1
-
-#check id
-
--- elab "showid" tac:tacticSeq : tactic =>
-
--- this works
-example : True := by
-  let test  :  ∀ a b: ℤ, a + b = b + a := by {apply add_comm}
-
-  autogeneralize ℤ in test
-
-  simp
-
--- this used to not work, now it does with new getHypothesisProof
-example : True := by
-  let test (a b : ℤ) :  a + b = b + a := by {apply add_comm}
-
-  autogeneralize ℤ in test
-
-  simp
-
-
--- WORKS
-example : True := by
-  let sum := fun x : ℕ => x + 4
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
-
--- WORKS
-example : True := by
-  let sum : 2+ 2 ≤ 4 := by simp
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
-
--- WORKS !!!!!!  Rewriting 4 as 2 + 2
-example : True := by
-  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 :=  by intros A hA; rw [hA]
-
-  -- autogeneralize_basic (2:ℕ) in sum
-
-  autogeneralize (4:ℕ) in sum
-  -- autogeneralize (2:ℕ) in sum.Gen
-
-  simp
-
--- DOESN'T WORK
-example : True := by
-  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 :=  id $ by intros A hA; rw [hA]
-
-  -- autogeneralize_basic (2:ℕ) in sum
-
-  autogeneralize (4:ℕ) in sum
-  -- autogeneralize (2:ℕ) in sum.Gen
-
-  simp
-
-
-
--- DOESN'T WORK
-example : True := by
-  let sum (A : ℕ): A = 2 → A + 2 = 4 := by intros hA; rw [hA]
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
-
--- DOESN'T WORK
-example : True := by
-  let sum (A : ℕ) (hA : A = 2): A + 2 = 4 := by rw [hA]
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
-
--- DOESN'T WORK
-example : True := by
-  let sum (A : ℕ) (hA : A = 2): A + 2 ≤ 4 := by simp [hA]
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
-
--- DOESN'T WORK
-example : True := by
-  let sum (A : Finset α) (hA : A.card = 2): A.card + 2 ≤ 4 := by simp [hA]
-
-  autogeneralize (4:ℕ) in sum
-
-  simp
 
 example : True := by
   let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2)
@@ -132,12 +31,12 @@ example : True := by
   := --id $
   by
     have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    -- rwa [hA, hB] at h1
-    have h2 : A.card + B.card = 4 := by simp [hA, hB]
-    rwa [h2] at h1
+    rwa [hA, hB] at h1
+    --have h2 : A.card + B.card = 4 := by simp [hA, hB]
+    --rwa [h2] at h1
 
   autogeneralize (4:ℕ) in union_of_finsets
-  -- autogeneralize (2:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets.Gen
 
   simp
 
