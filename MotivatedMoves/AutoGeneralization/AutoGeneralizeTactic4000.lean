@@ -20,6 +20,11 @@ def instantiateMVarsExcept (a : Array MVarId) (e : Expr)  : MetaM Expr := do
   let e ← instantiateMVars e -- instantiate mvars
   return e
 
+/-- Getting theorem statement from context --/
+def getTheoremStatement (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.type -- return the theorem statement
+
 /-- Get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
@@ -151,10 +156,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
     -- let e ← whnf e
     let visitChildren : Unit → MetaM Expr := fun _ => do
+      --logInfo m!"visiting children of {e} with constructor {e.ctorName}"
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => logInfo m!"recursing under function {f}"
+      | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
                             let fAbs ← visit f depth
                             let aAbs ← visit a depth
                             -- check $ .app fAbs aAbs
@@ -171,7 +177,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                                 return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               return updatedLambda
-      | .forallE n d b bi => let dAbs ← visit d depth
+      | .forallE n d b bi => --logInfo m!"Recursing under forall {d}"
+                              let dAbs ← visit d depth
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedForAll ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
@@ -182,7 +189,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- when we encounter a theorem used in the proof
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
-      | .const n _       => let constType ← inferType e --getTheoremStatement n
+      | .const n _       => let constType ← getTheoremStatement n
                             if depth ≥ 10 then return e
                             else
                               -- if n == `CharZero.NeZero.two then do

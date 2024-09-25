@@ -53,11 +53,25 @@ example : True := by
 
   simp
 
--- !!!!!!  Rewriting 4 as 2 + 2
+-- WORKS !!!!!!  Rewriting 4 as 2 + 2
 example : True := by
-  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 := by intros A hA; rw [hA]
+  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 :=  by intros A hA; rw [hA]
+
+  -- autogeneralize_basic (2:ℕ) in sum
 
   autogeneralize (4:ℕ) in sum
+  -- autogeneralize (2:ℕ) in sum.Gen
+
+  simp
+
+-- DOESN'T WORK
+example : True := by
+  let sum : ∀ A : ℕ, A = 2 → A + 2 = 4 :=  id $ by intros A hA; rw [hA]
+
+  -- autogeneralize_basic (2:ℕ) in sum
+
+  autogeneralize (4:ℕ) in sum
+  -- autogeneralize (2:ℕ) in sum.Gen
 
   simp
 
