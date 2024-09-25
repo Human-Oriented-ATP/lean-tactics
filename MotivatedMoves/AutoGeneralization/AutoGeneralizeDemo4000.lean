@@ -4,6 +4,9 @@ Accounts for constants playing the same role in different places.
 Accounts for generalizing constants to functions.
 - - - - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - -/
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
+import Mathlib.Combinatorics.SimpleGraph.Basic
+-- import Mathlib.Combinatorics.SimpleGraph.DegreeSum
+import Mathlib.Combinatorics.SimpleGraph.Finite
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
 import MotivatedMoves.AutoGeneralization.library
@@ -17,6 +20,59 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
 
+#check Finset.map
+#check SimpleGraph.degree
+#check SimpleGraph.card_neighborSet_eq_degree
+
+#synth Fintype (Fin 4)
+
+variable (G : SimpleGraph V) (v : V)
+instance [Fintype V] : Fintype (G.neighborSet v) := sorry
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GENERALIZING PROOFS OF DEGREE SEQUENCES
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+/--
+For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}.
+-/
+
+-- macro (name := my_aesop_graph?) "my_aesop_graph?" c:Aesop.tactic_clause* : tactic =>
+--   `(tactic|
+--     aesop? $c*
+--       (config := { introsTransparency? := some .default, terminal := true })
+--       (rule_sets [$(Lean.mkIdent `SimpleGraph):ident]))
+
+
+/- A vertex with maximum possible degree must be adjacent to all other vertices -/
+theorem max_deg_imp_adj_all {V : Type} [Fintype V] (G : SimpleGraph V) (v : V) :
+  G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj v w := by
+  intro hdeg w hne
+  have hdeg_compl := G.degree_compl v
+  rw [hdeg] at hdeg_compl
+  simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
+  rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
+  simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj, ne_eq, not_and, not_not] at hdeg_compl
+  exact hdeg_compl w hne.symm
+
+example (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
+¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
+  rintro ⟨v, hv, hw⟩
+  have : G.degree v ≥ 3 := by
+    rw [← SimpleGraph.card_neighborSet_eq_degree]
+    unfold SimpleGraph.neighborSet
+    apply?
+    -- rw?
+    have h := SimpleGraph.neighborFinset_eq_filter G (v := v)
+    rw [h]
+    rw [← @SimpleGraph.card_incidenceFinset_eq_degree]
+    rw [← @Fintype.card_coe]
+
+    unfold SimpleGraph.degree
+    unfold SimpleGraph.neighborFinset
+
+  sorry
+
+#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS
