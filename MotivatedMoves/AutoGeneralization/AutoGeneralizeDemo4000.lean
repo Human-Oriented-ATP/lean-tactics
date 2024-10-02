@@ -37,7 +37,6 @@ example : True := by
   autogeneralize (4:ℕ) in impossible_graph
   trivial
 
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS

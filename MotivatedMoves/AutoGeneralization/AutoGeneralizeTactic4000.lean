@@ -62,22 +62,23 @@ def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Na
   setGoals [new_goal]
 
 /-- Get (in a list) all subexpressions in an expression -/
-def getSubexpressionsIn (e : Expr) : MetaM (List Expr) := do
+partial def getSubexpressionsIn (e : Expr) : MetaM (List Expr) := do
   let rec getSubexpressionsInRec (e : Expr) (acc : List Expr) : MetaM (List Expr) :=
     match e with
     | Expr.forallE n d b bi   => do
                                   let d_subexprs ← getSubexpressionsInRec d acc
                                   withLocalDecl n bi d (fun placeholder => do
+                                    let b := b.instantiate1 placeholder
                                     let b_subexprs ← getSubexpressionsInRec b acc -- now it's safe to recurse on b (no loose bvars)
-                                    --let b_subexprs ← b_subexprs.mapM (fun s => mkForallFVars #[placeholder] s (binderInfoForMVars := bi)) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
+                                    let b_subexprs ← b_subexprs.mapM (fun s => mkForallFVars #[placeholder] s (binderInfoForMVars := bi)) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                                     return [e] ++ d_subexprs ++ b_subexprs
                                   )
     | Expr.lam n d b bi       => do
                                   let d_subexprs ← getSubexpressionsInRec d acc
                                   withLocalDecl n bi d (fun placeholder => do
+                                    let b := b.instantiate1 placeholder
                                     let b_subexprs ← getSubexpressionsInRec b acc -- now it's safe to recurse on b (no loose bvars)
                                     let b_subexprs ← b_subexprs.mapM (fun s => mkLambdaFVars #[placeholder] s (binderInfoForMVars := bi))
-                                    --let b := b.instantiate1 placeholder
                                     return [e] ++ d_subexprs ++ b_subexprs
                                   )
  -- | Expr.letE _ t v b _    => [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
@@ -130,6 +131,11 @@ def mkAbstractedName (n : Name) : Name :=
     match n with
     | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
+
+/-- Returns true if given an expression `e` has a metavariable of type `t`-/
+def hasMVarOfType (t e: Expr) : MetaM Bool := do
+  let mvarIds ← getMVars e
+  mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
 
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
@@ -197,22 +203,17 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             -- logInfo m!"const type {constType}"
                             if depth ≥ 10 then return e
                             else
+                                -- if (← containsExpr p constType) then
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
-
                                 -- if the const does have the pattern in its definition, it is a property we should generalize
-                                if genConstType.hasMVar then
+                                if ← hasMVarOfType pType genConstType then
+                                  logInfo m!"has gen const type {genConstType}"
                                   let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                                   -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                                   return m
 
                                 -- otherwise, we don't need to expand the definition of the const
                                 else return e
-      -- | .fvar _ =>
-      --   logInfo m!"fvar {e}"
-      --   return e
-      -- | .bvar _ =>
-      --   logInfo m!"bvar {e}"
-      --   return e
       | e                => --logInfo m!"Can't recurse under this expression \n {e}"
                             return e
 
@@ -221,12 +222,14 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       visitChildren ()
     else
       -- if the expression "e" is the pattern you want to replace...
-      if ← withoutModifyingState (isDefEq e p) then
+      let mctx ← getMCtx
+      if ← (isDefEq e p) then
         let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       -- otherwise, "e" might contain the pattern...
       else
+        setMCtx mctx
         -- so that other matches are still possible.
         visitChildren ()
   visit e
