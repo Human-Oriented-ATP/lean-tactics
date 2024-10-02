@@ -142,16 +142,19 @@ Roughly implemented like kabstract, with the following differences:
 -/
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
-  -- let e ← instantiateMVars e
+  -- return e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
-  -- printLocalContext
-
   let pType ← inferType p
+
+  --return e
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
+
     -- let e ← whnf e
     -- logInfo m!"recursing on {e} with constructor {e.ctorName}"
     let visitChildren : Unit → MetaM Expr := fun _ => do
+      if e.hasLooseBVars then
+        logInfo m!"Loose BVars detected on expression {e}"
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
@@ -168,9 +171,17 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedLambda ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
-                                let bAbs ← visit b depth-- now it's safe to recurse on b (no loose bvars)
+                                -- logInfo m!"lamda body: {b}"
+                                let bAbs ←
+                                  if (← withoutModifyingState (isDefEq dAbs d)) then
+                                    visit b depth-- now it's safe to recurse on b (no loose bvars)
+                                  else
+                                    logInfo m!"dAbs {dAbs} and d {d} are not defeq"
+                                    return b
                                 return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
+                              if updatedLambda.hasLooseBVars then
+                                logInfo m!"Loose BVars detected on expression {e}"
                               return updatedLambda
       | .forallE n d b bi => --logInfo m!"Recursing under forall {d}"
                               let dAbs ← visit d depth
@@ -202,6 +213,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                                 return m
                               else
                                 return e
+      -- | .fvar _ =>
+      --   logInfo m!"fvar {e}"
+      --   return e
+      -- | .bvar _ =>
+      --   logInfo m!"bvar {e}"
+      --   return e
       | e                => --logInfo m!"Can't recurse under this expression \n {e}"
                             return e
 
