@@ -94,10 +94,8 @@ def getSubexpressionsIn (e : Expr) : MetaM (List Expr) := do
 
 /-- Returns true if "e" contains "subexpr".  Differs from "occurs" because this uses the coarser "isDefEq" rather than "==" -/
 def containsExpr(subexpr : Expr)  (e : Expr) : MetaM Bool := do
-  let mctx ← getMCtx -- save metavar context before using isDefEq
   let e_subexprs ← getSubexpressionsIn e
-  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return ← isDefEq e_subexpr subexpr)
-  setMCtx mctx -- revert metavar context after using isDefEq, so this function doesn't have side-effects on the expr e
+  let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => withoutModifyingState (isDefEq e_subexpr subexpr))
   return firstExprContainingSubexpr.isSome
 
 /-- Replaces all subexpressions where "condition" holds with the "replacement" in the expression e -/

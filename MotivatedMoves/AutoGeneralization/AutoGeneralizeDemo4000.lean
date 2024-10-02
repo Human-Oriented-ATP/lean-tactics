@@ -19,6 +19,7 @@ set_option linter.unusedVariables false
 set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
+-- set_option trace.Meta.whnf true
 
 -- variable (V' : Type) (G' : SimpleGraph V') (v' : V') [DecidableRel G'.Adj] [DecidableRel G'ᶜ.Adj]
 -- instance [Fintype V'] : Fintype (G'.neighborSet v') := by
