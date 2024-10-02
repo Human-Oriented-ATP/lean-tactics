@@ -22,6 +22,23 @@
 	It might take a while for Lean4 to build Mathlib in the background, you should see an info text that tells you the file that is currently being built. 
 7. (Temporary) In order to see the custom rendering of the infoview, a custom version of the Lean 4 VSCode extension is required. It can be found and install from the `widget\lean4fork-0.0.111.vsix` file after pressing `Command-Shift-P > Extensions : Install from VSIX...` and then disabling the original Lean 4 VSCode extension.
 8. (Optional, but recommended) Run `lake exe discrTrees` to build and store the discrimination tree cache used for library search.
+## Debugging Installation Errors
+
+If the version of Lean or Mathlib has been updated since your last pull, get the new, pre-compiled cache of mathlib by running:
+lake exe cache get 
+
+ If you are getting a “git exited” error, try removing cached files, like the ones at `lean-tactics/.lake/*`. Then re-run `lake exe cache get`.
+
+If that still fails, update your version of `lean-toolchain` to [the one that mathlib is currently using] and your version of mathlib specified in the `lakefile` to the same one (as long as there is a tag for it on the righthand side of the repo). 
+
+Then run:
+```
+lake update
+lake exe cache get
+```
+
+If all of that fails, run:
+```lake build```
 
 ## Testing
 You can run `lake build Tests` to run all tests in the `Tests` folder.  
