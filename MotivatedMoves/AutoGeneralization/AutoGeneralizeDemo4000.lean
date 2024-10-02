@@ -17,6 +17,7 @@ open Lean Elab Tactic Meta Term Command
 
 set_option linter.unusedVariables false
 set_option pp.showLetValues false
+
 -- set_option pp.explicit true
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
@@ -30,6 +31,42 @@ set_option pp.showLetValues false
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF DEGREE SEQUENCES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+set_option simprocs false
+set_option trace.Meta.Tactic.simp.rewrite true
+theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
+    rw [@Set.toFinset_card]
+    set_option trace.Debug.Meta.Tactic.simp true in
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_ofSubsingleton, -Nat.reduceSub, -eq_self]
+    rfl
+    -- sorry
+    -- rw [eq_self]
+    -- exact Eq.refl (4-1)
+    -- exact Eq.refl (Nat.pred 4)
+
+example : True := by
+  autogeneralize (3:ℕ) in hw_card
+  autogeneralize (4:ℕ) in hw_card
+  trivial
+
+
+set_option simprocs false
+set_option trace.Meta.Tactic.simp.rewrite true
+theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
+    rw [@Set.toFinset_card]
+    set_option trace.Debug.Meta.Tactic.simp true in
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_ofSubsingleton, -Nat.reduceSub, -eq_self]
+    rfl
+    -- sorry
+    -- rw [eq_self]
+    -- exact Eq.refl (4-1)
+    -- exact Eq.refl (Nat.pred 4)
+
+example : True := by
+  -- autogeneralize (3:ℕ) in hw_card
+  autogeneralize (4:ℕ) in hw_card
+  trivial
+
 
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
@@ -57,15 +94,15 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact @id (G.degree w = 4 - 1) this
 
 
-  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
     rw [@Set.toFinset_card]
-    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_fin, Fintype.card_ofSubsingleton]
-    sorry
-    simp only [Fintype.card_subtype_compl]
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq]
+    -- simp only [Fintype.card_fin, Fintype.card_ofSubsingleton, Fintype.card_subtype_compl]
+    -- sorry
 
   have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
-  sorry
-  have hv_deg_geq : 3 ≤ G.degree v  := by
+  -- sorry
+  have hv_deg_geq : 4-1 ≤ G.degree v  := by
     rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
     apply Finset.card_le_card
     rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
@@ -73,15 +110,17 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
 
   rw [hv_deg] at hv_deg_geq
-  simp only [Nat.not_ofNat_le_one] at hv_deg_geq
+  sorry
+  -- simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
+  -- simp only [Nat.not_ofNat_le_one] at hv_deg_geq
 
 example : True := by
-  -- Given any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}.
+
   autogeneralize (3:ℕ) in impossible_graph
   autogeneralize (4:ℕ) in impossible_graph.Gen
   trivial
 
-#exit
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -95,7 +134,7 @@ example : True := by
   autogeneralize (2:ℕ) in union_of_finsets.Gen
 
   simp
-
+#exit
 /--
 Fabian's example:
   "hyp" is a proof that DOES NOT depend on the fact that x ≠ 0 to prove P  (even though x ≠ 0 is proven at some point on the proof)
