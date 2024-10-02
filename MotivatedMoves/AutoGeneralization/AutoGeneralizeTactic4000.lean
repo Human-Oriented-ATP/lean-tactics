@@ -343,6 +343,7 @@ def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
   try
     check proof
   catch e =>
+    logInfo m!"Error: {e.toMessageData}"
     throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   return ← instantiateMVars proof
 

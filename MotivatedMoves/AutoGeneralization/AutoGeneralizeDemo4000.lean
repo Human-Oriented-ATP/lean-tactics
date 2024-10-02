@@ -34,9 +34,16 @@ GENERALIZING PROOFS OF DEGREE SEQUENCES
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
-
   have max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
-    G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := sorry
+    G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
+    intro hdeg w hne
+    have hdeg_compl := G.degree_compl v
+    rw [hdeg] at hdeg_compl
+
+    simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
+    rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
+    simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
+    exact (hdeg_compl w hne.symm).symm
 
   rintro ⟨v, hv_deg, hw_deg⟩
 
@@ -48,8 +55,25 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw  [Fintype.card_fin]
     have := hw_deg w wneqv
     exact @id (G.degree w = 4 - 1) this
-    -- rw [show 4-1=3 from rfl]
+
+
+  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+    rw [@Set.toFinset_card]
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_fin, Fintype.card_ofSubsingleton]
+    sorry
+    simp only [Fintype.card_subtype_compl]
+
+  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
   sorry
+  have hv_deg_geq : 3 ≤ G.degree v  := by
+    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
+    apply Finset.card_le_card
+    rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
+    exact neq_imp_adj
+
+
+  rw [hv_deg] at hv_deg_geq
+  simp only [Nat.not_ofNat_le_one] at hv_deg_geq
 
 example : True := by
   -- Given any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}.
