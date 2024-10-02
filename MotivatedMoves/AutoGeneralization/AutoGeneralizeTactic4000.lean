@@ -22,12 +22,13 @@ def instantiateMVarsExcept (a : Array MVarId) (e : Expr)  : MetaM Expr := do
 
 /-- Getting theorem statement from context --/
 def getTheoremStatement (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  let some thm := (← getEnv).find? n | throwError "No theorem of that name was found."
+ -- get the declaration with that name
   return thm.type -- return the theorem statement
 
 /-- Getting theorem proof from context --/
 def getTheoremProof (n : Name) : MetaM Expr := do
-  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  let some thm := (← getEnv).find? n | throwError "No theorem of that name was found."
   return thm.value! -- return the theorem statement
 
 /-- Get a hypothesis by its name -/
