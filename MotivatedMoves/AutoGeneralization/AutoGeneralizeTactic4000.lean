@@ -197,20 +197,16 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             -- logInfo m!"const type {constType}"
                             if depth ≥ 10 then return e
                             else
-                              -- if n == `CharZero.NeZero.two then do
-                              --   logInfo m!"found a const {n} with type {constType}"
-                              --   let subexprs ← getSubexpressionsIn constType
-                              --   logInfo m!"subexpressions {subexprs}"
-                              if (← containsExpr p constType) then
-                                -- logInfo m!"WARNING about to turn const {n} into an mvar"
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
-                                -- check genConstType
-                                -- let genConstType ← instantiateMVars genConstType
-                                let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                                -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-                                return m
-                              else
-                                return e
+
+                                -- if the const does have the pattern in its definition, it is a property we should generalize
+                                if genConstType.hasMVar then
+                                  let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
+                                  -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
+                                  return m
+
+                                -- otherwise, we don't need to expand the definition of the const
+                                else return e
       -- | .fvar _ =>
       --   logInfo m!"fvar {e}"
       --   return e
