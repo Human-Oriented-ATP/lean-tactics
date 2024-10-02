@@ -25,6 +25,11 @@ def getTheoremStatement (n : Name) : MetaM Expr := do
   let some thm := (← getEnv).find? n | failure -- get the declaration with that name
   return thm.type -- return the theorem statement
 
+/-- Getting theorem proof from context --/
+def getTheoremProof (n : Name) : MetaM Expr := do
+  let some thm := (← getEnv).find? n | failure -- get the declaration with that name
+  return thm.value! -- return the theorem statement
+
 /-- Get a hypothesis by its name -/
 def getHypothesisByName (h : Name) : TacticM LocalDecl := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
@@ -341,10 +346,15 @@ def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
     throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   return ← instantiateMVars proof
 
+/-- Get the specifying theorem from a local hypothesis if that exists, and otherwise from the environment -/
+def getTheoremAndProof (thmName : Name) : TacticM (Expr × Expr) := do
+  try return (← getHypothesisType thmName, ← getHypothesisProof thmName) -- if the theorem is a hypothesis of the current proof state
+  catch _ => return (← getTheoremStatement thmName, ← getTheoremProof thmName) -- if the theorem is in the environment
+
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
-  let (thmType, thmProof) := (← getHypothesisType thmName, ← getHypothesisProof thmName)
+  let (thmType, thmProof) ← getTheoremAndProof thmName
   logInfo m!"!Tactic Initial Proof: { thmProof}"
   -- logInfo m!"!Tactic Initial Type: { ← inferType thmProof}"
 

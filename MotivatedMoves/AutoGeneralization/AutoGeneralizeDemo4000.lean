@@ -44,22 +44,15 @@ GENERALIZING PROOFS OF SET SUMS
 
 variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
+theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
+  have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
+  rwa [hA, hB] at h1
 
 example : True := by
-  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2)
-  : (A ∪ B).card ≤ 4
-  := --id $
-  by
-    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    rwa [hA, hB] at h1
-    --have h2 : A.card + B.card = 4 := by simp [hA, hB]
-    --rwa [h2] at h1
-
   autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets.Gen
 
   simp
-
 
 /--
 Fabian's example:
