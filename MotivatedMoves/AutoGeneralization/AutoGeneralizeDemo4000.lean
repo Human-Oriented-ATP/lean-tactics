@@ -36,7 +36,6 @@ example : True := by
   -- autogeneralize (3:ℕ) in impossible_graph
   trivial
 
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS
@@ -60,6 +59,7 @@ example : True := by
 
   simp
 
+
 /--
 Fabian's example:
   "hyp" is a proof that DOES NOT depend on the fact that x ≠ 0 to prove P  (even though x ≠ 0 is proven at some point on the proof)
@@ -80,7 +80,7 @@ Fabian's example:
 -/
 def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y=0
 example : ∀ x : ℝ, NeZero x → P' x := by
-  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  have oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp Complex.instNeZeroRealInstZeroRealOfNatToOfNat1InstOneReal;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
+  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  have oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp inferInstance;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
   autogeneralize 1 in hyp
   assumption
 
