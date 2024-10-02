@@ -224,19 +224,14 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       logInfo "Loose BVars detected"
       visitChildren ()
     else
-      -- We save the metavariable context here,
-      -- so that it can be rolled back unless `occs.contains i`.
-      let mctx ← getMCtx
-      -- logInfo m!"Checking for 4 in \n {e}"
-      if (← isDefEq e p) then
-        -- logInfo m!"WARNING found that {e} is defeq to {p}, so turning into mvar"
+      -- if the expression "e" is the pattern you want to replace...
+      if ← withoutModifyingState (isDefEq e p) then
         let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
+      -- otherwise, "e" might contain the pattern...
       else
-        -- Revert the metavariable context,
         -- so that other matches are still possible.
-        setMCtx mctx
         visitChildren ()
   visit e
 
