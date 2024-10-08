@@ -17,7 +17,7 @@ open Lean Elab Tactic Meta Term Command
 
 set_option linter.unusedVariables false
 set_option pp.showLetValues false
-
+-- set_option  false
 -- set_option pp.explicit true
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
@@ -29,14 +29,16 @@ set_option pp.showLetValues false
 --   apply Subtype.fintype _
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+PRODUCT OF ODDS IS ODD
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF DEGREE SEQUENCES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-set_option simprocs false
-set_option trace.Meta.Tactic.simp.rewrite true
-theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
+theorem hw_cardx : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
     rw [@Set.toFinset_card]
-    set_option trace.Debug.Meta.Tactic.simp true in
     simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_ofSubsingleton, -Nat.reduceSub, -eq_self]
     rfl
     -- sorry
@@ -45,16 +47,13 @@ theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
     -- exact Eq.refl (Nat.pred 4)
 
 example : True := by
-  autogeneralize (3:ℕ) in hw_card
-  autogeneralize (4:ℕ) in hw_card
+  autogeneralize (3:ℕ) in hw_cardx
+  -- autogeneralize (4:ℕ) in hw_cardx
   trivial
 
 
-set_option simprocs false
-set_option trace.Meta.Tactic.simp.rewrite true
-theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
+theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
     rw [@Set.toFinset_card]
-    set_option trace.Debug.Meta.Tactic.simp true in
     simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_ofSubsingleton, -Nat.reduceSub, -eq_self]
     rfl
     -- sorry
@@ -64,8 +63,28 @@ theorem hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
 
 example : True := by
   -- autogeneralize (3:ℕ) in hw_card
-  autogeneralize (4:ℕ) in hw_card
+  -- autogeneralize (4:ℕ) in hw_card
   trivial
+
+#exit
+
+set_option simprocs false
+set_option trace.Meta.Tactic.simp.rewrite true
+theorem hw_card' : ∀ v : Fin 4, (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
+    intro v
+    rw [@Set.toFinset_card]
+    set_option trace.Debug.Meta.Tactic.simp true in
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_ofSubsingleton, -Nat.reduceSub, -eq_self]
+    rfl
+    -- sorry
+    -- rw [eq_self]
+    -- exact Eq.refl (4-1)
+    -- exact Eq.refl (Nat.pred 4)
+
+example : ∀ v : Fin 5, (Set.toFinset {w : Fin 5 | w ≠ v}).card = 5-1 := by
+  autogeneralize (4:ℕ) in hw_card'
+  specialize hw_card'.Gen 5
+  assumption
 
 
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
@@ -111,6 +130,8 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   rw [hv_deg] at hv_deg_geq
   sorry
+
+  -- sorry
   -- simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
   -- simp only [Nat.not_ofNat_le_one] at hv_deg_geq
 
