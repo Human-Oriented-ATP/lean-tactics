@@ -29,8 +29,45 @@ set_option pp.showLetValues false
 --   apply Subtype.fintype _
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+
+theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
+    have := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
+    assumption
+
+#print union_of_finsets
+
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
+  autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets.Gen
+  specialize union_of_finsets.Gen.Gen 3 4
+  assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GENERALIZING PROOFS OF SET SUMS
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+example : True := by
+  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
+    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
+    rwa [hA, hB] at h1
+  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
+  autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets.Gen
+
+  simp
+#exit
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
+  simp
+  by simp [not_or, Nat.even_mul, ← Nat.not_even_iff_odd]
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -66,7 +103,6 @@ example : True := by
   -- autogeneralize (4:ℕ) in hw_card
   trivial
 
-#exit
 
 set_option simprocs false
 set_option trace.Meta.Tactic.simp.rewrite true
@@ -142,20 +178,6 @@ example : True := by
   trivial
 
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-GENERALIZING PROOFS OF SET SUMS
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
-example : True := by
-  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
-    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    rwa [hA, hB] at h1
-  autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets.Gen
-
-  simp
-#exit
 /--
 Fabian's example:
   "hyp" is a proof that DOES NOT depend on the fact that x ≠ 0 to prove P  (even though x ≠ 0 is proven at some point on the proof)
