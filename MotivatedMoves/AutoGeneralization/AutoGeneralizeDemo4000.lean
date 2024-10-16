@@ -60,14 +60,13 @@ example : True := by
   autogeneralize (2:ℕ) in union_of_finsets.Gen
 
   simp
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
-  simp
-  by simp [not_or, Nat.even_mul, ← Nat.not_even_iff_odd]
+-- lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
+--   simp
+--   by simp [not_or, Nat.even_mul, ← Nat.not_even_iff_odd]
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -151,7 +150,8 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
     rw [@Set.toFinset_card]
-    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq]
+    -- simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq]
+    simp
     -- simp only [Fintype.card_fin, Fintype.card_ofSubsingleton, Fintype.card_subtype_compl]
     -- sorry
 
@@ -165,17 +165,13 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
 
   rw [hv_deg] at hv_deg_geq
-  sorry
+  linarith
 
-  -- sorry
-  -- simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
-  -- simp only [Nat.not_ofNat_le_one] at hv_deg_geq
+-- example : True := by
 
-example : True := by
-
-  autogeneralize (3:ℕ) in impossible_graph
-  autogeneralize (4:ℕ) in impossible_graph.Gen
-  trivial
+--   autogeneralize (3:ℕ) in impossible_graph
+--   autogeneralize (4:ℕ) in impossible_graph.Gen
+--   trivial
 
 
 /--
@@ -359,12 +355,20 @@ example := by
   autogeneralize 3 in two_times_three_is_even
   assumption
 
-/--
-An example where "3" doesn't show up in the proof term (due to use of the computation rule reduceMul), so the proof doesn't generalize.
--/
 theorem six_is_even : Even 6 := by {unfold Even; use 3}
 example := by
   let two_times_three_is_even : Even (2*3) := by
-    simp only [Nat.reduceMul]; apply six_is_even
+    simp only [even_two, Even.mul_right]
+    -- simp only [Nat.reduceMul]; apply six_is_even
+  -- autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
+  assumption
+
+/--
+An example where "3" doesn't show up in the proof term (due to use of the computation rule reduceMul), so the proof doesn't generalize.
+-/
+theorem six_is_even' : Even 6 := by {unfold Even; use 3}
+example := by
+  let two_times_three_is_even : Even (2*3) := by
+    decide
   -- autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
   assumption
