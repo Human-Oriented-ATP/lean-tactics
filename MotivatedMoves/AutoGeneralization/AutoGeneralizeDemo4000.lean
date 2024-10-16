@@ -32,13 +32,32 @@ set_option pp.showLetValues false
 SIX IS EVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 def two_times_three_is_even : Even (3+3) := by
-  simp only [Nat.reduceAdd]
-  exact Nat.even_iff.mpr rfl
+  simp only [Nat.reduceAdd] -- the computation rule
+  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
+  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
+
 example := by
   autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
 
 
 #exit
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+FOUR IS THE SUM OF TWO ODDS
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+def four_is_sum_of_odds : ∃ m n : ℕ, Odd m ∧ Odd n ∧ m+n=4 := by
+  use 3
+  use 1
+  constructor
+  exact Nat.odd_iff.mpr rfl
+  constructor
+  -- simp only [odd_one]
+  exact Nat.odd_iff.mpr rfl
+  simp only [Nat.reduceAdd]
+
+example : True := by
+  autogeneralize 4 in four_is_sum_of_odds
+
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY

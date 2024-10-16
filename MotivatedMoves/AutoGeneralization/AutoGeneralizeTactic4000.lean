@@ -339,6 +339,18 @@ def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr)
   let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
   return (genThmTypeSimp, genThmProofSimp)
 
+-- Our custom typechecking function (based on Lean's check)
+-- But in case of error, just replaces a type with its expected type.
+-- def check (e : Expr) : MetaM Unit :=
+--   withTraceNode `Meta.check (fun res =>
+--       return m!"{if res.isOk then checkEmoji else crossEmoji} {e}") do
+--     try
+--       withTransparency TransparencyMode.all $ checkAux e
+--     catch ex =>
+--       trace[Meta.check] ex.toMessageData
+--       throw ex
+
+
 /-- Instantiate metavariables according to what unifies in a typecheck -/
 def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
   try
