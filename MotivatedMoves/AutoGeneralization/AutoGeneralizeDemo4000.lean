@@ -29,6 +29,18 @@ set_option pp.showLetValues false
 --   apply Subtype.fintype _
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+SIX IS EVEN
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+def two_times_three_is_even : Even (3+3) := by
+  simp only [Nat.reduceAdd]
+  exact Nat.even_iff.mpr rfl
+example := by
+  autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
+
+
+#exit
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
@@ -39,6 +51,7 @@ theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
 
 #print union_of_finsets
 
+-- in 2 steps
 example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   autogeneralize (4:ℕ) in union_of_finsets
@@ -46,20 +59,14 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
   specialize union_of_finsets.Gen.Gen 3 4
   assumption
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-GENERALIZING PROOFS OF SET SUMS
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
-example : True := by
-  let union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
-    have h1 : (A ∪ B).card ≤ A.card + B.card := Finset.card_union_le A B
-    rwa [hA, hB] at h1
+-- in 1 step
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
-  autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets.Gen
+  -- autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets
+  specialize union_of_finsets.Gen.Gen 3 4
 
-  simp
+
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
