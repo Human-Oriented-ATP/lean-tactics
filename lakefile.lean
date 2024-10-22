@@ -6,10 +6,12 @@ package «leanTactics» {
 }
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4.git"
+  "https://github.com/leanprover-community/mathlib4.git" @ "v4.12.0"
 
 require webeditor from git
   "https://github.com/hhu-adam/lean4web-tools.git" @ "main"
+
+require smt from git "https://github.com/ufmg-smite/lean-smt.git"@"main"
 
 @[default_target]
 lean_lib MotivatedMoves
@@ -20,7 +22,7 @@ lean_exe discrTrees where
   supportInterpreter := true
 
 lean_lib Tests {
-  globs := #[.submodules "Tests"]
+  globs := #[.submodules `Tests]
 }
 
 section Scripts
@@ -89,7 +91,7 @@ def widgetDir := __dir__ / "widget"
 
 /-- Target to update `package-lock.json` whenever `package.json` has changed. -/
 target widgetPackageLock : FilePath := do
-  let packageFile ← inputFile <| widgetDir / "package.json"
+  let packageFile ← inputTextFile <| widgetDir / "package.json"
   let packageLockFile := widgetDir / "package-lock.json"
   buildFileAfterDep packageLockFile packageFile fun _srcFile => do
     proc {
@@ -102,7 +104,7 @@ target widgetPackageLock : FilePath := do
 Rebuilds whenever the `.tsx` source, or any part of the build configuration, has changed. -/
 def widgetTsxTarget (pkg : NPackage _package.name) (nodeModulesMutex : IO.Mutex Bool)
     (tsxName : String) (deps : Array (BuildJob FilePath)) (isDev : Bool) :
-    IndexBuildM (BuildJob FilePath) := do
+    FetchM (BuildJob FilePath) := do
   let jsFile := pkg.buildDir / "js" / s!"{tsxName}.js"
   buildFileAfterDepArray jsFile deps fun _srcFile => do
     /-
@@ -137,13 +139,13 @@ def widgetTsxTarget (pkg : NPackage _package.name) (nodeModulesMutex : IO.Mutex 
 
 /-- Target to build all TypeScript widget modules that match `widget/src/*.tsx`. -/
 def widgetJsAllTarget (pkg : NPackage _package.name) (isDev : Bool) :
-    IndexBuildM (BuildJob (Array FilePath)) := do
+    FetchM (BuildJob (Array FilePath)) := do
   let fs ← (widgetDir / "src").readDir
   let tsxs : Array FilePath := fs.filterMap fun f =>
     let p := f.path; if let some "tsx" := p.extension then some p else none
   -- Conservatively, every .js build depends on all the .tsx source files.
   let depFiles := tsxs ++ #[ widgetDir / "rollup.config.js", widgetDir / "tsconfig.json" ]
-  let deps ← liftM <| depFiles.mapM inputFile
+  let deps ← liftM <| depFiles.mapM inputTextFile
   let deps := deps.push $ ← fetch (pkg.target ``widgetPackageLock)
   let nodeModulesMutex ← IO.Mutex.new false
   let jobs ← tsxs.mapM fun tsx => widgetTsxTarget pkg nodeModulesMutex tsx.fileStem.get! deps isDev
@@ -162,10 +164,10 @@ def customTsxFilePath : IO FilePath := do
 /-- A version of `widgetJsAllTarget` that builds a single standalone `.tsx` file
    whose name is specified in the `./widget/tsx-target.txt` file. -/
 def customWidgetJsTarget (pkg : NPackage _package.name) (isDev : Bool) :
-    IndexBuildM (BuildJob (Array FilePath)) := do
+    FetchM (BuildJob (Array FilePath)) := do
   let tsx ← customTsxFilePath
   let depFiles := #[ widgetDir / "rollup.config.js", widgetDir / "tsconfig.json" ]
-  let deps ← liftM <| depFiles.mapM inputFile
+  let deps ← liftM <| depFiles.mapM inputTextFile
   let deps := deps.push $ ← fetch (pkg.target ``widgetPackageLock)
   let nodeModulesMutex ← IO.Mutex.new false
   let tsxFileStem := tsx.fileStem.get!
