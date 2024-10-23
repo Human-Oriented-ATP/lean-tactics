@@ -175,7 +175,24 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
-      | .letE _ t v b _  => return e.updateLet! (← visit t depth) (← visit v depth) (← visit b depth)
+      | .letE n t v b _ =>  let tAbs ← visit t depth
+                            let vAbs ← visit v depth
+                            -- this consolidates the metavariables in the generalized type and the generalized value
+                            -- isDefEq tAbs (← inferType vAbs)
+                            let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
+                              let b := b.instantiate1 placeholder
+                              -- logInfo m!"let body: {b}"
+                              let bAbs ← if (← withoutModifyingState (isDefEq tAbs t)) then
+                                    visit b depth -- now it's safe to recurse on b (no loose bvars)
+                                  else
+                                    logInfo m!"tAbs {tAbs} and t {t} are not defeq"
+                                    return b
+                              return ← mkLetFVars #[placeholder] bAbs -- put the "n:tAbs" back in the expression itself instead of in an external fvar
+                            )
+                            -- `mkLetFVars` is a wrapper around `mkLambdaFVars`, so the result of running it on `bAbs` is a lambda expression
+                            -- extracting just the body gives an expression that can be plugged back into the `Expr.letE` constructor
+                            let bAbs := updatedLetBody.bindingBody!
+                            return e.updateLet! tAbs vAbs bAbs
       | .lam n d b bi     =>
                               let dAbs ← visit d depth
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
