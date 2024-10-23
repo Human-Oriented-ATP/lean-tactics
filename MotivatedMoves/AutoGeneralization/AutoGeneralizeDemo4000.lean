@@ -28,10 +28,105 @@ set_option pp.showLetValues false
 -- instance [Fintype V'] : Fintype (G'ᶜ.neighborSet v') := by
 --   apply Subtype.fintype _
 
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+
+theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
+    have := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
+    assumption
+
+#print union_of_finsets
+
+-- in 2 steps
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
+  autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets.Gen
+  specialize union_of_finsets.Gen.Gen 3 4
+  assumption
+
+-- in 1 step
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
+  -- autogeneralize (4:ℕ) in union_of_finsets
+  autogeneralize (2:ℕ) in union_of_finsets
+  specialize union_of_finsets.Gen.Gen 3 4
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+/- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
+theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
+¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
+  let max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
+    G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
+    intro hdeg w hne
+    have hdeg_compl := G.degree_compl v
+    rw [hdeg] at hdeg_compl
+
+    simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
+    rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
+    simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
+    exact (hdeg_compl w hne.symm).symm
+
+  rintro ⟨v, hv_deg, hw_deg⟩
+
+  let hw_adj_all : ∀ w ≠ v, G.Adj v w := by
+    intro w wneqv
+    apply max_deg_imp_adj_all
+    swap
+    exact wneqv.symm
+    rw  [Fintype.card_fin]
+    have := hw_deg w wneqv
+    exact @id (G.degree w = 3) this
+
+  let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+    rw [@Set.toFinset_card]
+    simp only [ne_eq]
+    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin,
+      Fintype.card_ofSubsingleton]
+
+  let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
+  let hv_deg_geq : 3 ≤ G.degree v  := by
+    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
+    apply Finset.card_le_card
+    rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
+    exact neq_imp_adj
+
+  rw [hv_deg] at hv_deg_geq
+  simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
+
+example : True := by
+  autogeneralize (3:ℕ) in impossible_graph
+  autogeneralize (4:ℕ) in impossible_graph.Gen
+  trivial
+#exit
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+DIVISIBILITY RULE
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+theorem div_rule : ∀ p: ℕ, Prime p ∧ p > 3 → 2 * p ∣ (4*(4^(p-1) - 1)/3) := by
+  intro p ⟨pprime, pgeq3⟩
+
+  -- simp?
+  -- linarith
+  -- aesop
+  sorry
+
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+X+X IS EVEN
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+theorem x_plus_x_is_even : ∀ x: ℕ, Even (x+x) := by
+  -- exact? -- closes the goal
+  aesop -- also closes teh goal
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 SIX IS EVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-def two_times_three_is_even : Even (3+3) := by
+theorem two_times_three_is_even : Even (3+3) := by
   simp only [Nat.reduceAdd] -- the computation rule
   -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
   exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
@@ -59,31 +154,6 @@ example : True := by
   autogeneralize 4 in four_is_sum_of_odds
 
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
-
-theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
-    have := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
-    assumption
-
-#print union_of_finsets
-
--- in 2 steps
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
-  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
-  autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets.Gen
-  specialize union_of_finsets.Gen.Gen 3 4
-  assumption
-
--- in 1 step
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
-  -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
-  -- autogeneralize (4:ℕ) in union_of_finsets
-  autogeneralize (2:ℕ) in union_of_finsets
-  specialize union_of_finsets.Gen.Gen 3 4
 
 
 
@@ -148,56 +218,7 @@ example : ∀ v : Fin 5, (Set.toFinset {w : Fin 5 | w ≠ v}).card = 5-1 := by
   assumption
 
 
-/- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
-theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
-¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
-  have max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [DecidableRel G.Adj] [Fintype (Gᶜ.neighborSet v)]  :
-    G.degree v = Fintype.card V - 1 → ∀ w : V, w ≠ v → G.Adj w v := by
-    intro hdeg w hne
-    have hdeg_compl := G.degree_compl v
-    rw [hdeg] at hdeg_compl
 
-    simp only [ge_iff_le, le_refl, tsub_eq_zero_of_le] at hdeg_compl
-    rw [← SimpleGraph.card_neighborSet_eq_degree, Fintype.card_eq_zero_iff] at hdeg_compl
-    simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
-    exact (hdeg_compl w hne.symm).symm
-
-  rintro ⟨v, hv_deg, hw_deg⟩
-
-  have hw_adj_all : ∀ w ≠ v, G.Adj v w := by
-    intro w wneqv
-    apply max_deg_imp_adj_all
-    swap
-    exact wneqv.symm
-    rw  [Fintype.card_fin]
-    have := hw_deg w wneqv
-    exact @id (G.degree w = 4 - 1) this
-
-
-  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
-    rw [@Set.toFinset_card]
-    -- simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq]
-    simp
-    -- simp only [Fintype.card_fin, Fintype.card_ofSubsingleton, Fintype.card_subtype_compl]
-    -- sorry
-
-  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
-  -- sorry
-  have hv_deg_geq : 4-1 ≤ G.degree v  := by
-    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
-    apply Finset.card_le_card
-    rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
-    exact neq_imp_adj
-
-
-  rw [hv_deg] at hv_deg_geq
-  linarith
-
--- example : True := by
-
---   autogeneralize (3:ℕ) in impossible_graph
---   autogeneralize (4:ℕ) in impossible_graph.Gen
---   trivial
 
 
 /--
