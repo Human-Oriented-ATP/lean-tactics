@@ -171,7 +171,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
                             let fAbs ← visit f depth
                             let aAbs ← visit a depth
-                            -- check $ .app fAbs aAbs
+                            check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)

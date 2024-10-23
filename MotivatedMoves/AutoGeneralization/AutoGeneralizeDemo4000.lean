@@ -35,8 +35,7 @@ GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
 theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
-    have := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
-    assumption
+    apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
 
 #print union_of_finsets
 
@@ -53,7 +52,8 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   -- autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets
-  specialize union_of_finsets.Gen.Gen 3 4
+  specialize union_of_finsets.Gen 3 4
+  assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
@@ -102,7 +102,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw [Set.setOf_subset_setOf]
     intro w wneqv
     apply max_deg_imp_adj_all
-    rw  [Fintype.card_fin]
+    rewrite  [Fintype.card_fin]
     exact (hw_deg w wneqv)
     exact wneqv.symm
 
