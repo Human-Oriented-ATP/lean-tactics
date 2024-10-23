@@ -75,6 +75,8 @@ example : True := by
   autogeneralize (4:ℕ) in max_deg_imp_adj_all.Gen
   trivial
 
+def three_not_le_one : ¬ 3 ≤ 1  := by simp
+
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
@@ -88,7 +90,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     simp only [isEmpty_subtype, SimpleGraph.mem_neighborSet, SimpleGraph.compl_adj,  not_and, not_not] at hdeg_compl
     exact (hdeg_compl w hne.symm).symm
 
-  rintro ⟨v, hv_deg, hw_deg⟩
+  rintro ⟨v, v_deg, w_deg⟩
 
   let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
     rw [Set.toFinset_card]
@@ -103,10 +105,10 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     intro w wneqv
     apply max_deg_imp_adj_all
     rewrite  [Fintype.card_fin]
-    exact (hw_deg w wneqv)
+    exact (w_deg w wneqv)
     exact wneqv.symm
 
-  let hv_deg_geq : 3 ≤ G.degree v  := by
+  let v_deg_geq : 3 ≤ G.degree v  := by
     rw [← SimpleGraph.card_neighborFinset_eq_degree]
     rw [ ← hw_card]
     apply Finset.card_le_card
@@ -114,13 +116,17 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw [@Set.toFinset_subset_toFinset]
     exact neq_imp_adj
 
-  rw [hv_deg] at hv_deg_geq
-  rw [@Nat.succ_le_succ_iff] at hv_deg_geq
-  rw [@Nat.le_zero] at hv_deg_geq
-  cases hv_deg_geq
+  rw [v_deg] at v_deg_geq
+
+  apply three_not_le_one v_deg_geq
+
+  -- rw [@Nat.succ_le_succ_iff] at v_deg_geq
+  -- rw [@Nat.le_zero] at v_deg_geq
+  -- cases v_deg_geq
 
 example : True := by
   autogeneralize (3:ℕ) in impossible_graph
+  -- autogeneralize (Nat.succ 2:ℕ) in impossible_graph.Gen -- this is at type level, not term level
   autogeneralize (4:ℕ) in impossible_graph.Gen
   trivial
 #exit
