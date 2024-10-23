@@ -110,10 +110,8 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw [← SimpleGraph.card_neighborFinset_eq_degree]
     rw [ ← hw_card]
     apply Finset.card_le_card
-    rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
     unfold SimpleGraph.neighborFinset; unfold SimpleGraph.neighborSet
     rw [@Set.toFinset_subset_toFinset]
-    rw [@Set.toFinset_subset_toFinset] at neq_imp_adj
     exact neq_imp_adj
 
   rw [hv_deg] at hv_deg_geq
