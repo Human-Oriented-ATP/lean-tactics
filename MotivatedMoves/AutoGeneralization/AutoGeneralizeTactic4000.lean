@@ -241,13 +241,13 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             return e
 
     if e.hasLooseBVars then
-      logInfo "Loose BVars detected"
+      logInfo "Loose BVars detected, so we visit children."
       visitChildren ()
     else
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
       if ← (isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType --(userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         return m
       -- otherwise, "e" might contain the pattern...
