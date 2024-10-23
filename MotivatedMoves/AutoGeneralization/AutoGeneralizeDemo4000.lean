@@ -95,7 +95,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw [Set.card_ne_eq]
     rewrite [ Fintype.card_fin]
     sorry
-    simp only [Nat.reduceSub] -- or rfl
+    -- simp only [Nat.reduceSub] -- or rfl
 
 
   let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
@@ -112,7 +112,8 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     apply Finset.card_le_card
     rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
     unfold SimpleGraph.neighborFinset; unfold SimpleGraph.neighborSet
-    sorry
+    rw [@Set.toFinset_subset_toFinset]
+    rw [@Set.toFinset_subset_toFinset] at neq_imp_adj
     exact neq_imp_adj
 
   rw [hv_deg] at hv_deg_geq
