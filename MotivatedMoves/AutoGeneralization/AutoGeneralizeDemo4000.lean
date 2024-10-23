@@ -90,13 +90,12 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   rintro ⟨v, hv_deg, hw_deg⟩
 
-  --   -- exact @id (G.degree w = 3) this
-
-  let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 4-1 := by
-    rw [@Set.toFinset_card]
+  let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+    rw [Set.toFinset_card]
+    rw [Set.card_ne_eq]
+    rewrite [ Fintype.card_fin]
     sorry
-    rw [@Set.card_ne_eq]
-    rw [ Fintype.card_fin]
+    simp only [Nat.reduceSub] -- or rfl
 
 
   let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
@@ -107,7 +106,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact (hw_deg w wneqv)
     exact wneqv.symm
 
-  let hv_deg_geq : 4-1 ≤ G.degree v  := by
+  let hv_deg_geq : 3 ≤ G.degree v  := by
     rw [← SimpleGraph.card_neighborFinset_eq_degree]
     rw [ ← hw_card]
     apply Finset.card_le_card
@@ -115,7 +114,6 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     unfold SimpleGraph.neighborFinset; unfold SimpleGraph.neighborSet
     sorry
     exact neq_imp_adj
-
 
   rw [hv_deg] at hv_deg_geq
   simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
