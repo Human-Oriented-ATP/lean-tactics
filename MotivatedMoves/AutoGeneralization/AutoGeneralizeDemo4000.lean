@@ -75,25 +75,34 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
   rintro ⟨v, hv_deg, hw_deg⟩
 
   let hw_adj_all : ∀ w ≠ v, G.Adj v w := by
+
     intro w wneqv
     apply max_deg_imp_adj_all
     swap
     exact wneqv.symm
     rw  [Fintype.card_fin]
     have := hw_deg w wneqv
+
     exact @id (G.degree w = 3) this
 
   let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+
     rw [@Set.toFinset_card]
+
     simp only [ne_eq]
-    simp only [ne_eq, Set.coe_setOf, Set.mem_setOf_eq, Fintype.card_subtype_compl, Fintype.card_fin,
-      Fintype.card_ofSubsingleton]
+    simp only [Set.coe_setOf]
+    sorry
+    rw [Fintype.card_subtype_compl]
+    rw [ Fintype.card_fin, Fintype.card_ofSubsingleton]
+
 
   let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := hw_adj_all
   let hv_deg_geq : 3 ≤ G.degree v  := by
-    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← hw_card]
+    rw [← SimpleGraph.card_neighborFinset_eq_degree]
+    rw [ ← hw_card]
     apply Finset.card_le_card
     rw [← Set.toFinset_subset_toFinset] at neq_imp_adj
+    sorry
     exact neq_imp_adj
 
   rw [hv_deg] at hv_deg_geq
