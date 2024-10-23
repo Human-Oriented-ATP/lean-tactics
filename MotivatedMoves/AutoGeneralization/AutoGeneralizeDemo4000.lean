@@ -95,8 +95,8 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     rw [Set.card_ne_eq]
     rewrite [ Fintype.card_fin]
     sorry
-    -- simp only [Nat.reduceSub] -- or rfl
-
+    -- rfl
+    simp only [Nat.reduceSub] -- or rfl
 
   let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
     rw [Set.setOf_subset_setOf]
@@ -115,7 +115,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact neq_imp_adj
 
   rw [hv_deg] at hv_deg_geq
-  simp only [Nat.reduceSub, Nat.not_ofNat_le_one] at hv_deg_geq
+  simp only [Nat.not_ofNat_le_one] at hv_deg_geq
 
 example : True := by
   autogeneralize (3:ℕ) in impossible_graph
