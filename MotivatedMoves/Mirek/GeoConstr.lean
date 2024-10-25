@@ -384,26 +384,26 @@ open Model in def Step.apply? (step : Step) (model : Model) : Option Model :=
     return { model with lines := model.lines.push l2 }
   | circleP r pi => do
     let some p := model.points[pi]? | none
-    let c : Circle := { c := p, r := r }
+    let c : Model.Circle := { c := p, r := r }
     return { model with circles := model.circles.push c }
   | compassC center ci => do
     let some c := model.circles[ci]? | none
-    let c2 : Circle := { c := center, r := c.r }
+    let c2 : Model.Circle := { c := center, r := c.r }
     return { model with circles := model.circles.push c2 }
   | compassPP center pi1 pi2 => do
     let some p1 := model.points[pi1]? | none
     let some p2 := model.points[pi2]? | none
-    let c2 : Circle := { c := center, r := p1.dist p2 }
+    let c2 : Model.Circle := { c := center, r := p1.dist p2 }
     return { model with circles := model.circles.push c2 }
   | circumcircleP relcenter pi => do
     let some p := model.points[pi]? | none
-    let c : Circle := Circle.PP (p + relcenter) p
+    let c : Model.Circle := Model.Circle.PP (p + relcenter) p
     return { model with circles := model.circles.push c }
   | circumcirclePP coef pi1 pi2 => do
     let some p1 := model.points[pi1]? | none
     let some p2 := model.points[pi2]? | none
     let center : Point := centerFromCoef coef p1 p2
-    let c := Circle.PP center p1
+    let c := Model.Circle.PP center p1
     return { model with circles := model.circles.push c }
   | midpointPP pi1 pi2 => do
     let some p1 := model.points[pi1]? | none
@@ -554,18 +554,18 @@ open Model in def Step.apply? (step : Step) (model : Model) : Option Model :=
   | circlePP pi1 pi2 => do
     let some p1 := model.points[pi1]? | none
     let some p2 := model.points[pi2]? | none
-    let c := Circle.PP p1 p2
+    let c := Model.Circle.PP p1 p2
     return { model with circles := model.circles.push c }
   | compassCP ci pi => do
     let some c := model.circles[ci]? | none
     let some p := model.points[pi]? | none
-    let c2 : Circle := { c := p, r := c.r }
+    let c2 : Model.Circle := { c := p, r := c.r }
     return { model with circles := model.circles.push c2 }
   | compassPPP pi1 pi2 pi => do
     let some p1 := model.points[pi1]? | none
     let some p2 := model.points[pi2]? | none
     let some p := model.points[pi]? | none
-    let c2 : Circle := { c := p, r := p1.dist p2 }
+    let c2 : Model.Circle := { c := p, r := p1.dist p2 }
     return { model with circles := model.circles.push c2 }
   | diaCirclePP pi1 pi2 => do
     let some p1 := model.points[pi1]? | none
@@ -767,7 +767,7 @@ def outAddLine (name : LineName) (body : Expr) : Expr :=
 def outAddCircle (name : CircleName) (body : Expr) : Expr :=
   Expr.forallE name.name (Expr.const ``Circle []) body BinderInfo.default
 def outAddCond (cond : Expr) (body : Expr) : Expr :=
-  Expr.forallE "_" cond body BinderInfo.default
+  Expr.forallE `_ cond body BinderInfo.default
 def outAddPointC (name : PointName) (cond : Expr) (body : Expr) : Expr :=
   outAddPoint name <| outAddCond cond body
 def outAddLineC (name : LineName) (cond : Expr) (body : Expr) : Expr :=

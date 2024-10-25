@@ -5,9 +5,6 @@ package «leanTactics» {
   -- add any package configuration options here
 }
 
-require mathlib from git
-  "https://github.com/leanprover-community/mathlib4.git" @ "v4.12.0"
-
 require webeditor from git
   "https://github.com/hhu-adam/lean4web-tools.git" @ "main"
 
