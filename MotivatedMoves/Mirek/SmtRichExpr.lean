@@ -78,6 +78,7 @@ def SmtRichExpr.fromLeanInt : Q(Int) → Lean.Meta.MetaM SmtRichExpr
 
 partial
 def SmtRichExpr.fromLeanProp : Q(Prop) → Lean.Meta.MetaM SmtRichExpr
+| (.mdata _ e) => fromLeanProp e
 | ~q(True) => return .str "true"
 | ~q(False) => return .str "false"
 | ~q($a ∧ $b) => return (.apply "and" [(← fromLeanProp a), (← fromLeanProp b)])
@@ -99,7 +100,8 @@ def SmtRichExpr.fromLeanProp : Q(Prop) → Lean.Meta.MetaM SmtRichExpr
 
 def SmtRichExpr.fromLeanProp? (e : Lean.Expr) : Lean.Meta.MetaM (Option SmtRichExpr)
 := do
-  if ((← Lean.Meta.inferType e) == q(Prop)) then
+  let e ← Lean.instantiateMVars e
+  if ((← Lean.Meta.inferType e)) == q(Prop) then
     return some (← SmtRichExpr.fromLeanProp e)
   else
     return none
