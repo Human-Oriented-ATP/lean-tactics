@@ -1,4 +1,5 @@
 import Mathlib.Tactic
+import MotivatedMoves.Mirek.SmtSolver
 
 def countWindow (l : List Bool) (start : ℕ) (size : ℕ) : ℕ
   := ((l.drop start).take size).count true
@@ -79,12 +80,13 @@ theorem problem_window_al_lower_bound (n : ℕ) (l : List Bool)
   have := ineq_chain (λ x : ℕ ↦ countWindow l (n*x) n) 0 k (Nat.zero_le k) (by
     intros x _ _; simp [mul_add]
     apply h.2 (n*x)
-    have : n^2 - n = n*(n-1) := by
-      simp [Nat.pow_two, Nat.mul_sub_left_distrib]
-    rw [this]
-    suffices : x ≤ n-1
-    nlinarith
-    omega
+    int_hammer
+    -- have : n^2 - n = n*(n-1) := by
+    --   simp [Nat.pow_two, Nat.mul_sub_left_distrib]
+    -- rw [this]
+    -- suffices : x ≤ n-1
+    -- nlinarith
+    -- omega
   )
   simp at this
   apply le_trans; swap; exact this
@@ -98,12 +100,13 @@ theorem problem_window_al_upper_bound (n : ℕ) (l : List Bool)
   have from_chain := ineq_chain (λ x : ℕ ↦ countWindow l (n*x) n) k n kh (by
     intros x _ _; simp [mul_add]
     apply h.2 (n*x)
-    have : n^2 - n = n*(n-1) := by
-      simp [Nat.pow_two, Nat.mul_sub_left_distrib]
-    rw [this]
-    suffices : x ≤ n-1
-    nlinarith
-    omega
+    int_hammer
+    -- have : n^2 - n = n*(n-1) := by
+    --   simp [Nat.pow_two, Nat.mul_sub_left_distrib]
+    -- rw [this]
+    -- suffices : x ≤ n-1
+    -- nlinarith
+    -- omega
   )
   simp at from_chain
   have basic_bound := count_window_basic_bound l (n * n) n
@@ -128,12 +131,13 @@ theorem problem_window_nal_lower_bound (n : ℕ) (l : List Bool)
     intros x _ _; simp [mul_add]
     rw [add_assoc, add_comm n a, ←add_assoc]
     apply h.2 (n*x+a)
-    have : n^2 - n = n*(n-1) := by
-      simp [Nat.pow_two, Nat.mul_sub_left_distrib]
-    rw [this]
-    suffices : x < n-1
-    nlinarith
-    omega
+    int_hammer
+    -- have : n^2 - n = n*(n-1) := by
+    --   simp [Nat.pow_two, Nat.mul_sub_left_distrib]
+    -- rw [this]
+    -- suffices : x < n-1
+    -- nlinarith
+    -- omega
   )
   simp at this
   apply le_trans; swap; exact this
@@ -150,10 +154,12 @@ theorem problem_window_nal_upper_bound (n : ℕ) (l : List Bool)
     intros x _ _; simp [mul_add]
     rw [add_assoc, add_comm n a, ←add_assoc]
     apply h.2 (n*x+a)
-    have : n^2 - n = n*(n-1) := by
-      simp [Nat.pow_two, Nat.mul_sub_left_distrib]
-    rw [this]
-    nlinarith
+    -- int_hammer_show_smt
+    int_hammer
+    -- have : n^2 - n = n*(n-1) := by
+    --   simp [Nat.pow_two, Nat.mul_sub_left_distrib]
+    -- rw [this]
+    -- nlinarith
   )
   simp at from_chain
   have basic_bound := count_window_basic_bound l (n * (n-1) + a) n
@@ -183,4 +189,4 @@ theorem experiment1 (n : ℕ) (l : List Bool)
     have h2 := count_window_add l n 1 (n-1)
     have s1 : 1+(n-1) = n := by omega
     simp [s1] at h2
-    linarith
+    omega
