@@ -29,6 +29,63 @@ set_option pp.showLetValues false
 --   apply Subtype.fintype _
 
 
+def test :=
+fun h =>
+  @Eq.casesOn Nat 2
+    (fun a t =>
+      @Eq Nat 0 a →
+        @HEq (@Eq Nat 2 0)
+            (@Eq.mp (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0)
+              (@congrArg Prop Prop (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (fun _a => _a)
+                (@propext (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (@Nat.le_zero 2)))
+              (@Eq.mp (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                (@congrArg Prop Prop (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                  (fun _a => _a)
+                  (@propext (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                    (@Nat.succ_le_succ_iff 2 0)))
+                h))
+            (@Eq Nat 2 a) t →
+          False)
+    0
+    (@Eq.mp (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0)
+      (@congrArg Prop Prop (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (fun _a => _a)
+        (@propext (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (@Nat.le_zero 2)))
+      (@Eq.mp (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+        (@congrArg Prop Prop (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0) (fun _a => _a)
+          (@propext (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+            (@Nat.succ_le_succ_iff 2 0)))
+        h))
+    (fun h_1 =>
+      @Nat.noConfusion
+        (@HEq (@Eq Nat 2 0)
+            (@Eq.mp (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0)
+              (@congrArg Prop Prop (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (fun _a => _a)
+                (@propext (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (@Nat.le_zero 2)))
+              (@Eq.mp (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                (@congrArg Prop Prop (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                  (fun _a => _a)
+                  (@propext (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+                    (@Nat.succ_le_succ_iff 2 0)))
+                h))
+            (@Eq Nat 2 2) (@Eq.refl Nat 2) →
+          False)
+        0 2 h_1)
+    (@Eq.refl Nat 0)
+    (@HEq.refl (@Eq Nat 2 0)
+      (@Eq.mp (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0)
+        (@congrArg Prop Prop (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (fun _a => _a)
+          (@propext (@LE.le Nat instLENat 2 0) (@Eq Nat 2 0) (@Nat.le_zero 2)))
+        (@Eq.mp (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+          (@congrArg Prop Prop (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+            (fun _a => _a)
+            (@propext (@LE.le Nat instLENat (Nat.succ 2) (Nat.succ 0)) (@LE.le Nat instLENat 2 0)
+              (@Nat.succ_le_succ_iff 2 0)))
+          h)))
+
+example : True := by
+  have test := test
+  autogeneralize 3 in test
+  trivial
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -120,26 +177,28 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   apply three_not_le_one v_deg_geq
 
-  -- rw [@Nat.succ_le_succ_iff] at v_deg_geq
-  -- rw [@Nat.le_zero] at v_deg_geq
-  -- cases v_deg_geq
-
 example : True := by
   autogeneralize (3:ℕ) in impossible_graph
-  -- autogeneralize (Nat.succ 2:ℕ) in impossible_graph.Gen -- this is at type level, not term level
   autogeneralize (4:ℕ) in impossible_graph.Gen
+  -- simp at impossible_graph.Gen.Gen
   trivial
-#exit
+
+-- example : True := by
+--   autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
+--   autogeneralize (3:ℕ) in impossible_graph.Gen
+--   -- simp at impossible_graph.Gen.Gen
+--   trivial
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DIVISIBILITY RULE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-theorem div_rule : ∀ p: ℕ, Prime p ∧ p > 3 → 2 * p ∣ (4*(4^(p-1) - 1)/3) := by
-  intro p ⟨pprime, pgeq3⟩
+-- theorem div_rule : ∀ p: ℕ, Prime p ∧ p > 3 → 2 * p ∣ (4*(4^(p-1) - 1)/3) := by
+--   intro p ⟨pprime, pgeq3⟩
 
-  -- simp?
-  -- linarith
-  -- aesop
-  sorry
+--   -- simp?
+--   -- linarith
+--   -- aesop
+--   sorry
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -157,11 +216,10 @@ theorem two_times_three_is_even : Even (3+3) := by
   -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
   exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
 
-example := by
-  autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
+-- example := by
+--   autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
 
 
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 FOUR IS THE SUM OF TWO ODDS
@@ -178,7 +236,7 @@ def four_is_sum_of_odds : ∃ m n : ℕ, Odd m ∧ Odd n ∧ m+n=4 := by
 
 example : True := by
   autogeneralize 4 in four_is_sum_of_odds
-
+  trivial
 
 
 

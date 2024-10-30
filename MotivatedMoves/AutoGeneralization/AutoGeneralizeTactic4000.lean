@@ -143,6 +143,25 @@ def hasMVarOfType (t e: Expr) : MetaM Bool := do
   let mvarIds ← getMVars e
   mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
 
+/--
+If the expression `e` contains pattern `p` in its type (but not term), returns a metavariable of the generalized type.
+Otherwise, just returns the initial `e`
+-/
+def gen (e : Expr) (p : Expr) : MetaM Expr := do
+  let eType ← inferType e
+  let mvar ← mkFreshExprMVar (some (← inferType p))
+  let abstractedEType ← kabstract eType p -- note -- if this doesn't work, try using visit to abstract
+  let abstractedETerm ← kabstract e p -- note -- if this doesn't work, try using visit to abstract
+  let eTypeContainsP := abstractedEType.hasLooseBVars
+  let eTermContainsP := abstractedETerm.hasLooseBVars
+  if eTypeContainsP && ! eTermContainsP then
+    let genConstType := abstractedEType.instantiate1 mvar
+    let m ← mkFreshExprMVar genConstType (kind := .synthetic) -- mvar for generalized proof
+    -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
+    logInfo m!"About to replace {e} with a mvar of type {genConstType}"
+    return e
+  else return e
+
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
@@ -150,6 +169,7 @@ Roughly implemented like kabstract, with the following differences:
   kabstract doesn't look for instances of "p" in the types of constants, this does
   kabstract doesn't look under loose bvars, but this creates localdecls so we can still look under bvars
 -/
+
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- return e
@@ -159,7 +179,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   --return e
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
-
+    -- let _ ← gen e p -- prints stuff
     -- let e ← whnf e
     -- logInfo m!"recursing on {e} with constructor {e.ctorName}"
     let visitChildren : Unit → MetaM Expr := fun _ => do
@@ -428,7 +448,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   let genThmType ← inferType genThmProof; --logInfo ("Tactic Generalized Type: " ++ genThmType)
 
   -- Run "simp".
-  -- let (genThmType, genThmProof) ← performSimp genThmType genThmProof
+  -- let (simpgenThmType, simpgenThmProof) ← performSimp genThmType genThmProof
 
   -- Add the generalized theorem to the context.
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
