@@ -86,6 +86,7 @@ example : True := by
   have test := test
   autogeneralize 3 in test
   trivial
+#exit
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/

@@ -143,11 +143,35 @@ def hasMVarOfType (t e: Expr) : MetaM Bool := do
   let mvarIds ← getMVars e
   mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
 
+/-
+Returns true if the expression `e` contains anything defEq to `p`
+-/
+def containsUpToDefEq (p : Expr) (e : Expr) : MetaM Bool := do
+  let (_, result) ← StateT.run (s := false) <| forEachExpr e (fun subexpr => do
+    if (← liftM <| isDefEq subexpr p) then
+      set true
+      return -- stop traversal
+  )
+  return result
+
+open Qq in
+#eval show MetaM _ from do
+  let two_plus_one := q(2 + 1)
+  let three_times_four := q((2 + 1)*4)
+  let four_times_four := q(4*4)
+  let three_is_even := q(Even 3)
+  let three := q(3)
+  -- containsUpToDefEq  three two_plus_one -- true
+  -- containsUpToDefEq  three three_times_four -- true
+  -- containsUpToDefEq  three four_times_four -- false
+  containsUpToDefEq  three three_is_even -- true
+  -- containsUpToDefEq  three three -- true
+
 /--
 If the expression `e` contains pattern `p` in its type (but not term), returns a metavariable of the generalized type.
 Otherwise, just returns the initial `e`
 -/
-def gen (e : Expr) (p : Expr) : MetaM Expr := do
+def abstractIfTypeContainsP (e : Expr) (p : Expr) : MetaM Expr := do
   let eType ← inferType e
   let mvar ← mkFreshExprMVar (some (← inferType p))
   let abstractedEType ← kabstract eType p -- note -- if this doesn't work, try using visit to abstract
@@ -179,9 +203,19 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   --return e
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
-    -- let _ ← gen e p -- prints stuff
-    -- let e ← whnf e
-    -- logInfo m!"recursing on {e} with constructor {e.ctorName}"
+
+    -- abstract if type contains p
+    -- let eType ← inferType e
+    -- let abstractedEType ← visit eType -- note -- if this doesn't work, try using visit to abstract
+    -- let abstractedETerm ← visit e -- note -- if this doesn't work, try using visit to abstract
+    -- let eTypeContainsP ← hasMVarOfType pType abstractedEType
+    -- let eTermContainsP ← hasMVarOfType pType abstractedETerm
+    -- if eTypeContainsP && ! eTermContainsP then
+    --   let m ← mkFreshExprMVar abstractedEType (kind := .synthetic) -- mvar for generalized proof
+    --   logInfo m!"About to replace {e} with a mvar of type {abstractedEType}"
+    --   return e
+
+
     let visitChildren : Unit → MetaM Expr := fun _ => do
       if e.hasLooseBVars then
         logInfo m!"Loose BVars detected on expression {e}"
