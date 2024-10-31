@@ -25,6 +25,16 @@ set_option pp.showLetValues false
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+lemma product_of_odds' (a b : Nat) : Odd ((2*a+1)*(2*b+1)):= by
+  use (a*2*b + a + b)
+  rewrite [add_mul,mul_add, mul_add, mul_add, mul_add, mul_one, mul_one, one_mul]
+  rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc,add_assoc]
+  rfl
+
+example : True := by
+  have product_of_odds' := product_of_odds'
+  autogeneralize (2:ℕ) in product_of_odds'
+
 lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
   rintro ⟨⟨a,m_odd⟩ , ⟨b,n_odd⟩⟩
   -- rw [Odd] at * -- causes autogen to fail since there is something specific about "Odd"
