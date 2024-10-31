@@ -33,7 +33,7 @@ PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
   rintro ⟨⟨a,m_odd⟩ , ⟨b,n_odd⟩⟩
-  rw [Odd] at *
+  -- rw [Odd] at * -- causes autogen to fail since there is something specific about "Odd"
   rw [m_odd]
   rw [n_odd]
   use (a*2*b + a + b)
@@ -45,8 +45,10 @@ lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
 
 example : True := by
   have product_of_odds := product_of_odds
-  trivial
-  -- autogeneralize 2 in product_of_odds
+  autogeneralize (2:ℕ) in product_of_odds
+  -- autogeneralize_basic (2:ℕ) in product_of_odds
+
+  -- trivial
 #exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
