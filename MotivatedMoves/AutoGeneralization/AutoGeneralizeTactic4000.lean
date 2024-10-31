@@ -206,6 +206,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- return e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   let pType ← inferType p
+  logInfo m!"We are replacing the pattern {p}:{pType} with mvars."
 
   -- let _ ← abstractIfTypeContainsP e p
 
@@ -236,7 +237,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             let fAbs ← visit f depth -- the type
                             let aAbs ← visit a depth -- the term
                             try
-                              check $ .app fAbs aAbs
+                              -- check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
                             catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               -- logInfo m!"fabs was {fAbs} with type {← inferType fAbs}"
@@ -247,7 +248,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               let m ← mkFreshExprMVar expectedA -- mvar for generalized / expected type
                               logInfo m!"so abstracting it out to an mvar {m}"
-                              check $ .app fAbs m
+                              -- check $ .app fAbs m
                               return e.updateApp! fAbs m
                               -- if this doesn't typecheck, that means probably that term has been generalized,
                               -- but type still has the pattern (or a comp rule was used).

@@ -22,12 +22,6 @@ set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
 
--- variable (V' : Type) (G' : SimpleGraph V') (v' : V') [DecidableRel G'.Adj] [DecidableRel G'ᶜ.Adj]
--- instance [Fintype V'] : Fintype (G'.neighborSet v') := by
---   apply Subtype.fintype _
--- instance [Fintype V'] : Fintype (G'ᶜ.neighborSet v') := by
---   apply Subtype.fintype _
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
