@@ -146,7 +146,7 @@ def hasMVarOfType (t e: Expr) : MetaM Bool := do
 /-
 Returns true if the expression `e` contains anything defEq to `p`
 -/
-def containsUpToDefEq (p : Expr) (e : Expr) : MetaM Bool := do
+def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
   let (_, result) ← StateT.run (s := false) <| forEachExpr e (fun subexpr => do
     if (← liftM <| isDefEq subexpr p) then
       set true
@@ -156,35 +156,42 @@ def containsUpToDefEq (p : Expr) (e : Expr) : MetaM Bool := do
 
 open Qq in
 #eval show MetaM _ from do
-  let two_plus_one := q(2 + 1)
+  let two_plus_one := q(Nat.succ 2)
   let three_times_four := q((2 + 1)*4)
   let four_times_four := q(4*4)
   let three_is_even := q(Even 3)
   let three := q(3)
-  -- containsUpToDefEq  three two_plus_one -- true
-  -- containsUpToDefEq  three three_times_four -- true
-  -- containsUpToDefEq  three four_times_four -- false
-  containsUpToDefEq  three three_is_even -- true
-  -- containsUpToDefEq  three three -- true
+  containsSubexpr  three two_plus_one -- true
+  -- containsSubexpr  three three_times_four -- true
+  -- containsSubexpr  three four_times_four -- false
+  -- containsSubexpr  three three_is_even -- true
+  -- containsSubexpr  three three -- true
 
 /--
 If the expression `e` contains pattern `p` in its type (but not term), returns a metavariable of the generalized type.
 Otherwise, just returns the initial `e`
 -/
 def abstractIfTypeContainsP (e : Expr) (p : Expr) : MetaM Expr := do
+  logInfo "abstracting if type contains p"
   let eType ← inferType e
-  let mvar ← mkFreshExprMVar (some (← inferType p))
-  let abstractedEType ← kabstract eType p -- note -- if this doesn't work, try using visit to abstract
-  let abstractedETerm ← kabstract e p -- note -- if this doesn't work, try using visit to abstract
-  let eTypeContainsP := abstractedEType.hasLooseBVars
-  let eTermContainsP := abstractedETerm.hasLooseBVars
+  let eTypeContainsP ← containsSubexpr p eType
+  let eTermContainsP ← containsSubexpr p e
+  logInfo m!"type contains p={p}? {eTypeContainsP} "
+  logInfo m!"term contains p? {eTermContainsP} "
+  logInfo m!" type is {eType}"
+
+
   if eTypeContainsP && ! eTermContainsP then
-    let genConstType := abstractedEType.instantiate1 mvar
-    let m ← mkFreshExprMVar genConstType (kind := .synthetic) -- mvar for generalized proof
+    -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) -- mvar for generalized proof
     -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-    logInfo m!"About to replace {e} with a mvar of type {genConstType}"
+    logInfo m!"About to replace {e} with a mvar of a generalized {eType}"
     return e
   else return e
+
+/-- Returns the argument to an expression e.g. if fAbs has type "n-1= 3 → n=4" then it returns "n-1=3"-/
+def extractArgType (fAbs : Expr) : MetaM Expr := do
+  let fAbsType ← inferType fAbs
+  return fAbsType.bindingDomain!
 
 /- Replaces all instances of "p" in "e" with a metavariable.
 Roughly implemented like kabstract, with the following differences:
@@ -200,9 +207,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   let pType ← inferType p
 
-  --return e
+  -- let _ ← abstractIfTypeContainsP e p
+
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
+
+
 
     -- abstract if type contains p
     -- let eType ← inferType e
@@ -223,10 +233,23 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
-                            let fAbs ← visit f depth
-                            let aAbs ← visit a depth
-                            --check $ .app fAbs aAbs
-                            return e.updateApp! fAbs aAbs
+                            let fAbs ← visit f depth -- the type
+                            let aAbs ← visit a depth -- the term
+                            try
+                              check $ .app fAbs aAbs
+                              return e.updateApp! fAbs aAbs
+                            catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
+                              -- logInfo m!"fabs was {fAbs} with type {← inferType fAbs}"
+                              -- logInfo m!"aAbs was {aAbs} with type {← inferType aAbs}"
+                              let expectedAbs ← extractArgType fAbs
+                               -- logInfo m!"aAbs was expected to have type {expectedAbs}"
+                              -- let m ← mkFreshExprMVarAt lctx linst expectedAbs --(kind := .synthetic) -- mvar for generalized proof
+                              let m ← mkFreshExprMVar expectedAbs -- mvar for generalized / expected type
+                              check $ .app fAbs m
+                              return e.updateApp! fAbs m
+                              -- if this doesn't typecheck, that means probably that term has been generalized,
+                              -- but type still has the pattern (or a comp rule was used).
+                              -- so to fix it, we should discard the proof entirely (by making it a mvar
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth
