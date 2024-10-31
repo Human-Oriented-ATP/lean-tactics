@@ -241,10 +241,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               -- logInfo m!"fabs was {fAbs} with type {← inferType fAbs}"
                               -- logInfo m!"aAbs was {aAbs} with type {← inferType aAbs}"
-                              let expectedAbs ← extractArgType fAbs
-                               -- logInfo m!"aAbs was expected to have type {expectedAbs}"
-                              -- let m ← mkFreshExprMVarAt lctx linst expectedAbs --(kind := .synthetic) -- mvar for generalized proof
-                              let m ← mkFreshExprMVar expectedAbs -- mvar for generalized / expected type
+                              let expectedA ← extractArgType fAbs
+                              -- let expectedaAbs ← visit expectedA depth
+                              logInfo m!"aAbs was expected to have type {expectedA} but has type {← inferType aAbs}"
+                              -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
+                              let m ← mkFreshExprMVar expectedA -- mvar for generalized / expected type
+                              logInfo m!"so abstracting it out to an mvar {m}"
                               check $ .app fAbs m
                               return e.updateApp! fAbs m
                               -- if this doesn't typecheck, that means probably that term has been generalized,
@@ -307,8 +309,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
                                 -- if the const does have the pattern in its definition, it is a property we should generalize
                                 if ← hasMVarOfType pType genConstType then
-                                  logInfo m!"has gen const type {genConstType}"
                                   let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
+                                  logInfo m!"made mvar m of type {genConstType}"
                                   -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                                   return m
 
@@ -326,6 +328,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       if ← (isDefEq e p) then
         let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
+        -- logInfo m!"made mvar {m} of type {pType}"
         return m
       -- otherwise, "e" might contain the pattern...
       else

@@ -27,7 +27,19 @@ set_option pp.showLetValues false
 --   apply Subtype.fintype _
 -- instance [Fintype V'] : Fintype (G'ᶜ.neighborSet v') := by
 --   apply Subtype.fintype _
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+SIX IS EVEN
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+theorem six_is_even : Even (3+3) := by
+  -- simp only [Nat.reduceAdd] -- the computation rule
+  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
+  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
 
+example : Even 4 := by
+  autogeneralize 3 in six_is_even -- extracts out comp rule
+  specialize six_is_even.Gen 1 3
+  simp at six_is_even.Gen
+  assumption
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -90,12 +102,16 @@ example : True := by
   trivial
 
 example : True := by
-  have := impossible_graph
+  have impossible_graph := impossible_graph
   autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
+  -- specialize impossible_graph.Gen 5
   -- autogeneralize (3:ℕ) in impossible_graph.Gen
   -- simp at impossible_graph.Gen.Gen
   trivial
+
 #exit
+
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 TRYING OTHER MINIMAL EXAMPLES
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -209,7 +225,6 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
   assumption
 
 
-#exit
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DIVISIBILITY RULE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -229,16 +244,6 @@ theorem x_plus_x_is_even : ∀ x: ℕ, Even (x+x) := by
   -- exact? -- closes the goal
   aesop -- also closes teh goal
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-SIX IS EVEN
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-theorem two_times_three_is_even : Even (3+3) := by
-  simp only [Nat.reduceAdd] -- the computation rule
-  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
-  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
-
--- example := by
-  -- autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
 
 
 
