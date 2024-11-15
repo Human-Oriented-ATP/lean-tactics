@@ -1,4 +1,4 @@
-import MotivatedMoves.Mirek.SmtExpr
+import MotivatedMoves.Mirek.SmtHammer.SmtExpr
 
 namespace lispLexer
 
