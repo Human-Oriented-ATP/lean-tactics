@@ -108,7 +108,7 @@ def SmtRichExpr.fromLeanInt (e : Q(Int)) : Lean.Meta.MetaM SmtRichExpr
 | ~q(↑($a : Nat)) => SmtRichExpr.fromLeanNat a
 | e => match e.getNat? with
   | some n => return .const n
-  | none => return .atomic e .nat
+  | none => return .atomic e .int
 
 partial
 def SmtModel.intValue (m : SmtModel) (e : Q(Int)) : Lean.Meta.MetaM Int

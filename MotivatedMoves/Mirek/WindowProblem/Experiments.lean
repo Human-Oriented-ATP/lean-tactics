@@ -152,7 +152,7 @@ theorem aux10 (n : ℤ) (l : List Bool) (h : problem_assump n l)
   have := aux8 n l h (by omega)
   have := aux9 n l h (by omega)
   have := problem_window_nal_value n l h
-    (n-1) (sub_one_lt n) 1 (by omega) (by omega)
+    (n-1) ⟨by omega, sub_one_lt n⟩ 1 (by omega) (by omega)
   have := window_ineq (n+1) (by omega)
   ring_nf at *
   window_tactic

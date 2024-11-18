@@ -188,11 +188,11 @@ theorem problem_window_al_value (n : ℤ) (l : List Bool)
   apply problem_window_al_lower_bound n l h k k0 kn
 
 theorem problem_window_nal_lower_bound (n : ℤ) (l : List Bool)
-: problem_assump n l → ∀ a < n, ∀ k : ℤ, 0 ≤ k → k < n →
+: problem_assump n l → ∀ a : ℤ, 0 ≤ a → a < n → ∀ k : ℤ, 0 ≤ k → k < n →
   countWindow l (n*k + a) (n*k + n + a) ≥ k
 := by
   intro ⟨h1,h2,h3⟩
-  intros a ah k k0 kn
+  intros a a0 an k k0 kn
   have := ineq_chain (λ x : ℤ ↦ countWindow l (n*x+a) (n*x+a+n))
     0 k k0
     (by
@@ -208,11 +208,11 @@ theorem problem_window_nal_lower_bound (n : ℤ) (l : List Bool)
   omega
 
 theorem problem_window_nal_upper_bound (n : ℤ) (l : List Bool)
-: problem_assump n l → ∀ a < n, ∀ k : ℤ, 0 ≤ k → k < n →
+: problem_assump n l → ∀ a : ℤ, 0 ≤ a → a < n → ∀ k : ℤ, 0 ≤ k → k < n →
   countWindow l (n*k + a) (n*k + n + a) ≤ k+1
 := by
   intro ⟨h1,h2,h3⟩
-  intros a ah k k0 kn
+  intros a a0 an k k0 kn
   have := ineq_chain (λ x : ℤ ↦ countWindow l (n*x+a) (n*x+a+n))
     k (n-1) (Int.le_sub_one_of_lt kn)
     (by
@@ -228,10 +228,10 @@ theorem problem_window_nal_upper_bound (n : ℤ) (l : List Bool)
   omega
 
 theorem problem_window_nal_value (n : ℤ) (l : List Bool)
-: problem_assump n l → ∀ a < n, ∀ k : ℤ, 0 ≤ k → k < n →
+: problem_assump n l → ∀ a : ℤ, (0 ≤ a ∧ a < n) → ∀ k : ℤ, 0 ≤ k → k < n →
   countWindow l (n*k+a) (n*k+n+a) = k ∨ countWindow l (n*k+a) (n*k+n+a) = k+1
 := by
-  intros h a ah k k0 kn
-  have lower := problem_window_nal_lower_bound n l h a ah k k0 kn
-  have upper := problem_window_nal_upper_bound n l h a ah k k0 kn
+  intro h a ⟨a0,an⟩ k k0 kn
+  have lower := problem_window_nal_lower_bound n l h a a0 an k k0 kn
+  have upper := problem_window_nal_upper_bound n l h a a0 an k k0 kn
   omega
