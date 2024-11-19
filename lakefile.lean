@@ -6,10 +6,12 @@ package «leanTactics» {
 }
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4.git" @ "v4.8.0-rc1"
+  "https://github.com/leanprover-community/mathlib4.git" @ "v4.13.0"
 
 require webeditor from git
   "https://github.com/hhu-adam/lean4web-tools.git" @ "main"
+
+require verso from git "https://github.com/leanprover/verso" @ "v4.13.0"
 
 -- require leanaide from git "https://github.com/siddhartha-gadgil/LeanAide" @ "main"
 
@@ -24,3 +26,8 @@ lean_exe discrTrees where
 lean_lib Tests {
   globs := #[.submodules `Tests]
 }
+
+lean_exe presentation where
+  srcDir := "MotivatedMoves/AutoGeneralization/Demo"
+  root := `Main
+  supportInterpreter := true
