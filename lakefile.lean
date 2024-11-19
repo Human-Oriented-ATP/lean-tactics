@@ -27,7 +27,7 @@ lean_lib Tests {
   globs := #[.submodules `Tests]
 }
 
-lean_exe presentation where
+lean_exe demo where
   srcDir := "MotivatedMoves/AutoGeneralization/Demo"
   root := `Main
   supportInterpreter := true

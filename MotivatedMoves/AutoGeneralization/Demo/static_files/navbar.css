@@ -1,0 +1,202 @@
+
+/*-------------------------------------------------------*/
+/* Side navbar */
+/*-------------------------------------------------------*/
+ #navbarcontainer {
+     width: 350px;
+     position: fixed;
+     left:0;
+     top:0;
+     bottom: 0;
+     transition: all .25s; /* same as duration of .is_stuck animate in main.js file */
+
+     z-index: 10;
+}
+ #navbarcontainer.collapsed {
+     left:-350px;
+    */
+}
+ #navbar {
+     display: block;
+     height: 100%;
+     overflow-y: hidden;
+}
+
+#navbar #notscrollable {
+    padding: 20px;
+    padding-bottom: 20px; /* so there's not too much padding between not scrollable and scrollable */
+
+    position: relative;
+    z-index: 10;
+}
+
+#navbar #scrollable {
+    height: calc(100% - 202px);
+    overflow-y:scroll;
+
+}
+
+#navbar #scrollable > div {
+    padding-top: 0px; /* so there's not too much padding between not scrollable and scrollable */
+    padding-bottom: 30px;
+}
+
+ #navbar a {
+     text-decoration: none;
+}
+ #navbar a .section {
+     padding: 5px 20px 5px 60px;
+     font-size: 13px;
+     line-height: 1;
+}
+
+ #navbar .title {
+     font-size: 33px;
+     padding: 15px;
+     text-align: center;
+     font-weight: bold;
+     line-height: 1.1;
+}
+
+ #navbar .author {
+    margin-top: 10px;
+    font-size: 15px;
+    text-align: center;
+    font-weight: bold;
+}
+
+ #navbar .author a:hover {
+    text-decoration: underline
+ }
+
+ #navbar .chapter .chaptitle {
+    z-index: 0;
+    display: block;
+    
+    padding: 10px;
+    padding-top:20px;
+    padding-left:20px;
+
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+
+    width: 295px; /*if this increases by 10px, subtract 10px from -webkit-scrollbar width*/
+
+}
+
+
+
+ #navbar .chapter .subchaptitle {
+    /*the chapter title*/
+     display: block;
+
+     padding: 10px;
+     padding-left:20px;
+     
+     font-size: 15px;
+     text-align: left;
+     line-height: 1;
+
+     overflow: clip;
+     white-space: nowrap;
+
+     margin-right: 20px;
+}
+
+.sub-menu-item {
+    /*the chapter title*/
+     display: block;
+
+     padding: 10px;
+     padding-left:30px;
+     
+     font-size: 15px;
+     text-align: left;
+     line-height: 1;
+
+     overflow: clip;
+     white-space: nowrap;
+
+     margin-right: 20px;
+     font-weight:normal
+}
+/*-------------------------------------------------------*/
+/* Animated content */
+/*-------------------------------------------------------*/
+
+
+#content {
+     position: relative;
+     left: 175px; /* (navbar width) / 2*/
+     transition: all .25s;
+}
+#content.full {
+     left: 0px;
+}
+
+/*-------------------------------------------------------*/
+/* Animated navbar button */
+/*-------------------------------------------------------*/
+
+ .navbarcollapsebutton {
+    cursor: pointer; /*make cursor clickable*/
+     
+     border: none;
+     text-align: center;
+     text-decoration: none;
+     display: inline-block;
+     font-size: 25px;
+     width: 60px;
+     height: 60px;
+     z-index: 2;
+     position: fixed;
+     top: 0;
+     left: 0;
+     transition: 0.25s; /* same as duration of .is_stuck animate in main.js file */
+
+
+     
+}
+ .navbarcollapsebutton.change {
+     left: 350px;
+
+}
+
+ .bar1, .bar2, .bar3 {
+     text-align: center;
+     width: 25px;
+     height: 3px;
+     margin: 6px auto;
+     transition: 0.7s;
+}
+
+
+ .menuicon {
+     margin: 0 auto;
+}
+
+.change .bar1 {
+     -webkit-transform: rotate(-45deg) translate(-5px, 7px);
+     transform: rotate(-30deg) translate(-5px, 1px);
+}
+ .change .bar2 {
+    opacity: 0;
+}
+ .change .bar3 {
+     -webkit-transform: rotate(45deg) translate(-5px, -7px);
+     transform: rotate(30deg) translate(-5px, -1px);
+}
+
+
+/* adjust webkit scrollbar on menu */
+#navbar ::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 0px; /*if this increases by 10px, subtract 10px from .chaptitle width*/
+}
+#navbar ::-webkit-scrollbar-thumb {
+  border-radius: 0px;
+}
+
+
+
