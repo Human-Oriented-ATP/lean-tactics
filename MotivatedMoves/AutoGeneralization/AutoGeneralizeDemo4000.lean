@@ -58,6 +58,10 @@ lemma product_of_nonevens (m n : Nat) : ¬Even m ∧ ¬Even n → ¬Even (m * n)
   sorry
 
 lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
+lemma product_of_odds (m n : Nat) :
+    let odd := fun (n : Nat) ↦ ∃ k : Nat, n = 2 * k + 1;
+    odd m ∧ odd n → odd (m * n) := by
+  dsimp
   rintro ⟨⟨a,m_odd⟩ , ⟨b,n_odd⟩⟩
   -- rw [Odd] at * -- causes autogen to fail since there is something specific about "Odd"
   rw [m_odd]
@@ -71,6 +75,10 @@ example : True := by
   have product_of_odds := product_of_odds
   autogeneralize (2:ℕ) in product_of_odds
   -- need to modify tactic to see the "2" within the definition of "odd"
+  -- autogeneralize_basic (2:ℕ) in product_of_odds
+
+  trivial
+
 #exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

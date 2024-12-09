@@ -1,0 +1,322 @@
+
+/* 
+	Verso styling
+	http://meyerweb.com/eric/tools/css/reset/
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, img, ins, kbd, q, s, samp,
+small, strike, sub, sup, tt, var, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed,
+figure, figcaption, footer, header, hgroup,
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+}
+
+
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure,
+footer, header, hgroup, menu, nav, section {
+    display: block;
+}
+
+header {
+	visibility: hidden;
+}
+
+header, div.main {
+    margin-left: 4em;
+    margin-right: 4em;
+    max-width: 50em;
+}
+
+
+
+/*******************************************
+Define and link to fonts
+********************************************/
+@font-face {
+    font-family: 'OpenDyslexic3';
+    src: url('fonts/opendyslexic3-regular.woff2') format('woff2'),
+        url('fonts/opendyslexic3-regular.woff') format('woff');
+    font-weight: normal;
+	font-style: normal;
+}
+
+@font-face {
+    font-family: 'Quicksandx';
+    src: url('fonts/quicksand-regular.woff2') format('woff2'),
+        url('fonts/quicksand-regular.woff') format('woff');
+    font-weight: normal;
+	font-style: normal;
+}
+
+@font-face {
+    font-family: 'Quicksandx';
+    src: url('fonts/quicksand-regularitalic.woff2') format('woff2'),
+        url('fonts/quicksand-regularitalic.woff') format('woff');
+    font-weight: normal;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'Quicksandx';
+    src: url('fonts/quicksand-bold.woff2') format('woff2'),
+        url('fonts/quicksand-bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Quicksandx';
+    src: url('fonts/quicksand-bolditalic.woff2') format('woff2'),
+        url('fonts/quicksand-bolditalic.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+}
+
+/* @font-face {
+    font-family: 'Quicksandx';
+    src: url('fonts/quicksand-semibold.woff2') format('woff2'),
+		url('fonts/quicksand-semibold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+} */
+
+/*******************************************
+Change font and text style
+********************************************/
+
+
+body {
+	text-align:  justify;
+	color:       #000;
+	font-family: "Quicksandx";
+	font-size:   120%;
+	line-height: 1.4;
+	margin:      0;
+	padding:     2em 2em 5em;
+	margin:      auto;
+	max-width:   40em;
+	color:       rgb(10, 10, 10);
+}
+
+/*******************************************
+Change appearance of links
+********************************************/
+a {
+	outline:         none !important;
+	font-weight:     bold;
+	text-decoration: none;
+}
+
+a:link {
+	color: #c00;
+}
+
+a:visited {
+	color: #606;
+}
+
+a:hover {
+	color: #606;
+}
+
+a:active {
+	color:   #900;
+	outline: none;
+}
+
+
+/*******************************************
+Styling headers
+********************************************/
+
+h1, h2, h3, h4, h5, h6 {
+	text-align: left;
+}
+
+h1 {
+	font-size:   300%;
+	font-family: "OpenDyslexic3";
+	line-height: 1.2;
+	font-style:  normal;
+	margin:      0 0 1em;
+}
+
+h2 {
+	font-weight: bold;
+	font-size:   200%;
+	line-height: 140%;
+	padding:      1.5em 0 0.75em;
+}
+
+h3 {
+	font-weight: 	bold;
+	font-size:      125%;
+	margin:         1.75em 0 0.75em;
+}
+
+h4 {
+	font-weight:    normal;
+	font-size:      125%;
+	letter-spacing: 0.1em;
+	margin:         1.5em 0 0.75em;
+}
+
+h5 {
+	font-weight: normal;
+	font-style:  italic;
+	font-size:   125%;
+	margin:      1.5em 0 0.75em;
+}
+
+h6 {
+	font-weight:    bold;
+	font-size:      100%;
+	letter-spacing: 0.1em;
+	margin:         1.5em 0 0.75em;
+}
+
+/*******************************************
+Add spacing between paragraphs
+********************************************/
+
+p + p {
+	margin-top:  20px;
+}
+
+/*******************************************
+Indent lists
+********************************************/
+
+ul, ol, dl {
+	text-align: left;
+}
+
+ul, ol {
+	padding-left: 1.2em;
+}
+
+ul li, ol li {
+	padding-left: 0.3em;
+	margin-top:   0.6em;
+}
+
+li p {
+	margin-top:  0px;
+	text-indent: 0em;
+}
+
+li {
+	margin-bottom: 0.6em;
+}
+
+/*******************************************
+Make it display ok on a phone
+********************************************/
+
+/* @media screen and (max-width: 736px) {
+	body {
+		padding:   1em 20px 1em 20px;
+		font-size: 120%;
+	}
+	h1 {
+		font-size: 250%;
+	}
+	h2 {
+		font-size: 150%;
+	}
+	h3, h4, h5 {
+		font-size: 140%;
+	}
+} */
+
+/*******************************************
+Hide author name and dates 
+********************************************/
+.metadata {
+	visibility: hidden;
+	height: 0
+}
+
+/*******************************************
+Make pop-up docstrings smaller
+********************************************/
+
+.hl.lean div.docstring {
+	width: 30em
+}
+
+/* .hl.lean .hover-info{
+	width: 25em
+} */
+
+/*******************************************
+Print code on nice background
+********************************************/
+
+section > pre {
+	font-family: monospace;
+	background-color: #f7eee1;
+	padding: 25px 0px 0px 25px;
+	margin: 10px;
+}
+
+/*******************************************
+Print inline-code on nice background
+********************************************/
+
+
+code {
+	font-family: monospace;
+	background-color: #f2efeb;
+	padding: 5px;
+	border-radius: 5px;
+}
+
+
+/*******************************************
+Change color of lean warnings
+********************************************/
+
+/* error 	#bf4136 */
+
+.hl.lean .has-info.error {
+    text-decoration-color: #bf4136;
+}
+.hl.lean .has-info.error .hover-info {
+    background-color: #bf4136;
+}
+
+.hl.lean .has-info.warning {
+    text-decoration-color: #f28444;
+}
+.hl.lean .has-info.warning .hover-info {
+    background-color: #e39364;
+}
+
+.hl.lean .has-info.info {
+	text-decoration-color: #5d7ea8;
+}
+
+.hl.lean .has-info.info .hover-info {
+    background-color: #5d7ea8;
+	color: white
+}
+
+.hl.lean .token .hover-info {
+	background-color: #d6cec3
+}

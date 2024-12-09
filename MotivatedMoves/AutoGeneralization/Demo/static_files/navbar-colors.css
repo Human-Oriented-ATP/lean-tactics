@@ -1,0 +1,60 @@
+#navbar, #navbar a {
+    background-color: #1F1319; /* Dark Purple */
+    color: #faf7f5 /* pretty much white */
+}
+
+
+#navbar .chapter .chaptitle {
+color: #8E7280; /* Mid- Purple */
+}
+
+/* ----------- HOVER ----------- */
+
+
+#navbar .chapter a:hover .subchaptitle, 
+#navbar .chapter a.selected .subchaptitle {
+    background-color: #442E39; /* Darker Purple on hover for subchapter title */
+}
+
+#navbar a:hover .author,
+ #navbar .title a:hover,
+ #navbar .chapter .chaptitle:hover,
+  {
+    color: #A78E9A; /* Light Purple */
+}
+
+a.sub-menu-item.subselected, a.sub-menu-item:hover{
+  font-weight:bold
+}
+
+/* ----------- FADING GRADIENT ----------- */
+
+#scrollable::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 70px; /* Set the width of the gradient */
+  height: 100%;
+/*  background-image: linear-gradient(to left,var(--tw-gradient-stops));*/
+  background: linear-gradient(to right, transparent, #1F1319); /* Adjust gradient colors as needed */
+/*  --tw-gradient-from: #1F1319 var(--tw-gradient-from-position);
+  --tw-gradient-to: #1F1319 var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from),var(--tw-gradient-to);*/
+
+}
+
+/* ----------- NAVBAR COLLAPSE BUTTON ----------- */
+ .navbarcollapsebutton.change .bar1, .navbarcollapsebutton.change .bar2, .navbarcollapsebutton.change .bar3 {
+    background-color: #1F1319; /* Dark Purple */
+    color: #1F1319;
+
+}
+
+ .navbarcollapsebutton {
+    background-color: #ffffff; 
+}
+
+ .bar1, .bar2, .bar3 {
+    background-color: #1F1319; /* Dark Purple */
+}
