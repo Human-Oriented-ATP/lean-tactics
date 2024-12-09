@@ -25,6 +25,39 @@ set_option pp.showLetValues false
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+lemma product_of_odds'  : ∀ a b : ℕ, Odd ((2*a+1)*(2*b+1)):= by
+  intros a b
+  use (a*2*b + a + b)
+  rewrite [add_mul,mul_add, mul_add, mul_add, mul_add, mul_one, mul_one, one_mul]
+  rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc,add_assoc]
+  rfl
+
+example : ∀ (a b : ℕ), ∃ k, (3 * a + 1) * (3 * b + 1) = 3 * k + 1 := by
+  have product_of_odds' := product_of_odds'
+  autogeneralize (2:ℕ) in product_of_odds'
+  specialize product_of_odds'.Gen 3
+  assumption
+
+
+
+
+
+
+example : ∀ (a b : ℕ), ∃ k, (3 * a + 1) * (3 * b + 1) = 3 * k + 1 := by
+  have product_of_odds' := product_of_odds'
+  -- autogeneralize (1:ℕ) in product_of_odds'
+  -- specialize product_of_odds'.Gen 3
+  -- assumption
+
+lemma product_of_nonevens (m n : Nat) : ¬Even m ∧ ¬Even n → ¬Even (m * n) := by
+  rintro ⟨m_not_even, n_not_even⟩
+  unfold Even at *
+  simp at *
+  intro k
+
+  sorry
+
+lemma product_of_odds (m n : Nat) : Odd m ∧ Odd n → Odd (m * n) := by
 lemma product_of_odds (m n : Nat) :
     let odd := fun (n : Nat) ↦ ∃ k : Nat, n = 2 * k + 1;
     odd m ∧ odd n → odd (m * n) := by
@@ -35,14 +68,13 @@ lemma product_of_odds (m n : Nat) :
   rw [n_odd]
   use (a*2*b + a + b)
   rewrite [add_mul,mul_add, mul_add, mul_add, mul_add, mul_one, mul_one, one_mul]
-  -- simp only [add_mul, mul_add, mul_one, one_mul]
   rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc,add_assoc]
   rfl
-  -- ring
 
 example : True := by
   have product_of_odds := product_of_odds
   autogeneralize (2:ℕ) in product_of_odds
+  -- need to modify tactic to see the "2" within the definition of "odd"
   -- autogeneralize_basic (2:ℕ) in product_of_odds
 
   trivial
