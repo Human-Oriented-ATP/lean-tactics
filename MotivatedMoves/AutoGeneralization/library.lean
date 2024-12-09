@@ -20,9 +20,10 @@ theorem irrat_def (n: ℕ) : (¬ ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n: ℕ) * 
     exact Nat.cast_nonneg n
   -- rw [← Real.sqrt_mul_self x_pos] at irr
   have x_sq : x*x=n := by
+    symm
     apply_mod_cast (Real.sqrt_eq_iff_mul_self_eq n_pos x_pos).mp (irr.symm)
   norm_num at x_pos
-  have x_num_pos := (@Rat.num_nonneg_iff_zero_le x).mpr x_pos
+  have x_num_pos := (@Rat.num_nonneg x).mpr x_pos
   clear x_pos
   use Int.natAbs x.num
   use x.den
