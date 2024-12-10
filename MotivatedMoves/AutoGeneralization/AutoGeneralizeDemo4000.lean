@@ -53,18 +53,18 @@ by
   rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc]
   rfl
 
--- abbrev ndiv [Dvd α] (a b : α) : Prop := ¬(a ∣ b)
--- infix:50 " ∤ " => ndiv
-notation a "∤" b => ¬(a ∣ b)
+abbrev ndiv [Dvd α] (a b : α) : Prop := ¬(a ∣ b)
+infix:50 " ∤ " => ndiv
+-- notation a "∤" b => ¬(a ∣ b)
 
--- lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
+lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
 
 -- with inline definitions of odd
 lemma product_of_nonmultiplesof2 (m n : Nat) :
   (2 ∤ m) ∧  (2 ∤ n) → (2 ∤ m*n) :=
 by
   -- repeat rw [ndiv]
-  repeat rw [Nat.two_dvd_ne_zero] -- so they are all 1 mod 2
+  repeat rw [ndvd_to_mod] -- so they are all 1 mod 2
   repeat rw [mod_means_exists_k] at *
   rintro ⟨⟨kₘ, m_odd⟩, ⟨kₙ, n_odd⟩⟩
 
