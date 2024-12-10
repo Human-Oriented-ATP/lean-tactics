@@ -60,7 +60,7 @@ infix:50 " ∤ " => ndiv
 lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
 
 -- with inline definitions of odd
-lemma product_of_nonmultiplesof2 (m n : Nat) :
+lemma product_of_nonmultiplesoftwo (m n : Nat) :
   (2 ∤ m) ∧  (2 ∤ n) → (2 ∤ m*n) :=
 by
   -- repeat rw [ndiv]
@@ -75,8 +75,9 @@ by
   rfl
 
 example : True := by
-  autogeneralize (2:ℕ) in product_of_nonmultiplesof2
-  specialize product_of_nonmultiplesof2.Gen 3 3
+  have product_of_nonmultiplesoftwo := product_of_nonmultiplesoftwo
+  autogeneralize (2:ℕ) in product_of_nonmultiplesoftwo
+  specialize product_of_nonmultiplesoftwo.Gen 3 3
 
 #exit
 
