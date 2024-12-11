@@ -24,8 +24,7 @@
 8. (Optional, but recommended) Run `lake exe discrTrees` to build and store the discrimination tree cache used for library search.
 ## Debugging Installation Errors
 
-If the version of Lean or Mathlib has been updated since your last pull, get the new, pre-compiled cache of mathlib by running:
-lake exe cache get 
+If the version of Lean or Mathlib has been updated since your last pull, get the new, pre-compiled cache of mathlib by running: `lake exe cache get`.
 
  If you are getting a “git exited” error, try removing cached files, like the ones at `lean-tactics/.lake/*`. Then re-run `lake exe cache get`.
 
