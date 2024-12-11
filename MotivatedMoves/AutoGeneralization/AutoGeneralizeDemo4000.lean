@@ -32,8 +32,36 @@ infix:50 " ∤ " => ndiv
 
 lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
 
-lemma mod_means_exists_k : m % n = 1 ↔ ∃ k, n * k + 1 = m := by
-  sorry
+theorem test (m n : ℕ ):  (m / n) * n + (m - (m / n)*n) = m := by
+  refine Nat.add_sub_of_le ?h
+  exact Nat.div_mul_le_self m n
+
+
+lemma mod_means_exists_k (m n r : ℕ): m % n = r ↔ ∃ k, n * k + r = m := by
+  constructor
+  {
+    intro h
+    use m / n
+    simp only [Nat.mod_def] at h
+    rw [← h]
+    refine Nat.add_sub_of_le ?h.h
+    exact Nat.mul_div_le m n
+  }
+  {
+    rintro ⟨k, hk⟩
+    rw [← hk]
+    rw [Nat.mul_comm]
+    refine Nat.mul_add_mod_of_lt ?mpr.intro.h
+    sorry
+
+    -- simp only [Nat.mod_def]
+    -- rw [ Nat.add_mod_right]
+    -- exact Nat.mod_eq_of_lt (Nat.lt_succ_self _)
+  }
+
+  -- rw [Nat.mod_modEq]
+  -- rw  [Nat.modEq_iff_dvd]
+
 
 -- with inline definitions of odd
 lemma product_of_nonmultiplesoftwo (m n : Nat) :
