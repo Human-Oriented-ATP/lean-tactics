@@ -5,6 +5,38 @@ open Real
 
 namespace library
 
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+PRODUCT OF NON-MULTIPLES OF K
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+abbrev ndiv [Dvd α] (a b : α) : Prop := ¬(a ∣ b)
+infix:50 " ∤ " => ndiv
+-- notation a "∤" b => ¬(a ∣ b)
+
+lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
+
+lemma mod_means_exists_k (m n r : ℕ) (r_lt_n : r < n): m % n = r ↔ ∃ k, n * k + r = m := by
+  constructor
+  {
+    intro h
+    use m / n
+    simp only [Nat.mod_def] at h
+    rw [← h]
+    refine Nat.add_sub_of_le ?h.h
+    exact Nat.mul_div_le m n
+  }
+  {
+    rintro ⟨k, hk⟩
+    rw [← hk]
+    rw [Nat.mul_comm]
+    refine Nat.mul_add_mod_of_lt ?mpr.intro.h
+    exact r_lt_n
+  }
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+IRRATIONALITY OF SQUARE ROOTS
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
 theorem irrat_def (n: ℕ) : (¬ ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n: ℕ) * b*b ) → Irrational (Real.sqrt n) := by
   contrapose
   simp

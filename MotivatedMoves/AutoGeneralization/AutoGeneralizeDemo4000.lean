@@ -26,35 +26,6 @@ set_option pp.showLetValues false
 PRODUCT OF NONEVENS IS NONEVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-abbrev ndiv [Dvd α] (a b : α) : Prop := ¬(a ∣ b)
-infix:50 " ∤ " => ndiv
--- notation a "∤" b => ¬(a ∣ b)
-
-lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
-
-theorem test (m n : ℕ ):  (m / n) * n + (m - (m / n)*n) = m := by
-  refine Nat.add_sub_of_le ?h
-  exact Nat.div_mul_le_self m n
-
-
-lemma mod_means_exists_k (m n r : ℕ) (r_lt_n : r < n): m % n = r ↔ ∃ k, n * k + r = m := by
-  constructor
-  {
-    intro h
-    use m / n
-    simp only [Nat.mod_def] at h
-    rw [← h]
-    refine Nat.add_sub_of_le ?h.h
-    exact Nat.mul_div_le m n
-  }
-  {
-    rintro ⟨k, hk⟩
-    rw [← hk]
-    rw [Nat.mul_comm]
-    refine Nat.mul_add_mod_of_lt ?mpr.intro.h
-    exact r_lt_n
-  }
-
 -- with inline definitions of odd
 lemma product_of_nonmultiplesoftwo (m n : Nat) :
   (2 ∤ m) ∧  (2 ∤ n) → (2 ∤ m*n) :=
@@ -70,15 +41,14 @@ by
   rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc]
   rfl
 
-  exact Nat.one_lt_two
-  exact Nat.one_lt_two
-  exact Nat.one_lt_two
-  -- simp_all only [Nat.one_lt_ofNat]
+  repeat exact Nat.one_lt_two
 
 example : True := by
   have product_of_nonmultiplesoftwo := product_of_nonmultiplesoftwo
   autogeneralize (2:ℕ) in product_of_nonmultiplesoftwo
   specialize product_of_nonmultiplesoftwo.Gen 3 3
+  trivial
+
 
 #exit
 
