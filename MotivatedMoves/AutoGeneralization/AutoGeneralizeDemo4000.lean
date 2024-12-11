@@ -22,42 +22,18 @@ set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
 
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF NONEVENS IS NONEVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
--- def even (n : Nat) := ∃ k : Nat, n = 2 * k    -- even is a non-multiple of 2
--- def odd  (n : Nat) := ¬ even n -- odd is not even -- ∃ k : Nat, n = 2 * k + 1
-
-
-def odd (n : Nat)  := ¬ (2 ∣ n)  -- 2 doesn't divide an odd number
-
-lemma mod_means_exists_k : m % n = 1 ↔ ∃ k, n * k + 1 = m := by
-  sorry
-
-
-
-
-lemma product_of_nonevens (m n : Nat) :
-  let  odd (n : Nat)  := ¬ (2 ∣ n);
-  odd m ∧ odd n → odd (m * n) :=
-by
-  dsimp -- repeat rw [odd]  -- 2 doesn't divide these
-  repeat rw [Nat.two_dvd_ne_zero] -- so they are all 1 mod 2
-  repeat rw [mod_means_exists_k] at *
-  rintro ⟨⟨kₘ, m_odd⟩, ⟨kₙ, n_odd⟩⟩
-
-  use (kₘ*2*kₙ + kₘ + kₙ)
-  rw [← m_odd, ← n_odd]
-  rewrite [add_mul,mul_add, mul_add, mul_add, mul_add, mul_one, mul_one, one_mul]
-  rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc]
-  rfl
 
 abbrev ndiv [Dvd α] (a b : α) : Prop := ¬(a ∣ b)
 infix:50 " ∤ " => ndiv
 -- notation a "∤" b => ¬(a ∣ b)
 
 lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
+
+lemma mod_means_exists_k : m % n = 1 ↔ ∃ k, n * k + 1 = m := by
+  sorry
 
 -- with inline definitions of odd
 lemma product_of_nonmultiplesoftwo (m n : Nat) :
