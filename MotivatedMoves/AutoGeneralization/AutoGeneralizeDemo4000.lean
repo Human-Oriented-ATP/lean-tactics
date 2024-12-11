@@ -26,6 +26,12 @@ set_option pp.showLetValues false
 PRODUCT OF NONEVENS IS NONEVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
+lemma ndvd_to_mod {n : ℕ} : 2 ∤ n ↔ n % 2 = 1 := Nat.two_dvd_ne_zero
+
+-- lemma ndvd_to_mod' {d n : ℕ} : d ∤ n ↔ d % n ≠ 0 := by
+--   constructor
+--   sorry
+
 -- with inline definitions of odd
 lemma product_of_nonmultiplesoftwo (m n : Nat) :
   (2 ∤ m) ∧  (2 ∤ n) → (2 ∤ m*n) :=
@@ -49,6 +55,14 @@ example : True := by
   specialize product_of_nonmultiplesoftwo.Gen 3 3
   trivial
 
+-- lemma product_of_nonmultiplesofthree (m n : Nat) :
+--   (3 ∤ m) ∧  (3 ∤ n) → (3 ∤ m*n) :=
+-- by
+--   repeat rw [ndvd_to_mod'] -- so they are all 1 mod 2
+--   repeat rw [mod_means_exists_k'] at *
+--   simp
+--   intros h1 h2 k
+--   sorry
 
 #exit
 
