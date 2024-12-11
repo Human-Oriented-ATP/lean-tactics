@@ -37,7 +37,7 @@ theorem test (m n : ℕ ):  (m / n) * n + (m - (m / n)*n) = m := by
   exact Nat.div_mul_le_self m n
 
 
-lemma mod_means_exists_k (m n r : ℕ): m % n = r ↔ ∃ k, n * k + r = m := by
+lemma mod_means_exists_k (m n r : ℕ) (r_lt_n : r < n): m % n = r ↔ ∃ k, n * k + r = m := by
   constructor
   {
     intro h
@@ -52,16 +52,8 @@ lemma mod_means_exists_k (m n r : ℕ): m % n = r ↔ ∃ k, n * k + r = m := by
     rw [← hk]
     rw [Nat.mul_comm]
     refine Nat.mul_add_mod_of_lt ?mpr.intro.h
-    sorry
-
-    -- simp only [Nat.mod_def]
-    -- rw [ Nat.add_mod_right]
-    -- exact Nat.mod_eq_of_lt (Nat.lt_succ_self _)
+    exact r_lt_n
   }
-
-  -- rw [Nat.mod_modEq]
-  -- rw  [Nat.modEq_iff_dvd]
-
 
 -- with inline definitions of odd
 lemma product_of_nonmultiplesoftwo (m n : Nat) :
@@ -77,6 +69,11 @@ by
   rewrite [add_mul,mul_add, mul_add, mul_add, mul_add, mul_one, mul_one, one_mul]
   rewrite [mul_assoc, mul_assoc, add_assoc,add_assoc]
   rfl
+
+  exact Nat.one_lt_two
+  exact Nat.one_lt_two
+  exact Nat.one_lt_two
+  -- simp_all only [Nat.one_lt_ofNat]
 
 example : True := by
   have product_of_nonmultiplesoftwo := product_of_nonmultiplesoftwo
