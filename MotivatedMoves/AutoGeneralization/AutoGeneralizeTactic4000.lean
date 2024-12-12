@@ -6,6 +6,8 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
+
+
 /-- Remove the assignment of a metavariable from the context. -/
 def removeAssignment (mv : MVarId) : MetaM Unit := do
   -- remove the assignment
@@ -237,7 +239,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                             let fAbs ← visit f depth -- the type
                             let aAbs ← visit a depth -- the term
                             try
-                              -- check $ .app fAbs aAbs
+                              check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
                             catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               -- logInfo m!"fabs was {fAbs} with type {← inferType fAbs}"
