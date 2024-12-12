@@ -219,6 +219,7 @@ GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 
+omit inst in
 theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
     -- have h := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
     -- apply h
@@ -227,7 +228,7 @@ theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
 #print union_of_finsets
 
 -- in 2 steps
-example : ∀ (α : Type)[inst : Fintype α]  [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets.Gen
@@ -235,7 +236,7 @@ example : ∀ (α : Type)[inst : Fintype α]  [inst_2 : DecidableEq α] (A B : F
   assumption
 
 -- in 1 step
-example : ∀ (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   -- autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets
@@ -286,8 +287,8 @@ Fabian's example:
 -/
 def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y=0
 example : ∀ x : ℝ, NeZero x → P' x := by
-  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  have oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp inferInstance;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
-  autogeneralize 1 in hyp
+  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  let oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp inferInstance;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
+  autogeneralize (1 : ℝ) in hyp
   assumption
 
 
