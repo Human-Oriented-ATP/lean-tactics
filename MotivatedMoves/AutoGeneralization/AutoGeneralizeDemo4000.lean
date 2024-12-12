@@ -64,7 +64,6 @@ example : True := by
 --   intros h1 h2 k
 --   sorry
 
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF ODDS IS ODD
@@ -124,10 +123,10 @@ def four_is_sum_of_odds : ∃ m n : ℕ, Odd m ∧ Odd n ∧ m+n=4 := by
 example : True := by
   have four_is_sum_of_odds := four_is_sum_of_odds
   autogeneralize 4 in four_is_sum_of_odds -- exist 2 odds which sum to 3 + 1
-  autogeneralize 3 in four_is_sum_of_odds.Gen
-  simp at four_is_sum_of_odds.Gen.Gen
-  specialize four_is_sum_of_odds.Gen.Gen 7
-  dsimp at four_is_sum_of_odds.Gen.Gen
+  -- autogeneralize 3 in four_is_sum_of_odds.Gen
+  -- simp at four_is_sum_of_odds.Gen.Gen
+  -- specialize four_is_sum_of_odds.Gen.Gen 7
+  -- dsimp at four_is_sum_of_odds.Gen.Gen
   trivial
 
 
@@ -136,14 +135,14 @@ SIX IS EVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 theorem six_is_even : Even (3+3) := by
   -- simp only [Nat.reduceAdd] -- the computation rule
-  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
-  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
+  exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
+  -- exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
 
-example : Even 4 := by
-  autogeneralize 3 in six_is_even -- extracts out comp rule
-  specialize six_is_even.Gen 1 3
-  simp at six_is_even.Gen
-  assumption
+-- example : Even 4 := by
+  -- autogeneralize 3 in six_is_even -- extracts out comp rule
+--   specialize six_is_even.Gen 1 3
+--   simp at six_is_even.Gen
+  -- assumption
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -207,7 +206,7 @@ example : True := by
 
 example : True := by
   have impossible_graph := impossible_graph
-  autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
+  -- autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
   -- specialize impossible_graph.Gen 5
   -- autogeneralize (3:ℕ) in impossible_graph.Gen
   -- simp at impossible_graph.Gen.Gen
@@ -224,10 +223,11 @@ theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) :
     -- have h := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
     -- apply h
     apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
+
 #print union_of_finsets
 
 -- in 2 steps
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type)[inst : Fintype α]  [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets.Gen
@@ -235,14 +235,12 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
   assumption
 
 -- in 1 step
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   -- autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets
   specialize union_of_finsets.Gen 3 4
   assumption
-
-#exit
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DIVISIBILITY RULE
@@ -449,7 +447,7 @@ example := by
   autogeneralize 3 in two_times_three_is_even
   assumption
 
-theorem six_is_even : Even 6 := by {unfold Even; use 3}
+theorem six_is_even' : Even 6 := by {unfold Even; use 3}
 example := by
   let two_times_three_is_even : Even (2*3) := by
     simp only [even_two, Even.mul_right]
@@ -460,7 +458,7 @@ example := by
 /--
 An example where "3" doesn't show up in the proof term (due to use of the computation rule reduceMul), so the proof doesn't generalize.
 -/
-theorem six_is_even' : Even 6 := by {unfold Even; use 3}
+theorem six_is_even'' : Even 6 := by {unfold Even; use 3}
 example := by
   let two_times_three_is_even : Even (2*3) := by
     decide

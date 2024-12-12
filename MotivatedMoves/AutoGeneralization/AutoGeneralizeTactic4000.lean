@@ -513,6 +513,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
 
   -- Add the generalized theorem to the context.
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
+  -- createLetHypothesis simpgenThmType simpgenThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
 
