@@ -135,14 +135,14 @@ SIX IS EVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 theorem six_is_even : Even (3+3) := by
   -- simp only [Nat.reduceAdd] -- the computation rule
-  exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
-  -- exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
+  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
+  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
 
--- example : Even 4 := by
-  -- autogeneralize 3 in six_is_even -- extracts out comp rule
---   specialize six_is_even.Gen 1 3
---   simp at six_is_even.Gen
-  -- assumption
+example : Even 4 := by
+  autogeneralize 3 in six_is_even -- extracts out comp rule
+  specialize six_is_even.Gen 1 3
+  simp at six_is_even.Gen
+  assumption
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -206,7 +206,7 @@ example : True := by
 
 example : True := by
   have impossible_graph := impossible_graph
-  -- autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
+  autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
   -- specialize impossible_graph.Gen 5
   -- autogeneralize (3:ℕ) in impossible_graph.Gen
   -- simp at impossible_graph.Gen.Gen
