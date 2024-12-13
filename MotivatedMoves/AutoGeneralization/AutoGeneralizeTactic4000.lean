@@ -205,8 +205,9 @@ Roughly implemented like kabstract, with the following differences:
 partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- return e
   let (lctx, linst) := (← getLCtx, ← getLocalInstances)
-  let pType ← inferType p
-  logInfo m!"We are replacing the pattern {p}:{pType} with mvars."
+  logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
+  -- abstracting `p` so that it can be transported to other meta-variable contexts
+  let pAbs ← abstractMVars p (levels := false) -- the `(levels := false)` prevents bizarre instantiations across universe levels
 
   -- let _ ← abstractIfTypeContainsP e p
 
@@ -245,8 +246,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               let expectedA ← extractArgType fAbs
                               -- let expectedaAbs ← visit expectedA depth
                               logInfo m!"aAbs was expected to have type {expectedA} but has type {← inferType aAbs}"
-                              -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
-                              let m ← mkFreshExprMVar expectedA -- mvar for generalized / expected type
+                              let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
+                              -- let m ← mkFreshExprMVar expectedA -- mvar for generalized / expected type
                               logInfo m!"so abstracting it out to an mvar {m}"
                               -- check $ .app fAbs m
                               return e.updateApp! fAbs m
@@ -302,16 +303,19 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- when we encounter a theorem used in the proof
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
-      | .const n _       => let constType ← getTheoremStatement n
+      | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
                             -- logInfo m!"const type {constType}"
                             if depth ≥ 10 then return e
                             else
                                 -- if (← containsExpr p constType) then
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
                                 -- if the const does have the pattern in its definition, it is a property we should generalize
-                                if ← hasMVarOfType pType genConstType then
+                                -- it may be safer to just check whether the generalized type has any meta-variables at all,
+                                -- rather than looking for ones of a specific type, since there's a chance of false negatives with the latter
+                                if genConstType.hasExprMVar then
                                   let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                                  logInfo m!"made mvar m of type {genConstType}"
+                                  -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
+                                  logInfo m!"made mvar {m} of type {genConstType}"
                                   -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                                   return m
 
@@ -326,8 +330,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
     else
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
+      let (_, _, p) ← openAbstractMVarsResult pAbs
       if ← (isDefEq e p) then
-        let m ← mkFreshExprMVarAt lctx linst pType (userName := `n) -- replace every occurrence of pattern with mvar
+        -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
+        let m ← mkFreshExprMVarAt lctx linst (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
+        -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
         return m

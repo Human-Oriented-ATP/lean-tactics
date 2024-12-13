@@ -393,7 +393,7 @@ example :  1 + 2 = 2 + 1 := by
 
 example :  1 + 2 = 2 + 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
-  autogeneralize Mul.mul in mult_comm -- generalize all, separately
+  autogeneralize Mul.mul (α := ℕ) in mult_comm -- generalize all, separately
   specialize mult_comm.Gen Add.add Add.add Nat.add_comm 1 2
   assumption
 
@@ -431,7 +431,7 @@ Generalizes all instances of * separately.
 -/
 example :  1 + (2 + 3) = 2 + (1 + 3) := by
   let mult_permute :  ∀ (n m p : ℕ), n * (m * p) = m * (n * p) := by {intros n m p; rw [← Nat.mul_assoc]; rw [@Nat.mul_comm n m]; rw [Nat.mul_assoc]}
-  autogeneralize Mul.mul in mult_permute
+  autogeneralize Mul.mul (α := ℕ) in mult_permute
   specialize mult_permute.Gen (.+.) (.+.) (.+.) (.+.) Nat.add_assoc Nat.add_comm 1 2 3
   assumption
 
