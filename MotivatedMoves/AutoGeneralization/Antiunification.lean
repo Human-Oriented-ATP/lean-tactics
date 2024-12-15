@@ -23,6 +23,7 @@ structure Mismatch where
   placeholder : MVarId
   left : Expr
   right : Expr
+deriving Repr
 
 /-- Compute the least common generalizer of the given pair of expressions.
     The convention throughout is that the attributes of the first expression preferentially get copied over to the result whenever there is a choice. -/
@@ -75,9 +76,12 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     let t' ← inferType e'
     unless ← liftM <| withoutModifyingState <| isDefEq t t' do
       throwError "The types of mismatched terms do not align."
-    let mvar ← mkFreshExprMVar (some t)
-    modify <| List.cons { placeholder := mvar.mvarId!, left := e, right := e' }
-    return mvar
+    if ← liftM <| withoutModifyingState <| isDefEq e e' then
+      return e
+    else
+      let mvar ← mkFreshExprMVar (some t)
+      modify <| List.cons { placeholder := mvar.mvarId!, left := e, right := e' }
+      return mvar
 
 def leastCommonGeneralizer (e e' : Expr) : MetaM Expr :=
   antiUnify e e' |>.run' []
