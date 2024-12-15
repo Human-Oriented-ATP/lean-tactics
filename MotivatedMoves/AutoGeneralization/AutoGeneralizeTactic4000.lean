@@ -1,8 +1,9 @@
 import Lean
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
 import Mathlib.Data.Real.Irrational
+import MotivatedMoves.AutoGeneralization.Antiunification
 
-open Lean Elab Tactic Meta Term Command
+open Lean Elab Tactic Meta Term Command AntiUnify
 
 namespace Autogeneralize
 
@@ -155,6 +156,18 @@ def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
       return -- stop traversal
   )
   return result
+
+/-- Given two terms, one of which is a generalization of the other,
+    find the conflicting pairs of sub-expressions and return the sides that do not contain any meta-variables. -/
+def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
+  let mismatches ← getMismatches e e'
+  return mismatches.filterMap fun ⟨_, left, right⟩ ↦
+    if !left.hasExprMVar then
+      left
+    else if !right.hasExprMVar then
+      right
+    else
+      none -- this situation is impossible when one term is a generalization of the other
 
 open Qq in
 #eval show MetaM _ from do
