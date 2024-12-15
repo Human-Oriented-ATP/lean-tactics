@@ -33,20 +33,20 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     let dA ← antiUnify d d'
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
-      return .forallE n dA bA bi
+      return ← mkForallFVars #[var] bA
   | .lam n d b bi, .lam n' d' b' bi' =>
     let dA ← antiUnify d d'
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
-      return .lam n dA bA bi
+      return ← mkLambdaFVars #[var] bA
   | .letE n d v b nd, .letE n' d' v' b' nd' =>
     -- it doesn't make sense to anti-unify `v` and `v'` unless `d = d'`
     unless ← liftM <| withoutModifyingState <| isDefEq d d' do
       throwError "Expected the domains of the two `let` declarations to be the same."
     let vA ← antiUnify v v'
     withLetDecl n d vA fun var ↦ do
-      let bA ← antiUnify b b'
-      return .letE n d vA bA (bA.containsFVar var.fvarId!)
+      let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
+      return ← mkLetFVars #[var] bA
   | .app f a, .app f' a' =>
     return .app (← antiUnify f f') (← antiUnify a a')
   | .proj n idx s, .proj n' idx' s' =>
