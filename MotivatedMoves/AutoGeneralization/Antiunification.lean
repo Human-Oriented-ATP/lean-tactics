@@ -42,16 +42,19 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
   | .letE n d v b nd, .letE n' d' v' b' nd' =>
     -- it doesn't make sense to anti-unify `v` and `v'` unless `d = d'`
     unless ← liftM <| withoutModifyingState <| isDefEq d d' do
-      throwError "Expected the domains of the two `let` declarations to be the same."
+      throwError s!"Expected the domains of the two `let` declarations {e} and {e'} to be the same."
     let vA ← antiUnify v v'
     withLetDecl n d vA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       return ← mkLetFVars #[var] bA
   | .app f a, .app f' a' =>
-    return .app (← antiUnify f f') (← antiUnify a a')
+    if ← liftM <| withoutModifyingState <| isDefEq (← inferType f) (← inferType f') then
+      return .app (← antiUnify f f') (← antiUnify a a')
+    else
+      createAntiunifyingMVar
   | .proj n idx s, .proj n' idx' s' =>
     unless n = n' ∧ idx = idx' do
-      throwError "Data of projections do not match."
+      throwError m!"Data of projections {e} and {e'} do not match."
     return .proj n idx (← antiUnify s s')
   | .mdata md e, .mdata md' e' =>
     return .mdata (KVMap.mergeBy (fun _ d _ ↦ d) md md') (← antiUnify e e')
@@ -71,11 +74,13 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     else
       modify <| List.cons { placeholder := m', left := e, right := .mvar m' }
       return .mvar m'
-  | e, e' =>
+  | e, e' => createAntiunifyingMVar
+where
+  createAntiunifyingMVar : StateT (List Mismatch) MetaM Expr := do
     let t ← inferType e
     let t' ← inferType e'
     unless ← liftM <| withoutModifyingState <| isDefEq t t' do
-      throwError "The types of mismatched terms do not align."
+      throwError m!"The types of mismatched terms {e} and {e'} do not align."
     if ← liftM <| withoutModifyingState <| isDefEq e e' then
       return e
     else
