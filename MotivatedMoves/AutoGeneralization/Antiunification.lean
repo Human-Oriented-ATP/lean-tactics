@@ -33,11 +33,27 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     let dA ← antiUnify d d'
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
+      let mismatches ← get
+      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
+        return {
+          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
+          left := ← mkForallFVars #[var] (usedOnly := true) left,
+          right := ← mkForallFVars #[var] (usedOnly := true) right
+        }
+      set mismatches
       return ← mkForallFVars #[var] bA
   | .lam n d b bi, .lam n' d' b' bi' =>
     let dA ← antiUnify d d'
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
+      let mismatches ← get
+      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
+        return {
+          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
+          left := ← mkLambdaFVars #[var] (usedOnly := true) left,
+          right := ← mkLambdaFVars #[var] (usedOnly := true) right
+        }
+      set mismatches
       return ← mkLambdaFVars #[var] bA
   | .letE n d v b nd, .letE n' d' v' b' nd' =>
     -- it doesn't make sense to anti-unify `v` and `v'` unless `d = d'`
@@ -46,6 +62,14 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     let vA ← antiUnify v v'
     withLetDecl n d vA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
+      let mismatches ← get
+      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
+        return {
+          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
+          left := ← mkLetFVars #[var] (usedLetOnly := true) left,
+          right := ← mkLetFVars #[var] (usedLetOnly := true) right
+        }
+      set mismatches
       return ← mkLetFVars #[var] bA
   | .app f a, .app f' a' =>
     if ← liftM <| withoutModifyingState <| isDefEq (← inferType f) (← inferType f') then
