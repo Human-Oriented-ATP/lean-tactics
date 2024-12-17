@@ -34,11 +34,12 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
+      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
+        mismatch.placeholder.withContext do
         return {
-          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
-          left := ← mkForallFVars #[var] (usedOnly := true) left,
-          right := ← mkForallFVars #[var] (usedOnly := true) right
+          placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+          left := ← mkForallFVars #[var] (usedOnly := true) mismatch.left,
+          right := ← mkForallFVars #[var] (usedOnly := true) mismatch.right
         }
       set mismatches
       return ← mkForallFVars #[var] bA
@@ -47,11 +48,12 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
+      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
+        mismatch.placeholder.withContext do
         return {
-          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
-          left := ← mkLambdaFVars #[var] (usedOnly := true) left,
-          right := ← mkLambdaFVars #[var] (usedOnly := true) right
+          placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+          left := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.left,
+          right := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.right
         }
       set mismatches
       return ← mkLambdaFVars #[var] bA
@@ -63,12 +65,16 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLetDecl n d vA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun ⟨placeholder, left, right⟩ ↦ do
-        return {
-          placeholder := (← placeholder.revert #[var.fvarId!]).snd,
-          left := ← mkLetFVars #[var] (usedLetOnly := true) left,
-          right := ← mkLetFVars #[var] (usedLetOnly := true) right
-        }
+      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
+        mismatch.placeholder.withContext do
+        if (← getLCtx).containsFVar var then
+          return {
+            placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+            left := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.left,
+            right := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.right
+          }
+        else
+          return mismatch
       set mismatches
       return ← mkLetFVars #[var] bA
   | .app f a, .app f' a' =>
