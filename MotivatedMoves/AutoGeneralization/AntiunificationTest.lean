@@ -24,4 +24,4 @@ elab "#antiunify" e:term "&" e':term : command => runTermElabM fun _ ↦ do
 
 #antiunify (decide (?n ≠ 2) = true) & (true = true)
 
-#antiunify (?n + ?n : Nat) & (?n + ?m : Nat) -- TODO: fix this bug in anti-unification, result should be ?m + ?n
+#antiunify (?n + ?n : Nat) & (?n + ?m : Nat)

@@ -65,15 +65,19 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
   | .mvar m, e' =>
     if ← m.isAssigned then
       return ← antiUnify (← instantiateMVars (.mvar m)) e'
-    else
+    else if (← get).all fun mismatch ↦ !(mismatch.left == e) || (mismatch.right == e') then
       modify <| List.cons { placeholder := m, left := .mvar m, right := e' }
       return .mvar m
+    else
+      createAntiunifyingMVar
   | e, .mvar m' =>
     if ← m'.isAssigned then
       return ← antiUnify e (← instantiateMVars (.mvar m'))
-    else
+    else if (← get).all fun mismatch ↦ !(mismatch.left == e) || (mismatch.right == e') then
       modify <| List.cons { placeholder := m', left := e, right := .mvar m' }
       return .mvar m'
+    else
+      createAntiunifyingMVar
   | e, e' => createAntiunifyingMVar
 where
   createAntiunifyingMVar : StateT (List Mismatch) MetaM Expr := do
