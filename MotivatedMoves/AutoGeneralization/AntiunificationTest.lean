@@ -16,6 +16,8 @@ elab "#antiunify" e:term "&" e':term : command => runTermElabM fun _ ↦ do
 
 #antiunify ∃ n : Nat, 1 + n = 2 & ∃ n : Nat, 2 + n = 2
 
+#antiunify λ x : Nat => x + 5 & λ x : Nat => 2
+
 #antiunify (let n : Nat := 1 + 2; n + 5) & (let n : Nat := 1 + 3; n + 7)
 
 #antiunify ((1 + 2) + _ : Nat) & ((_ + 2) + 3 : Nat)
