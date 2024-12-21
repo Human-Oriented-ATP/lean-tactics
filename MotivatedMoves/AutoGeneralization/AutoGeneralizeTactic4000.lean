@@ -7,6 +7,9 @@ open Lean Elab Tactic Meta Term Command AntiUnify
 
 namespace Autogeneralize
 
+def placeholderName := `placeholder
+
+def preferredNames := #[`n, `m, `p, `a, `b, `c]
 
 
 /-- Remove the assignment of a metavariable from the context. -/
@@ -348,7 +351,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       let (_, _, p) ← openAbstractMVarsResult pAbs
       if ← (isDefEq e p) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
-        let m ← mkFreshExprMVarAt lctx linst (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linst (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
@@ -415,6 +418,14 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
   for mv in mvarArray do
     if ← isDefEq (← mv.getType) t then
       if !(← mv.isAssigned) then mv.assignIfDefeq m
+
+/-- Relabel the metavariables in the expression with their preferred names. -/
+def relabelMVarsIn (e : Expr) : MetaM Unit := do
+  let mvars ← getMVars e
+  let placeholderMVars ← mvars.filterM fun mvar => do
+   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
+  for (mvar, name) in placeholderMVars.zip preferredNames do
+      mvar.setUserName name
 
 /-- Pull out mvars as hypotheses to create a chained implication-/
 def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
@@ -522,6 +533,9 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- let hyps ← getMVars genThmProof
   -- for hyp in hyps do
   --   if
+
+  -- this gives the meta-variables in the proof more human-readable names
+  relabelMVarsIn genThmProof
 
   -- Remove repeating hypotheses.
   genThmProof ← removeRepeatingHypotheses genThmProof
