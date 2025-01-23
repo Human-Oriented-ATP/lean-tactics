@@ -239,8 +239,42 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
 example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   -- autogeneralize (4:ℕ) in union_of_finsets
+
   autogeneralize (2:ℕ) in union_of_finsets
   specialize union_of_finsets.Gen 3 4
+  assumption
+
+-- to screeshot
+
+example := by
+  let union_of_sets (A B : Finset α)
+    (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  autogeneralize (2:ℕ) in union_of_sets
+
+
+
+
+
+
+
+
+
+
+  specialize union_of_sets.Gen 3 4
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -296,6 +330,16 @@ example : ∀ x : ℝ, NeZero x → P' x := by
 GENERALIZING PROOFS OF IRRATIONALITY.
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
+/--To screenshot-/
+
+example := by
+  let irrat_sqrt : Irrational (sqrt 2) := by {apply irrat_def; intros h; obtain ⟨a, b, ⟨copr, h⟩⟩ := h; have a_div : 2 ∣ a := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_right); use (b*b); rw [← mul_assoc]; rw [h];): 2 ∣ a*a); cases c; assumption; assumption}; have a_is_pk : ∃ k, a = 2 * k := by {apply (Iff.mp dvd_iff_exists_eq_mul_right) a_div}; obtain ⟨k, hk⟩ := a_is_pk; rw [hk] at h; replace h := Eq.symm h; rw [mul_assoc] at h; rw [mul_assoc] at h; rw [mul_comm 2 k] at h; rw [mul_eq_mul_left_iff] at h; rw [← mul_assoc k k 2] at h; have := Nat.Prime.ne_zero Nat.prime_two; cases h with | inl => have b_div : 2 ∣ b := by {have c := (Nat.Prime.dvd_mul (Nat.prime_two)).mp ((by apply (Iff.mpr dvd_iff_exists_eq_mul_left); use (k*k))); cases c; assumption; assumption}; have p_dvd_gcd : 2 ∣ gcd a b := by {apply Iff.mpr (dvd_gcd_iff _ _ _) ⟨a_div, b_div⟩}; clear a_div b_div; rw [copr] at p_dvd_gcd; apply Nat.Prime.not_dvd_one (Nat.prime_two) p_dvd_gcd | inr => apply this; assumption}
+  autogeneralize (2:ℕ) in irrat_sqrt
+
+
+
+
+  use 1
 /--
 Example:
 sqrt(2) is irrational generalizes to sqrt(prime) is irrational
@@ -330,7 +374,27 @@ example : Irrational (sqrt 3 + 6) := by
 GENERALIZING SIZES OF SETS.
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
-variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+-- variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+/--
+Example to screenshot
+-/
+
+example :=
+by
+  let fun_set :
+    Fintype.card α = 3 → Fintype.card β = 3 →
+    Fintype.card (α → β) = 3 ^ 3 := by {intros α_card  β_card; rw [Fintype.card_pi, Finset.prod_const]; congr}
+
+  autogeneralize 3 in fun_set
+
+
+
+
+
+
+
+
+  use 1
 
 /--
 Example of a naive, over-specialized generalization:
