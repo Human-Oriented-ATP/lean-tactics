@@ -205,7 +205,6 @@ example : True := by
   trivial
 
 example : True := by
-  have impossible_graph := impossible_graph
   autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
   -- specialize impossible_graph.Gen 5
   -- autogeneralize (3:ℕ) in impossible_graph.Gen

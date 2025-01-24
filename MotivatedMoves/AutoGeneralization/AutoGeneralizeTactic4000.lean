@@ -259,16 +259,16 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
                             catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                              -- logInfo m!"fabs was {fAbs} with type {← inferType fAbs}"
-                              -- logInfo m!"aAbs was {aAbs} with type {← inferType aAbs}"
                               let expectedA ← extractArgType fAbs
-                              -- let expectedaAbs ← visit expectedA depth
                               logInfo m!"aAbs was expected to have type {expectedA} but has type {← inferType aAbs}"
-                              let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
-                              -- let m ← mkFreshExprMVar expectedA -- mvar for generalized / expected type
-                              logInfo m!"so abstracting it out to an mvar {m}"
-                              -- check $ .app fAbs m
-                              return e.updateApp! fAbs m
+
+                              -- the mismatch is probably caused because something else needs to be generalized
+                              let problemTerm ← getTermsToGeneralize expectedA (← inferType aAbs)
+                              logInfo m!"The mismatch can probably be fixed by generalizing {problemTerm}"
+
+                              -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
+                              -- logInfo m!"so abstracting it out to an mvar {m}"
+                              return e.updateApp! fAbs aAbs
                               -- if this doesn't typecheck, that means probably that term has been generalized,
                               -- but type still has the pattern (or a comp rule was used).
                               -- so to fix it, we should discard the proof entirely (by making it a mvar

@@ -22,8 +22,8 @@ elab "#antiunify" e:term "&" e':term : command => runTermElabM fun _ ↦ do
 
 #antiunify ((1 + 2) + _ : Nat) & ((_ + 2) + 3 : Nat)
 
-#antiunify (((?n : Nat) - 1) = ((?n : Nat) - 1)) & (((?n : Nat) - 1) = 3)
-
 #antiunify (decide (?n ≠ 2) = true) & (true = true)
 
 #antiunify (?n + ?n : Nat) & (?n + ?m : Nat)
+
+#antiunify (((?n : Nat) - 1) = ((?n : Nat) - 1)) & (((?n : Nat) - 1) = 3)
