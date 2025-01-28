@@ -252,9 +252,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
 
-                              -- for t in problemTerms do
-                              --   fAbs ← replacePatternWithMVars fAbs t
-                              --   aAbs ← replacePatternWithMVars aAbs t
+                              for t in problemTerms do
+                                fAbs ← replacePatternWithMVars fAbs t
+                                aAbs ← replacePatternWithMVars aAbs t
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
@@ -339,7 +339,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
       let (_, _, p) ← openAbstractMVarsResult pAbs
-      if ← (isDefEq e p) then
+      if !e.isMVar && (← withoutModifyingState (isDefEq e p)) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
         let m ← mkFreshExprMVarAt lctx linst (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
