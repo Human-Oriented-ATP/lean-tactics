@@ -232,20 +232,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
 
-
-
-    -- abstract if type contains p
-    -- let eType ← inferType e
-    -- let abstractedEType ← visit eType -- note -- if this doesn't work, try using visit to abstract
-    -- let abstractedETerm ← visit e -- note -- if this doesn't work, try using visit to abstract
-    -- let eTypeContainsP ← hasMVarOfType pType abstractedEType
-    -- let eTermContainsP ← hasMVarOfType pType abstractedETerm
-    -- if eTypeContainsP && ! eTermContainsP then
-    --   let m ← mkFreshExprMVar abstractedEType (kind := .synthetic) -- mvar for generalized proof
-    --   logInfo m!"About to replace {e} with a mvar of type {abstractedEType}"
-    --   return e
-
-
     let visitChildren : Unit → MetaM Expr := fun _ => do
       if e.hasLooseBVars then
         logInfo m!"Loose BVars detected on expression {e}"
@@ -253,8 +239,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
-                            let fAbs ← visit f depth -- the type
-                            let aAbs ← visit a depth -- the term
+                            let mut fAbs ← visit f depth -- the type
+                            let mut aAbs ← visit a depth -- the term
                             try
                               check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
@@ -263,8 +249,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               logInfo m!"aAbs was expected to have type {expectedA} but has type {← inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized
-                              let problemTerm ← getTermsToGeneralize expectedA (← inferType aAbs)
-                              logInfo m!"The mismatch can probably be fixed by generalizing {problemTerm}"
+                              let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
+                              logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+
+                              -- for t in problemTerms do
+                              --   fAbs ← replacePatternWithMVars fAbs t
+                              --   aAbs ← replacePatternWithMVars aAbs t
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
