@@ -220,9 +220,8 @@ Roughly implemented like kabstract, with the following differences:
 -/
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
-partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
+partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) : MetaM Expr := do
   -- return e
-  let (lctx, linst) := (← getLCtx, ← getLocalInstances)
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
   let pAbs ← abstractMVars p (levels := false) -- the `(levels := false)` prevents bizarre instantiations across universe levels
@@ -253,8 +252,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
 
                               for t in problemTerms do
-                                fAbs ← replacePatternWithMVars fAbs t
-                                aAbs ← replacePatternWithMVars aAbs t
+                                fAbs ← replacePatternWithMVars fAbs t lctx linsts
+                                aAbs ← replacePatternWithMVars aAbs t lctx linsts
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
@@ -321,7 +320,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
                                 -- it may be safer to just check whether the generalized type has any meta-variables at all,
                                 -- rather than looking for ones of a specific type, since there's a chance of false negatives with the latter
                                 if genConstType.hasExprMVar then
-                                  let m ← mkFreshExprMVarAt lctx linst genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
+                                  let m ← mkFreshExprMVarAt lctx linsts genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                                   -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                                   logInfo m!"made mvar {m} of type {genConstType}"
                                   -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
@@ -341,7 +340,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) : MetaM Expr := do
       let (_, _, p) ← openAbstractMVarsResult pAbs
       if !e.isMVar && (← withoutModifyingState (isDefEq e p)) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
-        let m ← mkFreshExprMVarAt lctx linst (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
@@ -497,7 +496,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
-  genThmProof ← replacePatternWithMVars genThmProof pattern -- replace instances of f's old value with metavariables
+  genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   -- Consolidate mvars within proof term by running a typecheck
