@@ -25,9 +25,13 @@ structure Mismatch where
   right : Expr
 deriving Repr
 
+initialize
+  registerTraceClass `AntiUnify
+
 /-- Compute the least common generalizer of the given pair of expressions.
     The convention throughout is that the attributes of the first expression preferentially get copied over to the result whenever there is a choice. -/
 partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
+  trace[AntiUnify] m!"Anti-unifying {e} and {e'}"
   match e, e' with
   | .forallE n d b bi, .forallE n' d' b' bi' =>
     let dA ← antiUnify d d'
@@ -120,6 +124,7 @@ where
     if ← liftM <| withoutModifyingState <| isDefEq e e' then
       return e
     else
+      trace[AntiUnify] m!"Creating anti-unifying metavariable for {e} and {e'} of type {t}"
       let mvar ← mkFreshExprMVar (some t)
       modify <| List.cons { placeholder := mvar.mvarId!, left := e, right := e' }
       return mvar
