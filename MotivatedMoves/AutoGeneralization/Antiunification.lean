@@ -41,7 +41,7 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
       let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
         mismatch.placeholder.withContext do
         return {
-          placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+          placeholder := mismatch.placeholder,
           left := ← mkForallFVars #[var] (usedOnly := true) mismatch.left,
           right := ← mkForallFVars #[var] (usedOnly := true) mismatch.right
         }
@@ -55,7 +55,7 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
       let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
         mismatch.placeholder.withContext do
         return {
-          placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+          placeholder := mismatch.placeholder,
           left := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.left,
           right := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.right
         }
@@ -73,7 +73,7 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
         mismatch.placeholder.withContext do
         if (← getLCtx).containsFVar var then
           return {
-            placeholder := (← mismatch.placeholder.revert #[var.fvarId!]).snd,
+            placeholder := mismatch.placeholder,
             left := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.left,
             right := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.right
           }
