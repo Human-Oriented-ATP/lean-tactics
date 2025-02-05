@@ -6,7 +6,7 @@ open Autogeneralize
 
 -- #check Int.dvd_mod_iff
 
-def Int.dvd_mod (a b c : ℤ) : c ∣ a → c ∣ b → c ∣ (b % a) := by
+def Int.dvd_mod {a b c : ℤ} : c ∣ a → c ∣ b → c ∣ (b % a) := by
   intro c_div_a c_div_b
   rw [← Int.ediv_add_emod b a] at c_div_b
   have c_div_aq: c ∣ a*(b/a) := Dvd.dvd.mul_right c_div_a (b/a)
@@ -19,6 +19,6 @@ def Int.hcf (a b : ℤ) : {g : ℤ // g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a �
     ⟨b, ⟨by simp_all only [dvd_zero], by simp only [dvd_refl], by simp⟩⟩
   else
     let ⟨val, ⟨ha, hb, hdiv⟩⟩ := Int.hcf (b % a) a
-    ⟨val, ⟨hb, sorry, fun c hca hcr ↦ hdiv c sorry hca⟩⟩
+    ⟨val, ⟨hb, sorry, fun c hca hcr ↦ hdiv c (Int.dvd_mod ‹_› ‹_›) hca⟩⟩
   termination_by a
   decreasing_by sorry
