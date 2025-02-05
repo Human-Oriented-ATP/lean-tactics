@@ -1,9 +1,5 @@
 import Lean
 
-import Init.Data.Nat.Dvd
-import Init.NotationExtra
-import Init.RCases
-
 #check Nat.gcd
 
 --------------------------------------------------
@@ -62,3 +58,13 @@ theorem dvd_gcd : k ∣ m → k ∣ n → k ∣ gcd m n := by
   induction m, n using gcd.induction with intro km kn
   | H0 n => rw [gcd_zero_left]; exact kn
   | H1 n m _ IH => rw [gcd_rec]; exact IH ((Nat.dvd_mod_iff km).2 kn) km
+
+theorem gcd_def_iff_gcd_alg (m n : Nat): (gcd m n ∣ m) ∧ (gcd m n ∣ n) ∧ (k ∣ m → k ∣ n → k ∣ gcd m n ) := by
+  constructor
+  apply (gcd_dvd m n).left
+  constructor
+  apply (gcd_dvd m n).right
+  apply dvd_gcd
+
+example : True :=
+  autogeneralize Nat in gcd_def_iff_gcd_alg
