@@ -1,7 +1,9 @@
 import Lean
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
-import Mathlib.Data.Real.Irrational
+import Qq
 import MotivatedMoves.AutoGeneralization.Antiunification
+
+-- import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic /- π -/
+-- import Mathlib.Data.Real.Irrational
 
 open Lean Elab Tactic Meta Term Command AntiUnify
 
@@ -129,8 +131,8 @@ def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
 /-- Returns true if the expression is assigned to another expression containing metadata -/
 def assignmentContainsMData (m : MVarId) : MetaM Bool := do
   let m_assignment ← getAssignmentFor m
-  if (m_assignment.isSome) then
-    if (← containsMData (← m_assignment)) then
+  if let some assignment := m_assignment then
+    if ← containsMData assignment then
       return True
   return False
 
@@ -177,7 +179,7 @@ open Qq in
   let two_plus_one := q(Nat.succ 2)
   let three_times_four := q((2 + 1)*4)
   let four_times_four := q(4*4)
-  let three_is_even := q(Even 3)
+  -- let three_is_even := q(Even 3)
   let three := q(3)
   containsSubexpr  three two_plus_one -- true
   -- containsSubexpr  three three_times_four -- true
@@ -229,7 +231,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   -- let _ ← abstractIfTypeContainsP e p
 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
-  let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
+  let rec visit (e : Expr) (depth : Nat := 0): MetaM Expr := do
 
     let visitChildren : Unit → MetaM Expr := fun _ => do
       if e.hasLooseBVars then
@@ -406,7 +408,7 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
   let m ← mkFreshExprMVar t -- new mvar to replace all others with the same type
   for mv in mvarArray do
     if ← isDefEq (← mv.getType) t then
-      if !(← mv.isAssigned) then mv.assignIfDefeq m
+      if !(← mv.isAssigned) then mv.assign m--mv.assignIfDefeq m
 
 /-- Relabel the metavariables in the expression with their preferred names. -/
 def relabelMVarsIn (e : Expr) : MetaM Unit := do
@@ -569,9 +571,8 @@ elab "autogeneralize" pattern:term "in" h:ident occs:(Autogeneralize.occurrences
   let pattern ← (Lean.Elab.Term.elabTerm pattern none)
   let h := h.getId
   let occs := occs.map decodeOccurrences
-  if occs.isSome then
-    autogeneralize h pattern (Occurrences.pos $ ← occs)
-  else
-    autogeneralize h pattern -- generalize all occurrences (default: to different mvars)
+  match occs with
+  | some occsList => autogeneralize h pattern (Occurrences.pos occsList)
+  | none => autogeneralize h pattern -- generalize all occurrences (default: to different mvars)
 
 end Autogeneralize
