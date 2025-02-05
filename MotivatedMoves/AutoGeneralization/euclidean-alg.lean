@@ -18,6 +18,10 @@ def gcd (m n : @& Nat) : Nat :=
 
 #eval gcd 90 75
 
+def gcd' (m n : Int) : Nat := gcd m.natAbs n.natAbs
+
+#eval gcd' (-90) 75
+
 
 --------------------------------------------------
 -- PROVING CORRESPONDANCE TO THE GCD DEFINITION --
@@ -62,13 +66,26 @@ theorem dvd_gcd : k ∣ m → k ∣ n → k ∣ gcd m n := by
   | H0 n => rw [gcd_zero_left]; exact kn
   | H1 n m _ IH => rw [gcd_rec]; exact IH ((Nat.dvd_mod_iff km).2 kn) km
 
-theorem gcd_def_iff_gcd_alg (m n : Nat): (gcd m n ∣ m) ∧ (gcd m n ∣ n) ∧ (k ∣ m → k ∣ n → k ∣ gcd m n ) := by
+theorem gcd_def_iff_gcd_alg (m n k : Nat):
+  (gcd m n ∣ m) ∧
+  (gcd m n ∣ n) ∧
+  (k ∣ m → k ∣ n → k ∣ gcd m n ) :=
+by
   constructor
   apply (gcd_dvd m n).left
   constructor
   apply (gcd_dvd m n).right
   apply dvd_gcd
 
+-- theorem gcd_def_iff_gcd_alg' (m n : Int): (gcd' m n ∣ m) ∧ (gcd' m n ∣ n) ∧ (k ∣ m → k ∣ n → k ∣ gcd' m n ) := by
+--   constructor
+--   apply (gcd_dvd m n).left
+--   constructor
+--   apply (gcd_dvd m n).right
+--   apply dvd_gcd
+
+
 example : True := by
   autogeneralize Nat in gcd_def_iff_gcd_alg
+  specialize gcd_def_iff_gcd_alg.Gen Int
   trivial

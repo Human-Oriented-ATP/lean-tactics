@@ -432,6 +432,9 @@ def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
         -- `discard` ignores the result of its argument (but retains modifications to the state)
         -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
         discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
+      -- else if (hyp₁.name.toString.startsWith "inst" ∧ hyp₂.name.toString.startsWith "inst") then do
+      --   discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
+
   return genThmProof
 
 /-- Re-specialize the occurrences of the pattern we are not interested in -/
