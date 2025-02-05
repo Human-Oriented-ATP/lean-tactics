@@ -4,7 +4,11 @@ import Mathlib.Tactic
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
 open Autogeneralize
 
--- #check Int.dvd_mod_iff
+def Int.mod_dvd {a b k : ℤ}: k ∣ b % a → k ∣ a → k ∣ b := by
+  intros h1 h2
+  rw [← Int.ediv_add_emod b a]
+  refine dvd_add ?_ h1
+  exact Dvd.dvd.mul_right h2 (b / a)
 
 def Int.dvd_mod {a b c : ℤ} : c ∣ a → c ∣ b → c ∣ (b % a) := by
   intro c_div_a c_div_b
@@ -19,6 +23,6 @@ def Int.hcf (a b : ℤ) : {g : ℤ // g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a �
     ⟨b, ⟨by simp_all only [dvd_zero], by simp only [dvd_refl], by simp⟩⟩
   else
     let ⟨val, ⟨ha, hb, hdiv⟩⟩ := Int.hcf (b % a) a
-    ⟨val, ⟨hb, sorry, fun c hca hcr ↦ hdiv c (Int.dvd_mod ‹_› ‹_›) hca⟩⟩
+    ⟨val, ⟨hb, Int.mod_dvd ‹_› ‹_›, fun c hca hcr ↦ hdiv c (Int.dvd_mod ‹_› ‹_›) hca⟩⟩
   termination_by a
   decreasing_by sorry
