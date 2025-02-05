@@ -69,5 +69,6 @@ theorem gcd_def_iff_gcd_alg (m n : Nat): (gcd m n ∣ m) ∧ (gcd m n ∣ n) ∧
   apply (gcd_dvd m n).right
   apply dvd_gcd
 
--- example : True :=
---   autogeneralize Nat in gcd_def_iff_gcd_alg
+example : True := by
+  autogeneralize Nat in gcd_def_iff_gcd_alg
+  trivial
