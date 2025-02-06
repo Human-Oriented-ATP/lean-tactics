@@ -198,19 +198,25 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   apply three_not_le_one v_deg_geq
 
-example : True := by
+example : ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
+  (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
+:= by
   autogeneralize (3:ℕ) in impossible_graph
   autogeneralize (4:ℕ) in impossible_graph.Gen
-  -- simp at impossible_graph.Gen.Gen
+
+  specialize impossible_graph.Gen.Gen 5
+  apply impossible_graph.Gen.Gen
   trivial
 
-example : True := by
+example :
+  ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
+  (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
+:= by
   autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
-  -- specialize impossible_graph.Gen 5
-  -- autogeneralize (3:ℕ) in impossible_graph.Gen
-  -- simp at impossible_graph.Gen.Gen
-  trivial
 
+  specialize impossible_graph.Gen 5
+  apply impossible_graph.Gen
+  trivial
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
