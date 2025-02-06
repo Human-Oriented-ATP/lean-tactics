@@ -222,7 +222,7 @@ Roughly implemented like kabstract, with the following differences:
 -/
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
-partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) : StateT (List Expr) MetaM Expr := do
+partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) (detectConflicts? := false) : StateT (List Expr) MetaM Expr := do
   -- return e
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
@@ -501,8 +501,13 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
-  genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
+  let mut changes := []
+  (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
+  -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
+
+  for change in changes do
+    genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
