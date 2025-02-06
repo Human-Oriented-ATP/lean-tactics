@@ -233,7 +233,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : Nat := 0): StateT (List Expr) MetaM Expr := do
 
-    let visitChildren : Unit → StateT (List Expr) MetaM Expr := fun _ => do
+    let visitChildren : Unit →  StateT (List Expr) MetaM Expr := fun _ => do
       if e.hasLooseBVars then
         logInfo m!"Loose BVars detected on expression {e}"
       match e with
@@ -253,9 +253,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
 
-                              for t in problemTerms do
-                                fAbs ← replacePatternWithMVars fAbs t lctx linsts
-                                aAbs ← replacePatternWithMVars aAbs t lctx linsts
+                              -- for t in problemTerms do
+                              --   fAbs ← replacePatternWithMVars fAbs t lctx linsts
+                              --   aAbs ← replacePatternWithMVars aAbs t lctx linsts
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
@@ -272,7 +272,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               -- logInfo m!"let body: {b}"
-                              let bAbs ← if (← liftM <| withoutModifyingState (isDefEq tAbs t)) then
+                              let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
                                     visit b depth -- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"tAbs {tAbs} and t {t} are not defeq"
@@ -290,7 +290,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                 let b := b.instantiate1 placeholder
                                 -- logInfo m!"lamda body: {b}"
                                 let bAbs ←
-                                  if (← liftM <| withoutModifyingState (isDefEq dAbs d)) then
+                                  if (←  liftM <| withoutModifyingState (isDefEq dAbs d)) then
                                     visit b depth-- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"dAbs {dAbs} and d {d} are not defeq"
@@ -340,9 +340,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
       let (_, _, p) ← openAbstractMVarsResult pAbs
-      if !e.isMVar && (← liftM <| withoutModifyingState (isDefEq e p)) then
+      if !e.isMVar && (←  liftM <|  withoutModifyingState (isDefEq e p)) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
-        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) (kind := .syntheticOpaque) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) --(kind := .syntheticOpaque) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
