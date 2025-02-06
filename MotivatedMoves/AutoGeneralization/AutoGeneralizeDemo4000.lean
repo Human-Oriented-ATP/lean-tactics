@@ -205,9 +205,7 @@ example : ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
   autogeneralize (4:ℕ) in impossible_graph.Gen
 
   specialize impossible_graph.Gen.Gen 5
-  apply impossible_graph.Gen.Gen
-  trivial
-
+  apply impossible_graph.Gen.Gen (by trivial)
 example :
   ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
   (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
@@ -215,9 +213,7 @@ example :
   autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
 
   specialize impossible_graph.Gen 5
-  apply impossible_graph.Gen
-  trivial
-
+  apply impossible_graph.Gen (by trivial)
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
@@ -312,10 +308,10 @@ Fabian's example:
   and therefore generalizes to
   "hyp.Gen" which is a proof that ∀ x, P x
 -/
-def P (x : ℝ) := ∀ y : ℝ, y = 0 → x * y = 0
+def P (x : ℝ) := ∀ y : ℝ, y = 0 → x * y = 0 -- if y is zero, so is y multiplied by anything else
 example : ∀ x : ℝ, P x := by
   let hyp :  ∀ y : ℝ, y = 0 → 2 * y = 0 := by {intro y h; have twoneq : (2:ℝ) ≠ 0 := two_ne_zero; apply mul_eq_zero_of_right; apply h};
-  autogeneralize 2 in hyp -- generalizes to a statement that works for all x:ℝ, not requiring x ≠ 0
+  autogeneralize (2:ℝ) in hyp -- generalizes to a statement that works for all x:ℝ, not requiring x ≠ 0
   assumption
 
 /--
