@@ -22,6 +22,7 @@ set_option pp.showLetValues false
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
 
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF NONEVENS IS NONEVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -130,19 +131,7 @@ example : True := by
   trivial
 
 
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-SIX IS EVEN
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-theorem six_is_even : Even (3+3) := by
-  -- simp only [Nat.reduceAdd] -- the computation rule
-  -- exact Nat.even_iff.mpr (Eq.symm rfl) -- rfl is a computation rule
-  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
 
-example : Even 4 := by
-  autogeneralize 3 in six_is_even -- extracts out comp rule
-  specialize six_is_even.Gen 1 3
-  simp at six_is_even.Gen
-  assumption
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -320,10 +309,10 @@ Fabian's example:
   and therefore generalizes to
   "hyp.Gen" which is a proof that ∀ x, x ≠ 0 → P x
 -/
-def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y=0
+def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y = 0 -- if the product if x and y is 0, then y is zero
 example : ∀ x : ℝ, NeZero x → P' x := by
-  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  let oneneq : (1:ℝ) ≠ 0 :=  neZero_iff.mp inferInstance;  apply eq_zero_of_ne_zero_of_mul_left_eq_zero oneneq h;};
-  autogeneralize (1 : ℝ) in hyp
+  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  let twoneq : (1:ℝ) ≠ 0 := sorry; apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
+  autogeneralize (1:ℝ) in hyp
   assumption
 
 
@@ -505,6 +494,7 @@ GENERALIZING WITH COMPUTATION RULES
 Demonstration that compatible proofs must use deduction rules, not computation rules
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
+
 /--
 An example where only deduction rules are used, so the proof generalizes.
 -/
@@ -530,3 +520,28 @@ example := by
     decide
   -- autogeneralize 3 in two_times_three_is_even -- throws error b/c of computation rule
   assumption
+
+/--
+-- PROVING WITHOUT COMPUTATION RULES
+-/
+theorem six_is_even''' : Even (3+3) := by
+  apply even_add_self 3
+example : Even 4 := by
+  autogeneralize (3:ℕ) in six_is_even''' -- extracts out comp rule
+  specialize six_is_even'''.Gen 2
+  assumption
+
+/--
+-- PROVING WITH COMPUTATION RULES
+-/
+theorem six_is_even'''' : Even (3+3) := by
+  -- rw [@Nat.even_iff]
+  -- simp only [Nat.reduceAdd] -- the computation rule
+  exact Nat.even_iff.mpr (rfl) -- rfl is a computation rule
+
+example : Even 4 := by
+  autogeneralize (3:ℕ) in six_is_even'''' -- extracts out comp rule
+  -- specialize six_is_even''''.Gen 1 3
+  -- simp at six_is_even''''.Gen
+  -- assumption
+  trivial
