@@ -220,7 +220,7 @@ Roughly implemented like kabstract, with the following differences:
 -/
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
-partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) : MetaM Expr := do
+partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) : StateT (List Expr) MetaM Expr := do
   -- return e
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
@@ -229,9 +229,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   -- let _ ← abstractIfTypeContainsP e p
 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
-  let rec visit (e : Expr) (depth : ℕ := 0): MetaM Expr := do
+  let rec visit (e : Expr) (depth : ℕ := 0): StateT (List Expr) MetaM Expr := do
 
-    let visitChildren : Unit → MetaM Expr := fun _ => do
+    let visitChildren : Unit → StateT (List Expr) MetaM Expr := fun _ => do
       if e.hasLooseBVars then
         logInfo m!"Loose BVars detected on expression {e}"
       match e with
@@ -270,7 +270,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               -- logInfo m!"let body: {b}"
-                              let bAbs ← if (← withoutModifyingState (isDefEq tAbs t)) then
+                              let bAbs ← if (← liftM <| withoutModifyingState (isDefEq tAbs t)) then
                                     visit b depth -- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"tAbs {tAbs} and t {t} are not defeq"
@@ -288,7 +288,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                 let b := b.instantiate1 placeholder
                                 -- logInfo m!"lamda body: {b}"
                                 let bAbs ←
-                                  if (← withoutModifyingState (isDefEq dAbs d)) then
+                                  if (← liftM <| withoutModifyingState (isDefEq dAbs d)) then
                                     visit b depth-- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"dAbs {dAbs} and d {d} are not defeq"
@@ -338,9 +338,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
       let (_, _, p) ← openAbstractMVarsResult pAbs
-      if !e.isMVar && (← withoutModifyingState (isDefEq e p)) then
+      if !e.isMVar && (← liftM <| withoutModifyingState (isDefEq e p)) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
-        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) (kind := .syntheticOpaque) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
@@ -496,7 +496,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
-  genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) -- replace instances of f's old value with metavariables
+  genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   -- Consolidate mvars within proof term by running a typecheck
