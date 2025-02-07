@@ -222,7 +222,7 @@ Roughly implemented like kabstract, with the following differences:
 -/
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
-partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) : MetaM Expr := do
+partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) (detectConflicts? := false) : StateT (List Expr) MetaM Expr := do
   -- return e
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
@@ -233,29 +233,32 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : Nat := 0): MetaM Expr := do
 
-    let visitChildren : Unit → MetaM Expr := fun _ => do
+    let visitChildren : Unit →  StateT (List Expr) MetaM Expr := fun _ => do
       if e.hasLooseBVars then
         logInfo m!"Loose BVars detected on expression {e}"
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
+| .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
+                          if detectConflicts? then
                             let mut fAbs ← visit f depth -- the type
                             let mut aAbs ← visit a depth -- the term
                             try
                               check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
-                            catch _ =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
+                            catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               let expectedA ← extractArgType fAbs
-                              logInfo m!"aAbs was expected to have type {expectedA} but has type {← inferType aAbs}"
+                              -- logInfo m!"Error in typechecking: {err.toMessageData}"
+                              logInfo m!"aAbs was expected to have type {← instantiateMVars expectedA} but has type {← instantiateMVars =<< inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+                              modify (problemTerms ++ ·)
 
                               for t in problemTerms do
-                                fAbs ← replacePatternWithMVars fAbs t lctx linsts
-                                aAbs ← replacePatternWithMVars aAbs t lctx linsts
+                                fAbs ← replacePatternWithMVars fAbs t lctx linsts (detectConflicts? := detectConflicts?)
+                                aAbs ← replacePatternWithMVars aAbs t lctx linsts (detectConflicts? := detectConflicts?)
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
@@ -263,6 +266,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               -- if this doesn't typecheck, that means probably that term has been generalized,
                               -- but type still has the pattern (or a comp rule was used).
                               -- so to fix it, we should discard the proof entirely (by making it a mvar
+                          else
+                            let fAbs ← visit f depth
+                            let aAbs ← visit a depth
+                            return e.updateApp! fAbs aAbs
+
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth
@@ -272,7 +280,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               -- logInfo m!"let body: {b}"
-                              let bAbs ← if (← withoutModifyingState (isDefEq tAbs t)) then
+                              let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
                                     visit b depth -- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"tAbs {tAbs} and t {t} are not defeq"
@@ -290,7 +298,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                 let b := b.instantiate1 placeholder
                                 -- logInfo m!"lamda body: {b}"
                                 let bAbs ←
-                                  if (← withoutModifyingState (isDefEq dAbs d)) then
+                                  if (←  liftM <| withoutModifyingState (isDefEq dAbs d)) then
                                     visit b depth-- now it's safe to recurse on b (no loose bvars)
                                   else
                                     logInfo m!"dAbs {dAbs} and d {d} are not defeq"
@@ -340,9 +348,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- if the expression "e" is the pattern you want to replace...
       let mctx ← getMCtx
       let (_, _, p) ← openAbstractMVarsResult pAbs
-      if !e.isMVar && (← withoutModifyingState (isDefEq e p)) then
+      if !e.isMVar && (←  liftM <|  withoutModifyingState (isDefEq e p)) then
         -- since the type of `p` may be slightly different each time depending on the context it's in, we infer its type each time
-        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) -- replace every occurrence of pattern with mvar
+        let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) --(kind := .syntheticOpaque) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
         -- logInfo m!"made mvar {m} of type {pType}"
@@ -501,8 +509,13 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
-  genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) -- replace instances of f's old value with metavariables
+  let mut changes := []
+  (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
+  -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
+
+  for change in changes do
+    genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
