@@ -38,3 +38,13 @@ def Int.hcf (a b : ℤ) : {g : ℤ // g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a �
     refine natAbs_lt_natAbs_of_nonneg_of_lt ?w₁ this
     exact abs_nonneg (b % a)
   )
+#print Int.hcf
+#print Int.hcf._unary
+example : True := by
+  -- autogeneralize Int in Int.dvd_mod
+  autogeneralize Int in Int.hcf._unary
+  specialize Int.hcf._unary.Gen Nat
+  trivial
+
+#check Bool.rec
+#check Nat.rec

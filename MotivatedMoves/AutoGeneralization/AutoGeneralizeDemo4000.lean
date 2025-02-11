@@ -187,14 +187,6 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   apply three_not_le_one v_deg_geq
 
-example : ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
-  (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
-:= by
-  autogeneralize (3:ℕ) in impossible_graph
-  autogeneralize (4:ℕ) in impossible_graph.Gen
-
-  specialize impossible_graph.Gen.Gen 5
-  apply impossible_graph.Gen.Gen (by trivial)
 example :
   ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
   (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
@@ -203,6 +195,19 @@ example :
 
   specialize impossible_graph.Gen 5
   apply impossible_graph.Gen (by trivial)
+
+
+
+
+example : ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
+  (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
+:= by
+  autogeneralize (3:ℕ) in impossible_graph
+  autogeneralize (4:ℕ) in impossible_graph.Gen
+
+  specialize impossible_graph.Gen.Gen 5
+  apply impossible_graph.Gen.Gen (by trivial)
+
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
@@ -310,9 +315,10 @@ Fabian's example:
   "hyp.Gen" which is a proof that ∀ x, x ≠ 0 → P x
 -/
 def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y = 0 -- if the product if x and y is 0, then y is zero
-example : ∀ x : ℝ, NeZero x → P' x := by
-  let hyp :  ∀ y : ℝ, 1 * y = 0 → y = 0 := by {intro y h;  let twoneq : (1:ℝ) ≠ 0 := sorry; apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
-  autogeneralize (1:ℝ) in hyp
+example : ∀ x : ℝ, x ≠ 0 → P' x := by
+  let hyp :  ∀ y : ℝ, (3:ℝ) * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℝ) ≠ 0 :=  Ne.symm (OfNat.zero_ne_ofNat 3); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
+  autogeneralize (3:ℝ) in hyp
+  -- autogeneralize (3:ℕ) in hyp.Gen
   assumption
 
 
