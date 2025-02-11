@@ -15,7 +15,7 @@ def Int.mod_decreasing {a b : ℤ}: a ≠ 0 → |b % a| < |a| := by
 def Int.mod_dvd {a b k : ℤ}: k ∣ b % a → k ∣ a → k ∣ b := by
   intros h1 h2
   rw [← Int.ediv_add_emod b a]
-  refine dvd_add ?_ h1
+  refine Int.dvd_add ?_ h1
   exact Dvd.dvd.mul_right h2 (b / a)
 
 def Int.dvd_mod {a b c : ℤ} : c ∣ a → c ∣ b → c ∣ (b % a) := by
@@ -42,6 +42,7 @@ def Int.hcf (a b : ℤ) : {g : ℤ // g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a �
 #print Int.hcf._unary
 example : True := by
   -- autogeneralize Int in Int.dvd_mod
+  autogeneralize Int in Int.mod_dvd
   autogeneralize Int in Int.hcf._unary
   specialize Int.hcf._unary.Gen Nat
   trivial
