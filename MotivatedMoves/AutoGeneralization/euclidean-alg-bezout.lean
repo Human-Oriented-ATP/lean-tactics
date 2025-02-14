@@ -22,9 +22,24 @@ by
     rfl
     simp only [zero_mul, one_mul, zero_add, ne_eq, y_neq_0, not_false_eq_true]
 
-  -- By well-ordering principle, B has a minimal element
+  -- By well-ordering principle on subsets of ℕ, B has a minimal element
   have h_B_min : ∃ d : ℕ, d ∈ B ∧ ∀ z ∈ B, d ≤ z := by
+    let p : ℕ → Prop := fun n => n ∈ B
 
-    sorry
+    have p_decidable : DecidablePred p := by
+      intro n
+      apply Classical.propDecidable
 
+    have exists_p : ∃ n, p n := by
+      rcases h_B_nonempty with ⟨z, hz⟩
+      use z
+
+    let d := Nat.find exists_p
+    use d
+    constructor
+    · exact Nat.find_spec exists_p
+    · intro z hz
+      exact Nat.find_min' exists_p hz
+
+  -- Call that minimal element "d"
   let ⟨d, hd⟩ := h_B_min
