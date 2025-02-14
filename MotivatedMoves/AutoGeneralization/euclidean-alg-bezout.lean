@@ -73,10 +73,6 @@ by
 
   -- Prove d | x
   have d_dvd_x : (d:ℤ) ∣ x := by
-  -- have d_dvd_x : d ∣ x.natAbs := by
-
-    -- rw [d_eq]
-
     -- Prove d > 0
     have d_pos : 0 < d := by
       rw [d_eq]
@@ -93,20 +89,6 @@ by
     have r_nonneg : 0 ≤ r := by apply Int.emod_nonneg x d_neq_zero'
     have r_lt_d : r < d := by apply Int.emod_lt_of_pos x d_pos'
 
-    --  Nat.mod_lt x.natAbs d_pos
-    -- let q := x.natAbs / d
-    -- let r := x.natAbs % d
-    -- have r_nonneg : 0 ≤ r := Nat.zero_le r
-    -- have r_lt_d : r < d := Nat.mod_lt x.natAbs d_pos
-    -- have x_eq : x.natAbs = q*d+r  := Eq.symm (Nat.div_add_mod' x.natAbs d)
-
-    -- Solve for r
-    -- x = q(hx + ky) + r
-    -- r = x - q(hx + ky)
-    -- r = x(1 - qh) - qky which is in A
-
-
-
     -- If r ≠ 0, then r.natAbs ∈ B and r.natAbs < d, contradicting minimality
     by_cases r_zero : r = 0
     -- If r = 0, then d|x
@@ -116,6 +98,11 @@ by
     -- If r ≠ 0, then r.natAbs ∈ B and r.natAbs < d, contradicting minimality of d
     have r_in_A : (r:ℤ) ∈ A := by
       have r_eq : r = x - q*d := by rw [x_eq]; ring_nf
+
+      -- Solve for r
+      -- x = q(hx + ky) + r
+      -- r = x - q(hx + ky)
+      -- r = x(1 - qh) - qky which is in A
 
       by_cases d_sign : h*x + k*y > 0
       · -- Case hx + ky > 0
