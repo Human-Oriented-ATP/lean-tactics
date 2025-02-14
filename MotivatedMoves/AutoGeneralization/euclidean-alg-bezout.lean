@@ -1,15 +1,18 @@
 import Lean
 import Mathlib.Tactic
+
+import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
+open Autogeneralize
+
+
 def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 notation g " is GCD[" a ", " b "]" => is_gcd g a b
+
 -- def hcf (a b : ℤ) : ℤ := sorry
 -- theorem hcf_iff {a b : ℤ} :
 --   hcf a b = g ↔ g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g) :=
 -- by
 --   sorry
-
-
-
 
 /-- Bézout's identity states that for any two integers a and b, there exist integers x and y such that their greatest common divisor g can be expressed as a linear combination ax + by = g -/
 theorem bezout_identity (x y : ℤ) :
@@ -238,3 +241,6 @@ by
     -- specialize d_minimal c c_dvd_x c_dvd_y
     -- rw [d_eq] at d_minimal
     exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
+
+example : True := by
+  autogeneralize Int in bezout_identity
