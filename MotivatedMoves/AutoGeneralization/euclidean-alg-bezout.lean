@@ -73,17 +73,17 @@ by
 
 
 
-  -- Prove c | x and c | y => c | d
-  have d_minimal : ∀ c, c ∣ x → c ∣ y → c ∣ d := by
-    intro c ⟨kc,c_div_x⟩ ⟨ky,c_div_y⟩
-    rw [d_eq, c_div_x, c_div_y]
-    simp only [Int.natCast_natAbs, dvd_abs]
+  -- -- Prove c | x and c | y => c | d
+  -- have d_minimal : ∀ c, c ∣ x → c ∣ y → c ∣ d := by
+  --   intro c ⟨kc,c_div_x⟩ ⟨ky,c_div_y⟩
+  --   rw [d_eq, c_div_x, c_div_y]
+  --   simp only [Int.natCast_natAbs, dvd_abs]
 
-    refine (Int.dvd_add_left ?H).mpr ?_
-    rw [mul_comm, mul_assoc]
-    exact Int.dvd_mul_right c (ky * k)
-    rw [mul_comm, mul_assoc]
-    exact Int.dvd_mul_right c (kc * h)
+  --   refine (Int.dvd_add_left ?H).mpr ?_
+  --   rw [mul_comm, mul_assoc]
+  --   exact Int.dvd_mul_right c (ky * k)
+  --   rw [mul_comm, mul_assoc]
+  --   exact Int.dvd_mul_right c (kc * h)
 
   -- Prove d | x
   have d_dvd_x : (d:ℤ) ∣ x := by
@@ -228,6 +228,13 @@ by
     have r_lt_r := lt_of_lt_of_le r_lt_d d_le_r
     exact (lt_self_iff_false r.natAbs).mp r_lt_r
 
-  -- rw [is_gcd]
-  -- constructor
-  sorry
+  rw [is_gcd]
+  refine' ⟨ _, _, _⟩
+  · rw [d_eq] at d_dvd_x
+    exact Int.natAbs_dvd.mp d_dvd_x
+  · rw [d_eq] at d_dvd_y
+    exact Int.natAbs_dvd.mp d_dvd_y
+  · intro c c_dvd_x c_dvd_y
+    -- specialize d_minimal c c_dvd_x c_dvd_y
+    -- rw [d_eq] at d_minimal
+    exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
