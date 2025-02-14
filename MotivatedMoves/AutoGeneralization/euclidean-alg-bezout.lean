@@ -87,13 +87,15 @@ by
 
 
     have r_in_A : (r:ℤ) ∈ A := by
+      have r_eq : r = x - q*d := by rw [x_eq]; ring_nf
+
       by_cases d_sign : h*x + k*y > 0
       · -- Case hx + ky > 0
         use (1-q*h)
         use (-q*k)
 
-        have r_eq : r = x - q*d := by rw [x_eq]; ring_nf
         rw [r_eq, hd_eq]
+
         have d_abs_is_d : (h * x + k * y).natAbs = h * x + k * y := by
           rw [Int.natCast_natAbs, abs_eq_self]
           exact Int.le_of_lt d_sign
@@ -101,13 +103,16 @@ by
         ring_nf
 
       · -- Case hx + ky ≤ 0
-        sorry
-        -- use (- q*h)
-        -- use (-q*k)
+        use (1+q*h)
+        use (q*k)
 
+        rw [r_eq, hd_eq]
 
-        -- ring_nf
-        -- simp
+        have d_abs_is_neg_d : (h * x + k * y).natAbs = -(h * x + k * y) := by
+          rw [Int.natCast_natAbs, abs_eq_neg_self]
+          exact Int.not_lt.mp d_sign
+        rw [d_abs_is_neg_d]
+        ring_nf
 
     have r_abs_in_B : r.natAbs ∈ B := by
       use (1 - q*h)
