@@ -41,7 +41,7 @@ def Int.hcf (a b : ℤ) : {g : ℤ // g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a �
 #print Int.hcf
 #print Int.hcf._unary
 example : True := by
-  -- autogeneralize Int in Int.dvd_mod
+  autogeneralize Int in Int.dvd_mod
   autogeneralize Int in Int.mod_dvd
   autogeneralize Int in Int.hcf._unary
   specialize Int.hcf._unary.Gen Nat
