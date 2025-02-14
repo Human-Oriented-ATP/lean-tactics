@@ -1,9 +1,15 @@
 import Lean
 import Mathlib.Tactic
+-- def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
+
+-- def gcd (a b : ℤ) : ℤ
+-- def gcd (a b : ℤ) := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
+
+
 
 /-- Bézout's identity states that for any two integers a and b, there exist integers x and y such that their greatest common divisor g can be expressed as a linear combination ax + by = g -/
 theorem bezout_identity (x y : ℤ) :
-  x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ),  h * x + k * y = (Int.gcd a b) :=
+  x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ),  (Int.gcd a b) = h * x + k * y  :=
 by
   intros x_neq_0 y_neq_0
 
@@ -48,9 +54,22 @@ by
   clear h_B_min
 
   -- Get h,k such that d = hx + ky
-  rcases hd.1 with ⟨h, k, d_eq, d_neq_zero⟩
+  let ⟨h, k, d_eq, d_neq_zero⟩ := hd.1
   use h
   use k
+
+  -- Prove c | x and c | y => c | d
+  have d_minimal : ∀ c, c ∣ x → c ∣ y → c ∣ d := by
+    intro c ⟨kc,c_div_x⟩ ⟨ky,c_div_y⟩
+    rw [d_eq, c_div_x, c_div_y]
+    simp only [Int.natCast_natAbs, dvd_abs]
+
+    refine (Int.dvd_add_left ?H).mpr ?_
+    rw [mul_comm, mul_assoc]
+    exact Int.dvd_mul_right c (ky * k)
+    rw [mul_comm, mul_assoc]
+    exact Int.dvd_mul_right c (kc * h)
+
 
   -- Prove d | x
   have d_dvd_x : (d:ℤ) ∣ x := by
@@ -142,3 +161,5 @@ by
     norm_cast at r_lt_d
     have r_lt_r := lt_of_lt_of_le r_lt_d d_le_r
     exact (lt_self_iff_false r.natAbs).mp r_lt_r
+
+  sorry
