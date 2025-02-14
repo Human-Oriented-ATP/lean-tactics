@@ -1,15 +1,21 @@
 import Lean
 import Mathlib.Tactic
--- def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
+def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
+notation g " is GCD[" a ", " b "]" => is_gcd g a b
+-- def hcf (a b : ℤ) : ℤ := sorry
+-- theorem hcf_iff {a b : ℤ} :
+--   hcf a b = g ↔ g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g) :=
+-- by
+--   sorry
 
--- def gcd (a b : ℤ) : ℤ
--- def gcd (a b : ℤ) := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 
 
 
 /-- Bézout's identity states that for any two integers a and b, there exist integers x and y such that their greatest common divisor g can be expressed as a linear combination ax + by = g -/
 theorem bezout_identity (x y : ℤ) :
-  x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ),  (Int.gcd a b) = h * x + k * y  :=
+  -- x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ),  (hcf a b) = h * x + k * y  :=
+    x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (h * x + k * y) is GCD[x, y] :=
+
 by
   intros x_neq_0 y_neq_0
 
@@ -58,6 +64,15 @@ by
   use h
   use k
 
+  -- Prove d > 0
+  have d_pos : 0 < d := by
+    rw [d_eq]
+    exact Int.natAbs_pos.mpr d_neq_zero
+  have d_neq_zero' : (d:ℤ) ≠ 0 := by exact Int.natCast_ne_zero_iff_pos.mpr d_pos
+  have d_pos' : (d:ℤ) > 0 := by exact Int.ofNat_pos.mpr d_pos
+
+
+
   -- Prove c | x and c | y => c | d
   have d_minimal : ∀ c, c ∣ x → c ∣ y → c ∣ d := by
     intro c ⟨kc,c_div_x⟩ ⟨ky,c_div_y⟩
@@ -70,16 +85,8 @@ by
     rw [mul_comm, mul_assoc]
     exact Int.dvd_mul_right c (kc * h)
 
-
   -- Prove d | x
   have d_dvd_x : (d:ℤ) ∣ x := by
-    -- Prove d > 0
-    have d_pos : 0 < d := by
-      rw [d_eq]
-      exact Int.natAbs_pos.mpr d_neq_zero
-
-    have d_neq_zero' : (d:ℤ) ≠ 0 := by exact Int.natCast_ne_zero_iff_pos.mpr d_pos
-    have d_pos' : (d:ℤ) > 0 := by exact Int.ofNat_pos.mpr d_pos
 
     -- By division algorithm, x = qd + r for some q,r with 0 ≤ r < d
     let q := x / d
@@ -149,4 +156,78 @@ by
     have r_lt_r := lt_of_lt_of_le r_lt_d d_le_r
     exact (lt_self_iff_false r.natAbs).mp r_lt_r
 
+  -- Prove d | y
+  have d_dvd_y : (d:ℤ) ∣ y := by
+
+    -- By division algorithm, y = qd + r for some q,r with 0 ≤ r < d
+    let q := y / d
+    let r := y % d
+    have y_eq : y = q*d+r  := Eq.symm (Int.ediv_add_emod' y ↑d)
+    -- have := Int.emod_nonneg x d_neq_zero'
+    have r_nonneg : 0 ≤ r := by apply Int.emod_nonneg y d_neq_zero'
+    have r_lt_d : r < d := by apply Int.emod_lt_of_pos y d_pos'
+
+    -- If r ≠ 0, then r.natAbs ∈ B and r.natAbs < d, contradicting minimality
+    by_cases r_zero : r = 0
+    -- If r = 0, then d|x
+    rw [r_zero] at y_eq
+    use q; rw [y_eq]; simp only [add_zero, mul_comm]
+
+    -- If r ≠ 0, then r.natAbs ∈ B and r.natAbs < d, contradicting minimality of d
+    have r_in_A : (r:ℤ) ∈ A := by
+      have r_eq : r = y - q*d := by rw [y_eq]; ring_nf
+
+      -- Solve for r
+      -- y = q(hx + ky) + r
+      -- r = y - q(hx + ky)
+      -- r = y - qhx - qky
+      -- r = y(1 - qk) - qhx which is in A
+
+      by_cases d_sign : h*x + k*y > 0
+      · -- Case hx + ky > 0
+        use (- q*h)
+        use (1-q*k)
+
+        rw [r_eq, d_eq]
+
+        have d_abs_is_d : (h * x + k * y).natAbs = h * x + k * y := by
+          rw [Int.natCast_natAbs, abs_eq_self]
+          exact Int.le_of_lt d_sign
+        rw [d_abs_is_d]
+        ring_nf
+
+      · -- Case hx + ky ≤ 0
+        use (q*h)
+        use (1+q*k)
+
+        rw [r_eq, d_eq]
+
+        have d_abs_is_neg_d : (h * x + k * y).natAbs = -(h * x + k * y) := by
+          rw [Int.natCast_natAbs, abs_eq_neg_self]
+          exact Int.not_lt.mp d_sign
+        rw [d_abs_is_neg_d]
+        ring_nf
+
+    have r_abs_in_B : r.natAbs ∈ B := by
+      let ⟨hr,kr, r_eq_hk⟩  := r_in_A
+      use hr
+      use kr
+      constructor
+      rw [r_eq_hk]
+      rw [← r_eq_hk]; exact r_zero
+
+    -- This contradicts minimality of d
+    have d_le_r := hd.2 r.natAbs r_abs_in_B
+    clear r_abs_in_B r_in_A r_zero y_eq
+    by_contra ctra
+
+    have r_natabs_eq : r.natAbs = r := by
+      rw [Int.natCast_natAbs, abs_eq_self]; exact r_nonneg
+    rw [← r_natabs_eq] at r_lt_d
+    norm_cast at r_lt_d
+    have r_lt_r := lt_of_lt_of_le r_lt_d d_le_r
+    exact (lt_self_iff_false r.natAbs).mp r_lt_r
+
+  -- rw [is_gcd]
+  -- constructor
   sorry
