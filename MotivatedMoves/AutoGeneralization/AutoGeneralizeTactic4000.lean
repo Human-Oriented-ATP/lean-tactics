@@ -248,7 +248,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               let expectedA ← extractArgType fAbs
-                              -- logInfo m!"Error in typechecking: {err.toMessageData}"
+                              logInfo m!"Error in typechecking: {err.toMessageData}"
                               logInfo m!"aAbs was expected to have type {← instantiateMVars expectedA} but has type {← instantiateMVars =<< inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized

@@ -242,5 +242,6 @@ by
     -- rw [d_eq] at d_minimal
     exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
 
+-- set_option trace.AntiUnify true
 example : True := by
-  autogeneralize Int in bezout_identity
+  autogeneralize ℤ in bezout_identity
