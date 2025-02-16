@@ -13,6 +13,12 @@ def placeholderName := `placeholder
 
 def preferredNames := #[`n, `m, `p, `a, `b, `c]
 
+initialize
+  registerTraceClass `AutoGeneralize
+  registerTraceClass `AutoGeneralize.abstractIfTypeContainsP (inherited := true)
+  registerTraceClass `AutoGeneralize.replacePatternWithMVars (inherited := true)
+  registerTraceClass `AutoGeneralize.replacePatternWithMVars.exprTraces (inherited := true)
+  registerTraceClass `AutoGeneralize.autogeneralize (inherited := true)
 
 /-- Remove the assignment of a metavariable from the context. -/
 def removeAssignment (mv : MVarId) : MetaM Unit := do
@@ -192,19 +198,19 @@ If the expression `e` contains pattern `p` in its type (but not term), returns a
 Otherwise, just returns the initial `e`
 -/
 def abstractIfTypeContainsP (e : Expr) (p : Expr) : MetaM Expr := do
-  logInfo "abstracting if type contains p"
+  trace[Autogeneralize.abstractIfTypeContainsP] "abstracting if type contains p"
   let eType ← inferType e
   let eTypeContainsP ← containsSubexpr p eType
   let eTermContainsP ← containsSubexpr p e
-  logInfo m!"type contains p={p}? {eTypeContainsP} "
-  logInfo m!"term contains p? {eTermContainsP} "
-  logInfo m!" type is {eType}"
+  trace[Autogeneralize.abstractIfTypeContainsP] m!"type contains p={p}? {eTypeContainsP} "
+  trace[Autogeneralize.abstractIfTypeContainsP] m!"term contains p? {eTermContainsP} "
+  trace[Autogeneralize.abstractIfTypeContainsP] m!" type is {eType}"
 
 
   if eTypeContainsP && ! eTermContainsP then
     -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) -- mvar for generalized proof
     -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-    logInfo m!"About to replace {e} with a mvar of a generalized {eType}"
+    trace[Autogeneralize.abstractIfTypeContainsP] m!"About to replace {e} with a mvar of a generalized {eType}"
     return e
   else return e
 
@@ -224,22 +230,22 @@ Roughly implemented like kabstract, with the following differences:
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
 partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) (detectConflicts? := false) : StateT (List Expr) MetaM Expr := do
   -- return e
-  logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
+  trace[Autogeneralize.replacePatternWithMVars] m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
   let pAbs ← abstractMVars p (levels := false) -- the `(levels := false)` prevents bizarre instantiations across universe levels
 
   -- let _ ← abstractIfTypeContainsP e p
 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
-  let rec visit (e : Expr) (depth : Nat := 0): MetaM Expr := do
+  let rec visit (e : Expr) (depth : Nat := 0): StateT (List Expr) MetaM Expr := do
 
     let visitChildren : Unit →  StateT (List Expr) MetaM Expr := fun _ => do
       if e.hasLooseBVars then
-        logInfo m!"Loose BVars detected on expression {e}"
+        trace[Autogeneralize.replacePatternWithMVars] m!"Loose BVars detected on expression {e}"
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-| .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
+| .app f a         => trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"recursing under function {f} of type {← inferType f}"
                           if detectConflicts? then
                             let mut fAbs ← visit f depth -- the type
                             let mut aAbs ← visit a depth -- the term
@@ -248,12 +254,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               let expectedA ← extractArgType fAbs
-                              logInfo m!"Error in typechecking: {err.toMessageData}"
-                              logInfo m!"aAbs was expected to have type {← instantiateMVars expectedA} but has type {← instantiateMVars =<< inferType aAbs}"
+                              trace[Autogeneralize.replacePatternWithMVars] m!"Error in typechecking: {err.toMessageData}"
+                              trace[Autogeneralize.replacePatternWithMVars] m!"aAbs was expected to have type {← instantiateMVars expectedA} but has type {← instantiateMVars =<< inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
-                              logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+                              trace[Autogeneralize.replacePatternWithMVars] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
                               modify (problemTerms ++ ·)
 
                               for t in problemTerms do
@@ -279,11 +285,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             -- isDefEq tAbs (← inferType vAbs)
                             let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
-                              -- logInfo m!"let body: {b}"
+                              trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"let body: {b}"
                               let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
                                     visit b depth -- now it's safe to recurse on b (no loose bvars)
                                   else
-                                    logInfo m!"tAbs {tAbs} and t {t} are not defeq"
+                                    trace[Autogeneralize.replacePatternWithMVars] m!"tAbs {tAbs} and t {t} are not defeq"
                                     return b
                               return ← mkLetFVars #[placeholder] bAbs -- put the "n:tAbs" back in the expression itself instead of in an external fvar
                             )
@@ -296,19 +302,19 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedLambda ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
-                                -- logInfo m!"lamda body: {b}"
+                                trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"lamda body: {b}"
                                 let bAbs ←
                                   if (←  liftM <| withoutModifyingState (isDefEq dAbs d)) then
                                     visit b depth-- now it's safe to recurse on b (no loose bvars)
                                   else
-                                    logInfo m!"dAbs {dAbs} and d {d} are not defeq"
+                                    trace[Autogeneralize.replacePatternWithMVars] m!"dAbs {dAbs} and d {d} are not defeq"
                                     return b
                                 return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               if updatedLambda.hasLooseBVars then
-                                logInfo m!"Loose BVars detected on expression {e}"
+                                trace[Autogeneralize.replacePatternWithMVars] m!"Loose BVars detected on expression {e}"
                               return updatedLambda
-      | .forallE n d b bi => --logInfo m!"Recursing under forall {d}"
+      | .forallE n d b bi => trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"Recursing under forall {d}"
                               let dAbs ← visit d depth
                               --"withLocalDecl" temporarily adds "n : dAbs" to context, storing the fvar in placeholder
                               let updatedForAll ← withLocalDecl n bi dAbs (fun placeholder => do
@@ -321,7 +327,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
-                            -- logInfo m!"const type {constType}"
+                            trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"const type {constType}"
                             if depth ≥ 10 then return e
                             else
                                 -- if (← containsExpr p constType) then
@@ -332,17 +338,17 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                 if genConstType.hasExprMVar then
                                   let m ← mkFreshExprMVarAt lctx linsts genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
                                   -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                                  logInfo m!"made mvar {m} of type {genConstType}"
+                                  trace[Autogeneralize.replacePatternWithMVars] m!"made mvar {m} of type {genConstType}"
                                   -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
                                   return m
 
                                 -- otherwise, we don't need to expand the definition of the const
                                 else return e
-      | e                => --logInfo m!"Can't recurse under this expression \n {e}"
+      | e                => trace[AutoGeneralize.replacePatternWithMVars.exprTraces] m!"Can't recurse under this expression \n {e}"
                             return e
 
     if e.hasLooseBVars then
-      logInfo "Loose BVars detected, so we visit children."
+      trace[Autogeneralize.replacePatternWithMVars] "Loose BVars detected, so we visit children."
       visitChildren ()
     else
       -- if the expression "e" is the pattern you want to replace...
@@ -353,7 +359,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
         let m ← mkFreshExprMVarAt lctx linsts (← inferType p) (userName := placeholderName) --(kind := .syntheticOpaque) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar (← inferType p) (userName := `n) -- replace every occurrence of pattern with mvar
         -- let m ← mkFreshExprMVar pType -- replace every occurrence of pattern with mvar
-        -- logInfo m!"made mvar {m} of type {pType}"
+        --  m!"made mvar {m} of type {pType}"
         return m
       -- otherwise, "e" might contain the pattern...
       else
@@ -483,7 +489,6 @@ def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr)
 --       trace[Meta.check] ex.toMessageData
 --       throw ex
 
-
 /-- Instantiate metavariables according to what unifies in a typecheck -/
 def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
   try
@@ -502,7 +507,7 @@ def getTheoremAndProof (thmName : Name) : TacticM (Expr × Expr) := do
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) ← getTheoremAndProof thmName
-  logInfo m!"!Tactic Initial Proof: { thmProof}"
+  trace[Autogeneralize.autogeneralize] m!"!Tactic Initial Proof: { thmProof}"
   -- logInfo m!"!Tactic Initial Type: { ← inferType thmProof}"
 
 
@@ -512,21 +517,21 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   let mut changes := []
   (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
   -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
-  logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
+  trace[Autogeneralize.autogeneralize] m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   for change in changes do
     genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
-  logInfo m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
+  trace[Autogeneralize.autogeneralize] m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
 
   let genThmType ← inferType genThmProof
 
   -- Re-specialize the occurrences of the pattern we are not interested in
   if !(occs == .all) then do
     genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
-    logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
+    trace[Autogeneralize.autogeneralize] m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
   -- (If desired) make all abstracted instances of the pattern the same.
   if consolidate then do
@@ -558,7 +563,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   createLetHypothesis genThmType genThmProof (thmName++`Gen)
   -- createLetHypothesis simpgenThmType simpgenThmProof (thmName++`Gen)
 
-  logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
+  trace[Autogeneralize.autogeneralize] s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
