@@ -231,7 +231,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   -- let _ ← abstractIfTypeContainsP e p
 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
-  let rec visit (e : Expr) (depth : Nat := 0): MetaM Expr := do
+  let rec visit (e : Expr) (depth : Nat := 0): StateT (List Expr) MetaM Expr := do
 
     let visitChildren : Unit →  StateT (List Expr) MetaM Expr := fun _ => do
       if e.hasLooseBVars then
