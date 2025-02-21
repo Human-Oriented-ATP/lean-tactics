@@ -329,6 +329,7 @@ example : ∀ x : ℝ, x ≠ 0 → P' x := by
   let hyp :  ∀ y : ℝ, (3:ℝ) * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℝ) ≠ 0 :=  Ne.symm (OfNat.zero_ne_ofNat 3); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
   autogeneralize (3:ℝ) in hyp
   -- autogeneralize (3:ℕ) in hyp.Gen
+  -- autogeneralize ((1+2):ℕ) in hyp.Gen.Gen
   assumption
 
 

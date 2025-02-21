@@ -270,8 +270,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               --   fAbs ← replacePatternWithMVars fAbs t lctx linsts (detectConflicts? := detectConflicts?)
                               --   aAbs ← replacePatternWithMVars aAbs t lctx linsts (detectConflicts? := detectConflicts?)
 
-                              -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
-                              -- logInfo m!"so abstracting it out to an mvar {m}"
                               return e.updateApp! fAbs aAbs
                               -- if this doesn't typecheck, that means probably that term has been generalized,
                               -- but type still has the pattern (or a comp rule was used).
@@ -287,7 +285,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let vAbs ← visit v depth
                             -- this consolidates the metavariables in the generalized type and the generalized value
                             -- isDefEq tAbs (← inferType vAbs)
-                            let updatedLetBody ← withLocalDecl n .default tAbs (fun placeholder => do
+                            let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                             -- let updatedLetBody ← withLetDecl n tAbs vAbs (kind := LocalDeclKind.default) (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
@@ -295,7 +293,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                   else
                                     logInfo m!"tAbs {tAbs} and t {t} are not defeq"
                                     return b
-                              return ← mkLetFVars #[placeholder] bAbs (usedLetOnly := False) (binderInfoForMVars := BinderInfo.default) -- put the "n:tAbs" back in the expression itself instead of in an external fvar
+                              return ← mkLetFVars #[placeholder] bAbs (binderInfoForMVars := BinderInfo.implicit) -- put the "n:tAbs" back in the expression itself instead of in an external fvar
                             )
                             -- `mkLetFVars` is a wrapper around `mkLambdaFVars`, so the result of running it on `bAbs` is a lambda expression
                             -- extracting just the body gives an expression that can be plugged back into the `Expr.letE` constructor
