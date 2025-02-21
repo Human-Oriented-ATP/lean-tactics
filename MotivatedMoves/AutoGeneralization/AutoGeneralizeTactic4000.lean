@@ -277,7 +277,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let vAbs ← visit v depth
                             -- this consolidates the metavariables in the generalized type and the generalized value
                             -- isDefEq tAbs (← inferType vAbs)
-                            let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
+                            let updatedLetBody ← withLetDecl n tAbs vAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               -- logInfo m!"let body: {b}"
                               let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
@@ -515,6 +515,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   for change in changes do
+    logInfo m!"Change: {change}"
     genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Consolidate mvars within proof term by running a typecheck
