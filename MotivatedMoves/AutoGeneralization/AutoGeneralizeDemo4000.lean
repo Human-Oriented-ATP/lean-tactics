@@ -108,7 +108,6 @@ example : ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
   specialize impossible_graph.Gen.Gen 5
   apply impossible_graph.Gen.Gen (by trivial)
 
-#exit
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 PRODUCT OF NONEVENS IS NONEVEN
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
