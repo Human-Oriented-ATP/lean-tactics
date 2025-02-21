@@ -58,12 +58,12 @@ by
 
 
   -- Call that minimal element "d"
-  let ⟨d, hd⟩ := h_B_min
+  have ⟨d, hd⟩ := h_B_min
   clear h_B_nonempty
   clear h_B_min
 
   -- Get h,k such that d = hx + ky
-  let ⟨h, k, d_eq, d_neq_zero⟩ := hd.1
+  have ⟨h, k, d_eq, d_neq_zero⟩ := hd.1
   use h
   use k
 
@@ -140,7 +140,7 @@ by
         ring_nf
 
     have r_abs_in_B : r.natAbs ∈ B := by
-      let ⟨hr,kr, r_eq_hk⟩  := r_in_A
+      have ⟨hr,kr, r_eq_hk⟩  := r_in_A
       use hr
       use kr
       constructor
@@ -212,7 +212,7 @@ by
         ring_nf
 
     have r_abs_in_B : r.natAbs ∈ B := by
-      let ⟨hr,kr, r_eq_hk⟩  := r_in_A
+      have ⟨hr,kr, r_eq_hk⟩  := r_in_A
       use hr
       use kr
       constructor
