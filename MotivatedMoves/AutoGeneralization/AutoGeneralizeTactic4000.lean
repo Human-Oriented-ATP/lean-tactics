@@ -514,6 +514,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
+  changes := changes.eraseDups
   for change in changes do
     logInfo m!"Change: {change}"
     genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
