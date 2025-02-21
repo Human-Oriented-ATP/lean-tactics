@@ -330,7 +330,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
                             -- logInfo m!"const type {constType}"
-                            if depth ≥ 10 then return e
+                            if depth ≥ 2 then return e
                             else
                                 -- if (← containsExpr p constType) then
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment

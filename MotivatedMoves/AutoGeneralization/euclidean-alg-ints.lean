@@ -44,7 +44,7 @@ example : True := by
   -- autogeneralize Int in Int.dvd_mod
   -- autogeneralize Int in Int.mod_dvd
   autogeneralize Int in Int.hcf._unary
-  specialize Int.hcf._unary.Gen Nat
+  specialize Int.hcf._unary.Gen ℂ
   trivial
 
 #check Bool.rec

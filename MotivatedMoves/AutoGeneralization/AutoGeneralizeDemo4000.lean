@@ -43,12 +43,12 @@ theorem max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [
 --   trivial
 
 def three_not_le_one : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
-  -- simp only [Nat.not_ofNat_le_one, not_false_eq_true]
-def three_not_le_one' : ¬ 3 ≤ 1  := three_not_le_one
-example : True := by
-  autogeneralize (3:ℕ) in three_not_le_one
-  autogeneralize (3:ℕ) in three_not_le_one'
-  trivial
+--   -- simp only [Nat.not_ofNat_le_one, not_false_eq_true]
+-- def three_not_le_one' : ¬ 3 ≤ 1  := three_not_le_one
+-- example : True := by
+--   autogeneralize (3:ℕ) in three_not_le_one
+--   autogeneralize (3:ℕ) in three_not_le_one'
+--   trivial
 
 
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
