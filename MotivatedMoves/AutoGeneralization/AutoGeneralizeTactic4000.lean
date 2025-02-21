@@ -174,6 +174,16 @@ def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
     else
       none -- this situation is impossible when one term is a generalization of the other
 
+-- def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
+--   let mismatches ← getMismatches e e'
+--   return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+--     if !left.hasExprMVar then
+--       return left
+--     else if !right.hasExprMVar then
+--       return right
+--     else
+--       return none
+
 open Qq in
 #eval show MetaM _ from do
   let two_plus_one := q(Nat.succ 2)
@@ -256,9 +266,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
                               modify (problemTerms ++ ·)
 
-                              for t in problemTerms do
-                                fAbs ← replacePatternWithMVars fAbs t lctx linsts (detectConflicts? := detectConflicts?)
-                                aAbs ← replacePatternWithMVars aAbs t lctx linsts (detectConflicts? := detectConflicts?)
+                              -- for t in problemTerms do
+                              --   fAbs ← replacePatternWithMVars fAbs t lctx linsts (detectConflicts? := detectConflicts?)
+                              --   aAbs ← replacePatternWithMVars aAbs t lctx linsts (detectConflicts? := detectConflicts?)
 
                               -- let m ← mkFreshExprMVarAt lctx linst expectedA --(kind := .synthetic) -- mvar for generalized proof
                               -- logInfo m!"so abstracting it out to an mvar {m}"
@@ -331,9 +341,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                 -- rather than looking for ones of a specific type, since there's a chance of false negatives with the latter
                                 if genConstType.hasExprMVar then
                                   let m ← mkFreshExprMVarAt lctx linsts genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                                  -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) (userName := mkAbstractedName n)-- mvar for generalized proof
-                                  logInfo m!"made mvar {m} of type {genConstType}"
-                                  -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
+                                  -- logInfo m!"made mvar {m} of type {genConstType}"
                                   return m
 
                                 -- otherwise, we don't need to expand the definition of the const
