@@ -56,7 +56,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by
   rintro ⟨v, v_deg, w_deg⟩
 
-  let hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
+  have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by
     rw [Set.toFinset_card]
     rw [Set.card_ne_eq]
     rewrite [ Fintype.card_fin]
@@ -64,7 +64,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     -- rfl
     -- simp only [Nat.reduceSub] -- or rfl
 
-  let neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
+  have neq_imp_adj :  {w | w ≠ v} ⊆ {w | G.Adj v w} := by
     rw [Set.setOf_subset_setOf]
     intro w wneqv
     apply max_deg_imp_adj_all
@@ -72,7 +72,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
     exact (w_deg w wneqv)
     exact wneqv.symm
 
-  let v_deg_geq : 3 ≤ G.degree v  := by
+  have v_deg_geq : 3 ≤ G.degree v  := by
     rw [← SimpleGraph.card_neighborFinset_eq_degree]
     rw [ ← hw_card]
     apply Finset.card_le_card
@@ -173,7 +173,7 @@ PRODUCT OF ODDS IS ODD -- with custom definition of odd
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
 lemma product_of_odds (m n : Nat) :
-    let odd := fun (n : Nat) ↦ ∃ k : Nat, n = 2 * k + 1;
+    have odd := fun (n : Nat) ↦ ∃ k : Nat, n = 2 * k + 1;
     odd m ∧ odd n → odd (m * n) := by
   dsimp
   rintro ⟨⟨a,m_odd⟩ , ⟨b,n_odd⟩⟩
