@@ -177,9 +177,11 @@ def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
 def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
   let mismatches ← getMismatches e e'
   return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
-    if !left.hasExprMVar then
+    let l ← getMVars left
+    let r ← getMVars right
+    if l.size < r.size then
       return left
-    else if !right.hasExprMVar then
+    else if r.size < l.size then
       return right
     else
       return none
