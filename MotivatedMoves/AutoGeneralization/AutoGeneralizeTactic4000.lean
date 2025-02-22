@@ -164,25 +164,25 @@ def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
 
 /-- Given two terms, one of which is a generalization of the other,
     find the conflicting pairs of sub-expressions and return the sides that do not contain any meta-variables. -/
-def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
-  let mismatches ← getMismatches e e'
-  return mismatches.filterMap fun ⟨_, left, right⟩ ↦
-    if !left.hasExprMVar then
-      left
-    else if !right.hasExprMVar then
-      right
-    else
-      none -- this situation is impossible when one term is a generalization of the other
-
 -- def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
 --   let mismatches ← getMismatches e e'
---   return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+--   return mismatches.filterMap fun ⟨_, left, right⟩ ↦
 --     if !left.hasExprMVar then
---       return left
+--       left
 --     else if !right.hasExprMVar then
---       return right
+--       right
 --     else
---       return none
+--       none -- this situation is impossible when one term is a generalization of the other
+
+def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
+  let mismatches ← getMismatches e e'
+  return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+    if !left.hasExprMVar then
+      return left
+    else if !right.hasExprMVar then
+      return right
+    else
+      return none
 
 open Qq in
 #eval show MetaM _ from do
