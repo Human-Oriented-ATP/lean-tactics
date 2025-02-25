@@ -2,7 +2,7 @@ import Lean
 import Mathlib.Tactic
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
-open Autogeneralize
+open Autogeneralize Classical
 
 
 def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
@@ -39,26 +39,16 @@ by
 
   -- By well-ordering principle on subsets of ℕ, B has a minimal element
   have h_B_min : ∃ d : ℕ, d ∈ B ∧ ∀ z ∈ B, d ≤ z := by
-    let p : ℕ → Prop := fun n => n ∈ B
 
-    have p_decidable : DecidablePred p := by
-      intro n
-      apply Classical.propDecidable
-
-    have exists_p : ∃ n, p n := by
-      rcases h_B_nonempty with ⟨z, hz⟩
-      use z
-
-    let d := Nat.find exists_p
-    use d
+    use Nat.find h_B_nonempty
     constructor
-    · exact Nat.find_spec exists_p
+    · exact Nat.find_spec h_B_nonempty
     · intro z hz
-      exact Nat.find_min' exists_p hz
+      exact Nat.find_min' h_B_nonempty hz
 
 
   -- Call that minimal element "d"
-  have ⟨d, hd⟩ := h_B_min
+  let ⟨d, hd⟩ := h_B_min
   clear h_B_nonempty
   clear h_B_min
 
@@ -242,6 +232,6 @@ by
     -- rw [d_eq] at d_minimal
     exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
 
--- set_option trace.AntiUnify true
+set_option trace.AntiUnify true
 example : True := by
   autogeneralize ℤ in bezout_identity
