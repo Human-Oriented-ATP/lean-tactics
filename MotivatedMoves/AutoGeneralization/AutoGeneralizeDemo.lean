@@ -8,7 +8,7 @@ import Mathlib.Combinatorics.SimpleGraph.Basic
 -- import Mathlib.Combinatorics.SimpleGraph.DegreeSum
 import Mathlib.Combinatorics.SimpleGraph.Finite
 
-import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
+import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
 import MotivatedMoves.AutoGeneralization.library
 open Autogeneralize library
 
