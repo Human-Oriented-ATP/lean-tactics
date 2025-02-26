@@ -42,7 +42,7 @@ theorem max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [
 --   autogeneralize (4:ℕ) in max_deg_imp_adj_all.Gen
 --   trivial
 
-def three_not_le_one : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
+def three_not_le_one_opaque : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
 --   -- simp only [Nat.not_ofNat_le_one, not_false_eq_true]
 -- def three_not_le_one' : ¬ 3 ≤ 1  := three_not_le_one
 -- example : True := by
@@ -84,7 +84,7 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   -- have three_not_le_one : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
   -- simp at v_deg_geq; -- if we simp directly here, the proof doesn't autogen
-  apply three_not_le_one v_deg_geq
+  apply three_not_le_one_opaque v_deg_geq
 
 #print impossible_graph
 example :
