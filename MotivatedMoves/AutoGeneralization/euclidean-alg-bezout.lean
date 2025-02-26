@@ -1,7 +1,7 @@
 import Lean
 import Mathlib.Tactic
 
-import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic4000
+import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
 open Autogeneralize Classical
 
 
@@ -232,6 +232,7 @@ by
     -- rw [d_eq] at d_minimal
     exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
 
+set_option maxHeartbeats 200000
 set_option trace.AntiUnify true
 example : True := by
   autogeneralize ℤ in bezout_identity
