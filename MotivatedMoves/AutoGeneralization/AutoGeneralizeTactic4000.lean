@@ -164,25 +164,27 @@ def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
 
 /-- Given two terms, one of which is a generalization of the other,
     find the conflicting pairs of sub-expressions and return the sides that do not contain any meta-variables. -/
-def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
-  let mismatches ← getMismatches e e'
-  return mismatches.filterMap fun ⟨_, left, right⟩ ↦
-    if !left.hasExprMVar then
-      left
-    else if !right.hasExprMVar then
-      right
-    else
-      none -- this situation is impossible when one term is a generalization of the other
-
 -- def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
 --   let mismatches ← getMismatches e e'
---   return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+--   return mismatches.filterMap fun ⟨_, left, right⟩ ↦
 --     if !left.hasExprMVar then
---       return left
+--       left
 --     else if !right.hasExprMVar then
---       return right
+--       right
 --     else
---       return none
+--       none -- this situation is impossible when one term is a generalization of the other
+
+def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
+  let mismatches ← getMismatches e e'
+  return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+    let l ← getMVars left
+    let r ← getMVars right
+    if l.size < r.size then
+      return left
+    else if r.size < l.size then
+      return right
+    else
+      return none
 
 open Qq in
 #eval show MetaM _ from do
@@ -329,7 +331,11 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
-                            -- logInfo m!"const type {constType}"
+                            logInfo m!"name {n}"
+                            -- if marked as a theorem not to explore, do not recurse
+                            if n.toString.endsWith "_opaque" then
+                              logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
+                              -- return e
                             if depth ≥ 2 then return e
                             else
                                 -- if (← containsExpr p constType) then
