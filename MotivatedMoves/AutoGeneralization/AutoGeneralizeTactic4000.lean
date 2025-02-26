@@ -328,7 +328,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- check whether that theorem has the variable we're trying to generalize
       -- if it does, generalize the theorem accordingly, and make its proof an mvar.
       | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
-                            logInfo m!"name {n}"
+                            -- logInfo m!"name {n}"
                             -- if marked as a theorem not to explore, do not recurse
                             if n.toString.endsWith "_opaque" then
                               logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
