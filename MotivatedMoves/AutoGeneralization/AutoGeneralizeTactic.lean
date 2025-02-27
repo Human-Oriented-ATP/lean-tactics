@@ -1,4 +1,5 @@
 import Lean
+import MotivatedMoves.AutoGeneralization.Helpers.GoalsAndHypotheses
 import MotivatedMoves.AutoGeneralization.Helpers.ReplaceWithMVars
 import MotivatedMoves.AutoGeneralization.Helpers.Simplification
 import MotivatedMoves.AutoGeneralization.Helpers.Unification

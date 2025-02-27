@@ -1,5 +1,6 @@
 import Lean
 import MotivatedMoves.AutoGeneralization.Helpers.Antiunification
+import MotivatedMoves.AutoGeneralization.Helpers.Metavariables
 import MotivatedMoves.AutoGeneralization.Helpers.Misc
 
 open Lean Elab Tactic Meta Term Command AntiUnify
