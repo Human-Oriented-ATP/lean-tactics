@@ -11,7 +11,6 @@ def mkAbstractedName (n : Name) : Name :=
     | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
 
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -63,7 +62,6 @@ def getTheoremAndProof (thmName : Name) : TacticM (Expr × Expr) := do
   try return (← getHypothesisType thmName, ← getHypothesisProof thmName) -- if the theorem is a hypothesis of the current proof state
   catch _ => return (← getTheoremStatement thmName, ← getTheoremProof thmName) -- if the theorem is in the environment
 
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Creating hypotheses
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -76,7 +74,6 @@ def createLetHypothesis (hypType : Expr) (hypProof : Expr) (hypName? : Option Na
   let new_goal ← (←getGoalVar).define hypName hypType hypProof
   let (_, new_goal) ← intro1Core new_goal true
   setGoals [new_goal]
-
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Working with subexpressions
@@ -102,7 +99,7 @@ partial def getSubexpressionsIn (e : Expr) : MetaM (List Expr) := do
                                     let b_subexprs ← b_subexprs.mapM (fun s => mkLambdaFVars #[placeholder] s (binderInfoForMVars := bi))
                                     return [e] ++ d_subexprs ++ b_subexprs
                                   )
- -- | Expr.letE _ t v b _    => [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
+    | Expr.letE _ t v b _    => return [e] ++ (← getSubexpressionsInRec t acc) ++ (← getSubexpressionsInRec v acc) ++ (← getSubexpressionsInRec b acc)
     | Expr.app f a           => return [e] ++ (← getSubexpressionsInRec f acc) ++ (← getSubexpressionsInRec a acc)
     | Expr.mdata _ b         => return [e] ++ (← getSubexpressionsInRec b acc)
     | Expr.proj _ _ b        => return [e] ++ (← getSubexpressionsInRec b acc)
@@ -110,7 +107,6 @@ partial def getSubexpressionsIn (e : Expr) : MetaM (List Expr) := do
     | Expr.bvar _            => return [e] ++ acc
     | _                      => return [e] ++ acc
   let subexprs ← (getSubexpressionsInRec e [])
-  --logInfo m!"subexprs before bvar filter {subexprs}"
   let subexprs := subexprs.filter $ fun subexpr => !subexpr.hasLooseBVars -- remove the ones that will cause errors when parsing
   return subexprs
 

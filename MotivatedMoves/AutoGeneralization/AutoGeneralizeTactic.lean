@@ -23,12 +23,12 @@ def extractArgType (fAbs : Expr) : MetaM Expr := do
   let fAbsType ← inferType fAbs
   return fAbsType.bindingDomain!
 
-/- Replaces all instances of "p" in "e" with a metavariable.
+/- Replaces all instances of `p` in `e` with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
   kabstract replaces "p" with the same bvar, while this replaces each instance with a different mvar
   kabstract doesn't look for instances of "p" in the types of constants, this does
-  kabstract doesn't look under loose bvars, but this creates localdecls so we can still look under bvars
+  kabstract doesn't look under loose bvars, but this creates LocalDecls so we can still look under bvars
 -/
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
@@ -37,8 +37,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
   let pAbs ← abstractMVars p (levels := false) -- the `(levels := false)` prevents bizarre instantiations across universe levels
-
-  -- let _ ← abstractIfTypeContainsP e p
 
   -- the "depth" here is not depth of expression, but how many constants / theorems / inference rules we have unfolded
   let rec visit (e : Expr) (depth : Nat := 0): StateT (List Expr) MetaM Expr := do
@@ -49,7 +47,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-| .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
+      | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
                           if detectConflicts? then
                             let mut fAbs ← visit f depth -- the type
                             let mut aAbs ← visit a depth -- the term
