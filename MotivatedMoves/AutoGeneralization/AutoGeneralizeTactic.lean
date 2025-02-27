@@ -15,12 +15,13 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   let (thmType, thmProof) ← getTheoremAndProof thmName
   logInfo m!"!Tactic Initial Proof: { thmProof}"
 
-  -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
+  -- Get the generalized theorem (replace instances of pattern with mvars)
   let mut genThmProof := thmProof
-  let mut changes := []
+  let mut changes := [] -- keep track of depenencies of what must be generalized first
   (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
+  -- Generalize all constants that `pattern` has dependencies on
   changes := changes.eraseDups
   for change in changes do
     logInfo m!"Change: {change}"
