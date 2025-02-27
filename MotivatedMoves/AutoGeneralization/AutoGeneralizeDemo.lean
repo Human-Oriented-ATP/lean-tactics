@@ -5,12 +5,15 @@ Accounts for generalizing constants to functions.
 - - - - - - - - - - - - - - - - - - - - - - -- - - - - - - - - - - - -/
 import Mathlib.Analysis.InnerProductSpace.EuclideanDist
 import Mathlib.Combinatorics.SimpleGraph.Basic
--- import Mathlib.Combinatorics.SimpleGraph.DegreeSum
 import Mathlib.Combinatorics.SimpleGraph.Finite
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
-import MotivatedMoves.AutoGeneralization.Formalizations.library
-open Autogeneralize library
+
+import MotivatedMoves.AutoGeneralization.Formalizations.hcf_algorithm
+import MotivatedMoves.AutoGeneralization.Formalizations.irrationality_of_sqrts
+import MotivatedMoves.AutoGeneralization.Formalizations.non_multiples_of_k
+
+open Autogeneralize
 
 open Real
 open Lean Elab Tactic Meta Term Command
@@ -29,8 +32,8 @@ GCD ALGORITHM
 -- #print Int.hcf
 -- #print Int.hcf._unary
 example : True := by
-  autogeneralize Int in library.Int.hcf._unary
-  specialize library.Int.hcf._unary.Gen ℂ
+  autogeneralize Int in hcf_algorithm.hcf._unary
+  specialize hcf_algorithm.hcf._unary.Gen ℂ
   trivial
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
