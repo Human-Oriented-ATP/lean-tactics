@@ -9,7 +9,7 @@ import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Combinatorics.SimpleGraph.Finite
 
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
-import MotivatedMoves.AutoGeneralization.library
+import MotivatedMoves.AutoGeneralization.Formalizations.library
 open Autogeneralize library
 
 open Real
