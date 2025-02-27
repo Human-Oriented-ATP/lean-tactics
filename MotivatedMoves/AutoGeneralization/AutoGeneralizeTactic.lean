@@ -16,33 +16,6 @@ def mkAbstractedName (n : Name) : Name :=
     | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
     | _ => `unknown
 
-/-- Returns true if given an expression `e` has a metavariable of type `t`-/
-def hasMVarOfType (t e: Expr) : MetaM Bool := do
-  let mvarIds ← getMVars e
-  mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
-
-/-
-Returns true if the expression `e` contains anything defEq to `p`
--/
-def containsSubexpr (p : Expr) (e : Expr) : MetaM Bool := do
-  let (_, result) ← StateT.run (s := false) <| forEachExpr e (fun subexpr => do
-    if (← liftM <| isDefEq subexpr p) then
-      set true
-      return -- stop traversal
-  )
-  return result
-
-/-- Given two terms, one of which is a generalization of the other,
-    find the conflicting pairs of sub-expressions and return the sides that do not contain any meta-variables. -/
--- def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
---   let mismatches ← getMismatches e e'
---   return mismatches.filterMap fun ⟨_, left, right⟩ ↦
---     if !left.hasExprMVar then
---       left
---     else if !right.hasExprMVar then
---       right
---     else
---       none -- this situation is impossible when one term is a generalization of the other
 
 def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
   let mismatches ← getMismatches e e'
@@ -55,40 +28,6 @@ def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
       return right
     else
       return none
-
-open Qq in
-#eval show MetaM _ from do
-  let two_plus_one := q(Nat.succ 2)
-  let three_times_four := q((2 + 1)*4)
-  let four_times_four := q(4*4)
-  -- let three_is_even := q(Even 3)
-  let three := q(3)
-  containsSubexpr  three two_plus_one -- true
-  -- containsSubexpr  three three_times_four -- true
-  -- containsSubexpr  three four_times_four -- false
-  -- containsSubexpr  three three_is_even -- true
-  -- containsSubexpr  three three -- true
-
-/--
-If the expression `e` contains pattern `p` in its type (but not term), returns a metavariable of the generalized type.
-Otherwise, just returns the initial `e`
--/
-def abstractIfTypeContainsP (e : Expr) (p : Expr) : MetaM Expr := do
-  logInfo "abstracting if type contains p"
-  let eType ← inferType e
-  let eTypeContainsP ← containsSubexpr p eType
-  let eTermContainsP ← containsSubexpr p e
-  logInfo m!"type contains p={p}? {eTypeContainsP} "
-  logInfo m!"term contains p? {eTermContainsP} "
-  logInfo m!" type is {eType}"
-
-
-  if eTypeContainsP && ! eTermContainsP then
-    -- let m ← mkFreshExprMVar genConstType (kind := .synthetic) -- mvar for generalized proof
-    -- let m ← mkFreshExprMVar genConstType -- mvar for generalized proof
-    logInfo m!"About to replace {e} with a mvar of a generalized {eType}"
-    return e
-  else return e
 
 /-- Returns the argument to an expression e.g. if fAbs has type "n-1= 3 → n=4" then it returns "n-1=3"-/
 def extractArgType (fAbs : Expr) : MetaM Expr := do

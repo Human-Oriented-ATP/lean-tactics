@@ -1,8 +1,6 @@
 import Lean
 open Lean Elab Tactic Meta Term Command
 
-
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -111,6 +109,7 @@ def containsExprWhere (condition : Expr → Bool) (e : Expr)   : MetaM Bool := d
   let firstExprContainingSubexpr ← (e_subexprs.findM? fun e_subexpr => return condition e_subexpr)
   return firstExprContainingSubexpr.isSome
 
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Working with metavariables
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -138,7 +137,6 @@ def getAssignmentFor (m : MVarId) : MetaM (Option Expr) := do
 def containsMData (e : Expr): MetaM Bool := do
   return ← containsExprWhere (Expr.isMData) e
 
-
 /-- Returns true if the expression is assigned to another expression containing metadata -/
 def assignmentContainsMData (m : MVarId) : MetaM Bool := do
   let m_assignment ← getAssignmentFor m
@@ -150,3 +148,8 @@ def assignmentContainsMData (m : MVarId) : MetaM Bool := do
 /-- Returns a list of all metavariables whose assignment contains metadata -/
 def getAllMVarsContainingMData (a : Array MVarId): MetaM (Array MVarId) :=
    a.filterM assignmentContainsMData
+
+/-- Returns true if given an expression `e` has a metavariable of type `t`-/
+def hasMVarOfType (t e: Expr) : MetaM Bool := do
+  let mvarIds ← getMVars e
+  mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
