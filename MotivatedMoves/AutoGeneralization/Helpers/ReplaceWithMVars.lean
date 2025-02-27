@@ -6,6 +6,9 @@ import MotivatedMoves.AutoGeneralization.Helpers.FunctionApplications
 
 open Lean Elab Tactic Meta Term Command AntiUnify
 
+initialize
+  registerTraceClass `TypecheckingErrors
+
 /- Replaces all instances of `p` in `e` with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
@@ -38,12 +41,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               let expectedA ← extractArgType fAbs
-                              logInfo m!"Error in typechecking: {err.toMessageData}"
-                              logInfo m!"aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
+                              trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
+                              trace[TypecheckingErrors] m!"aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
-                              logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+                              trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
                               modify (problemTerms ++ ·)
 
                               return e.updateApp! fAbs aAbs
@@ -104,8 +107,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       | .const n us      => let constType ← inferType (.const n us) -- this ensures that univverse levels are instantiated correctly
                             -- logInfo m!"name {n}"
                             -- if marked as a theorem not to explore, do not recurse
-                            if n.toString.endsWith "_opaque" then
-                              logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
+                            -- if n.toString.endsWith "_opaque" then
+                              -- logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
                               -- return e
                             if depth ≥ 2 then return e
                             else

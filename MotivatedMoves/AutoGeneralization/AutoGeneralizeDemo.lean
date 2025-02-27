@@ -24,6 +24,7 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
+set_option trace.TypecheckingErrors false
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GCD ALGORITHM
