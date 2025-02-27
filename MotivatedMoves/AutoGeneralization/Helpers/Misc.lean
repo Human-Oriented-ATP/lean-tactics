@@ -1,9 +1,6 @@
 import Lean
 open Lean Elab Tactic Meta Term Command
 
-
-
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
