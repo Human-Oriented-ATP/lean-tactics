@@ -57,13 +57,3 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
 /-- Pull out mvars as hypotheses to create a chained implication-/
 def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
   return (← abstractMVars proof).expr
-
-/-- Relabel the metavariables in the expression with their preferred names. -/
-def placeholderName := `placeholder
-def preferredNames := #[`n, `m, `p, `a, `b, `c]
-def relabelMVarsIn (e : Expr) : MetaM Unit := do
-  let mvars ← getMVars e
-  let placeholderMVars ← mvars.filterM fun mvar => do
-   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
-  for (mvar, name) in placeholderMVars.zip preferredNames do
-      mvar.setUserName name

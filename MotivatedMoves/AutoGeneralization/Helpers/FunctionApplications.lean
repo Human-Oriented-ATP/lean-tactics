@@ -3,16 +3,6 @@ open Lean Elab Tactic Meta Term Command
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Working with names
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-
-/-- Turn a lemma name into its generalized version by prefixing it with `gen_` and truncating. -/
-def mkAbstractedName (n : Name) : Name :=
-    match n with
-    | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
-    | _ => `unknown
-
-/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Working with function applications
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
