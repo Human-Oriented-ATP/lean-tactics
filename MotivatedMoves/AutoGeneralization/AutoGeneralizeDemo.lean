@@ -23,6 +23,17 @@ set_option pp.showLetValues false
 -- set_option trace.Meta.whnf true
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+GCD ALGORITHM
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+-- #print Int.hcf
+-- #print Int.hcf._unary
+example : True := by
+  autogeneralize Int in library.Int.hcf._unary
+  specialize library.Int.hcf._unary.Gen ℂ
+  trivial
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF GRAPH DEGREE SEQUENCE
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
