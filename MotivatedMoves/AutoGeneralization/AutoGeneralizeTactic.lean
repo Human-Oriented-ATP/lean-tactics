@@ -1,66 +1,11 @@
 import Lean
 import MotivatedMoves.AutoGeneralization.Helpers.ReplaceWithMVars
+import MotivatedMoves.AutoGeneralization.Helpers.Simplification
+import MotivatedMoves.AutoGeneralization.Helpers.Unification
 
 open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
-
-
-/-- Pull out mvars as hypotheses to create a chained implication-/
-def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
-  return (← abstractMVars proof).expr
-
-/-- Unifies metavariables (which are hypotheses) when possible.  -/
-def removeRepeatingHypotheses (genThmProof : Expr) : MetaM Expr := do
-  let hyps ← getMVars genThmProof
-  for hyp₁ in hyps do
-    for hyp₂ in hyps do
-      -- performs unificiation on propositions
-      if (← isProp <| ← hyp₁.getType') then do
-        -- `discard` ignores the result of its argument (but retains modifications to the state)
-        -- `isDefEq` automatically rejects cases where the meta-variables have different types or have conflicting assignments
-        discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
-      -- else if (hyp₁.name.toString.startsWith "inst" ∧ hyp₂.name.toString.startsWith "inst") then do
-      --   discard <| isDefEq (.mvar hyp₁) (.mvar hyp₂)
-
-  return genThmProof
-
-/-- Re-specialize the occurrences of the pattern we are not interested in -/
-def respecializeOccurrences (thmType : Expr) (genThmProof : Expr) (pattern : Expr) (occsToStayAbstracted : Occurrences) (consolidate : Bool) : MetaM Expr := do
-  -- Get the occurrences of the pattern (in the theorem statement) the user wants to specialize
-  let userThmType ← if consolidate then
-    abstractToOneMVar thmType pattern occsToStayAbstracted
-  else
-    abstractToDiffMVars thmType pattern occsToStayAbstracted
-  logInfo m!"!User Generalized Type: {userThmType}"
-
-  -- Keep a record of mvars to keep track of
-  let genThmType ← inferType genThmProof
-  let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
-
-  -- Compare and unify mvars between user type and our generalized type
-  let _ ← isDefEq  genThmType userThmType
-
-  -- Instantiate the ones we don't want to generalize
-  let userSelectedMVars ← getAllMVarsContainingMData mvarsInProof
-  return ← instantiateMVarsExcept userSelectedMVars genThmProof
-
-/-- Run Lean's built-in "simp" tactic -/
-def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr) := do
-  let (result, _) ← Lean.Meta.simp genThmType {}
-  let genThmTypeSimp := result.expr
-  let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
-  return (genThmTypeSimp, genThmProofSimp)
-
-
-/-- Instantiate metavariables according to what unifies in a typecheck -/
-def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
-  try
-    check proof
-  catch e =>
-    logInfo m!"Error: {e.toMessageData}"
-    throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
-  return ← instantiateMVars proof
 
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/

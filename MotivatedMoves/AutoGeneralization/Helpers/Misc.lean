@@ -1,6 +1,7 @@
 import Lean
 open Lean Elab Tactic Meta Term Command
 
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -182,6 +183,10 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
   for mv in mvarArray do
     if ← isDefEq (← mv.getType) t then
       if !(← mv.isAssigned) then mv.assign m--mv.assignIfDefeq m
+
+/-- Pull out mvars as hypotheses to create a chained implication-/
+def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
+  return (← abstractMVars proof).expr
 
 /-- Relabel the metavariables in the expression with their preferred names. -/
 def placeholderName := `placeholder
