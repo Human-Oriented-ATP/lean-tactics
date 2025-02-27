@@ -1,8 +1,6 @@
 import Lean
 import Mathlib.Data.Real.Irrational
 
-namespace hcf_algorithm
-
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GCD Algorithm
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/

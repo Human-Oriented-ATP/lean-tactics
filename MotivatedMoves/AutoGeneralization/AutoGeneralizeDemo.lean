@@ -32,8 +32,8 @@ GCD ALGORITHM
 -- #print Int.hcf
 -- #print Int.hcf._unary
 example : True := by
-  autogeneralize Int in hcf_algorithm.hcf._unary
-  specialize hcf_algorithm.hcf._unary.Gen ℂ
+  autogeneralize Int in hcf._unary
+  specialize hcf._unary.Gen ℂ
   trivial
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
