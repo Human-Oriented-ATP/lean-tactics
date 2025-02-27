@@ -7,27 +7,16 @@ open Lean Elab Tactic Meta Term Command AntiUnify
 
 namespace Autogeneralize
 
+/-- Relabel the metavariables in the expression with their preferred names. -/
 def placeholderName := `placeholder
 def preferredNames := #[`n, `m, `p, `a, `b, `c]
+def relabelMVarsIn (e : Expr) : MetaM Unit := do
+  let mvars ← getMVars e
+  let placeholderMVars ← mvars.filterM fun mvar => do
+   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
+  for (mvar, name) in placeholderMVars.zip preferredNames do
+      mvar.setUserName name
 
-/-- Turn a lemma name into its generalized version by prefixing it with `gen_` and truncating. -/
-def mkAbstractedName (n : Name) : Name :=
-    match n with
-    | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
-    | _ => `unknown
-
-
-def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
-  let mismatches ← getMismatches e e'
-  return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
-    let l ← getMVars left
-    let r ← getMVars right
-    if l.size < r.size then
-      return left
-    else if r.size < l.size then
-      return right
-    else
-      return none
 
 /-- Returns the argument to an expression e.g. if fAbs has type "n-1= 3 → n=4" then it returns "n-1=3"-/
 def extractArgType (fAbs : Expr) : MetaM Expr := do
@@ -229,20 +218,6 @@ def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr 
         visitChildren ()
   visit e |>.run' 1
 
-/-- Make all mvars in mvarArray with the type t the same  -/
-def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit := do
-  let m ← mkFreshExprMVar t -- new mvar to replace all others with the same type
-  for mv in mvarArray do
-    if ← isDefEq (← mv.getType) t then
-      if !(← mv.isAssigned) then mv.assign m--mv.assignIfDefeq m
-
-/-- Relabel the metavariables in the expression with their preferred names. -/
-def relabelMVarsIn (e : Expr) : MetaM Unit := do
-  let mvars ← getMVars e
-  let placeholderMVars ← mvars.filterM fun mvar => do
-   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
-  for (mvar, name) in placeholderMVars.zip preferredNames do
-      mvar.setUserName name
 
 /-- Pull out mvars as hypotheses to create a chained implication-/
 def pullOutMissingHolesAsHypotheses (proof : Expr) : MetaM Expr :=
@@ -290,17 +265,6 @@ def performSimp (genThmType : Expr ) (genThmProof : Expr ): MetaM (Expr × Expr)
   let genThmProofSimp ← mkAppM `Eq.mpr #[← result.getProof, genThmProof]
   return (genThmTypeSimp, genThmProofSimp)
 
--- Our custom typechecking function (based on Lean's check)
--- But in case of error, just replaces a type with its expected type.
--- def check (e : Expr) : MetaM Unit :=
---   withTraceNode `Meta.check (fun res =>
---       return m!"{if res.isOk then checkEmoji else crossEmoji} {e}") do
---     try
---       withTransparency TransparencyMode.all $ checkAux e
---     catch ex =>
---       trace[Meta.check] ex.toMessageData
---       throw ex
-
 
 /-- Instantiate metavariables according to what unifies in a typecheck -/
 def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
@@ -311,10 +275,6 @@ def consolidateWithTypecheck (proof : Expr) : MetaM Expr := do
     throwError "The type of the proof doesn't match the statement.  Perhaps a computation rule was used?"
   return ← instantiateMVars proof
 
-/-- Get the specifying theorem from a local hypothesis if that exists, and otherwise from the environment -/
-def getTheoremAndProof (thmName : Name) : TacticM (Expr × Expr) := do
-  try return (← getHypothesisType thmName, ← getHypothesisProof thmName) -- if the theorem is a hypothesis of the current proof state
-  catch _ => return (← getTheoremStatement thmName, ← getTheoremProof thmName) -- if the theorem is in the environment
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do

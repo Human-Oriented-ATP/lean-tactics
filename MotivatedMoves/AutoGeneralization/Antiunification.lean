@@ -136,4 +136,16 @@ def getMismatches (e e' : Expr) : MetaM (List Mismatch) := do
   let (result, mismatches) ← antiUnify e e' |>.run []
   return mismatches
 
+def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
+  let mismatches ← getMismatches e e'
+  return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+    let l ← getMVars left
+    let r ← getMVars right
+    if l.size < r.size then
+      return left
+    else if r.size < l.size then
+      return right
+    else
+      return none
+
 end AntiUnify

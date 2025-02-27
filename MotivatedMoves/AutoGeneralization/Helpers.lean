@@ -2,6 +2,17 @@ import Lean
 open Lean Elab Tactic Meta Term Command
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Working with names
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+/-- Turn a lemma name into its generalized version by prefixing it with `gen_` and truncating. -/
+def mkAbstractedName (n : Name) : Name :=
+    match n with
+    | (.str _ s) =>  Name.mkSimple s!"gen_{s.takeWhile (fun c => c != '_')}" -- (fun c => c.isLower && c != '_')
+    | _ => `unknown
+
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
@@ -25,27 +36,33 @@ def getTheoremProof (n : Name) : MetaM Expr := do
   return thm.value! -- return the theorem statement
 
 /-- Get a hypothesis by its name -/
-def getHypothesisByName (h : Name) : TacticM LocalDecl := do
+def getHypothesisByName (n : Name) : TacticM LocalDecl := do
   let goal ← getMainGoal  -- the dynamically generated hypotheses are associated with this particular goal
   for ldecl in (← goal.getDecl).lctx do
     if ldecl.isImplementationDetail then continue
-    if ldecl.userName == h then
+    if ldecl.userName == n then
       return ldecl
-  throwError m!"No hypothesis by name '{h}'."
+  throwError m!"No hypothesis by name '{n}' was found."
 
 /-- Get the statement of a given hypothesis (given its name) -/
-def getHypothesisType (h : Name) : TacticM Expr := do
-  let hyp ← getHypothesisByName h
+def getHypothesisType (n : Name) : TacticM Expr := do
+  let hyp ← getHypothesisByName n
   return hyp.type
 
 /-- Get the proof of a given hypothesis (given its name) -/
-def getHypothesisProof (h : Name) : TacticM Expr := do
+def getHypothesisProof (n : Name) : TacticM Expr := do
   (← getMainGoal).withContext do
-    let hyp ← getHypothesisByName h
+    let hyp ← getHypothesisByName n
 
     if hyp.hasValue
       then return ← instantiateMVars hyp.value
       else throwError "The hypothesis was likely declared with a 'have' rather than 'let' statement, so its proof is not accessible."
+
+/-- Get the specifying theorem from a local hypothesis if that exists, and otherwise from the environment -/
+def getTheoremAndProof (thmName : Name) : TacticM (Expr × Expr) := do
+  try return (← getHypothesisType thmName, ← getHypothesisProof thmName) -- if the theorem is a hypothesis of the current proof state
+  catch _ => return (← getTheoremStatement thmName, ← getTheoremProof thmName) -- if the theorem is in the environment
+
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Creating hypotheses
@@ -121,7 +138,7 @@ def removeAssignment (mv : MVarId) : MetaM Unit := do
   let mctxassgn := mctx.eAssignment.erase mv
   setMCtx {mctx with eAssignment := mctxassgn} -- mctxassgn
 
-/-- Instantiates all mvars in e except the mvar given by the array a -/
+/-- Instantiates all mvars in e except the mvars given by the array a -/
 def instantiateMVarsExcept (a : Array MVarId) (e : Expr)  : MetaM Expr := do
   for mv in a do
    removeAssignment mv -- remove the assignment
@@ -153,3 +170,10 @@ def getAllMVarsContainingMData (a : Array MVarId): MetaM (Array MVarId) :=
 def hasMVarOfType (t e: Expr) : MetaM Bool := do
   let mvarIds ← getMVars e
   mvarIds.anyM (fun m => do withoutModifyingState (isDefEq (← m.getType') t))
+
+/-- Make all mvars in mvarArray with the type t the same  -/
+def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit := do
+  let m ← mkFreshExprMVar t -- new mvar to replace all others with the same type
+  for mv in mvarArray do
+    if ← isDefEq (← mv.getType) t then
+      if !(← mv.isAssigned) then mv.assign m--mv.assignIfDefeq m
