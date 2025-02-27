@@ -18,10 +18,7 @@ def relabelMVarsIn (e : Expr) : MetaM Unit := do
       mvar.setUserName name
 
 
-/-- Returns the argument to an expression e.g. if fAbs has type "n-1= 3 → n=4" then it returns "n-1=3"-/
-def extractArgType (fAbs : Expr) : MetaM Expr := do
-  let fAbsType ← inferType fAbs
-  return fAbsType.bindingDomain!
+
 
 /- Replaces all instances of `p` in `e` with a metavariable.
 Roughly implemented like kabstract, with the following differences:
@@ -279,15 +276,11 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) ← getTheoremAndProof thmName
   logInfo m!"!Tactic Initial Proof: { thmProof}"
-  -- logInfo m!"!Tactic Initial Type: { ← inferType thmProof}"
 
-
-  -- logInfo m!"the initial thm has mvars? {← getMVars thmType}"
   -- Get the generalized theorem (replace instances of pattern with mvars, and unify mvars where possible)
   let mut genThmProof := thmProof
   let mut changes := []
   (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
-  -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) |>.run' [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   changes := changes.eraseDups
@@ -298,7 +291,6 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
   logInfo m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
-
   let genThmType ← inferType genThmProof
 
   -- Re-specialize the occurrences of the pattern we are not interested in
@@ -311,18 +303,10 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
     let mvarsInProof := (← getMVars genThmProof) ++ (← getMVars genThmType)
     setEqualAllMVarsOfType mvarsInProof (← inferType pattern)
 
-  -- remove hypotheses not involving the mvar
-  -- this happens only when we specialize only at occurrences
-  -- which means we pull out hypotheses involving other occurrences, but then re-specialize them
-  -- so we don't need an extra hyp
-  -- let hyps ← getMVars genThmProof
-  -- for hyp in hyps do
-  --   if
-
-  -- this gives the meta-variables in the proof more human-readable names
+  -- Give the meta-variables in the proof more human-readable names
   relabelMVarsIn genThmProof
 
-  -- Remove repeating hypotheses.
+  -- Remove repeating hypotheses
   genThmProof ← removeRepeatingHypotheses genThmProof
 
   -- Pull out the holes (the abstracted term & all hypotheses on it) into a chained implication.
@@ -337,7 +321,6 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   -- createLetHypothesis simpgenThmType simpgenThmProof (thmName++`Gen)
 
   logInfo s!"Successfully generalized \n  {thmName} \nto \n  {thmName++`Gen} \nby abstracting {← ppExpr pattern}."
-
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Autogeneralizes the "pattern" in the hypothesis "h",
