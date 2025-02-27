@@ -335,10 +335,10 @@ Fabian's example:
   and therefore generalizes to
   "hyp.Gen" which is a proof that ∀ x, x ≠ 0 → P x
 -/
-def P' (x : ℝ) := ∀ y : ℝ, x * y = 0 → y = 0 -- if the product if x and y is 0, then y is zero
-example : ∀ x : ℝ, x ≠ 0 → P' x := by
-  let hyp :  ∀ y : ℝ, (3:ℝ) * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℝ) ≠ 0 :=  Ne.symm (OfNat.zero_ne_ofNat 3); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
-  autogeneralize (3:ℝ) in hyp
+def P' (x : ℕ) := ∀ y : ℕ, x * y = 0 → y = 0 -- if the product if x and y is 0, then y is zero
+example : ∀ x : ℕ, x ≠ 0 → P' x := by
+  let hyp :  ∀ y : ℕ, 3 * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℕ) ≠ 0 := Ne.symm (Nat.zero_ne_add_one 2); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
+  autogeneralize (3:ℕ) in hyp
   -- autogeneralize (3:ℕ) in hyp.Gen
   -- autogeneralize ((1+2):ℕ) in hyp.Gen.Gen
   assumption
