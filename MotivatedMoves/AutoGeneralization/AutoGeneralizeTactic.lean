@@ -17,15 +17,19 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
 
   -- Get the generalized theorem (replace instances of pattern with mvars)
   let mut genThmProof := thmProof
-  let mut changes := [] -- keep track of depenencies of what must be generalized first
-  (genThmProof, changes) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
+  let mut dependenciesToGeneralize := [] -- keep track of dependencies of what must be generalized first
+  (genThmProof, dependenciesToGeneralize) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
   logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
-  -- Generalize all constants that `pattern` has dependencies on
-  changes := changes.eraseDups
-  for change in changes do
-    logInfo m!"Change: {change}"
-    genThmProof ← replacePatternWithMVars genThmProof change (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
+  -- Generalize all constants that `pattern` has dependencies on, and then generalize `pattern`
+  dependenciesToGeneralize := dependenciesToGeneralize.eraseDups ++ [pattern]
+  logInfo m!"ALL DEPENDENCIES: {dependenciesToGeneralize}"
+  for dep in dependenciesToGeneralize do
+    -- logInfo m!"Dependency to Generalize: {dep}"
+    genThmProof ← replacePatternWithMVars genThmProof dep (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
+
+  -- Generalize all the actual `pattern`
+  -- genThmProof ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof

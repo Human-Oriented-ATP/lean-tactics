@@ -32,7 +32,7 @@ GCD ALGORITHM
 -- #print Int.hcf
 -- #print Int.hcf._unary
 example : True := by
-  autogeneralize Int in hcf._unary
+  autogeneralize ℤ in hcf._unary
   specialize hcf._unary.Gen ℂ
   trivial
 
@@ -100,7 +100,6 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
   -- simp at v_deg_geq; -- if we simp directly here, the proof doesn't autogen
   apply three_not_le_one_opaque v_deg_geq
 
-#print impossible_graph
 example :
   ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
   (∃ v, G.degree v = 1 ∧ ∀ (w : Fin 5), w ≠ v → G.degree w = 4) → False
@@ -339,12 +338,12 @@ Fabian's example:
   "hyp.Gen" which is a proof that ∀ x, x ≠ 0 → P x
 -/
 def P' (x : ℕ) := ∀ y : ℕ, x * y = 0 → y = 0 -- if the product if x and y is 0, then y is zero
-example : ∀ x : ℕ, x ≠ 0 → P' x := by
-  let hyp :  ∀ y : ℕ, 3 * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℕ) ≠ 0 := Ne.symm (Nat.zero_ne_add_one 2); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
-  autogeneralize (3:ℕ) in hyp
-  -- autogeneralize (3:ℕ) in hyp.Gen
-  -- autogeneralize ((1+2):ℕ) in hyp.Gen.Gen
-  assumption
+-- example : ∀ x : ℕ, x ≠ 0 → P' x := by
+--   let hyp :  ∀ y : ℕ, 3 * y = 0 → y = 0 := by {intro y h;  let twoneq : (3:ℕ) ≠ 0 := Ne.symm (Nat.zero_ne_add_one 2); apply eq_zero_of_ne_zero_of_mul_left_eq_zero twoneq h; };
+--   autogeneralize (3:ℕ) in hyp
+--   -- autogeneralize (3:ℕ) in hyp.Gen
+--   -- autogeneralize ((1+2):ℕ) in hyp.Gen.Gen
+--   assumption -- throws error; needs proofs with holes
 
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
