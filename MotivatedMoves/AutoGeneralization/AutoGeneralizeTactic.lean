@@ -7,19 +7,6 @@ open Lean Elab Tactic Meta Term Command AntiUnify
 
 namespace Autogeneralize
 
-/-- Relabel the metavariables in the expression with their preferred names. -/
-def placeholderName := `placeholder
-def preferredNames := #[`n, `m, `p, `a, `b, `c]
-def relabelMVarsIn (e : Expr) : MetaM Unit := do
-  let mvars ← getMVars e
-  let placeholderMVars ← mvars.filterM fun mvar => do
-   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
-  for (mvar, name) in placeholderMVars.zip preferredNames do
-      mvar.setUserName name
-
-
-
-
 /- Replaces all instances of `p` in `e` with a metavariable.
 Roughly implemented like kabstract, with the following differences:
   kabstract replaces "p" with a bvar, while this replaces "p" with an mvar
@@ -30,7 +17,6 @@ Roughly implemented like kabstract, with the following differences:
 
 -- NOTE (future TODO): this code can now be rewritten without `withLocalDecl` or `mkFreshExprMVarAt`
 partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) (linsts : LocalInstances) (detectConflicts? := false) : StateT (List Expr) MetaM Expr := do
-  -- return e
   logInfo m!"We are replacing the pattern {p}:{← inferType p} with mvars."
   -- abstracting `p` so that it can be transported to other meta-variable contexts
   let pAbs ← abstractMVars p (levels := false) -- the `(levels := false)` prevents bizarre instantiations across universe levels
@@ -60,10 +46,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
                               logInfo m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
                               modify (problemTerms ++ ·)
-
-                              -- for t in problemTerms do
-                              --   fAbs ← replacePatternWithMVars fAbs t lctx linsts (detectConflicts? := detectConflicts?)
-                              --   aAbs ← replacePatternWithMVars aAbs t lctx linsts (detectConflicts? := detectConflicts?)
 
                               return e.updateApp! fAbs aAbs
                               -- if this doesn't typecheck, that means probably that term has been generalized,

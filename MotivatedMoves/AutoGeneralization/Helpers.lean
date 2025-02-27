@@ -2,6 +2,8 @@ import Lean
 open Lean Elab Tactic Meta Term Command
 
 
+
+
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Retrieving the goal
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -183,3 +185,13 @@ def setEqualAllMVarsOfType (mvarArray : Array MVarId) (t : Expr) : MetaM Unit :=
   for mv in mvarArray do
     if ← isDefEq (← mv.getType) t then
       if !(← mv.isAssigned) then mv.assign m--mv.assignIfDefeq m
+
+/-- Relabel the metavariables in the expression with their preferred names. -/
+def placeholderName := `placeholder
+def preferredNames := #[`n, `m, `p, `a, `b, `c]
+def relabelMVarsIn (e : Expr) : MetaM Unit := do
+  let mvars ← getMVars e
+  let placeholderMVars ← mvars.filterM fun mvar => do
+   return (← mvar.getTag).getRoot.toString.startsWith placeholderName.toString
+  for (mvar, name) in placeholderMVars.zip preferredNames do
+      mvar.setUserName name
