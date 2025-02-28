@@ -8,24 +8,25 @@ open Lean Elab Tactic Meta Term Command
 
 namespace Autogeneralize
 
+initialize
+  registerTraceClass `ProofPrinting
 
 /-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) ← getTheoremAndProof thmName
-  logInfo m!"!Tactic Initial Proof: { thmProof}"
+  trace[ProofPrinting] m!"!Tactic Initial Proof: { thmProof}"
 
   -- Get the generalized theorem (replace instances of pattern with mvars)
   let mut genThmProof := thmProof
   let mut dependenciesToGeneralize := [] -- keep track of dependencies of what must be generalized first
-  (genThmProof, dependenciesToGeneralize) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
-  logInfo m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
+  (_, dependenciesToGeneralize) ← replacePatternWithMVars genThmProof pattern (← getLCtx) (← getLocalInstances) (detectConflicts? := true)  |>.run [] -- replace instances of f's old value with metavariables
+  trace[ProofPrinting] m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 
   -- Generalize all constants that `pattern` has dependencies on, and then generalize `pattern`
   dependenciesToGeneralize := dependenciesToGeneralize.eraseDups ++ [pattern]
   logInfo m!"ALL DEPENDENCIES: {dependenciesToGeneralize}"
   for dep in dependenciesToGeneralize do
-    -- logInfo m!"Dependency to Generalize: {dep}"
     genThmProof ← replacePatternWithMVars genThmProof dep (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
 
   -- Generalize all the actual `pattern`
@@ -33,13 +34,13 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
 
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
-  logInfo m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
+  trace[ProofPrinting] m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
   let genThmType ← inferType genThmProof
 
   -- Re-specialize the occurrences of the pattern we are not interested in
   if !(occs == .all) then do
     genThmProof ← respecializeOccurrences thmType genThmProof pattern (occsToStayAbstracted := occs) consolidate
-    logInfo m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
+    trace[ProofPrinting] m!"!Tactic Generalized Type After Unifying: {← inferType genThmProof}"
 
   -- (If desired) make all abstracted instances of the pattern the same.
   if consolidate then do
