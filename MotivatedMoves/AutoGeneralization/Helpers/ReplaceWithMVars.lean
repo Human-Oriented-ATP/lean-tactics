@@ -41,8 +41,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
                               let expectedA ← extractArgType fAbs
-                              trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
-                              trace[TypecheckingErrors] m!"aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
+                              -- trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
+                              trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
 
                               -- the mismatch is probably caused because something else needs to be generalized
                               let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
@@ -108,7 +108,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             -- if n.toString.endsWith "_opaque" then
                               -- logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
                               -- return e
+
                             if depth ≥ 2 then return e
+
                             else
                                 -- if (← containsExpr p constType) then
                                 let genConstType ← visit constType (depth+1)  -- expr for generalized proof statment
