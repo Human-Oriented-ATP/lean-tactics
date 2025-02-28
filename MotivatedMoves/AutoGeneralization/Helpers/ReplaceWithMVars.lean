@@ -63,9 +63,6 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth
                             let vAbs ← visit v depth
-                            -- this consolidates the metavariables in the generalized type and the generalized value
-                            -- isDefEq tAbs (← inferType vAbs)
-                            -- let updatedLetBody ← withLocalDecl n .implicit tAbs (fun placeholder => do
                             let updatedLet ← withLetDecl n tAbs vAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
@@ -149,7 +146,9 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
         visitChildren ()
   visit e
 
-/- Just like kabstract, except abstracts to mvars instead of bvars -/
+/- Just like kabstract, except abstracts to mvars instead of bvars
+  We use this to abstract the theorem TYPE...so we can re-specialize non-abstracted occurrences in the proof.
+  -/
 def abstractToOneMVar (thmType : Expr) (pattern : Expr) (occs : Occurrences) : MetaM Expr := do
   let userThmType ← kabstract thmType pattern (occs)
 
@@ -159,7 +158,10 @@ def abstractToOneMVar (thmType : Expr) (pattern : Expr) (occs : Occurrences) : M
 
   return userThmType
 
-/- Just like kabstract, except abstracts to different variables instead of the same one -/
+/-
+  Just like kabstract, except abstracts to different variables instead of the same one
+  We use this to abstract the theorem TYPE...so we can re-specialize non-abstracted occurrences in the proof.
+-/
 def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr := do
   let pType ← inferType p
   let pHeadIdx := p.toHeadIndex
