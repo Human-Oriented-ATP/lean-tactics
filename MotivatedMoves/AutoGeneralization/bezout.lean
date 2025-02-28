@@ -9,19 +9,19 @@ def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c
 notation g " is GCD[" a ", " b "]" => is_gcd g a b
 
 theorem bezout_mini (x y : ℤ) :
-    x ≠ 0 → y ≠ 0 →
-    let B := {z : ℕ   | ∃ h k : ℤ, z = (h * x + k * y).natAbs ∧ h * x + k * y ≠ 0};
-    B.Nonempty
+    y ≠ 0 →
+    {z : ℕ   | ∃ h k : ℤ, z = (h * x + k * y).natAbs ∧ h * x + k * y ≠ 0}.Nonempty
     :=
 
 by
-  intros _ y_neq_0
-  -- Show B is non-empty by constructing an element
+  intros y_neq_0
+  -- Show the set is non-empty by constructing an element
   use (0*x + 1*y).natAbs
   use 0
   use 1
   constructor
   rfl
+  sorry
   simp only [zero_mul, one_mul, zero_add, ne_eq, y_neq_0, not_false_eq_true]
 
 example : True := by
