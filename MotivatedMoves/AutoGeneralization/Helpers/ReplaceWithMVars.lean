@@ -56,6 +56,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                           else
                             let fAbs ← visit f depth
                             let aAbs ← visit a depth
+                            -- check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
 
       | .mdata _ b       => return e.updateMData! (← visit b depth)

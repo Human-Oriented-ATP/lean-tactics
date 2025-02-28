@@ -24,7 +24,15 @@ set_option pp.showLetValues false
 -- set_option pp.explicit true
 -- set_option profiler true
 -- set_option trace.Meta.whnf true
-set_option trace.TypecheckingErrors false
+set_option trace.TypecheckingErrors true
+set_option trace.ProofPrinting true
+
+-- #check AbstractMVars.State.abstractLevels
+example :  1 + 2 = 2 + 1 := by
+  let mult_comm :  ∀ (n m : ℕ), n * m = m * n := Nat.mul_comm
+  autogeneralize_basic (Mul.mul.{0}) in mult_comm
+  specialize mult_comm ℕ Add.add Nat.add_comm 1 2
+  assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GCD ALGORITHM
@@ -472,7 +480,7 @@ Generalizing an operator that only requires commutativity.
 
 example :  1 + 2 = 2 + 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n :=  Nat.mul_comm
-  autogeneralize_basic Mul.mul in mult_comm -- generalize all
+  autogeneralize_basic (Mul.mul (α := ℕ)) in mult_comm -- generalize all
   specialize mult_comm.Gen Add.add Nat.add_comm 1 2
   assumption
 
