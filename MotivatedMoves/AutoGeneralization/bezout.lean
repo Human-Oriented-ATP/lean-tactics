@@ -10,13 +10,14 @@ set_option trace.ProofPrinting true
 def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 notation g " is GCD[" a ", " b "]" => is_gcd g a b
 
-theorem bezout_mini' (x y : ℤ) :
+theorem bezout_mini' :
+    ∀ x y : ℤ,
     y ≠ 0 →
     ∃ h k : ℤ, h * x + k * y ≠ 0
     :=
 
 by
-  intros y_neq_0
+  intros x y y_neq_0
   use 0
   use 1
   rw [zero_mul, one_mul, zero_add]
