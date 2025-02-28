@@ -4,29 +4,29 @@ import Mathlib.Tactic
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
 open Autogeneralize Classical
 
+set_option trace.TypecheckingErrors true
+set_option trace.ProofPrinting true
 
 def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 notation g " is GCD[" a ", " b "]" => is_gcd g a b
 
-theorem bezout_mini (x y : ℤ) :
+theorem bezout_mini' (x y : ℤ) :
     y ≠ 0 →
-    {z : ℕ   | ∃ h k : ℤ, z = (h * x + k * y).natAbs ∧ h * x + k * y ≠ 0}.Nonempty
+    ∃ h k : ℤ, h * x + k * y ≠ 0
     :=
 
 by
   intros y_neq_0
-  -- Show the set is non-empty by constructing an element
-  use (0*x + 1*y).natAbs
   use 0
   use 1
-  constructor
-  rfl
-  sorry
-  simp only [zero_mul, one_mul, zero_add, ne_eq, y_neq_0, not_false_eq_true]
+  rw [zero_mul, one_mul, zero_add]
+  exact y_neq_0
+
 
 example : True := by
-  autogeneralize ℤ in bezout_mini
+  autogeneralize ℤ in bezout_mini'
   trivial
+
 
 
 
