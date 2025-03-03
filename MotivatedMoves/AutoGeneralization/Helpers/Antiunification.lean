@@ -38,13 +38,8 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
-        mismatch.placeholder.withContext do
-        return {
-          placeholder := mismatch.placeholder,
-          left := ← mkForallFVars #[var] (usedOnly := true) mismatch.left,
-          right := ← mkForallFVars #[var] (usedOnly := true) mismatch.right
-        }
+      if mismatches.any fun ⟨_, left, right⟩ ↦ left.containsFVar var.fvarId! || right.containsFVar var.fvarId! then do
+        throwError m!"Unsupported case: Loose free variable {var} in anti-unification."
       set mismatches
       return ← mkForallFVars #[var] bA
   | .lam n d b bi, .lam n' d' b' bi' =>
@@ -52,13 +47,8 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLocalDecl n bi dA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
-        mismatch.placeholder.withContext do
-        return {
-          placeholder := mismatch.placeholder,
-          left := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.left,
-          right := ← mkLambdaFVars #[var] (usedOnly := true) mismatch.right
-        }
+      if mismatches.any fun ⟨_, left, right⟩ ↦ left.containsFVar var.fvarId! || right.containsFVar var.fvarId! then do
+        throwError m!"Unsupported case: Loose free variable {var} in anti-unification."
       set mismatches
       return ← mkLambdaFVars #[var] bA
   | .letE n d v b nd, .letE n' d' v' b' nd' =>
@@ -69,16 +59,8 @@ partial def antiUnify (e e' : Expr) : StateT (List Mismatch) MetaM Expr := do
     withLetDecl n d vA fun var ↦ do
       let bA ← antiUnify (b.instantiate1 var) (b'.instantiate1 var)
       let mismatches ← get
-      let mismatches : List Mismatch ← mismatches.mapM fun mismatch ↦
-        mismatch.placeholder.withContext do
-        if (← getLCtx).containsFVar var then
-          return {
-            placeholder := mismatch.placeholder,
-            left := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.left,
-            right := ← mkLetFVars #[var] (usedLetOnly := true) mismatch.right
-          }
-        else
-          return mismatch
+      if mismatches.any fun ⟨_, left, right⟩ ↦ left.containsFVar var.fvarId! || right.containsFVar var.fvarId! then do
+        throwError m!"Unsupported case: Loose free variable {var} in anti-unification."
       set mismatches
       return ← mkLetFVars #[var] bA
   | .app f a, .app f' a' =>
