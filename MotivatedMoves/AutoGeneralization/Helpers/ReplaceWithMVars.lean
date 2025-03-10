@@ -33,8 +33,8 @@ partial def replacePatternsWithMVars (e : Expr) (lctx : LocalContext) (linsts : 
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
-                          let mut fAbs ← visit f depth -- the type
-                          let mut aAbs ← visit a depth
+                          let fAbs ← visit f depth -- the type
+                          let aAbs ← visit a depth
                           try
                             liftM <| withoutModifyingState <| check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
@@ -44,12 +44,13 @@ partial def replacePatternsWithMVars (e : Expr) (lctx : LocalContext) (linsts : 
                             trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
 
                             -- the mismatch is probably caused because something else needs to be generalized
-                            let problemTerms ← getTermsToGeneralize expectedA (← inferType aAbs)
+                            let (_, conflicts) ← getTermsToGeneralize expectedA (← inferType aAbs)
+                            let (_, problemTerms) := conflicts.unzip
                             trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
                             modify (problemTerms ++ ·)
 
-                            fAbs ← visit f depth
-                            aAbs ← visit a depth
+                            let fAbs ← visit fAbs depth
+                            let aAbs ← visit aAbs depth
 
                             -- if this doesn't typecheck, that means probably that term has been generalized,
                             -- but type still has the pattern (or a comp rule was used).
@@ -58,8 +59,20 @@ partial def replacePatternsWithMVars (e : Expr) (lctx : LocalContext) (linsts : 
                               liftM <| withoutModifyingState <| check $ .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                              throwError m!"Application type mismatch after generalizing patterns: {err.toMessageData}"
-
+                              let (result, conflicts) ← getTermsToGeneralize expectedA (← inferType aAbs)
+                              let (positions, problemTerms) := conflicts.unzip
+                              -- get rid of the side with the problematic term
+                              let fAbs ← if positions.contains false then -- if the function has a problematic term
+                                trace[TypecheckingErrors] m!"Function {fAbs} has a problematic term"
+                                mkFreshExprMVar result (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
+                              else
+                                pure fAbs
+                              let aAbs ← if positions.contains true then -- if the argument has a problematic term
+                                trace[TypecheckingErrors] m!"Argument {aAbs} has a problematic term"
+                                mkFreshExprMVar result (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
+                              else
+                                pure aAbs
+                              return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth

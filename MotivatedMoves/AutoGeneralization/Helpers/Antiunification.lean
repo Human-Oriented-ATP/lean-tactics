@@ -114,20 +114,19 @@ where
 def leastCommonGeneralizer (e e' : Expr) : MetaM Expr :=
   antiUnify e e' |>.run' []
 
-def getMismatches (e e' : Expr) : MetaM (List Mismatch) := do
+/-- `getTermsToGeneralize` takes in two expressions and gives the antiunification result together with a list of terms that are causing conflict in unification.
+    The Boolean flag attached to each term indicates whether it has come from the left expression or the right (`false` for left, `true` for right). -/
+def getTermsToGeneralize (e e' : Expr) : MetaM (Expr × List (Bool × Expr)) := do
   let (result, mismatches) ← antiUnify e e' |>.run []
-  return mismatches
-
-def getTermsToGeneralize (e e' : Expr) : MetaM (List Expr) := do
-  let mismatches ← getMismatches e e'
-  return ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
+  let conflicts ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
     let l ← getMVars left
     let r ← getMVars right
     if l.size < r.size then
-      return left
+      pure (false, left)
     else if r.size < l.size then
-      return right
+      pure (true, right)
     else
-      return none
+      pure none
+  return (result, conflicts)
 
 end AntiUnify
