@@ -30,8 +30,8 @@ set_option trace.ProofPrinting true
 -- #check AbstractMVars.State.abstractLevels
 example :  1 + 2 = 2 + 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n := Nat.mul_comm
-  autogeneralize_basic (Mul.mul.{0}) in mult_comm
-  specialize mult_comm ℕ Add.add Nat.add_comm 1 2
+  autogeneralize_basic (Mul.mul.{0} (α := ℕ)) in mult_comm
+  specialize mult_comm.Gen Add.add Nat.add_comm 1 2
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -65,14 +65,14 @@ theorem max_deg_imp_adj_all {V : Type} [Fintype V] {v : V} {G : SimpleGraph V} [
 --   autogeneralize (4:ℕ) in max_deg_imp_adj_all.Gen
 --   trivial
 
-def three_not_le_one_opaque : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
+def one_lt_three : 1 < 3 := by exact Nat.one_lt_succ_succ 1
+
 --   -- simp only [Nat.not_ofNat_le_one, not_false_eq_true]
 -- def three_not_le_one' : ¬ 3 ≤ 1  := three_not_le_one
 -- example : True := by
 --   autogeneralize (3:ℕ) in three_not_le_one
 --   autogeneralize (3:ℕ) in three_not_le_one'
 --   trivial
-
 
 /- For any simple graph on 4 vertices, its degree sequence can't be {1,3,3,3}. -/
 theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
@@ -107,7 +107,9 @@ theorem impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]:
 
   -- have three_not_le_one : ¬ 3 ≤ 1  := Nat.not_ofNat_le_one
   -- simp at v_deg_geq; -- if we simp directly here, the proof doesn't autogen
-  apply three_not_le_one_opaque v_deg_geq
+  exact Nat.not_lt.mpr v_deg_geq one_lt_three
+
+set_option trace.TypecheckingErrors true
 
 example :
   ∀ (G : SimpleGraph (Fin 5)) [inst : DecidableRel G.Adj],
