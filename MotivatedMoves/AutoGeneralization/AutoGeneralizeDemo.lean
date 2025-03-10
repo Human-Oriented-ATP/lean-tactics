@@ -30,8 +30,9 @@ set_option trace.ProofPrinting true
 -- #check AbstractMVars.State.abstractLevels
 example :  1 + 2 = 2 + 1 := by
   let mult_comm :  ∀ (n m : ℕ), n * m = m * n := Nat.mul_comm
+  -- autogeneralize_basic ℕ  in mult_comm
   autogeneralize_basic (Mul.mul.{0}) in mult_comm
-  specialize mult_comm ℕ Add.add Nat.add_comm 1 2
+  specialize mult_comm.Gen Add.add Nat.add_comm 1 2
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
