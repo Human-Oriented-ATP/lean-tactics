@@ -78,26 +78,22 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     return .mdata md (← antiUnifyCore e e')
   | e, .mdata md' e' =>
     return .mdata md' (← antiUnifyCore e e')
-  | .mvar m, .mvar m' =>
-    if (← m.isAssigned) || (← m'.isAssigned) then
-      return ← antiUnifyCore (← instantiateMVars (.mvar m)) (← instantiateMVars (.mvar m'))
-    unless ← liftM <| withoutModifyingState <| isDefEq (← m.getType) (← m'.getType) do
-      throwError m!"The types of mismatched metavariables {m} and {m'} do not align."
-    return .mvar m
   | .mvar m, e' =>
-    if ← m.isAssigned then
-      return ← antiUnifyCore (← instantiateMVars (.mvar m)) e'
+    -- if ← m.isAssigned then
+    --   return ← antiUnifyCore (← instantiateMVars (.mvar m)) e'
+    -- else
     -- making `m` the placeholder if the assignment is consistent with previous mismatches
-    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m) || (mismatch.placeholder == m && mismatch.right == e') then
+    if (← get).all fun mismatch ↦ (mismatch.placeholder != m) || (mismatch.placeholder == m && mismatch.right == e') then
       modify <| List.cons { placeholder := m, left := .mvar m, right := e' }
       return .mvar m
     else
       createAntiunifyingMVar
   | e, .mvar m' =>
-    if ← m'.isAssigned then
-      return ← antiUnifyCore e (← instantiateMVars (.mvar m'))
+    -- if ← m'.isAssigned then
+    --   return ← antiUnifyCore e (← instantiateMVars (.mvar m'))
+    -- else
     -- making `m'` the placeholder if the assignment is consistent with previous mismatches
-    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m') || (mismatch.placeholder == m' && mismatch.left == e) then
+    if (← get).all fun mismatch ↦ (mismatch.placeholder != m') || (mismatch.placeholder == m' && mismatch.left == e) then
       modify <| List.cons { placeholder := m', left := e, right := .mvar m' }
       return .mvar m'
     else
@@ -119,9 +115,15 @@ where
       return mvar
 
 def antiUnify (e e' : Expr) : MetaM (Expr × List Mismatch) := do
+  let e ← instantiateMVars e
+  let e' ← instantiateMVars e'
   let e  ← withReducibleAndInstances <| reduce e  (explicitOnly := false) (skipTypes := false) (skipProofs := false)
   let e' ← withReducibleAndInstances <| reduce e' (explicitOnly := false) (skipTypes := false) (skipProofs := false)
-  antiUnifyCore e e' |>.run (← getLCtx, ← getLocalInstances) |>.run []
+  let (result, mismatches) ← antiUnifyCore e e' |>.run (← getLCtx, ← getLocalInstances) |>.run []
+  trace[AntiUnify] "All results of anti-unification: {mismatches}"
+  let mismatches := mismatches.filter (fun ⟨_, left, right⟩ ↦ !(left.isMVar && right.isMVar))
+  trace[AntiUnify] "Filtered results of anti-unification: {mismatches}"
+  return (result, mismatches)
 
 def leastCommonGeneralizer (e e' : Expr) : MetaM Expr :=
   Prod.fst <$> antiUnify e e'
