@@ -10,6 +10,8 @@ open Lean Meta Elab Tactic Command
 **Output:** The least common generalizer of `e` and `e'`
             (i.e., an expression with meta-variables that can be instantiated to either `e` or `e'`, and in fact, the most specific such one)
             along with a list of the "mismatches" between the two expressions
+
+The expressions are assumed to contain no uninstantiated meta-variables and be reduced up to `reducible` transparency.
 -/
 
 namespace AntiUnify
@@ -84,6 +86,7 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     -- else
     -- making `m` the placeholder if the assignment is consistent with previous mismatches
     if (← get).all fun mismatch ↦ (mismatch.placeholder != m) || (mismatch.placeholder == m && mismatch.right == e') then
+      trace[AntiUnify] m!"Adding mismatch: {m} ≠ {e'}"
       modify <| List.cons { placeholder := m, left := .mvar m, right := e' }
       return .mvar m
     else
@@ -94,6 +97,7 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     -- else
     -- making `m'` the placeholder if the assignment is consistent with previous mismatches
     if (← get).all fun mismatch ↦ (mismatch.placeholder != m') || (mismatch.placeholder == m' && mismatch.left == e) then
+      trace[AntiUnify] m!"Adding mismatch: {e} ≠ {m'}"
       modify <| List.cons { placeholder := m', left := e, right := .mvar m' }
       return .mvar m'
     else
