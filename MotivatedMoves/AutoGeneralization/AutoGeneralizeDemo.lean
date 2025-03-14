@@ -272,38 +272,6 @@ example : ∀ (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : F
   specialize union_of_finsets.Gen 3 4
   assumption
 
--- to screeshot
-
-example := by
-  let union_of_sets (A B : Finset α)
-    (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  autogeneralize (2:ℕ) in union_of_sets
-
-
-
-
-
-
-
-
-
-
-  specialize union_of_sets.Gen 3 4
-  assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DIVISIBILITY RULE
@@ -404,7 +372,7 @@ example : Irrational (sqrt 3 + 6) := by
 GENERALIZING SIZES OF SETS.
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
 
--- variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+variable {α β : Type} [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
 /--
 Example to screenshot
 -/
