@@ -35,44 +35,50 @@ partial def replacePatternsWithMVars (e : Expr) (lctx : LocalContext) (linsts : 
       | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
                           let fAbs ← visit f depth -- the type
                           let aAbs ← visit a depth
+                          let expectedA ← extractArgType fAbs
+                          let inferredA ← inferType aAbs
                           try
-                            liftM <| withoutModifyingState <| check $ .app fAbs aAbs
+                            -- guard <| ← liftM <| isDefEq expectedA inferredA
+                            check <| .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
                           catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                            let expectedA ← extractArgType fAbs
                             -- trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
                             trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
 
                             -- the mismatch is probably caused because something else needs to be generalized
-                            let (_, conflicts) ← getTermsToGeneralize expectedA (← inferType aAbs)
+                            let (_, conflicts) ← getTermsToGeneralize expectedA inferredA
                             let (_, problemTerms) := conflicts.unzip
                             trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
-                            modify (problemTerms ++ ·)
+                            modify (fun terms ↦ (problemTerms ++ terms).eraseDups)
 
                             let fAbs ← visit fAbs depth
                             let aAbs ← visit aAbs depth
+                            let expectedA ← extractArgType fAbs
+                            let inferredA ← inferType aAbs
 
                             -- if this doesn't typecheck, that means probably that term has been generalized,
                             -- but type still has the pattern (or a comp rule was used).
                             -- so to fix it, we should discard the proof entirely (by making it a mvar
                             try
-                              liftM <| withoutModifyingState <| check $ .app fAbs aAbs
+                              -- guard <| ← liftM <| isDefEq expectedA inferredA
+                              check <| .app fAbs aAbs
                               return e.updateApp! fAbs aAbs
                             catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                              let (result, conflicts) ← getTermsToGeneralize expectedA (← inferType aAbs)
-                              let (positions, problemTerms) := conflicts.unzip
-                              -- get rid of the side with the problematic term
-                              let fAbs ← if positions.contains false then -- if the function has a problematic term
-                                trace[TypecheckingErrors] m!"Function {fAbs} has a problematic term"
-                                mkFreshExprMVar result (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
-                              else
-                                pure fAbs
-                              let aAbs ← if positions.contains true then -- if the argument has a problematic term
-                                trace[TypecheckingErrors] m!"Argument {aAbs} has a problematic term"
-                                mkFreshExprMVar result (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
-                              else
-                                pure aAbs
-                              return e.updateApp! fAbs aAbs
+                              throwError "Type-checking error after abstracting problematic terms: {err.toMessageData}"
+                              -- let (result, conflicts) ← getTermsToGeneralize expectedA (← inferType aAbs)
+                              -- let (positions, problemTerms) := conflicts.unzip
+                              -- -- get rid of the side with the problematic term
+                              -- let fAbs ← if positions.contains false then -- if the function has a problematic term
+                              --   trace[TypecheckingErrors] m!"Function {fAbs} has a problematic term"
+                              --   mkFreshExprMVar none (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
+                              -- else
+                              --   pure fAbs
+                              -- let aAbs ← if positions.contains true then -- if the argument has a problematic term
+                              --   trace[TypecheckingErrors] m!"Argument {aAbs} has a problematic term; probl"
+                              --   mkFreshExprMVar result (kind := .synthetic) -- TODO: Make the type of the meta-variable another meta-variable
+                              -- else
+                              --   pure aAbs
+                              -- return e.updateApp! fAbs aAbs
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth
