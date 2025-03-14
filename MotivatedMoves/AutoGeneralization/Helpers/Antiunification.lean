@@ -25,6 +25,9 @@ structure Mismatch where
   right : Expr
 deriving Repr
 
+instance : ToMessageData Mismatch where
+  toMessageData m := m!"Mismatch: {m.left} ≠ {m.right}"
+
 def Mismatch.containsFVar (m : Mismatch) (fvarId : FVarId) : Bool :=
   m.left.containsFVar fvarId || m.right.containsFVar fvarId
 
@@ -75,11 +78,17 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     return .mdata md (← antiUnifyCore e e')
   | e, .mdata md' e' =>
     return .mdata md' (← antiUnifyCore e e')
+  | .mvar m, .mvar m' =>
+    if (← m.isAssigned) || (← m'.isAssigned) then
+      return ← antiUnifyCore (← instantiateMVars (.mvar m)) (← instantiateMVars (.mvar m'))
+    unless ← liftM <| withoutModifyingState <| isDefEq (← m.getType) (← m'.getType) do
+      throwError m!"The types of mismatched metavariables {m} and {m'} do not align."
+    return .mvar m
   | .mvar m, e' =>
     if ← m.isAssigned then
       return ← antiUnifyCore (← instantiateMVars (.mvar m)) e'
     -- making `m` the placeholder if the assignment is consistent with previous mismatches
-    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m) || (mismatch.right == e') then
+    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m) || (mismatch.placeholder == m && mismatch.right == e') then
       modify <| List.cons { placeholder := m, left := .mvar m, right := e' }
       return .mvar m
     else
@@ -88,7 +97,7 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     if ← m'.isAssigned then
       return ← antiUnifyCore e (← instantiateMVars (.mvar m'))
     -- making `m'` the placeholder if the assignment is consistent with previous mismatches
-    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m') || (mismatch.left == e) then
+    else if (← get).all fun mismatch ↦ (mismatch.placeholder != m') || (mismatch.placeholder == m' && mismatch.left == e) then
       modify <| List.cons { placeholder := m', left := e, right := .mvar m' }
       return .mvar m'
     else
@@ -109,25 +118,33 @@ where
       modify <| List.cons { placeholder := mvar.mvarId!, left := e, right := e' }
       return mvar
 
-def leastCommonGeneralizer (e e' : Expr) : MetaM Expr := do
-  antiUnifyCore e e' |>.run (← getLCtx, ← getLocalInstances) |>.run' []
-
 def antiUnify (e e' : Expr) : MetaM (Expr × List Mismatch) := do
+  let e  ← withReducibleAndInstances <| reduce e  (explicitOnly := false) (skipTypes := false) (skipProofs := false)
+  let e' ← withReducibleAndInstances <| reduce e' (explicitOnly := false) (skipTypes := false) (skipProofs := false)
   antiUnifyCore e e' |>.run (← getLCtx, ← getLocalInstances) |>.run []
+
+def leastCommonGeneralizer (e e' : Expr) : MetaM Expr :=
+  Prod.fst <$> antiUnify e e'
 
 /-- `getTermsToGeneralize` takes in two expressions and gives the antiunification result together with a list of terms that are causing conflict in unification.
     The Boolean flag attached to each term indicates whether it has come from the left expression or the right (`false` for left, `true` for right). -/
 def getTermsToGeneralize (e e' : Expr) : MetaM (Expr × List (Bool × Expr)) := do
   let (result, mismatches) ← antiUnify e e'
+  trace[AntiUnify] "Results of anti-unification: {mismatches}"
   let conflicts ← mismatches.filterMapM fun ⟨_, left, right⟩ ↦ do
-    let l ← getMVars left
-    let r ← getMVars right
-    if l.size < r.size then
-      pure (false, left)
-    else if r.size < l.size then
+    if left.getAppFn'.isMVar then
       pure (true, right)
+    else if right.getAppFn'.isMVar then
+      pure (false, left)
     else
-      pure none
+      let l ← getMVars left
+      let r ← getMVars right
+      if l.size < r.size then
+        pure (false, left)
+      else if r.size < l.size then
+        pure (true, right)
+      else
+        pure none
   return (result, conflicts)
 
 end AntiUnify
