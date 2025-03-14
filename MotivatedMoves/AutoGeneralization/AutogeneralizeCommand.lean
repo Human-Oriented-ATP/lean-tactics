@@ -3,49 +3,60 @@ import MotivatedMoves.AutoGeneralization.Helpers.Antiunification
 
 open Lean Elab Meta
 
+initialize
+  registerTraceClass `AutoGeneralization
+
 partial def autoGeneralizeCore (term : Expr) (lctx : LocalContext) (linsts : LocalInstances) : StateT (List Expr) MetaM Expr := do
   transform term (skipConstInApp := true) pre post
 where
   pre e := do
     if let .some pattern ← (← get).findM? (liftM <| withoutModifyingState <| isDefEq e ·) then
+      trace[AutoGeneralization] m!"Found instance of pattern {pattern}"
       let m ← mkFreshExprMVarAt lctx linsts (← inferType pattern)
-      return .continue m
+      return .done m
     else
       -- altering the binder types in a way that they can be modified during the traversal of the body
       match e with
       | .forallE n d b bi => do
+        trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
         let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
         m.mvarId!.assign d
         return .continue <| Expr.forallE n m b bi
       | .lam n d b bi => do
+        trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
         let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
         m.mvarId!.assign d
         return .continue <| Expr.lam n m b bi
       | .letE n t v b _ => do
+        trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
         let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
         m.mvarId!.assign t
         return .continue <| Expr.letE n m v b false
       | _ => return .continue
   post
   | e@(.fvar fvarId) => do
+    trace[AutoGeneralization] m!"Generalizing type of free variable {fvarId.name}"
     let type@(.mvar mvarId) ← inferType e | throwError m!"Expected type of free variable {fvarId.name} : {← inferType e} to be a metavariable."
     let type ← instantiateMVars type
     let genType ← autoGeneralizeCore type lctx linsts
     mvarId.assign genType
-    return .continue
+    return .done e
   | e@(.app f a) => do
     let .forallE _ fDomain _ bInfo ← (whnf <| ← inferType f) | throwError m!"Expected the type of {f}, {← inferType f}, to be a function type."
     if !bInfo.isExplicit && a.hasExprMVar then do -- replacing implicit and typeclass arguments with meta-variables to be synthesized later
+      trace[AutoGeneralization] m!"Replacing implicit/typeclass argument of {f} with meta-variable"
       let m ← mkFreshExprMVarAt lctx linsts fDomain (kind := .synthetic)
       return ← continueWithGeneralization <| Expr.app f m
     try
       liftM <| check e
+      trace[AutoGeneralization] m!"Typecheck of application succeeded"
       return ← continueWithGeneralization e
     catch _error =>
       let aType ← inferType a
+      trace[AutoGeneralization] m!"Type mismatch in application: {fDomain} ≠ {aType}"
       let (_, conflicts) ← AntiUnify.getTermsToGeneralize fDomain aType
       let (_, problemTerms) := conflicts.unzip
-      trace[AntiUnify] m!"The mismatch between {fDomain} and {aType} can probably be fixed by generalizing the terms {problemTerms}"
+      trace[AutoGeneralization] m!"The mismatch between {fDomain} and {aType} can probably be fixed by generalizing the terms {problemTerms}"
       modify (problemTerms ++ ·)
       return .visit e
   | e => continueWithGeneralization e
@@ -53,8 +64,9 @@ where
     let type ← inferType e
     let genType ← autoGeneralizeCore type lctx linsts
     if (← getMVars type).size < (← getMVars genType).size then -- generalization had a non-trivial effect on the term
+      trace[AutoGeneralization] m!"Generalizing term of {type} to metavariable of type {genType}"
       let m ← mkFreshExprMVarAt lctx linsts genType
-      return .continue m
+      return .done m
     else
       return .continue e
 
@@ -64,6 +76,7 @@ elab "#autogeneralize" patterns:term,* "in" stmt:ident : command => Command.runT
   let proof := result.value!
   let genProof ← autoGeneralizeCore proof (← getLCtx) (← getLocalInstances) |>.run' patterns
   check genProof
+  Term.synthesizeSyntheticMVarsNoPostponing
   let genThmStmt ← inferType genProof
   let genThmName :=  stmt.getId ++ `Gen
   addAndCompile <| .thmDecl {
