@@ -4,6 +4,7 @@ Demos of proof generalization tactic in Lean
 import MotivatedMoves.AutoGeneralization.AutoGeneralizeTactic
 
 import MotivatedMoves.AutoGeneralization.Formalizations.irrationality_of_sqrts
+import MotivatedMoves.AutoGeneralization.Formalizations.impossible_graphs
 
 open Autogeneralize
 
@@ -71,6 +72,20 @@ example : ∀ (n m : ℕ) (α : Type) [inst : Fintype α] [inst_2 : DecidableEq 
 Another demonstration of robust generalization of _dependent_ uses of a constant.
 Generalizing the _4_ below automatically generalizes the _3_.
 
-Generalization of the proof that |A ∪ B| ≤ 4 when |A|=2 and |B|=2
-to the proof that |A ∪ B| ≤ n+m when |A|=n and |B|=m
+Generalization of the proof that no 4-vertex graph has degree sequence (1,3,3,3)
+to the proof that no n-vertex graph has degree sequence (1, n-1, n-1, ..., n-1) when n > 2
+(Note that when n=2, a graph with degree sequence (1,1) exists)
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+example :
+  ∀ (n : ℕ), 2 < n → ∀ (G : SimpleGraph (Fin n)) [inst : DecidableRel G.Adj],
+  (∃ v, G.degree v = 1 ∧ ∀ (w : Fin n), w ≠ v → G.degree w = n - 1) → False
+:= by
+  intro n hn
+
+  /- Start with the theorem that no 4-vertex graph has degree sequence (1,3,3,3) -/
+  let impossible_graph (G : SimpleGraph (Fin 4)) [DecidableRel G.Adj]: ¬(∃ (v : Fin 4), G.degree v = 1 ∧ ∀ w ≠ v, G.degree w = 3) := by { rintro ⟨v, v_deg, w_deg⟩; have hw_card : (Set.toFinset {w : Fin 4 | w ≠ v}).card = 3 := by {rw [Set.toFinset_card]; rw [Set.card_ne_eq]; rewrite [Fintype.card_fin]; rfl}; have neq_imp_adj : {w | w ≠ v} ⊆ {w | G.Adj v w} := by {rw [Set.setOf_subset_setOf]; intro w wneqv; apply max_deg_imp_adj_all; rewrite [Fintype.card_fin]; exact (w_deg w wneqv); exact wneqv.symm}; have v_deg_geq : 3 ≤ G.degree v := by {rw [← SimpleGraph.card_neighborFinset_eq_degree]; rw [← hw_card]; apply Finset.card_le_card; unfold SimpleGraph.neighborFinset; unfold SimpleGraph.neighborSet; rw [@Set.toFinset_subset_toFinset]; exact neq_imp_adj}; rw [v_deg] at v_deg_geq; exact Nat.not_lt.mpr v_deg_geq one_lt_three }
+
+  /- Find the proof-based generalization, and add it as a theorem in the context. -/
+  autogeneralize (4:ℕ) in impossible_graph -- gen 4 first doesn't work b/c comp rule
+
+  apply impossible_graph.Gen; exact Nat.lt_sub_of_add_lt hn
