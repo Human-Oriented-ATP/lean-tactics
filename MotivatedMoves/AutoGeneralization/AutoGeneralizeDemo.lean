@@ -247,18 +247,16 @@ example : True := by
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 GENERALIZING PROOFS OF SET SUMS - WITHOUT USING A LEMMA IN GENERALITY
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
-variable (α β : Type) [inst : Fintype α] [inst_1 : Fintype β] [inst_2 : DecidableEq α]
+-- variable (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α]
 
-omit inst in
-theorem union_of_finsets (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
-    -- have h := hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
-    -- apply h
+-- omit inst in
+theorem union_of_finsets (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by
     apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
 
 #print union_of_finsets
 
 -- in 2 steps
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   autogeneralize (4:ℕ) in union_of_finsets
   autogeneralize (2:ℕ) in union_of_finsets.Gen
@@ -266,7 +264,7 @@ example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 
   assumption
 
 -- in 1 step
-example : ∀ (α : Type) [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
+example : ∀ (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α), A.card = 3 → B.card = 4 → (A ∪ B).card ≤ 7:= by
   -- autogeneralize_basic (2:ℕ) in union_of_finsets -- Pons fails, as expected
   -- autogeneralize (4:ℕ) in union_of_finsets
 

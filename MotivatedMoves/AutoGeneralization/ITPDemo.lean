@@ -44,3 +44,19 @@ example: ∀ (p n : ℕ), Nat.Prime p → Irrational (√p + n) := by
   autogeneralize (17:ℕ) in irrat_sqrt
 
   exact irrat_sqrt.Gen p p_prime n
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Generalization of the proof that |A ∪ B| ≤ 4 when |A|=2 and |B|=2
+to the proof that |A ∪ B| ≤ n+m when |A|=n and |B|=m
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+
+example : ∀ (n m : ℕ) (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α),
+  A.card = n → B.card = m → (A ∪ B).card ≤ n+m:= by
+
+  /- Start with the theorem that |A ∪ B| ≤ 4 when |A|=2 and |B|=2. -/
+  let union_of_finsets (α : Type) [inst : Fintype α] [inst_2 : DecidableEq α] (A B : Finset α) (hA : A.card = 2) (hB : B.card = 2) : (A ∪ B).card ≤ 4 := by apply hA ▸ hB ▸ Finset.card_union_add_card_inter A B ▸ Nat.le_add_right _ _
+
+  /- Find the proof-based generalization, and add it as a theorem in the context. -/
+  autogeneralize (2:ℕ) in union_of_finsets
+
+  assumption
