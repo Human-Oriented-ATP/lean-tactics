@@ -5,6 +5,8 @@ open Real
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 IRRATIONALITY OF SQUARE ROOTS
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
+lemma prime_seventeen : Nat.Prime 17 := by exact
+  Nat.properDivisors_eq_singleton_one_iff_prime.mp rfl
 
 theorem irrat_def (n: ℕ) : (¬ ∃a b : ℕ, gcd a b = 1 ∧ a*a = (n: ℕ) * b*b ) → Irrational (Real.sqrt n) := by
   contrapose
