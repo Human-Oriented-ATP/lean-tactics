@@ -30,6 +30,9 @@ example : ∀ (p : ℕ), Nat.Prime p → Irrational √p := by
   assumption
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+A demonstration of robust generalization of _repeated_ uses of a constant.
+Each occurrence of _17_ below generalizes separately.
+
 Generalization of the proof that √17+17 is irrational
 to the proof that √p+n is irrational for any prime p and nat n.
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -46,6 +49,9 @@ example: ∀ (p n : ℕ), Nat.Prime p → Irrational (√p + n) := by
   exact irrat_sqrt.Gen p p_prime n
 
 /- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+A demonstration of robust generalization of _dependent_ uses of a constant.
+Generalizing the _2_ below automatically generalizes the _4_.
+
 Generalization of the proof that |A ∪ B| ≤ 4 when |A|=2 and |B|=2
 to the proof that |A ∪ B| ≤ n+m when |A|=n and |B|=m
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
@@ -60,3 +66,11 @@ example : ∀ (n m : ℕ) (α : Type) [inst : Fintype α] [inst_2 : DecidableEq 
   autogeneralize (2:ℕ) in union_of_finsets
 
   assumption
+
+/- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Another demonstration of robust generalization of _dependent_ uses of a constant.
+Generalizing the _4_ below automatically generalizes the _3_.
+
+Generalization of the proof that |A ∪ B| ≤ 4 when |A|=2 and |B|=2
+to the proof that |A ∪ B| ≤ n+m when |A|=n and |B|=m
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -/
