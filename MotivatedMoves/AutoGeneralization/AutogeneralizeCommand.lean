@@ -6,10 +6,16 @@ open Lean Elab Meta
 initialize
   registerTraceClass `AutoGeneralization
 
-partial def autoGeneralizeCore (term : Expr) (lctx : LocalContext) (linsts : LocalInstances) : StateT (List Expr) MetaM Expr := do
-  transform term (skipConstInApp := true) pre post
+partial def autoGeneralizeCore (term : Expr) (lctx : LocalContext) (linsts : LocalInstances)
+    (depth : Nat := 0) (threshold : Nat := 2) : StateT (List Expr) MetaM Expr := do
+  if depth ≥ threshold then
+    trace[AutoGeneralization] m!"Threshold reached, not generalizing term of type {← inferType term}"
+    return term
+  else
+    transform term (skipConstInApp := true) pre post
 where
   pre e := do
+    trace[AutoGeneralization] m!"Visiting {e}"
     if let .some pattern ← (← get).findM? (liftM <| withoutModifyingState <| isDefEq e ·) then
       trace[AutoGeneralization] m!"Found instance of pattern {pattern}"
       let m ← mkFreshExprMVarAt lctx linsts (← inferType pattern)
@@ -20,17 +26,17 @@ where
       | .forallE n d b bi => do
         trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
         let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-        m.mvarId!.assign d
+        m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
         withNewMCtxDepth <| return .continue <| Expr.forallE n m b bi
       | .lam n d b bi => do
         trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
         let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-        m.mvarId!.assign d
+        m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
         withNewMCtxDepth <| return .continue <| Expr.lam n m b bi
       | .letE n t v b _ => do
         trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
         let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
-        m.mvarId!.assign t
+        m.mvarId!.assign (← autoGeneralizeCore t lctx linsts (depth + 1) threshold)
         withNewMCtxDepth <| return .continue <| Expr.letE n m v b false
       | _ => return .continue
   post
@@ -38,7 +44,7 @@ where
     trace[AutoGeneralization] m!"Generalizing type of free variable {← fvarId.getUserName}"
     let type@(.mvar mvarId) ← inferType e | throwError m!"Expected type of free variable {← fvarId.getUserName} : {← inferType e} to be a metavariable."
     let type ← instantiateMVars type
-    let genType ← autoGeneralizeCore type lctx linsts
+    let genType ← autoGeneralizeCore type lctx linsts (depth + 1) threshold
     mvarId.assign genType
     return .done e
   | e@(.app f a) => do
@@ -62,7 +68,7 @@ where
   | e => continueWithGeneralization e
   continueWithGeneralization (e : Expr) := do
     let type ← inferType e
-    let genType ← autoGeneralizeCore type lctx linsts
+    let genType ← autoGeneralizeCore type lctx linsts (depth + 1) threshold
     if (← getMVars type).size < (← getMVars genType).size then -- generalization had a non-trivial effect on the term
       trace[AutoGeneralization] m!"Generalizing term of {type} to metavariable of type {genType}"
       let m ← mkFreshExprMVarAt lctx linsts genType
@@ -74,7 +80,7 @@ elab "#autogeneralize" patterns:term,* "in" stmt:ident : command => Command.runT
   let patterns ← Array.toList <$> patterns.getElems.mapM (Term.elabTerm · none)
   let some result := (← getEnv).find? stmt.getId | throwError "No theorem of name {stmt} was found."
   let proof := result.value!
-  let genProof ← autoGeneralizeCore proof (← getLCtx) (← getLocalInstances) |>.run' patterns
+  let genProof ← autoGeneralizeCore proof (← getLCtx) (← getLocalInstances) (depth := 0) |>.run' patterns
   check genProof
   Term.synthesizeSyntheticMVarsNoPostponing
   let genThmStmt ← inferType genProof
