@@ -18,31 +18,25 @@ where
       -- altering the binder types in a way that they can be modified during the traversal of the body
       match e with
       | .forallE n d b bi => do
-        if !d.isMVar then do
-          trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
-          let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-          m.mvarId!.assign d
-          return .continue <| Expr.forallE n m b bi
-        else return .continue
+        trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
+        let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
+        m.mvarId!.assign d
+        withNewMCtxDepth <| return .continue <| Expr.forallE n m b bi
       | .lam n d b bi => do
-        if !d.isMVar then do
-          trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
-          let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-          m.mvarId!.assign d
-          return .continue <| Expr.lam n m b bi
-        else return .continue
+        trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
+        let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
+        m.mvarId!.assign d
+        withNewMCtxDepth <| return .continue <| Expr.lam n m b bi
       | .letE n t v b _ => do
-        if !t.isMVar then do
-          trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
-          let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
-          m.mvarId!.assign t
-          return .continue <| Expr.letE n m v b false
-        else return .continue
+        trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
+        let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
+        m.mvarId!.assign t
+        withNewMCtxDepth <| return .continue <| Expr.letE n m v b false
       | _ => return .continue
   post
   | e@(.fvar fvarId) => do
-    trace[AutoGeneralization] m!"Generalizing type of free variable {fvarId.name}"
-    let type@(.mvar mvarId) ← inferType e | throwError m!"Expected type of free variable {fvarId.name} : {← inferType e} to be a metavariable."
+    trace[AutoGeneralization] m!"Generalizing type of free variable {← fvarId.getUserName}"
+    let type@(.mvar mvarId) ← inferType e | throwError m!"Expected type of free variable {← fvarId.getUserName} : {← inferType e} to be a metavariable."
     let type ← instantiateMVars type
     let genType ← autoGeneralizeCore type lctx linsts
     mvarId.assign genType
