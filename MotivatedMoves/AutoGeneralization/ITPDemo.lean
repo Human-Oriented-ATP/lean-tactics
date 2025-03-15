@@ -88,4 +88,4 @@ example :
   /- Find the proof-based generalization, and add it as a theorem in the context. -/
   autogeneralize (4:ℕ) in nonexistent_graph -- gen 4 first doesn't work b/c comp rule
 
-  apply nonexistent_graph.Gen; exact
+  apply nonexistent_graph.Gen; exact Nat.lt_sub_of_add_lt hn
