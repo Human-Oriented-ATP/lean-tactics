@@ -42,8 +42,8 @@ where
   post
   | e@(.fvar fvarId) => do
     trace[AutoGeneralization] m!"Generalizing type of free variable {← fvarId.getUserName}"
-    let type@(.mvar mvarId) ← inferType e | throwError m!"Expected type of free variable {← fvarId.getUserName} : {← inferType e} to be a metavariable."
-    let type ← instantiateMVars type
+    let .mvar mvarId ← fvarId.getType | throwError m!"Expected type of free variable {← fvarId.getUserName} : {← inferType e} to be a metavariable."
+    let .some type ← getExprMVarAssignment? mvarId | throwError "Expected type of free variable {← fvarId.getUserName} to be assigned."
     let genType ← autoGeneralizeCore type lctx linsts (depth + 1) threshold
     mvarId.assign genType
     return .done e
