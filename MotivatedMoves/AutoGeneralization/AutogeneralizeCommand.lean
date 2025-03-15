@@ -24,20 +24,29 @@ where
       -- altering the binder types in a way that they can be modified during the traversal of the body
       match e with
       | .forallE n d b bi => do
-        trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
-        let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-        m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
-        withNewMCtxDepth <| return .continue <| Expr.forallE n m b bi
+        if !d.isMVar then do
+          trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
+          let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
+          m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
+          withNewMCtxDepth <| return .visit <| Expr.forallE n m b bi
+        else
+          return .continue
       | .lam n d b bi => do
-        trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
-        let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
-        m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
-        withNewMCtxDepth <| return .continue <| Expr.lam n m b bi
+        if !d.isMVar then do
+          trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
+          let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
+          m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
+          withNewMCtxDepth <| return .visit <| Expr.lam n m b bi
+        else
+          return .continue
       | .letE n t v b _ => do
-        trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
-        let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
-        m.mvarId!.assign (← autoGeneralizeCore t lctx linsts (depth + 1) threshold)
-        withNewMCtxDepth <| return .continue <| Expr.letE n m v b false
+        if !t.isMVar then do
+          trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
+          let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
+          m.mvarId!.assign (← autoGeneralizeCore t lctx linsts (depth + 1) threshold)
+          withNewMCtxDepth <| return .visit <| Expr.letE n m v b false
+        else
+          return .continue
       | _ => return .continue
   post
   | e@(.fvar fvarId) => do
