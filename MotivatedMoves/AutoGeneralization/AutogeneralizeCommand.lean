@@ -6,6 +6,16 @@ open Lean Elab Meta
 initialize
   registerTraceClass `AutoGeneralization
 
+def annotateBinders (e : Expr) : Expr :=
+  match e with
+  | .forallE _ d b _ => mkAnnotation `forall <| e.updateForallE! (annotateBinders d) (annotateBinders b)
+  | .lam _ d b bi => mkAnnotation `lam <| e.updateLambda! bi (annotateBinders d) (annotateBinders b)
+  | .letE _ t v b _ => mkAnnotation `letE <| e.updateLet! (annotateBinders t) (annotateBinders v) (annotateBinders b)
+  | .app f a => e.updateApp! (annotateBinders f) (annotateBinders a)
+  | .mdata _ b => e.updateMData! (annotateBinders b)
+  | .proj _ _ b => e.updateProj! (annotateBinders b)
+  | e => e
+
 partial def autoGeneralizeCore (term : Expr) (lctx : LocalContext) (linsts : LocalInstances)
     (depth : Nat := 0) (threshold : Nat := 2) : StateT (List Expr) MetaM Expr := do
   if depth ≥ threshold then
@@ -28,24 +38,27 @@ where
           trace[AutoGeneralization] m!"Generalizing `.forallE` variable {n} : {d}"
           let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
           m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
-          withNewMCtxDepth <| return .visit <| Expr.forallE n m b bi
+          return .visit <| Expr.forallE n m b bi
         else
+          trace[AutoGeneralize] m!"The type of free variable {n} : {d} has already been generalized"
           return .continue
       | .lam n d b bi => do
         if !d.isMVar then do
           trace[AutoGeneralization] m!"Generalizing `.lam` variable {n} : {d}"
           let m ← mkFreshExprMVar (← inferType d) (kind := .syntheticOpaque)
           m.mvarId!.assign (← autoGeneralizeCore d lctx linsts (depth + 1) threshold)
-          withNewMCtxDepth <| return .visit <| Expr.lam n m b bi
+          return .visit <| Expr.lam n m b bi
         else
+          trace[AutoGeneralize] m!"The type of free variable {n} : {d} has already been generalized"
           return .continue
       | .letE n t v b _ => do
         if !t.isMVar then do
           trace[AutoGeneralization] m!"Generalizing `.letE` variable {n} : {t}"
           let m ← mkFreshExprMVar (← inferType t) (kind := .syntheticOpaque)
           m.mvarId!.assign (← autoGeneralizeCore t lctx linsts (depth + 1) threshold)
-          withNewMCtxDepth <| return .visit <| Expr.letE n m v b false
+          return .visit <| Expr.letE n m v b false
         else
+          trace[AutoGeneralize] m!"The type of free variable {n} : {t} has already been generalized"
           return .continue
       | _ => return .continue
   post
@@ -88,7 +101,7 @@ where
 elab "#autogeneralize" patterns:term,* "in" stmt:ident : command => Command.runTermElabM fun _ ↦ do
   let patterns ← Array.toList <$> patterns.getElems.mapM (Term.elabTerm · none)
   let some result := (← getEnv).find? stmt.getId | throwError "No theorem of name {stmt} was found."
-  let proof := result.value!
+  let proof := annotateBinders result.value!
   let genProof ← autoGeneralizeCore proof (← getLCtx) (← getLocalInstances) (depth := 0) |>.run' patterns
   check genProof
   Term.synthesizeSyntheticMVarsNoPostponing
