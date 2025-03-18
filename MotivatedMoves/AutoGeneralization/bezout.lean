@@ -59,7 +59,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
   -- By well-ordering principle on subsets of ℕ, B has a minimal element
   -- Call that minimal element "d"
   -- let Bmin := Nat.find hB_nonempty
-  let ⟨⟨d, (hdA : d ∈ A), (hdAbs_eq_Bmin : d.natAbs = _)⟩, (hBmin_neq_0 : _ ≠ 0)⟩ := Nat.find_spec hB_nonempty
+  obtain ⟨⟨d, (hdA : d ∈ A), (hdAbs_eq_Bmin : d.natAbs = _)⟩, (hBmin_neq_0 : _ ≠ 0)⟩ := Nat.find_spec hB_nonempty
   have hdAbs_neq_0 : d.natAbs ≠ 0 := by rwa [← hdAbs_eq_Bmin] at hBmin_neq_0
   have hd_min : ∀ z ∈ A, z.natAbs = 0 ∨ d.natAbs ≤ z.natAbs := by
     intro z hz
@@ -90,7 +90,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
       · assumption
     by_cases hr_eq_0 : r = 0
     · rw [a_eq_quotRem, hr_eq_0, add_zero]
-      exact Int.dvd_mul_left q d
+      exact dvd_mul_left d q
     · rw [← Int.natAbs_eq_zero] at hr_eq_0
       have hd_min_r := hd_min r
       contrapose hd_min_r
@@ -103,7 +103,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
   have hyA : y ∈ A := by use 0, 1; simp only [zero_mul, one_mul, zero_add]
   have d_dvd_y : d ∣ y := hd_div_A y hyA
 
-  let ⟨h, k, d_eq⟩ := hdA
+  obtain ⟨h, k, d_eq⟩ := hdA
   use h, k
   refine' ⟨_, _, _⟩
   · rwa [← d_eq]
