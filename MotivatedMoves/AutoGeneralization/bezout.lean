@@ -10,12 +10,28 @@ set_option trace.ProofPrinting true
 def is_gcd (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 notation g " is GCD[" a ", " b "]" => is_gcd g a b
 
-theorem Int.emod_natAbs_lt_of_nonzero (a : ℤ) {b : ℤ} (hb : b.natAbs ≠ 0) : (a % b).natAbs < b.natAbs := by
-  sorry
+theorem Int.emod_natAbs_lt_of_nonzero (a : ℤ) {b : ℤ} (hbAbs : b.natAbs ≠ 0)  : (a % b).natAbs < b.natAbs := by
+  have hb : b ≠ 0 := by exact natAbs_ne_zero.mp hbAbs
+
+  by_cases b_sign : b > 0
+  refine natAbs_lt_natAbs_of_nonneg_of_lt ?_ ?_
+  exact emod_nonneg a hb
+  exact emod_lt_of_pos a b_sign
+
+  simp at b_sign
+  have b_neg : b < 0 := by exact lt_of_le_of_ne b_sign hb
+  have negb_pos : -b > 0 := by exact Int.neg_pos_of_neg b_neg
+  rw [← Int.emod_neg]
+  rw [← natAbs_neg b]
+  clear b_sign
+  refine natAbs_lt_natAbs_of_nonneg_of_lt ?_ ?_
+  rw [Int.emod_neg]
+  exact emod_nonneg a hb
+  exact emod_lt_of_pos a negb_pos
 
 /-- Bézout's identity states that for any two integers a and b, there exist integers x and y such that their greatest common divisor g can be expressed as a linear combination ax + by = g -/
 theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (h * x + k * y) is GCD[x, y] := by
-  intros x_neq_0 y_neq_0
+  intros _ y_neq_0
 
   -- Consider the set A = {hx + ky | x,y ∈ ℤ}
   let A := {z : ℤ | ∃ h k : ℤ, z = h * x + k * y}
