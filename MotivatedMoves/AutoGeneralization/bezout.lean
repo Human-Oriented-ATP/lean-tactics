@@ -39,7 +39,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
     use (0*x + 1*y).natAbs
     refine ⟨⟨_, ⟨?elem_in_A, rfl⟩⟩, ?elem_abs_nonZero⟩
     · use 0, 1
-    · simpa only [zero_mul, one_mul, zero_add, Set.mem_singleton_iff, Int.natAbs_eq_zero]
+    · rwa [Set.mem_singleton_iff, zero_mul, one_mul, zero_add, Int.natAbs_eq_zero]
 
   -- By well-ordering principle on subsets of ℕ, B has a minimal element
   -- Call that minimal element "d"
@@ -96,6 +96,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
   · intro c c_dvd_x c_dvd_y
     exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
 
+#print bezout_identity
 -- set_option maxHeartbeats 200000
 -- set_option trace.AntiUnify true
 example : True := by
