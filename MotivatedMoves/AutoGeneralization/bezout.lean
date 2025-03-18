@@ -26,8 +26,7 @@ theorem bezout_identity (x y : ℤ) : x ≠ 0 → y ≠ 0 → ∃ (h k : ℤ), (
     rintro a ⟨h, k, a_eq⟩ b ⟨h', k', b_eq⟩
     use (h + h'), (k + k')
     rw [a_eq, b_eq]
-    rw [add_mul, add_mul]
-    ac_rfl
+    rw [add_assoc, add_left_comm (k * y) _ _, ← add_assoc, ← add_mul, ← add_mul]
   have A_mul : ∀ a ∈ A, ∀ z : ℤ, z * a ∈ A := by
     rintro a ⟨h, k, a_eq⟩ z
     use z * h, z * k
