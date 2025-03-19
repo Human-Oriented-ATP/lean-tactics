@@ -32,7 +32,8 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       match e with
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
-      | .app f a         => --logInfo m!"recursing under function {f} of type {← inferType f}"
+      | .app f a         =>
+                          logInfo m!"recursing under function {f} of type {← inferType f}"
                           if detectConflicts? then
                             let mut fAbs ← visit f depth -- the type
                             let mut aAbs ← visit a depth -- the term
@@ -58,11 +59,30 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let aAbs ← visit a depth
                             -- check $ .app fAbs aAbs
                             return e.updateApp! fAbs aAbs
+                          -- let fAbs ← visit f depth
+                          -- let .forallE n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
+                          -- let aAbs ←
+                          --   if bi.isInstImplicit && !a.isFVar && depth = 0 then
+                          --     mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
+                          --   else
+                          --     visit a depth
+                          -- let inferredA ← inferType aAbs
+                          -- return e.updateApp! fAbs aAbs
+
+                          -- try
+                          --   guard <| ← isDefEq expectedA inferredA
+                          --   return e.updateApp! fAbs aAbs
+                          -- catch err =>
+                          --   throwError "Error in typechecking function application: {err.toMessageData}\n\n
+                          --               Arguments: {fAbs} and {aAbs}\n\n
+                          --               Types: {expectedA} and {inferredA}"
 
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
       | .letE n t v b _ =>  let tAbs ← visit t depth
                             let vAbs ← visit v depth
+                            unless ← isDefEq tAbs (← inferType vAbs) do
+                              throwError m!"Expected the type of {vAbs} in `let` statement to be {tAbs}, but got {← inferType vAbs}"
                             let updatedLet ← withLetDecl n tAbs vAbs (fun placeholder => do
                               let b := b.instantiate1 placeholder
                               let bAbs ← if (←  liftM <| withoutModifyingState (isDefEq tAbs t)) then
@@ -70,7 +90,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                   else
                                     logInfo m!"tAbs {tAbs} and t {t} are not defeq"
                                     return b
-                              return ← mkLetFVars #[placeholder] bAbs-- put the "n:tAbs" back in the expression itself instead of in an external fvar
+                              return ← mkLetFVars (usedLetOnly := false) #[placeholder] bAbs-- put the "n:tAbs" back in the expression itself instead of in an external fvar
                             )
                             return updatedLet
       | .lam n d b bi     =>
@@ -109,7 +129,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               -- logInfo m!"!!!HERE IS THE MATCH!! WILL NOT RECURSE"
                               -- return e
 
-                            if depth ≥ 2 then return e
+                            if depth ≥ 4 then return e
 
                             else
                                 -- if (← containsExpr p constType) then

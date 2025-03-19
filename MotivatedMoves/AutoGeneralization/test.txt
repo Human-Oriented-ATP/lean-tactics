@@ -1,0 +1,21 @@
+fun x y y_neq_0 =>
+      let A := {z | ∃ h k, z = h * x + k * y};
+      let_fun A_add := fun a a_1 =>
+        Exists.casesOn (motive := fun x => ∀ b ∈ A, a + b ∈ A) a_1 fun h h_1 =>
+          Exists.casesOn (motive := fun x => ∀ b ∈ A, a + b ∈ A) h_1 fun k a_eq b a_2 =>
+            Exists.casesOn a_2 fun h' h_2 =>
+              Exists.casesOn h_2 fun k' b_eq =>
+                Exists.intro (h + h')
+                  (Exists.intro (k + k')
+                    (Eq.mpr (id (congrArg (fun _a => _a + b = (h + h') * x + (k + k') * y) a_eq))
+                      (Eq.mpr (id (congrArg (fun _a => h * x + k * y + _a = (h + h') * x + (k + k') * y) b_eq))
+                        (Eq.mpr
+                          (id
+                            (congrArg (fun _a => _a = (h + h') * x + (k + k') * y)
+                              (add_assoc (h * x) (k * y) (h' * x + k' * y))))
+                          (Eq.mpr
+                            (id
+                              (congrArg (fun _a => h * x + _a = (h + h') * x + (k + k') * y)
+                                (Int.add_left_comm (k * y) (h' * x) (k' * y))))
+                            (sorryAx (h * x + (h' * x + (k * y + k' * y)) = (h + h') * x + (k + k') * y)))))));
+      sorryAx (∃ h k, isGCD (h * x + k * y) x y) 
