@@ -93,11 +93,11 @@ theorem bezout_identity : ∀ (x y : ℤ), y ≠ 0 → ∃ (h k : ℤ), isGCD (h
       apply A_add
       · apply A_mul; assumption
       · assumption
-    by_cases hr_eq_0 : r = (0 : ℤ)
-    · rw [a_eq_quotRem, hr_eq_0, Int.add_zero]
+    by_cases hr_eq_0 : r.natAbs = (0 : ℕ)
+    · rw [Int.natAbs_eq_zero] at hr_eq_0
+      rw [a_eq_quotRem, hr_eq_0, Int.add_zero]
       exact Int.dvd_mul_left q d
-    · rw [← Int.natAbs_eq_zero] at hr_eq_0
-      have hd_min_r := hd_min r hr_A
+    · have hd_min_r := hd_min r hr_A
       contrapose hd_min_r
       push_neg
       constructor <;> assumption
