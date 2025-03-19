@@ -11,7 +11,7 @@ namespace Autogeneralize
 initialize
   registerTraceClass `ProofPrinting
 
-/-- Generate a term "f" in a theorem to its type, adding in necessary identifiers along the way -/
+/-- Generalize a term in a theorem to an arbitrary constant of its type, adding in necessary hypotheses along the way -/
 def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all) (consolidate : Bool := false) : TacticM Unit := withMainContext do
   -- Get details about the un-generalized proof we're going to generalize
   let (thmType, thmProof) ← getTheoremAndProof thmName
@@ -34,8 +34,11 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   logInfo m!"ALL DEPENDENCIES: {dependenciesToGeneralize}"
   -- Generalize all the actual `pattern`
 
+  Term.synthesizeSyntheticMVarsNoPostponing (ignoreStuckTC := true)
   -- Consolidate mvars within proof term by running a typecheck
   genThmProof ← consolidateWithTypecheck genThmProof
+  genThmProof ← instantiateMVars genThmProof
+  Term.synthesizeSyntheticMVarsNoPostponing (ignoreStuckTC := true)
   trace[ProofPrinting] m!"!Tactic Generalized Proof After Typecheck: { genThmProof}"
   let genThmType ← inferType genThmProof
 

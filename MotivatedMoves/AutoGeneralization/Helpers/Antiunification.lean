@@ -71,9 +71,10 @@ partial def antiUnifyCore (e e' : Expr) : ReaderT (LocalContext × LocalInstance
     else
       createAntiunifyingMVar
   | .proj n idx s, .proj n' idx' s' =>
-    unless n = n' ∧ idx = idx' do
-      throwError m!"Data of projections {e} and {e'} do not match."
-    return .proj n idx (← antiUnifyCore s s')
+    if n = n' ∧ idx = idx' then do
+      return .proj n idx (← antiUnifyCore s s')
+    else
+      createAntiunifyingMVar
   | .mdata md e, .mdata md' e' =>
     return .mdata (KVMap.mergeBy (fun _ d _ ↦ d) md md') (← antiUnifyCore e e')
   | .mdata md e, e' =>

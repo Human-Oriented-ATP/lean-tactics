@@ -33,41 +33,46 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         =>
-                          logInfo m!"recursing under function {f} of type {← inferType f}"
-                          if detectConflicts? then
-                            let mut fAbs ← visit f depth -- the type
-                            let mut aAbs ← visit a depth -- the term
-                            try
-                              check $ .app fAbs aAbs
-                              return e.updateApp! fAbs aAbs
-                            catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                              let expectedA ← extractArgType fAbs
-                              -- trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
-                              trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
+                          -- if detectConflicts? then
+                          --   let mut fAbs ← visit f depth -- the type
+                          --   let mut aAbs ← visit a depth -- the term
+                          --   try
+                          --     check $ .app fAbs aAbs
+                          --     return e.updateApp! fAbs aAbs
+                          --   catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
+                          --     let expectedA ← extractArgType fAbs
+                          --     -- trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
+                          --     trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
 
-                              -- the mismatch is probably caused because something else needs to be generalized
-                              let (_result, problemTerms) ← getTermsToGeneralize expectedA (← inferType aAbs)
-                              trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
-                              modify fun terms ↦ (problemTerms.map Prod.snd ++ terms).eraseDups
+                          --     -- the mismatch is probably caused because something else needs to be generalized
+                          --     let (_result, problemTerms) ← getTermsToGeneralize expectedA (← inferType aAbs)
+                          --     trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+                          --     modify fun terms ↦ (problemTerms.map Prod.snd ++ terms).eraseDups
 
-                              return e.updateApp! fAbs aAbs
-                              -- if this doesn't typecheck, that means probably that term has been generalized,
-                              -- but type still has the pattern (or a comp rule was used).
-                              -- so to fix it, we should discard the proof entirely (by making it a mvar
-                          else
-                            let fAbs ← visit f depth
-                            let aAbs ← visit a depth
-                            -- check $ .app fAbs aAbs
-                            return e.updateApp! fAbs aAbs
-                          -- let fAbs ← visit f depth
-                          -- let .forallE n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
-                          -- let aAbs ←
-                          --   if bi.isInstImplicit && !a.isFVar && depth = 0 then
-                          --     mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
-                          --   else
-                          --     visit a depth
-                          -- let inferredA ← inferType aAbs
-                          -- return e.updateApp! fAbs aAbs
+                          --     return e.updateApp! fAbs aAbs
+                          --     -- if this doesn't typecheck, that means probably that term has been generalized,
+                          --     -- but type still has the pattern (or a comp rule was used).
+                          --     -- so to fix it, we should discard the proof entirely (by making it a mvar
+                          -- else
+                          --   let fAbs ← visit f depth
+                          --   let aAbs ← visit a depth
+                          --   -- check $ .app fAbs aAbs
+                          --   return e.updateApp! fAbs aAbs
+                          let fAbs ← visit f depth
+                          let .forallE n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
+                          let aAbs ←
+                            if bi.isInstImplicit && !a.isFVar && depth = 0 then
+                              let (_, σ) ← expectedA.collectFVars |>.run {}
+                              if σ.fvarIds.isEmpty then do
+                                mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
+                              else
+                                mkFreshExprMVar expectedA (kind := .synthetic)
+                            else
+                              visit a depth
+                          let inferredA ← inferType aAbs
+                          unless ← isDefEq expectedA inferredA do
+                            throwError m!"Expected the type of {aAbs} in `app` statement to be {expectedA}, but got {inferredA}"
+                          return e.updateApp! fAbs aAbs
 
                           -- try
                           --   guard <| ← isDefEq expectedA inferredA
@@ -105,7 +110,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                                   else
                                     logInfo m!"dAbs {dAbs} and d {d} are not defeq"
                                     return b
-                                return ← mkLambdaFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
+                                return ← mkLambdaFVars (usedLetOnly := false) #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               if updatedLambda.hasLooseBVars then
                                 logInfo m!"Loose BVars detected on expression {e}"
@@ -116,7 +121,7 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               let updatedForAll ← withLocalDecl n bi dAbs (fun placeholder => do
                                 let b := b.instantiate1 placeholder
                                 let bAbs ← visit b depth  -- now it's safe to recurse on b (no loose bvars)
-                                return ← mkForallFVars #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
+                                return ← mkForallFVars (usedLetOnly := false) #[placeholder] bAbs (binderInfoForMVars := bi) -- put the "n:dAbs" back in the expression itself instead of in an external fvar
                               )
                               return updatedForAll
       -- when we encounter a theorem used in the proof
