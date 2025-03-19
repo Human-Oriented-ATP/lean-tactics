@@ -33,54 +33,40 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       -- unify types of metavariables as soon as we get a chance in .app
       -- that is, ensure that fAbs and aAbs are in sync about their metavariables
       | .app f a         =>
-                          -- if detectConflicts? then
-                          --   let mut fAbs ← visit f depth -- the type
-                          --   let mut aAbs ← visit a depth -- the term
-                          --   try
-                          --     check $ .app fAbs aAbs
-                          --     return e.updateApp! fAbs aAbs
-                          --   catch err =>  -- as an argument to fabs, feed in an mvar with the type it is expected to have.
-                          --     let expectedA ← extractArgType fAbs
-                          --     -- trace[TypecheckingErrors] m!"Error in typechecking: {err.toMessageData}"
-                          --     trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{← instantiateMVars expectedA} \nbut has type \n\t{← instantiateMVars =<< inferType aAbs}"
-
-                          --     -- the mismatch is probably caused because something else needs to be generalized
-                          --     let (_result, problemTerms) ← getTermsToGeneralize expectedA (← inferType aAbs)
-                          --     trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
-                          --     modify fun terms ↦ (problemTerms.map Prod.snd ++ terms).eraseDups
-
-                          --     return e.updateApp! fAbs aAbs
-                          --     -- if this doesn't typecheck, that means probably that term has been generalized,
-                          --     -- but type still has the pattern (or a comp rule was used).
-                          --     -- so to fix it, we should discard the proof entirely (by making it a mvar
-                          -- else
-                          --   let fAbs ← visit f depth
-                          --   let aAbs ← visit a depth
-                          --   -- check $ .app fAbs aAbs
-                          --   return e.updateApp! fAbs aAbs
-                          let fAbs ← visit f depth
-                          let .forallE n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
-                          let aAbs ←
-                            if bi.isInstImplicit && !a.isFVar && depth = 0 then
-                              let (_, σ) ← expectedA.collectFVars |>.run {}
-                              if σ.fvarIds.isEmpty then do
-                                mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
-                              else
-                                mkFreshExprMVar expectedA (kind := .synthetic)
+                          if detectConflicts? then
+                            let mut fAbs ← visit f depth -- the type
+                            let .forallE _n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
+                            let aAbs ← -- the term
+                              -- if bi.isInstImplicit && !a.isFVar && depth = 0 then
+                              --   let (_, σ) ← expectedA.collectFVars |>.run {}
+                              --   if σ.fvarIds.isEmpty then do
+                              --     mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
+                              --   else
+                              --     mkFreshExprMVar expectedA (kind := .synthetic)
+                              -- else
+                                visit a depth
+                            let inferredA ← inferType aAbs
+                            let mctx ← getMCtx
+                            if ← withReducibleAndInstances <| isDefEq expectedA inferredA then
+                              setMCtx mctx
+                              return e.updateApp! fAbs aAbs
                             else
-                              visit a depth
-                          let inferredA ← inferType aAbs
-                          unless ← isDefEq expectedA inferredA do
-                            throwError m!"Expected the type of {aAbs} in `app` statement to be {expectedA}, but got {inferredA}"
-                          return e.updateApp! fAbs aAbs
+                              setMCtx mctx
+                              trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{expectedA} \nbut has type \n\t{inferredA}"
 
-                          -- try
-                          --   guard <| ← isDefEq expectedA inferredA
-                          --   return e.updateApp! fAbs aAbs
-                          -- catch err =>
-                          --   throwError "Error in typechecking function application: {err.toMessageData}\n\n
-                          --               Arguments: {fAbs} and {aAbs}\n\n
-                          --               Types: {expectedA} and {inferredA}"
+                              -- the mismatch is probably caused because something else needs to be generalized
+                              let (_result, problemTerms) ← getTermsToGeneralize expectedA inferredA
+                              trace[TypecheckingErrors] m!"The mismatch can probably be fixed by generalizing the terms {problemTerms}"
+                              modify fun terms ↦ (problemTerms.map Prod.snd ++ terms).eraseDups
+
+                              return e.updateApp! fAbs aAbs
+                              -- if this doesn't typecheck, that means probably that term has been generalized,
+                              -- but type still has the pattern (or a comp rule was used).
+                              -- so to fix it, we should discard the proof entirely (by making it a mvar
+                          else
+                            let fAbs ← visit f depth
+                            let aAbs ← visit a depth
+                            return e.updateApp! fAbs aAbs
 
       | .mdata _ b       => return e.updateMData! (← visit b depth)
       | .proj _ _ b      => return e.updateProj! (← visit b depth)
