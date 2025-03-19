@@ -6,6 +6,7 @@ open Autogeneralize Classical
 
 set_option trace.TypecheckingErrors true
 set_option trace.ProofPrinting true
+set_option linter.unusedVariables false
 
 def isGCD (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 -- notation g " is GCD[" a ", " b "]" => isGCD g a b
@@ -128,4 +129,5 @@ theorem bezout_identity : ∀ (x y : ℤ), y ≠ 0 → ∃ (h k : ℤ), isGCD (h
 -- -- set_option trace.AntiUnify true
 example : True := by
   autogeneralize ℤ in bezout_identity
+  -- autogeneralize ℕ in bezout_identity.Gen
   trivial

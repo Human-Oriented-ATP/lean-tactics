@@ -27,7 +27,7 @@ def autogeneralize (thmName : Name) (pattern : Expr) (occs : Occurrences := .all
   dependenciesToGeneralize := dependenciesToGeneralize.eraseDups ++ [pattern]
   logInfo m!"ALL DEPENDENCIES: {dependenciesToGeneralize}"
   for dep in dependenciesToGeneralize do
-    genThmProof ← replacePatternWithMVars genThmProof dep (← getLCtx) (← getLocalInstances) (detectConflicts? := false) |>.run' []
+    genThmProof ← replacePatternWithMVars genThmProof dep (← getLCtx) (← getLocalInstances) (detectConflicts? := true) |>.run' []
 
   trace[ProofPrinting] m!"!Tactic Generalized Proof After Abstraction: { genThmProof}"
 

@@ -37,18 +37,18 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                             let mut fAbs ← visit f depth -- the type
                             let .forallE _n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
                             let aAbs ← -- the term
-                              -- if bi.isInstImplicit && !a.isFVar && depth = 0 then
-                              --   let (_, σ) ← expectedA.collectFVars |>.run {}
-                              --   if σ.fvarIds.isEmpty then do
-                              --     mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
-                              --   else
-                              --     mkFreshExprMVar expectedA (kind := .synthetic)
-                              -- else
+                              if bi.isInstImplicit && !a.isFVar && depth = 0 then
+                                let (_, σ) ← expectedA.collectFVars |>.run {}
+                                if σ.fvarIds.isEmpty then do
+                                  mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
+                                else
+                                  mkFreshExprMVar expectedA (kind := .synthetic)
+                              else
                                 visit a depth
                             let inferredA ← inferType aAbs
                             let mctx ← getMCtx
-                            if ← withReducibleAndInstances <| isDefEq expectedA inferredA then
-                              setMCtx mctx
+                            if ← isDefEq expectedA inferredA then
+                              -- setMCtx mctx
                               return e.updateApp! fAbs aAbs
                             else
                               setMCtx mctx
