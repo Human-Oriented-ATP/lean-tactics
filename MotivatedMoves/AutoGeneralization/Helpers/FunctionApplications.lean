@@ -8,5 +8,7 @@ Working with function applications
 
 /-- Returns the argument to an expression e.g. if fAbs has type "n-1= 3 → n=4" then it returns "n-1=3"-/
 def extractArgType (fAbs : Expr) : MetaM Expr := do
-  let fAbsType ← inferType fAbs
+  let fAbsType ← whnf <| ← inferType fAbs
+  unless fAbsType.isForall do
+    throwError "Cannot extract argument from an expression that is not a function type: {fAbsType}"
   return fAbsType.bindingDomain!

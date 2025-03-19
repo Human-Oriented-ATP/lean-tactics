@@ -35,23 +35,12 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
       | .app f a         =>
                           if detectConflicts? then
                             let mut fAbs ← visit f depth -- the type
-                            let .forallE _n expectedA _ bi ← whnf (← inferType fAbs) | throwError "Expected type of {f} to be a function type."
-                            let aAbs ← -- the term
-                              -- if bi.isInstImplicit && !a.isFVar && depth = 0 then
-                              --   let (_, σ) ← expectedA.collectFVars |>.run {}
-                              --   if σ.fvarIds.isEmpty then do
-                              --     mkFreshExprMVarAt lctx linsts expectedA (kind := .synthetic) -- (userName := mkAbstractedName n)
-                              --   else
-                              --     mkFreshExprMVar expectedA (kind := .synthetic)
-                              -- else
-                                visit a depth
+                            let expectedA ← extractArgType fAbs
+                            let aAbs ← visit a depth
                             let inferredA ← inferType aAbs
-                            let mctx ← getMCtx
-                            if ← isDefEq expectedA inferredA then
-                              setMCtx mctx
+                            if ← liftM <| withoutModifyingState <| isDefEq expectedA inferredA then
                               return e.updateApp! fAbs aAbs
                             else
-                              setMCtx mctx
                               trace[TypecheckingErrors] m!"Error in typechecking: aAbs was expected to have type \n\t{expectedA} \nbut has type \n\t{inferredA}"
 
                               -- the mismatch is probably caused because something else needs to be generalized

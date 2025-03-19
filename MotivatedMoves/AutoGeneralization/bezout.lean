@@ -8,7 +8,7 @@ set_option trace.TypecheckingErrors true
 set_option trace.ProofPrinting true
 set_option linter.unusedVariables false
 
-def isGCD (g a b : ℤ) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
+def isGCD [Dvd α] (g a b : α) : Prop := g ∣ a ∧ g ∣ b ∧ (∀ c, c ∣ a → c ∣ b → c ∣ g)
 -- notation g " is GCD[" a ", " b "]" => isGCD g a b
 
 theorem Int.emod_natAbs_lt_of_nonzero (a : ℤ) {b : ℤ} (hbAbs : b.natAbs ≠ 0)  : (a % b).natAbs < b.natAbs := by
@@ -46,7 +46,7 @@ theorem bezout_identity : ∀ (x y : ℤ), y ≠ 0 → ∃ (h k : ℤ), isGCD (h
     rintro a ⟨h, k, a_eq⟩ z
     use z * h, z * k
     rw [a_eq]
-    rw [mul_add, ← mul_assoc, ← mul_assoc]
+    rw [Int.mul_add, ← Int.mul_assoc, ← Int.mul_assoc]
 
   let B := (Int.natAbs '' A) \ {0}
   -- Show B is non-empty by constructing an element
@@ -124,9 +124,8 @@ theorem bezout_identity : ∀ (x y : ℤ), y ≠ 0 → ∃ (h k : ℤ), isGCD (h
     -- this gives errors
     -- exact Dvd.dvd.linear_comb c_dvd_x c_dvd_y h k
 
-#print bezout_identity
 -- set_option maxHeartbeats 200000
--- -- set_option trace.AntiUnify true
+set_option trace.AntiUnify true
 example : True := by
   autogeneralize ℤ in bezout_identity
   -- autogeneralize ℕ in bezout_identity.Gen
