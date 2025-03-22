@@ -52,13 +52,34 @@ partial def replacePatternWithMVars (e : Expr) (p : Expr) (lctx : LocalContext) 
                               -- if this doesn't typecheck, that means probably that term has been generalized,
                               -- but type still has the pattern (or a comp rule was used).
                               -- so to fix it, we should discard the proof entirely (by making it a mvar
+
+                              /-
+                              let currentTerms ← get
+                              let newTerms := currentTerms ++ problemTerms.map Prod.snd |>.eraseDups
+                              set newTerms
+                              if currentTerms == newTerms then do
+                                let fAbsType ← inferType fAbs
+                                let aAbsType ← inferType aAbs
+                                let fAbsTypeAbs ← visit fAbsType (depth + 1)
+                                let aAbsTypeAbs ← visit aAbsType (depth + 1)
+                                let fAbs ← if fAbsTypeAbs.mvarCount > fAbsType.mvarCount then do
+                                  mkFreshExprMVar fAbsTypeAbs
+                                    else fAbs
+                                let aAbs ← if aAbsTypeAbs.mvarCount > aAbsType.mvarCount then do
+                                  mkFreshExprMVar aAbsTypeAbs
+                                    else aAbs
+                                return e.updateApp! fAbs aAbs
+                              else
+                                visit <| e.updateApp! fAbs aAbs
+                              -/
                           else
                             let fAbs ← visit f depth
                             let aAbs ← visit a depth
                             return e.updateApp! fAbs aAbs
 
       | .mdata _ b       => return e.updateMData! (← visit b depth)
-      | .proj _ _ b      => return e.updateProj! (← visit b depth)
+      | .proj n i b      => let .some eReduced ← reduceProj? e | throwError "Failed to reduce projection {n} {i}" -- return e.updateProj! (← visit b depth)
+                            visit eReduced depth
       | .letE n t v b _ =>  let tAbs ← visit t depth
                             let vAbs ← visit v depth
                             unless ← isDefEq tAbs (← inferType vAbs) do
@@ -201,3 +222,5 @@ def abstractToDiffMVars (e : Expr) (p : Expr) (occs : Occurrences) : MetaM Expr 
       else
         visitChildren ()
   visit e |>.run' 1
+
+#check reduceProj?
